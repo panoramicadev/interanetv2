@@ -108,7 +108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Store user ID in session
-      req.session.simulatedUser = userId;
+      (req.session as any).simulatedUser = userId;
       res.json({ message: "Login successful", user });
     } catch (error) {
       console.error("Error in simulate login:", error);
@@ -121,7 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Clear simulated user from session
       if (req.session) {
-        req.session.simulatedUser = null;
+        (req.session as any).simulatedUser = null;
       }
       res.json({ message: "Logout successful" });
     } catch (error) {
@@ -998,6 +998,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Verificar que la meta es de un vendedor bajo su supervisión
+      if (!existingGoal.target) {
+        return res.status(400).json({ message: 'Meta no tiene un objetivo válido' });
+      }
       const salesperson = await storage.getSalespersonUserByName(existingGoal.target);
       if (!salesperson || salesperson.supervisorId !== supervisorId) {
         return res.status(403).json({ message: 'No puedes editar metas de vendedores que no están bajo tu supervisión' });
