@@ -259,29 +259,33 @@ export class DatabaseStorage implements IStorage {
     period: string;
     sales: number;
   }>> {
-    let dateFormat: string;
+    let periodExpression: any;
+    let groupByExpression: any;
     
     switch (period) {
       case 'daily':
-        dateFormat = `TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`;
+        periodExpression = sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`;
+        groupByExpression = sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`;
         break;
       case 'weekly':
-        dateFormat = `'Semana ' || EXTRACT(week FROM ${salesTransactions.feemdo})`;
+        periodExpression = sql<string>`'Semana ' || EXTRACT(week FROM ${salesTransactions.feemdo})`;
+        groupByExpression = sql`EXTRACT(week FROM ${salesTransactions.feemdo})`;
         break;
       case 'monthly':
       default:
-        dateFormat = `TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`;
+        periodExpression = sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`;
+        groupByExpression = sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`;
         break;
     }
 
     const results = await db
       .select({
-        period: sql<string>`${sql.raw(dateFormat)}`,
+        period: periodExpression,
         sales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions)
-      .groupBy(sql.raw(dateFormat))
-      .orderBy(sql.raw(dateFormat));
+      .groupBy(groupByExpression)
+      .orderBy(periodExpression);
 
     return results.map(r => ({
       period: r.period,

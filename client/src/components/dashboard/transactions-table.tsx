@@ -36,7 +36,7 @@ export default function TransactionsTable() {
   });
 
   const { data: topSalespeople } = useQuery<TopSalesperson[]>({
-    queryKey: ["/api/sales/top-salespeople?limit=3"],
+    queryKey: ["/api/sales/top-salespeople"],
   });
 
   const formatCurrency = (amount: number) => {

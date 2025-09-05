@@ -13,25 +13,11 @@ export default function TopProductsChart() {
     queryKey: ["/api/sales/top-products?limit=5"],
   });
 
-  const getProductCategory = (productName: string) => {
-    const name = productName.toLowerCase();
-    if (name.includes('esmalte')) return 'Esmaltes';
-    if (name.includes('barniz') || name.includes('stain')) return 'Barnices';
-    if (name.includes('base') || name.includes('zinc')) return 'Bases';
-    if (name.includes('texture') || name.includes('textu')) return 'Texturas';
-    return 'Otros';
-  };
-
-  const categories = topProducts?.reduce((acc: Record<string, number>, product) => {
-    const category = getProductCategory(product.productName);
-    acc[category] = (acc[category] || 0) + product.totalSales;
-    return acc;
-  }, {}) || {};
-
+  // Use NOKOPRCT (product code) directly for chart colors
   const chartData = {
-    labels: Object.keys(categories),
+    labels: topProducts?.map(p => p.productName) || [],
     datasets: [{
-      data: Object.values(categories),
+      data: topProducts?.map(p => p.totalSales) || [],
       backgroundColor: [
         'hsl(var(--chart-1))',
         'hsl(var(--chart-2))',
