@@ -80,6 +80,7 @@ export default function Metas() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/goals/progress"] });
       setShowCreateForm(false);
       resetForm();
       toast({
@@ -110,11 +111,12 @@ export default function Metas() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/goals/progress"] });
       setEditingGoal(null);
       resetForm();
       toast({
         title: "Meta actualizada",
-        description: "La meta se ha actualizado exitosamente.",
+        description: "La meta se ha actualizada exitosamente.",
       });
     },
     onError: (error: any) => {
@@ -134,6 +136,7 @@ export default function Metas() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/goals/progress"] });
       toast({
         title: "Meta eliminada",
         description: "La meta se ha eliminado exitosamente.",
