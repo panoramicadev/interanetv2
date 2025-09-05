@@ -59,7 +59,7 @@ export default function UsersPage() {
   // Mutation para crear usuario
   const createUserMutation = useMutation({
     mutationFn: async (userData: InsertSalespersonUserInput) => {
-      return await apiRequest("/api/users/salespeople", "POST", userData);
+      return await apiRequest("POST", "/api/users/salespeople", userData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
@@ -81,7 +81,7 @@ export default function UsersPage() {
   // Mutation para actualizar usuario
   const updateUserMutation = useMutation({
     mutationFn: async ({ id, userData }: { id: string; userData: Partial<InsertSalespersonUserInput> }) => {
-      return await apiRequest(`/api/users/salespeople/${id}`, "PUT", userData);
+      return await apiRequest("PUT", `/api/users/salespeople/${id}`, userData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
@@ -104,7 +104,7 @@ export default function UsersPage() {
   // Mutation para eliminar usuario
   const deleteUserMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/users/salespeople/${id}`, "DELETE");
+      return await apiRequest("DELETE", `/api/users/salespeople/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
