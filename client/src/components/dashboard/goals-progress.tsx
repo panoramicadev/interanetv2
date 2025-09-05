@@ -100,176 +100,140 @@ export default function GoalsProgress() {
   const specificGoals = goalsProgress.filter(goal => goal.type !== 'global');
 
   return (
-    <div className="space-y-6">
-      {/* Global Goals - Full Width at Top */}
+    <div className="space-y-4">
+      {/* Global Goals - Subtle Design */}
       {globalGoals.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-foreground flex items-center space-x-2">
-            <Target className="h-6 w-6" />
-            <span>Meta Global</span>
-          </h2>
-          
+        <div className="space-y-3">
           {globalGoals.map((goal) => (
-            <Card key={goal.id} className="w-full border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-3 bg-primary/10 rounded-full">
-                      <Target className="h-8 w-8 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-bold text-foreground">Meta Global</h3>
-                      <p className="text-muted-foreground">Período: {goal.period}</p>
-                    </div>
+            <div key={goal.id} className="bg-muted/30 border border-border/50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-3">
+                  <Target className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">Meta Global - {goal.period}</h3>
+                    {goal.description && (
+                      <p className="text-sm text-muted-foreground">{goal.description}</p>
+                    )}
                   </div>
-                  {goal.isCompleted ? (
-                    <div className="flex items-center space-x-2 text-green-600">
-                      <CheckCircle className="h-8 w-8" />
-                      <span className="text-lg font-semibold">¡Meta alcanzada!</span>
-                    </div>
-                  ) : (
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-primary">
-                        {goal.percentage.toFixed(1)}%
-                      </div>
-                      <div className="text-sm text-muted-foreground">completado</div>
-                    </div>
-                  )}
                 </div>
-
-                {/* Large Progress Bar */}
-                <div className="space-y-3 mb-4">
-                  <Progress 
-                    value={goal.percentage} 
-                    className="h-6"
-                    data-testid={`progress-global-${goal.id}`}
-                  />
-                </div>
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="text-center p-4 bg-card/50 rounded-lg">
-                    <div className="text-sm text-muted-foreground mb-1">Ventas Actuales</div>
+                {goal.isCompleted ? (
+                  <div className="flex items-center space-x-2 text-green-600">
+                    <CheckCircle className="h-5 w-5" />
+                    <span className="text-sm font-medium">Completada</span>
+                  </div>
+                ) : (
+                  <div className="text-right">
                     <div className="text-xl font-bold text-foreground">
-                      {formatCurrency(goal.currentSales)}
+                      {goal.percentage.toFixed(1)}%
                     </div>
-                  </div>
-                  <div className="text-center p-4 bg-card/50 rounded-lg">
-                    <div className="text-sm text-muted-foreground mb-1">Meta Objetivo</div>
-                    <div className="text-xl font-bold text-foreground">
-                      {formatCurrency(goal.targetAmount)}
-                    </div>
-                  </div>
-                  <div className="text-center p-4 bg-card/50 rounded-lg">
-                    <div className="text-sm text-muted-foreground mb-1">
-                      {goal.isCompleted ? "Excedente" : "Falta"}
-                    </div>
-                    <div className={`text-xl font-bold ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
-                      {goal.isCompleted ? "✓" : formatCurrency(goal.remaining)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Description */}
-                {goal.description && (
-                  <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      <strong>Descripción:</strong> {goal.description}
-                    </p>
+                    <div className="text-xs text-muted-foreground">progreso</div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+
+              {/* Compact Progress Bar */}
+              <div className="space-y-2 mb-3">
+                <Progress 
+                  value={goal.percentage} 
+                  className="h-2"
+                  data-testid={`progress-global-${goal.id}`}
+                />
+              </div>
+
+              {/* Compact Stats */}
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-xs text-muted-foreground">Actual</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {formatCurrency(goal.currentSales)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Meta</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {formatCurrency(goal.targetAmount)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">
+                    {goal.isCompleted ? "Excedente" : "Falta"}
+                  </div>
+                  <div className={`text-sm font-semibold ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
+                    {goal.isCompleted ? "✓" : formatCurrency(goal.remaining)}
+                  </div>
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Specific Goals - Cards Grid */}
+      {/* Specific Goals - Compact Cards */}
       {specificGoals.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-foreground flex items-center space-x-2">
-            <TrendingUp className="h-5 w-5" />
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-muted-foreground flex items-center space-x-2">
+            <TrendingUp className="h-4 w-4" />
             <span>Metas Específicas</span>
-          </h2>
+          </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {specificGoals.map((goal) => (
-          <Card key={goal.id} className="relative">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  {getTypeIcon(goal.type)}
-                  <Badge variant="secondary">
-                    {getTypeLabel(goal.type)}
-                  </Badge>
+              <div key={goal.id} className="bg-card border border-border/30 rounded-md p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center space-x-2">
+                    {getTypeIcon(goal.type)}
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {getTypeLabel(goal.type)}
+                    </span>
+                  </div>
+                  {goal.isCompleted ? (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <span className="text-xs font-semibold text-foreground">
+                      {goal.percentage.toFixed(0)}%
+                    </span>
+                  )}
                 </div>
-                {goal.isCompleted ? (
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                ) : (
-                  <AlertCircle className="h-5 w-5 text-yellow-500" />
-                )}
-              </div>
-              
-              <CardTitle className="text-lg">
-                {goal.type === 'global' 
-                  ? 'Meta Global' 
-                  : `${goal.target}`
-                }
-              </CardTitle>
-              
-              <p className="text-sm text-muted-foreground">
-                Período: {goal.period}
-              </p>
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              {/* Progress Bar */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Progreso</span>
-                  <span className={`font-semibold ${goal.isCompleted ? 'text-green-600' : 'text-foreground'}`}>
-                    {goal.percentage.toFixed(1)}%
-                  </span>
-                </div>
+                
+                <h4 className="text-sm font-semibold text-foreground mb-1 truncate">
+                  {goal.target}
+                </h4>
+                
+                <p className="text-xs text-muted-foreground mb-2">
+                  {goal.period}
+                </p>
+
+                {/* Mini Progress Bar */}
                 <Progress 
                   value={goal.percentage} 
-                  className="h-3"
+                  className="h-1 mb-2"
                   data-testid={`progress-${goal.id}`}
                 />
-              </div>
 
-              {/* Current vs Target */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Vendido:</span>
-                  <span className="font-medium">
-                    {formatCurrency(goal.currentSales)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Meta:</span>
-                  <span className="font-medium">
-                    {formatCurrency(goal.targetAmount)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm border-t pt-2">
-                  <span className={goal.isCompleted ? "text-green-600" : "text-red-600"}>
-                    {goal.isCompleted ? "¡Meta alcanzada!" : "Falta:"}
-                  </span>
-                  <span className={`font-semibold ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
-                    {goal.isCompleted ? "✓" : formatCurrency(goal.remaining)}
-                  </span>
+                {/* Compact Stats */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Actual:</span>
+                    <span className="font-medium">
+                      {formatCurrency(goal.currentSales)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Meta:</span>
+                    <span className="font-medium">
+                      {formatCurrency(goal.targetAmount)}
+                    </span>
+                  </div>
+                  {!goal.isCompleted && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-red-600">Falta:</span>
+                      <span className="font-semibold text-red-600">
+                        {formatCurrency(goal.remaining)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Description */}
-              {goal.description && (
-                <p className="text-xs text-muted-foreground border-t pt-2">
-                  {goal.description}
-                </p>
-              )}
-            </CardContent>
-          </Card>
             ))}
           </div>
         </div>
