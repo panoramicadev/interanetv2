@@ -1,16 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
 interface ClientDetails {
@@ -48,7 +39,7 @@ export default function ClientDetail() {
 
   if (!clientName) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600">Cliente no encontrado</h1>
           <Link href="/">
@@ -63,20 +54,20 @@ export default function ClientDetail() {
   }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
+    return new Intl.NumberFormat('es-CL', {
       style: 'currency',
-      currency: 'COP',
+      currency: 'CLP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
   };
 
   const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('es-CO').format(num);
+    return new Intl.NumberFormat('es-CL').format(num);
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-CO');
+    return new Date(dateString).toLocaleDateString('es-CL');
   };
 
   const getFrequencyDescription = (days: number) => {
@@ -93,188 +84,206 @@ export default function ClientDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-teal-50 to-blue-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <div className="container mx-auto px-4 py-8">
-        
+    <div className="min-h-screen bg-background">
+      <div className="lg:ml-64 transition-all duration-300">
         {/* Header */}
-        <div className="mb-8">
-          <Link href="/">
-            <Button variant="outline" className="mb-4 hover:bg-green-50 dark:hover:bg-slate-800">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al Dashboard
-            </Button>
-          </Link>
-          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-6 border-0 shadow-lg">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent">
-              Análisis de Cliente
-            </h1>
-            <p className="text-xl text-gray-600 dark:text-gray-300 mt-2 font-semibold">
-              {decodeURIComponent(clientName)}
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Período: {new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long' })}
-            </p>
-          </div>
-        </div>
-
-        {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Compras Totales</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600" data-testid="text-total-purchases">
-                {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalPurchases || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Productos Diferentes</CardTitle>
-              <Package className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600" data-testid="text-total-products">
-                {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalProducts || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Transacciones</CardTitle>
-              <ShoppingBag className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600" data-testid="text-transaction-count">
-                {isLoadingDetails ? 'Cargando...' : formatNumber(details?.transactionCount || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Frecuencia de Compra</CardTitle>
-              <Clock className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600" data-testid="text-purchase-frequency">
-                {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.purchaseFrequency || 0)}
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {isLoadingDetails ? '' : `${details?.purchaseFrequency || 0} días promedio`}
+        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
+          <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
+            <div>
+              <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                <Link href="/" className="hover:text-blue-600 transition-colors">
+                  Dashboard
+                </Link>
+                <span>›</span>
+                <span>Cliente</span>
+                <span>›</span>
+                <span className="font-medium text-gray-900">{decodeURIComponent(clientName)}</span>
+              </nav>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
+                Análisis de Cliente
+              </h1>
+              <p className="text-gray-600 text-base lg:text-lg font-semibold">
+                {decodeURIComponent(clientName)}
               </p>
-            </CardContent>
-          </Card>
-        </div>
+              <p className="text-gray-500 text-sm">
+                Período: {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long' })}
+              </p>
+            </div>
+            <Link href="/">
+              <Button 
+                variant="outline" 
+                className="rounded-xl border-gray-200 shadow-sm"
+                data-testid="button-back-dashboard"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al Dashboard
+              </Button>
+            </Link>
+          </div>
+        </header>
 
-        {/* Secondary KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Ticket Promedio</CardTitle>
-              <TrendingUp className="h-4 w-4 text-indigo-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-indigo-600" data-testid="text-average-ticket">
-                {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
+        {/* Main Content */}
+        <main className="p-4 lg:p-6 space-y-4 lg:space-y-6">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Compras Totales</p>
+                  <p className="text-xl lg:text-2xl font-bold text-green-600" data-testid="text-total-purchases">
+                    {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalPurchases || 0)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center ml-4">
+                  <DollarSign className="w-6 h-6 text-green-600" />
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Gasto por Producto</CardTitle>
-              <Package className="h-4 w-4 text-cyan-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-cyan-600" data-testid="text-spending-per-product">
-                {isLoadingDetails ? 'Cargando...' : formatCurrency((details?.totalPurchases || 0) / Math.max(1, details?.totalProducts || 1))}
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Productos Diferentes</p>
+                  <p className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="text-total-products">
+                    {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalProducts || 0)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center ml-4">
+                  <Package className="w-6 h-6 text-blue-600" />
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
 
-        {/* Products Table */}
-        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold flex items-center">
-              <Package className="mr-2 h-5 w-5 text-green-600" />
-              Principales Productos ({products.length})
-            </CardTitle>
-            <p className="text-sm text-gray-500">
-              Ranking de productos por compras, con análisis de frecuencia de adquisición
-            </p>
-          </CardHeader>
-          <CardContent>
-            {isLoadingProducts ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Cargando productos...</p>
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Transacciones</p>
+                  <p className="text-xl lg:text-2xl font-bold text-purple-600" data-testid="text-transaction-count">
+                    {isLoadingDetails ? 'Cargando...' : formatNumber(details?.transactionCount || 0)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center ml-4">
+                  <ShoppingBag className="w-6 h-6 text-purple-600" />
+                </div>
               </div>
-            ) : products.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No se encontraron productos para este cliente
+            </div>
+
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Frecuencia de Compra</p>
+                  <p className="text-xl lg:text-2xl font-bold text-orange-600" data-testid="text-purchase-frequency">
+                    {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.purchaseFrequency || 0)}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isLoadingDetails ? '' : `${details?.purchaseFrequency || 0} días promedio`}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center ml-4">
+                  <Clock className="w-6 h-6 text-orange-600" />
+                </div>
               </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]">Rank</TableHead>
-                    <TableHead>Producto</TableHead>
-                    <TableHead className="text-right">Compras Totales</TableHead>
-                    <TableHead className="text-right">Transacciones</TableHead>
-                    <TableHead className="text-right">Última Compra</TableHead>
-                    <TableHead className="text-right">Días desde Última Compra</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.map((product: ClientProduct, index: number) => (
-                    <TableRow 
-                      key={product.productName} 
-                      className="hover:bg-green-50 dark:hover:bg-slate-800 transition-colors"
-                      data-testid={`row-product-${index}`}
-                    >
-                      <TableCell className="font-medium">
-                        <Badge 
-                          variant={index < 3 ? "default" : "secondary"}
-                          className={
-                            index === 0 ? "bg-yellow-500 hover:bg-yellow-600" :
-                            index === 1 ? "bg-gray-400 hover:bg-gray-500" :
-                            index === 2 ? "bg-orange-500 hover:bg-orange-600" :
-                            ""
-                          }
-                        >
-                          #{index + 1}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium" data-testid={`text-product-name-${index}`}>
-                        {product.productName}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-green-600" data-testid={`text-product-purchases-${index}`}>
-                        {formatCurrency(product.totalPurchases)}
-                      </TableCell>
-                      <TableCell className="text-right" data-testid={`text-product-transactions-${index}`}>
-                        {formatNumber(product.transactionCount)}
-                      </TableCell>
-                      <TableCell className="text-right" data-testid={`text-product-last-purchase-${index}`}>
-                        {formatDate(product.lastPurchase)}
-                      </TableCell>
-                      <TableCell className="text-right" data-testid={`text-product-days-since-${index}`}>
-                        <span className={`font-medium ${getDaysColor(product.daysSinceLastPurchase)}`}>
-                          {product.daysSinceLastPurchase} días
-                        </span>
-                      </TableCell>
-                    </TableRow>
+            </div>
+          </div>
+
+          {/* Additional KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Ticket Promedio</p>
+                  <p className="text-xl lg:text-2xl font-bold text-indigo-600" data-testid="text-average-ticket">
+                    {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center ml-4">
+                  <TrendingUp className="w-6 h-6 text-indigo-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Diversidad de Productos</p>
+                  <p className="text-xl lg:text-2xl font-bold text-teal-600">
+                    {isLoadingDetails ? 'Cargando...' : details?.totalProducts && details?.transactionCount 
+                      ? (details.totalProducts / details.transactionCount * 100).toFixed(1) 
+                      : '0.0'}%
+                    <span className="text-sm text-muted-foreground ml-1">variedad</span>
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center ml-4">
+                  <Package className="w-6 h-6 text-teal-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Products Table */}
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <ShoppingBag className="h-5 w-5 text-blue-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Productos Comprados por el Cliente</h2>
+            </div>
+            
+            <div className="space-y-3">
+              {isLoadingProducts ? (
+                <div className="space-y-3">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="animate-pulse h-16 bg-gray-200 rounded-lg"></div>
                   ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                </div>
+              ) : products.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No hay productos registrados para este cliente</p>
+              ) : (
+                products.map((product, index) => (
+                  <div 
+                    key={product.productName}
+                    className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                    data-testid={`product-${index}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex-shrink-0">
+                          <Badge variant="outline" className="text-xs">
+                            #{index + 1}
+                          </Badge>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {product.productName}
+                          </p>
+                          <div className="flex items-center space-x-4 mt-1">
+                            <p className="text-xs text-gray-500">
+                              {formatNumber(product.transactionCount)} transacciones
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Precio promedio: {formatCurrency(product.averagePrice)}
+                            </p>
+                            <p className={`text-xs ${getDaysColor(product.daysSinceLastPurchase)}`}>
+                              Última compra: {product.daysSinceLastPurchase} días
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right ml-4">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {formatCurrency(product.totalPurchases)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {formatDate(product.lastPurchase)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

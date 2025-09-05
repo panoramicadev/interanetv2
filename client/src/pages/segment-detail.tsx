@@ -1,9 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -13,8 +11,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
-
 
 interface SegmentClient {
   clientName: string;
@@ -34,7 +30,6 @@ interface SegmentSalesperson {
 
 export default function SegmentDetail() {
   const { segmentName } = useParams();
-  // const [activeTab, setActiveTab] = useState("clients");
   
   // Get current period (could be enhanced with date filters later)
   const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM format
@@ -51,7 +46,7 @@ export default function SegmentDetail() {
 
   if (!segmentName) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600">Segmento no encontrado</h1>
           <Link href="/">
@@ -82,47 +77,44 @@ export default function SegmentDetail() {
   const averageTicket = averageTicketFromClients;
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
+    return new Intl.NumberFormat('es-CL', {
       style: 'currency',
-      currency: 'COP',
+      currency: 'CLP',
       minimumFractionDigits: 0,
     }).format(amount);
   };
 
   const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('es-CO').format(num);
+    return new Intl.NumberFormat('es-CL').format(num);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto px-6 py-8">
+    <div className="min-h-screen bg-background">
+      <div className="lg:ml-64 transition-all duration-300">
         {/* Header */}
-        <div className="mb-8">
-          {/* Breadcrumb */}
-          <nav className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
-            <Link href="/" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-              Dashboard
-            </Link>
-            <span>›</span>
-            <span>Segmento</span>
-            <span>›</span>
-            <span className="font-medium text-gray-900 dark:text-gray-100">{segmentName}</span>
-          </nav>
-
-          {/* Title and Back Button */}
-          <div className="flex items-center justify-between">
+        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
+          <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                <Link href="/" className="hover:text-blue-600 transition-colors">
+                  Dashboard
+                </Link>
+                <span>›</span>
+                <span>Segmento</span>
+                <span>›</span>
+                <span className="font-medium text-gray-900">{segmentName}</span>
+              </nav>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
                 Análisis de Segmento: {segmentName}
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
+              <p className="text-gray-600 text-base lg:text-lg">
                 Análisis detallado de clientes para el período actual
               </p>
             </div>
             <Link href="/">
               <Button 
                 variant="outline" 
-                className="bg-white/80 backdrop-blur-sm hover:bg-white/90 transition-all duration-200"
+                className="rounded-xl border-gray-200 shadow-sm"
                 data-testid="button-back-dashboard"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -130,194 +122,162 @@ export default function SegmentDetail() {
               </Button>
             </Link>
           </div>
-        </div>
+        </header>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Ventas</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600" data-testid="text-total-sales">
-                {formatCurrency(totalSales)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Clientes / Vendedores</CardTitle>
-              <Users className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600" data-testid="text-total-clients">
-                {formatNumber(totalClients)} / {formatNumber(totalSalespeople)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Transacciones</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600" data-testid="text-total-transactions">
-                {formatNumber(totalTransactions)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Ticket Promedio</CardTitle>
-              <TrendingUp className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600" data-testid="text-average-ticket">
-                {formatCurrency(averageTicket)}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Clients Table */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold flex items-center">
-                <Users className="mr-2 h-5 w-5 text-blue-600" />
-                Ranking de Clientes ({totalClients})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoadingClients ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-2 text-gray-600">Cargando clientes...</p>
+        {/* Main Content */}
+        <main className="p-4 lg:p-6 space-y-4 lg:space-y-6">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Total Ventas</p>
+                  <p className="text-xl lg:text-2xl font-bold text-green-600" data-testid="text-total-sales">
+                    {formatCurrency(totalSales)}
+                  </p>
                 </div>
-              ) : clients.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  No se encontraron clientes para este segmento
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center ml-4">
+                  <DollarSign className="w-6 h-6 text-green-600" />
                 </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[50px]">Rank</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead className="text-right">Ventas</TableHead>
-                      <TableHead className="text-right">%</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {clients.slice(0, 10).map((client: SegmentClient, index: number) => (
-                      <TableRow 
-                        key={client.clientName} 
-                        className="hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
-                        data-testid={`row-client-${index}`}
-                      >
-                        <TableCell className="font-medium">
-                          <Badge 
-                            variant={index < 3 ? "default" : "secondary"}
-                            className={
-                              index === 0 ? "bg-yellow-500 hover:bg-yellow-600" :
-                              index === 1 ? "bg-gray-400 hover:bg-gray-500" :
-                              index === 2 ? "bg-orange-500 hover:bg-orange-600" :
-                              ""
-                            }
-                          >
-                            #{index + 1}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium" data-testid={`text-client-name-${index}`}>
-                          {client.clientName}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-green-600" data-testid={`text-client-sales-${index}`}>
-                          {formatCurrency(client.totalSales)}
-                        </TableCell>
-                        <TableCell className="text-right" data-testid={`text-client-percentage-${index}`}>
-                          <span className="font-medium text-blue-600">
+              </div>
+            </div>
+
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Clientes / Vendedores</p>
+                  <p className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="text-total-clients">
+                    {formatNumber(totalClients)} / {formatNumber(totalSalespeople)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center ml-4">
+                  <Users className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Transacciones</p>
+                  <p className="text-xl lg:text-2xl font-bold text-purple-600" data-testid="text-total-transactions">
+                    {formatNumber(totalTransactions)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center ml-4">
+                  <ShoppingCart className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Ticket Promedio</p>
+                  <p className="text-xl lg:text-2xl font-bold text-orange-600" data-testid="text-average-ticket">
+                    {formatCurrency(averageTicket)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center ml-4">
+                  <TrendingUp className="w-6 h-6 text-orange-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Data Tables */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            {/* Top Clients Table */}
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Users className="h-5 w-5 text-blue-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Top Clientes del Segmento</h2>
+              </div>
+              
+              <div className="space-y-3">
+                {isLoadingClients ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
+                    ))}
+                  </div>
+                ) : clients.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No hay clientes en este segmento</p>
+                ) : (
+                  clients.slice(0, 8).map((client, index) => (
+                    <Link key={client.clientName} href={`/client/${encodeURIComponent(client.clientName)}`}>
+                      <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {client.clientName}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatNumber(client.transactionCount)} transacciones
+                          </p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {formatCurrency(client.totalSales)}
+                          </p>
+                          <p className="text-xs text-gray-500">
                             {client.percentage.toFixed(1)}%
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </div>
 
-          {/* Salespeople Table */}
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold flex items-center">
-                <UserCheck className="mr-2 h-5 w-5 text-purple-600" />
-                Ranking de Vendedores ({totalSalespeople})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoadingSalespeople ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-                  <p className="mt-2 text-gray-600">Cargando vendedores...</p>
+            {/* Top Salespeople Table */}
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <UserCheck className="h-5 w-5 text-blue-600" />
                 </div>
-              ) : salespeople.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  No se encontraron vendedores para este segmento
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[50px]">Rank</TableHead>
-                      <TableHead>Vendedor</TableHead>
-                      <TableHead className="text-right">Ventas</TableHead>
-                      <TableHead className="text-right">%</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {salespeople.slice(0, 10).map((salesperson: SegmentSalesperson, index: number) => (
-                      <TableRow 
-                        key={salesperson.salespersonName} 
-                        className="hover:bg-purple-50 dark:hover:bg-slate-800 transition-colors"
-                        data-testid={`row-salesperson-${index}`}
-                      >
-                        <TableCell className="font-medium">
-                          <Badge 
-                            variant={index < 3 ? "default" : "secondary"}
-                            className={
-                              index === 0 ? "bg-yellow-500 hover:bg-yellow-600" :
-                              index === 1 ? "bg-gray-400 hover:bg-gray-500" :
-                              index === 2 ? "bg-orange-500 hover:bg-orange-600" :
-                              ""
-                            }
-                          >
-                            #{index + 1}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium" data-testid={`text-salesperson-name-${index}`}>
-                          {salesperson.salespersonName}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-green-600" data-testid={`text-salesperson-sales-${index}`}>
-                          {formatCurrency(salesperson.totalSales)}
-                        </TableCell>
-                        <TableCell className="text-right" data-testid={`text-salesperson-percentage-${index}`}>
-                          <span className="font-medium text-purple-600">
-                            {salesperson.percentage.toFixed(1)}%
-                          </span>
-                        </TableCell>
-                      </TableRow>
+                <h2 className="text-xl font-bold text-gray-900">Top Vendedores del Segmento</h2>
+              </div>
+              
+              <div className="space-y-3">
+                {isLoadingSalespeople ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
                     ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                  </div>
+                ) : salespeople.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No hay vendedores en este segmento</p>
+                ) : (
+                  salespeople.slice(0, 8).map((salesperson, index) => (
+                    <Link key={salesperson.salespersonName} href={`/salesperson/${encodeURIComponent(salesperson.salespersonName)}`}>
+                      <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {salesperson.salespersonName}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatNumber(salesperson.transactionCount)} transacciones
+                          </p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {formatCurrency(salesperson.totalSales)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {salesperson.percentage.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );
