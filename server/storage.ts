@@ -88,6 +88,13 @@ export interface IStorage {
     averageTicket: number;
     percentage: number;
   }>>;
+  getSegmentSalespeople(segmentName: string, period?: string, filterType?: string): Promise<Array<{
+    salespersonName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
+    percentage: number;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -497,6 +504,48 @@ export class DatabaseStorage implements IStorage {
       transactionCount: Number(client.transactionCount),
       averageTicket: Number(client.averageTicket),
       percentage: segmentTotal > 0 ? (Number(client.totalSales) / segmentTotal) * 100 : 0
+    }));
+  }
+
+  async getSegmentSalespeople(segmentName: string, period?: string, filterType: string = 'month'): Promise<Array<{
+    salespersonName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
+    percentage: number;
+  }>> {
+    const conditions = [eq(salesTransactions.noruen, segmentName)];
+
+    // Apply date filters if period is provided
+    if (period && filterType === 'month') {
+      // Period format: YYYY-MM
+      const [year, month] = period.split('-');
+      conditions.push(
+        sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+      );
+    }
+
+    const result = await db
+      .select({
+        salespersonName: salesTransactions.nokofu,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions))
+      .groupBy(salesTransactions.nokofu)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+    
+    // Calculate segment total for percentages
+    const segmentTotal = result.reduce((sum, salesperson) => sum + salesperson.totalSales, 0);
+    
+    return result.map(salesperson => ({
+      salespersonName: salesperson.salespersonName || 'Vendedor desconocido',
+      totalSales: Number(salesperson.totalSales),
+      transactionCount: Number(salesperson.transactionCount),
+      averageTicket: Number(salesperson.averageTicket),
+      percentage: segmentTotal > 0 ? (Number(salesperson.totalSales) / segmentTotal) * 100 : 0
     }));
   }
 }
