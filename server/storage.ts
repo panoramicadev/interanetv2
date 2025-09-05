@@ -1955,6 +1955,7 @@ export class DatabaseStorage implements IStorage {
         updatedStock++;
         processedProducts++;
       } catch (error) {
+        console.error(`Error procesando SKU ${row.sku}:`, error);
         errors.push(`Error procesando SKU ${row.sku}: ${error}`);
       }
     }
