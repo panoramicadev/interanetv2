@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import Sidebar from "@/components/dashboard/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -71,10 +73,23 @@ export default function ProductsPage() {
   const [activeTab, setActiveTab] = useState("products");
   
   const { toast } = useToast();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const queryClient = useQueryClient();
 
+  // Redirect to dashboard if not authenticated or not admin
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || user?.role !== 'admin')) {
+      toast({
+        title: "Acceso denegado",
+        description: "Solo los administradores pueden acceder a esta página.",
+        variant: "destructive",
+      });
+      window.location.href = '/';
+    }
+  }, [isAuthenticated, isLoading, user, toast]);
+
   // Fetch products
-  const { data: products = [], isLoading } = useQuery<Product[]>({
+  const { data: products = [], isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ['/api/products', { search: searchTerm, active: filterActive, hasPrices: filterPrices }],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -226,8 +241,27 @@ export default function ProductsPage() {
     return stock.toLocaleString();
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || user?.role !== 'admin') {
+    return null;
+  }
+
   return (
-    <div className="space-y-6 p-6">
+    <div className="min-h-screen bg-background">
+      <Sidebar onImportClick={() => setShowImportDialog(true)} />
+      
+      <div className="lg:ml-64 transition-all duration-300">
+        <div className="space-y-6 p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestión de Productos</h1>
@@ -285,7 +319,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Estadísticas rápidas */}
-      {!isLoading && (
+      {!productsLoading && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -393,7 +427,7 @@ export default function ProductsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {productsLoading ? (
                 <div className="text-center py-8">Cargando productos...</div>
               ) : (
                 <Table>
@@ -623,6 +657,8 @@ export default function ProductsPage() {
           </div>
         </DialogContent>
       </Dialog>
+        </div>
+      </div>
     </div>
   );
 }
