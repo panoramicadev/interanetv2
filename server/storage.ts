@@ -70,6 +70,10 @@ export interface IStorage {
   createGoal(goal: InsertGoal): Promise<Goal>;
   updateGoal(id: string, goal: Partial<InsertGoal>): Promise<Goal>;
   deleteGoal(id: string): Promise<void>;
+  
+  // Data for goals form
+  getUniqueSegments(): Promise<string[]>;
+  getUniqueSalespeople(): Promise<string[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -370,6 +374,27 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGoal(id: string): Promise<void> {
     await db.delete(goals).where(eq(goals.id, id));
+  }
+
+  // Data for goals form
+  async getUniqueSegments(): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ segment: salesTransactions.noruen })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`)
+      .orderBy(salesTransactions.noruen);
+    
+    return result.map(r => r.segment).filter(Boolean);
+  }
+
+  async getUniqueSalespeople(): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ salesperson: salesTransactions.nokofu })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`)
+      .orderBy(salesTransactions.nokofu);
+    
+    return result.map(r => r.salesperson).filter(Boolean);
   }
 }
 

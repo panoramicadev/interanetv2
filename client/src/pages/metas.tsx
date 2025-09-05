@@ -51,6 +51,15 @@ export default function Metas() {
     queryKey: ["/api/goals"],
   });
 
+  // Fetch segments and salespeople for form selectors
+  const { data: segments } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/segments"],
+  });
+
+  const { data: salespeople } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/salespeople"],
+  });
+
   // Create goal mutation
   const createGoalMutation = useMutation({
     mutationFn: async (goalData: any) => {
@@ -280,13 +289,33 @@ export default function Metas() {
                         <Label htmlFor="target">
                           {formData.type === 'segment' ? 'Segmento' : 'Vendedor'}
                         </Label>
-                        <Input
-                          id="target"
-                          value={formData.target}
-                          onChange={(e) => setFormData({ ...formData, target: e.target.value })}
-                          placeholder={formData.type === 'segment' ? 'Ej: FERRETERIAS' : 'Ej: Juan Pérez'}
-                          required={formData.type !== 'global'}
-                        />
+                        <Select 
+                          value={formData.target} 
+                          onValueChange={(value) => setFormData({ ...formData, target: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={
+                              formData.type === 'segment' 
+                                ? 'Selecciona un segmento' 
+                                : 'Selecciona un vendedor'
+                            } />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {formData.type === 'segment' ? (
+                              segments?.map((segment) => (
+                                <SelectItem key={segment} value={segment}>
+                                  {segment}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              salespeople?.map((salesperson) => (
+                                <SelectItem key={salesperson} value={salesperson}>
+                                  {salesperson}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
                       </div>
                     )}
 

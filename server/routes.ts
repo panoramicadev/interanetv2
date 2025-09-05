@@ -219,6 +219,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Goals form data endpoints
+  app.get('/api/goals/data/segments', isAuthenticated, async (req, res) => {
+    try {
+      const segments = await storage.getUniqueSegments();
+      res.json(segments);
+    } catch (error) {
+      console.error("Error fetching segments:", error);
+      res.status(500).json({ message: "Failed to fetch segments" });
+    }
+  });
+
+  app.get('/api/goals/data/salespeople', isAuthenticated, async (req, res) => {
+    try {
+      const salespeople = await storage.getUniqueSalespeople();
+      res.json(salespeople);
+    } catch (error) {
+      console.error("Error fetching salespeople:", error);
+      res.status(500).json({ message: "Failed to fetch salespeople" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
