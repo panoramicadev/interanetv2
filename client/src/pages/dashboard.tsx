@@ -6,6 +6,7 @@ import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
 import SegmentChart from "@/components/dashboard/segment-chart";
+import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import ImportModal from "@/components/dashboard/import-modal";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,7 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <SegmentChart />
-            <div></div>
+            <TopClientsPanel />
           </div>
 
           <TransactionsTable />

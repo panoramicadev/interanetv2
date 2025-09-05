@@ -85,6 +85,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Top clients endpoint
+  app.get('/api/sales/top-clients', isAuthenticated, async (req, res) => {
+    try {
+      const { limit } = req.query;
+      const topClients = await storage.getTopClients(
+        limit ? parseInt(limit as string) : undefined
+      );
+      res.json(topClients);
+    } catch (error) {
+      console.error("Error fetching top clients:", error);
+      res.status(500).json({ message: "Failed to fetch top clients" });
+    }
+  });
+
   // Segment analysis endpoint
   app.get('/api/sales/segments', isAuthenticated, async (req, res) => {
     try {

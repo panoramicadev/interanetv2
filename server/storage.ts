@@ -46,6 +46,11 @@ export interface IStorage {
     totalSales: number;
     totalUnits: number;
   }>>;
+  getTopClients(limit?: number): Promise<Array<{
+    clientName: string;
+    totalSales: number;
+    transactionCount: number;
+  }>>;
   getSegmentAnalysis(): Promise<Array<{
     segment: string;
     totalSales: number;
@@ -222,6 +227,30 @@ export class DatabaseStorage implements IStorage {
       productName: r.productName || '',
       totalSales: Number(r.totalSales),
       totalUnits: Number(r.totalUnits),
+    }));
+  }
+
+  async getTopClients(limit = 10): Promise<Array<{
+    clientName: string;
+    totalSales: number;
+    transactionCount: number;
+  }>> {
+    const results = await db
+      .select({
+        clientName: salesTransactions.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`)
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) DESC`)
+      .limit(limit);
+
+    return results.map(r => ({
+      clientName: r.clientName || '',
+      totalSales: Number(r.totalSales),
+      transactionCount: Number(r.transactionCount),
     }));
   }
 
