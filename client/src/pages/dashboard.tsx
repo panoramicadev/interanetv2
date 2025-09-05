@@ -223,20 +223,20 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Client Analytics - Full Width */}
-          <div className="modern-card p-5 lg:p-6 hover-lift">
-            <TopClientsPanel 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
-          </div>
-
-          {/* Sales Team */}
-          <div className="modern-card p-5 lg:p-6 hover-lift">
-            <TopSalespeoplePanel 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
+          {/* Client Analytics & Sales Team - Two Columns */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <TopClientsPanel 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <TopSalespeoplePanel 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
           </div>
 
           {/* Transactions - Full Width */}

@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Users, TrendingUp } from "lucide-react";
+import { Users } from "lucide-react";
 import { Link } from "wouter";
 
 interface TopClient {
@@ -28,108 +26,88 @@ export default function TopClientsPanel({ selectedPeriod, filterType }: TopClien
     }).format(amount);
   };
 
-  const getClientInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(word => word.charAt(0))
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  const getGradientColor = (index: number) => {
-    const gradients = [
-      'from-blue-500 to-purple-600',
-      'from-green-500 to-blue-600', 
-      'from-purple-500 to-pink-600',
-      'from-orange-500 to-red-600',
-      'from-teal-500 to-cyan-600',
-      'from-indigo-500 to-blue-600',
-      'from-pink-500 to-rose-600',
-      'from-emerald-500 to-teal-600',
-    ];
-    return gradients[index % gradients.length];
-  };
+  // Calculate percentages
+  const maxSales = topClients ? Math.max(...topClients.map(c => c.totalSales)) : 0;
+  const clientsWithPercentage = topClients?.map(client => ({
+    ...client,
+    percentage: maxSales > 0 ? (client.totalSales / maxSales) * 100 : 0
+  }));
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Top Clientes
-          </CardTitle>
-          <Badge variant="secondary" className="gap-1">
-            <TrendingUp className="h-3 w-3" />
-            {topClients?.length || 0}
-          </Badge>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+            <Users className="h-5 w-5 text-blue-600" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">Top Clientes</h2>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {isLoading ? (
-            [...Array(5)].map((_, i) => (
-              <div key={i} className="animate-pulse flex items-center space-x-3">
-                <div className="w-12 h-12 bg-muted rounded-full"></div>
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-muted rounded w-32"></div>
-                  <div className="h-3 bg-muted rounded w-24"></div>
+      </div>
+      
+      <div className="bg-white rounded-xl border border-gray-200/60 p-6 shadow-sm">
+        {isLoading ? (
+          <div className="space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center justify-between animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-32"></div>
+                <div className="h-4 bg-gray-200 rounded w-12"></div>
+                <div className="flex-1 mx-4">
+                  <div className="h-6 bg-gray-200 rounded"></div>
                 </div>
-                <div className="space-y-1">
-                  <div className="h-4 bg-muted rounded w-20"></div>
-                  <div className="h-3 bg-muted rounded w-16"></div>
-                </div>
+                <div className="h-4 bg-gray-200 rounded w-16"></div>
               </div>
-            ))
-          ) : (
-            topClients?.map((client, index) => (
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {clientsWithPercentage?.map((client, index) => (
               <Link 
                 key={client.clientName} 
                 href={`/client/${encodeURIComponent(client.clientName)}`}
+                className="block hover:bg-gray-50/50 rounded-lg transition-colors"
               >
                 <div 
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer hover:scale-105 hover:shadow-md"
+                  className="flex items-center py-3"
                   data-testid={`client-${index}`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${getGradientColor(index)} flex items-center justify-center text-white font-bold text-sm`}>
-                      {getClientInitials(client.clientName)}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm leading-tight hover:text-blue-600 transition-colors">
-                        {client.clientName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {client.transactionCount} transacciones
-                      </p>
+                  {/* Nombre del cliente */}
+                  <div className="w-48 flex-shrink-0">
+                    <p className="text-sm text-gray-700 font-medium truncate">
+                      {client.clientName}
+                    </p>
+                  </div>
+                  
+                  {/* Porcentaje */}
+                  <div className="w-12 flex-shrink-0 text-center">
+                    <span className="text-sm text-gray-600">
+                      {client.percentage.toFixed(1)}%
+                    </span>
+                  </div>
+                  
+                  {/* Barra de progreso */}
+                  <div className="flex-1 mx-4">
+                    <div className="relative">
+                      <div className="h-6 bg-gray-100 rounded-lg overflow-hidden">
+                        <div 
+                          className="h-full bg-blue-500 rounded-lg transition-all duration-500 ease-out"
+                          style={{ width: `${client.percentage}%` }}
+                        ></div>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-sm">
+                  
+                  {/* Monto */}
+                  <div className="w-20 flex-shrink-0 text-right">
+                    <span className="text-sm font-semibold text-gray-900">
                       {formatCurrency(client.totalSales)}
-                    </p>
-                    <div className="flex items-center gap-1">
-                      <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${getGradientColor(index)}`}></div>
-                      <span className="text-xs text-muted-foreground">
-                        #{index + 1}
-                      </span>
-                    </div>
+                    </span>
                   </div>
                 </div>
               </Link>
-            ))
-          )}
-        </div>
-        
-        {!isLoading && topClients && topClients.length > 0 && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Total clientes activos</span>
-              <span className="font-medium">{topClients.length}</span>
-            </div>
+            ))}
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
