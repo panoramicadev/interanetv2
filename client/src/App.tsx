@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
 import SupervisorDashboard from "@/pages/supervisor-dashboard";
 import ClientsDashboard from "@/pages/clients-dashboard";
+import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
 import Users from "@/pages/users";
 import SegmentDetail from "@/pages/segment-detail";
@@ -70,7 +71,7 @@ function Router() {
           )}
           {user.role === 'client' && (
             <>
-              <Route path="/" component={Dashboard} />
+              <Route path="/" component={ClientBuyerDashboard} />
             </>
           )}
         </>

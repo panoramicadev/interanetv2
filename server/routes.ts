@@ -418,6 +418,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Client buyer dashboard endpoints
+  app.get("/api/sales/client/:clientName/last-order", async (req, res) => {
+    try {
+      const { clientName } = req.params;
+      const lastOrder = await storage.getClientLastOrder(clientName);
+      res.json(lastOrder);
+    } catch (error) {
+      console.error("Error fetching client last order:", error);
+      res.status(500).json({ message: "Failed to fetch client last order" });
+    }
+  });
+
+  app.get("/api/sales/client/:clientName/purchase-history", async (req, res) => {
+    try {
+      const { clientName } = req.params;
+      const { limit = "10" } = req.query;
+      const purchaseHistory = await storage.getClientPurchaseHistory(clientName, parseInt(limit as string));
+      res.json(purchaseHistory);
+    } catch (error) {
+      console.error("Error fetching client purchase history:", error);
+      res.status(500).json({ message: "Failed to fetch client purchase history" });
+    }
+  });
+
   // Análisis categorizado de clientes para vendedores
   app.get("/api/sales/salesperson/:salespersonName/clients-analysis", isAuthenticated, async (req, res) => {
     try {
