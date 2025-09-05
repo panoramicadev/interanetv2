@@ -25,6 +25,10 @@ import {
   AlertCircle,
   CheckCircle,
   Info,
+  Bell,
+  Clock,
+  TrendingDown,
+  Star,
   LayoutDashboard,
   Upload,
   LogOut,
@@ -125,6 +129,11 @@ export default function SalespersonDashboard() {
 
   const { data: chartData = [] } = useQuery({
     queryKey: [`/api/sales/chart-data/salesperson/${user?.salespersonName}?period=monthly&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
+    enabled: !!user?.salespersonName,
+  });
+
+  const { data: salespersonAlerts = [] } = useQuery({
+    queryKey: [`/api/alerts/salesperson/${user?.salespersonName}`],
     enabled: !!user?.salespersonName,
   });
 
@@ -508,6 +517,90 @@ export default function SalespersonDashboard() {
                         <Target className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                         <p className="text-gray-500 text-sm">No tienes metas asignadas</p>
                         <p className="text-gray-400 text-xs mt-1">Contacta a tu supervisor para establecer objetivos</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Alertas inteligentes */}
+              <Card className="rounded-2xl border-gray-200/60 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
+                    <Bell className="w-5 h-5 mr-2 text-yellow-600" />
+                    Alertas Inteligentes
+                  </CardTitle>
+                  <CardDescription className="text-gray-600">
+                    Oportunidades y recordatorios basados en patrones de clientes
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {(salespersonAlerts as any[])?.map((alert: any, index: number) => {
+                      const getAlertIcon = (type: string) => {
+                        switch (type) {
+                          case 'inactive_client': return <Clock className="w-4 h-4" />;
+                          case 'seasonal_pattern': return <TrendingUp className="w-4 h-4" />;
+                          case 'high_value': return <Star className="w-4 h-4" />;
+                          case 'cross_sell': return <TrendingDown className="w-4 h-4" />;
+                          default: return <AlertCircle className="w-4 h-4" />;
+                        }
+                      };
+
+                      const getAlertColor = (priority: string) => {
+                        switch (priority) {
+                          case 'high': return 'bg-red-50 border-red-200 text-red-800';
+                          case 'medium': return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+                          case 'low': return 'bg-blue-50 border-blue-200 text-blue-800';
+                          default: return 'bg-gray-50 border-gray-200 text-gray-800';
+                        }
+                      };
+
+                      const getIconColor = (type: string) => {
+                        switch (type) {
+                          case 'inactive_client': return 'text-orange-600';
+                          case 'seasonal_pattern': return 'text-green-600';
+                          case 'high_value': return 'text-purple-600';
+                          case 'cross_sell': return 'text-blue-600';
+                          default: return 'text-gray-600';
+                        }
+                      };
+
+                      return (
+                        <div 
+                          key={`alert-${index}`} 
+                          className={`p-3 rounded-lg border ${getAlertColor(alert.priority)}`}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div className={`mt-0.5 ${getIconColor(alert.type)}`}>
+                              {getAlertIcon(alert.type)}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-medium">{alert.title}</h4>
+                                <Badge variant={alert.priority === 'high' ? 'destructive' : alert.priority === 'medium' ? 'default' : 'secondary'}>
+                                  {alert.priority === 'high' ? 'Alta' : alert.priority === 'medium' ? 'Media' : 'Baja'}
+                                </Badge>
+                              </div>
+                              <p className="text-sm mt-1">{alert.message}</p>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="mt-2 text-xs h-7"
+                              >
+                                {alert.actionText}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {(!salespersonAlerts || (salespersonAlerts as any[]).length === 0) && (
+                      <div className="text-center py-6">
+                        <Bell className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                        <p className="text-gray-500 text-sm">No hay alertas pendientes</p>
+                        <p className="text-gray-400 text-xs">El sistema analizará tus datos para generar alertas útiles</p>
                       </div>
                     )}
                   </div>
