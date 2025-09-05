@@ -26,23 +26,32 @@ interface GoalsProgressProps {
     value?: string;
   };
   onFilterChange: (filter: { type: "all" | "segment" | "salesperson"; value?: string }) => void;
+  goalsData?: GoalProgress[]; // Accept external goals data
+  isLoading?: boolean; // Accept loading state
 }
 
-export default function GoalsProgress({ globalFilter, onFilterChange }: GoalsProgressProps) {
+export default function GoalsProgress({ globalFilter, onFilterChange, goalsData, isLoading: externalLoading }: GoalsProgressProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   
-  // Fetch segments and salespeople for the filter dropdown
+  // Fetch segments and salespeople for the filter dropdown (only if no external data provided)
   const { data: segments } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
+    enabled: !goalsData, // Only fetch if no external data
   });
 
   const { data: salespeople } = useQuery<string[]>({
     queryKey: ["/api/goals/data/salespeople"],
+    enabled: !goalsData, // Only fetch if no external data
   });
   
-  const { data: goalsProgress, isLoading } = useQuery<GoalProgress[]>({
+  const { data: fetchedGoalsProgress, isLoading: fetchedLoading } = useQuery<GoalProgress[]>({
     queryKey: ["/api/goals/progress"],
+    enabled: !goalsData, // Only fetch if no external data provided
   });
+
+  // Use external data if provided, otherwise use fetched data
+  const goalsProgress = goalsData || fetchedGoalsProgress;
+  const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
 
   // Filter goals based on selected filter and global filter
   const filteredGoals = goalsProgress?.filter(goal => {
