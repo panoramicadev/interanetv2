@@ -11,8 +11,12 @@ import TransactionsTable from "@/components/dashboard/transactions-table";
 import ImportModal from "@/components/dashboard/import-modal";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RefreshCw, CalendarIcon } from "lucide-react";
 import { useState } from "react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -20,12 +24,17 @@ export default function Dashboard() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState("2025-09");
   const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
   // Update selected period when filter type changes
   useEffect(() => {
     switch (filterType) {
       case "day":
-        setSelectedPeriod("today");
+        if (selectedDate) {
+          setSelectedPeriod(format(selectedDate, "yyyy-MM-dd"));
+        } else {
+          setSelectedPeriod("today");
+        }
         break;
       case "month":
         setSelectedPeriod("2025-09");
@@ -34,7 +43,7 @@ export default function Dashboard() {
         setSelectedPeriod("last-30-days");
         break;
     }
-  }, [filterType]);
+  }, [filterType, selectedDate]);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -110,46 +119,60 @@ export default function Dashboard() {
                 <label className="text-sm font-medium text-foreground">
                   Período:
                 </label>
-                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                  <SelectTrigger className="w-48" data-testid="select-period">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filterType === "day" && (
-                      <>
-                        <SelectItem value="2025-09-01">1 Septiembre 2025</SelectItem>
-                        <SelectItem value="2025-09-02">2 Septiembre 2025</SelectItem>
-                        <SelectItem value="2025-09-03">3 Septiembre 2025</SelectItem>
-                        <SelectItem value="2025-09-04">4 Septiembre 2025</SelectItem>
-                        <SelectItem value="2025-09-05">5 Septiembre 2025</SelectItem>
-                        <SelectItem value="today">Hoy</SelectItem>
-                        <SelectItem value="yesterday">Ayer</SelectItem>
-                      </>
-                    )}
-                    {filterType === "month" && (
-                      <>
-                        <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                        <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                        <SelectItem value="2025-07">Julio 2025</SelectItem>
-                        <SelectItem value="2025-06">Junio 2025</SelectItem>
-                        <SelectItem value="2025-05">Mayo 2025</SelectItem>
-                        <SelectItem value="current-month">Mes actual</SelectItem>
-                        <SelectItem value="last-month">Mes anterior</SelectItem>
-                      </>
-                    )}
-                    {filterType === "range" && (
-                      <>
-                        <SelectItem value="last-7-days">Últimos 7 días</SelectItem>
-                        <SelectItem value="last-30-days">Últimos 30 días</SelectItem>
-                        <SelectItem value="last-90-days">Últimos 90 días</SelectItem>
-                        <SelectItem value="this-week">Esta semana</SelectItem>
-                        <SelectItem value="last-week">Semana anterior</SelectItem>
-                        <SelectItem value="this-quarter">Este trimestre</SelectItem>
-                        <SelectItem value="this-year">Este año</SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                
+                {filterType === "day" ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-48 justify-start text-left font-normal"
+                        data-testid="calendar-trigger"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedDate ? format(selectedDate, "PPP", { locale: es }) : "Selecciona una fecha"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={setSelectedDate}
+                        initialFocus
+                        data-testid="calendar"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                    <SelectTrigger className="w-48" data-testid="select-period">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filterType === "month" && (
+                        <>
+                          <SelectItem value="2025-09">Septiembre 2025</SelectItem>
+                          <SelectItem value="2025-08">Agosto 2025</SelectItem>
+                          <SelectItem value="2025-07">Julio 2025</SelectItem>
+                          <SelectItem value="2025-06">Junio 2025</SelectItem>
+                          <SelectItem value="2025-05">Mayo 2025</SelectItem>
+                          <SelectItem value="current-month">Mes actual</SelectItem>
+                          <SelectItem value="last-month">Mes anterior</SelectItem>
+                        </>
+                      )}
+                      {filterType === "range" && (
+                        <>
+                          <SelectItem value="last-7-days">Últimos 7 días</SelectItem>
+                          <SelectItem value="last-30-days">Últimos 30 días</SelectItem>
+                          <SelectItem value="last-90-days">Últimos 90 días</SelectItem>
+                          <SelectItem value="this-week">Esta semana</SelectItem>
+                          <SelectItem value="last-week">Semana anterior</SelectItem>
+                          <SelectItem value="this-quarter">Este trimestre</SelectItem>
+                          <SelectItem value="this-year">Este año</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               
               <Button
