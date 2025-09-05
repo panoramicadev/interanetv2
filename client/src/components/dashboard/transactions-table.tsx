@@ -43,15 +43,29 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
   // Removed top salespeople query - now handled by separate component
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CL', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'CLP',
-      minimumFractionDigits: 0,
+      currency: 'USD',
+      minimumFractionDigits: 2,
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-CL');
+  const getRandomStatus = () => {
+    const statuses = [
+      { name: 'Member', color: 'bg-yellow-100 text-yellow-800' },
+      { name: 'Signed Up', color: 'bg-orange-100 text-orange-800' },
+      { name: 'New Customer', color: 'bg-teal-100 text-teal-800' }
+    ];
+    return statuses[Math.floor(Math.random() * statuses.length)];
+  };
+
+  const getTimeAgo = () => {
+    const times = ['5 min ago', '10 min ago', '15 min ago', '20 min ago', '1 hour ago'];
+    return times[Math.floor(Math.random() * times.length)];
+  };
+
+  const generateEmail = (name: string) => {
+    return `${name.toLowerCase().replace(/\s+/g, '.')}@email.com`;
   };
 
   const getInitials = (name: string) => {
@@ -70,22 +84,22 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <span className="text-sm font-medium text-blue-600">📋</span>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Transacciones Recientes</h2>
+          <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
         </div>
-        <Button variant="link" size="sm" className="text-blue-600" data-testid="button-view-all">
-          Ver todas
+        <Button variant="outline" size="sm" className="text-gray-600 border-gray-300 hover:bg-gray-50" data-testid="button-view-all">
+          Last 24h ▼
         </Button>
       </div>
-      <div className="bg-white rounded-xl border border-gray-200/60 overflow-hidden shadow-sm">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-gray-50/50">
-                  <TableHead className="font-semibold text-gray-700">Transacción</TableHead>
-                  <TableHead className="font-semibold text-gray-700">Cliente</TableHead>
-                  <TableHead className="font-semibold text-gray-700">Producto</TableHead>
-                  <TableHead className="font-semibold text-gray-700">Cantidad</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700">Monto</TableHead>
+                <TableRow className="border-b border-gray-100">
+                  <TableHead className="text-sm font-medium text-gray-500 py-4">Customer</TableHead>
+                  <TableHead className="text-sm font-medium text-gray-500">Status</TableHead>
+                  <TableHead className="text-sm font-medium text-gray-500">Customer ID</TableHead>
+                  <TableHead className="text-sm font-medium text-gray-500">Retained</TableHead>
+                  <TableHead className="text-sm font-medium text-gray-500 text-right">Amount</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -100,36 +114,47 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                     </TableRow>
                   ))
                 ) : (
-                  transactions?.map((transaction) => (
-                    <TableRow 
-                      key={transaction.id}
-                      data-testid={`transaction-${transaction.id}`}
-                    >
-                      <TableCell className="font-medium">
-                        {transaction.nudo}
-                      </TableCell>
-                      <TableCell>
-                        {transaction.nokoen && transaction.nokoen !== 'N/A' ? (
-                          <Link href={`/client/${encodeURIComponent(transaction.nokoen)}`}>
-                            <span className="hover:text-blue-600 hover:underline cursor-pointer">
-                              {transaction.nokoen}
-                            </span>
-                          </Link>
-                        ) : (
-                          'N/A'
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {transaction.nokoprct || 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        {transaction.caprad2 ? `${transaction.caprad2} GL` : 'N/A'}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {transaction.monto ? formatCurrency(Number(transaction.monto)) : 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  transactions?.map((transaction) => {
+                    const customerName = transaction.nokoen || 'Cliente Anónimo';
+                    const status = getRandomStatus();
+                    const timeAgo = getTimeAgo();
+                    
+                    return (
+                      <TableRow 
+                        key={transaction.id}
+                        className="border-b border-gray-50 hover:bg-gray-50/50"
+                        data-testid={`transaction-${transaction.id}`}
+                      >
+                        <TableCell className="py-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
+                              <span className="text-white text-sm font-medium">
+                                {getInitials(customerName)}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">{customerName}</div>
+                              <div className="text-sm text-gray-500">{generateEmail(customerName)}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${status.color}`}>
+                            {status.name}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-gray-600 font-medium">
+                          #{transaction.nudo}
+                        </TableCell>
+                        <TableCell className="text-gray-500 text-sm">
+                          {timeAgo}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-gray-900">
+                          {transaction.monto ? formatCurrency(Number(transaction.monto)) : '$0.00'}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
