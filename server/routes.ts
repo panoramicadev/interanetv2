@@ -784,6 +784,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/supervisor/:supervisorId/alerts', isAuthenticated, async (req, res) => {
+    try {
+      const { supervisorId } = req.params;
+      
+      const alerts = await storage.getSupervisorAlerts(supervisorId);
+      res.json(alerts);
+    } catch (error) {
+      console.error("Error fetching supervisor alerts:", error);
+      res.status(500).json({ message: "Failed to fetch supervisor alerts" });
+    }
+  });
+
 
   const httpServer = createServer(app);
   return httpServer;

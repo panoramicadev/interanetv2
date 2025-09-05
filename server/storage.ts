@@ -194,6 +194,13 @@ export interface IStorage {
     }>;
   }>>;
   getSupervisorGoals(supervisorId: string): Promise<Goal[]>;
+  getSupervisorAlerts(supervisorId: string): Promise<Array<{
+    type: 'inactive' | 'below_goal' | 'projection';
+    severity: 'low' | 'medium' | 'high';
+    salesperson: string;
+    message: string;
+    data: any;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1266,7 +1273,8 @@ export class DatabaseStorage implements IStorage {
       // Procesar metas con progreso
       const processedGoals = [];
       for (const goal of salespersonGoals) {
-        const currentSales = await this.getCurrentSalesForGoal(goal.id);
+        // Calcular ventas actuales para la meta basado en el vendedor
+        const currentSales = Number(salesStats?.totalSales || 0);
         const targetAmount = parseFloat(goal.targetAmount || "0");
         const remaining = Math.max(targetAmount - currentSales, 0);
         const progress = targetAmount > 0 ? Math.min((currentSales / targetAmount) * 100, 100) : 0;
@@ -1314,6 +1322,110 @@ export class DatabaseStorage implements IStorage {
         eq(goals.target, supervisor.salespersonName)
       ))
       .orderBy(desc(goals.createdAt));
+  }
+
+  async getSupervisorAlerts(supervisorId: string): Promise<Array<{
+    type: 'inactive' | 'below_goal' | 'projection';
+    severity: 'low' | 'medium' | 'high';
+    salesperson: string;
+    message: string;
+    data: any;
+  }>> {
+    const alerts = [];
+    
+    // Obtener vendedores del supervisor con sus datos
+    const salespeople = await this.getSalespeopleUnderSupervisor(supervisorId);
+    
+    const now = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+    
+    for (const salesperson of salespeople) {
+      // ALERTA 1: Vendedor inactivo (sin ventas en mucho tiempo)
+      if (salesperson.lastSale) {
+        const lastSaleDate = new Date(salesperson.lastSale);
+        const daysSinceLastSale = Math.floor((now.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysSinceLastSale >= 30) {
+          alerts.push({
+            type: 'inactive',
+            severity: daysSinceLastSale >= 60 ? 'high' : daysSinceLastSale >= 45 ? 'medium' : 'low',
+            salesperson: salesperson.salespersonName,
+            message: `${salesperson.salespersonName} no ha vendido en ${daysSinceLastSale} días`,
+            data: { daysSinceLastSale, lastSale: salesperson.lastSale }
+          });
+        }
+      } else if (salesperson.transactionCount === 0) {
+        alerts.push({
+          type: 'inactive',
+          severity: 'high',
+          salesperson: salesperson.salespersonName,
+          message: `${salesperson.salespersonName} no ha registrado ventas`,
+          data: { daysSinceLastSale: null, lastSale: null }
+        });
+      }
+      
+      // ALERTA 2 y 3: Metas bajo cumplimiento y proyecciones
+      for (const goal of salesperson.goals) {
+        const progress = goal.progress;
+        
+        // Alerta por estar bajo meta
+        if (progress < 50) {
+          alerts.push({
+            type: 'below_goal',
+            severity: progress < 25 ? 'high' : progress < 40 ? 'medium' : 'low',
+            salesperson: salesperson.salespersonName,
+            message: `${salesperson.salespersonName} está al ${progress}% de su meta (${goal.description})`,
+            data: { 
+              progress, 
+              currentSales: goal.currentSales, 
+              targetAmount: goal.targetAmount,
+              goalDescription: goal.description
+            }
+          });
+        }
+        
+        // ALERTA 3: Proyección negativa
+        // Calcular ritmo de ventas mensual y proyectar
+        const monthsInPeriod = this.getMonthsFromPeriod(goal.period);
+        if (monthsInPeriod > 0) {
+          const currentMonthsElapsed = 1; // Asumimos que estamos en el primer mes para simplificar
+          const currentMonthlyRate = goal.currentSales / currentMonthsElapsed;
+          const projectedTotal = currentMonthlyRate * monthsInPeriod;
+          const projectionPercentage = (projectedTotal / goal.targetAmount) * 100;
+          
+          if (projectionPercentage < 80 && progress > 0) { // Solo si hay algo de progreso
+            alerts.push({
+              type: 'projection',
+              severity: projectionPercentage < 50 ? 'high' : projectionPercentage < 65 ? 'medium' : 'low',
+              salesperson: salesperson.salespersonName,
+              message: `${salesperson.salespersonName} proyecta alcanzar solo ${Math.round(projectionPercentage)}% de su meta`,
+              data: { 
+                projectionPercentage: Math.round(projectionPercentage),
+                projectedTotal,
+                targetAmount: goal.targetAmount,
+                currentMonthlyRate,
+                goalDescription: goal.description
+              }
+            });
+          }
+        }
+      }
+    }
+    
+    // Ordenar alertas por severidad
+    const severityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+    return alerts.sort((a, b) => severityOrder[b.severity] - severityOrder[a.severity]);
+  }
+  
+  private getMonthsFromPeriod(period: string): number {
+    if (!period) return 0;
+    const periodLower = period.toLowerCase();
+    if (periodLower.includes('mensual') || periodLower.includes('mes')) return 1;
+    if (periodLower.includes('trimestral') || periodLower.includes('trimestre')) return 3;
+    if (periodLower.includes('semestral') || periodLower.includes('semestre')) return 6;
+    if (periodLower.includes('anual') || periodLower.includes('año')) return 12;
+    return 3; // Default trimestral
   }
 
 }
