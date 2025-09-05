@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Users, UserPlus } from "lucide-react";
+import { Plus, Edit, Trash2, Users, UserPlus, Building2, Menu, X, LogOut, BarChart3, Settings, Target } from "lucide-react";
+import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertSalespersonUserSchema, type InsertSalespersonUserInput, type SalespersonUser } from "@shared/schema";
@@ -25,6 +26,35 @@ export default function UsersPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<SalespersonUser | null>(null);
+  const [location] = useLocation();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Sidebar navigation items
+  const sidebarItems = [
+    { icon: BarChart3, label: "Dashboard", href: "/" },
+    { icon: Users, label: "Gestión de Usuarios", href: "/users" },
+    { icon: Target, label: "Gestión de Metas", href: "/goals" },
+    { icon: Settings, label: "Configuración", href: "/settings" },
+  ];
+
+  const handleLogout = () => {
+    window.location.href = "/api/logout";
+  };
+
+  const getInitials = (firstName?: string | null, lastName?: string | null) => {
+    const first = firstName?.charAt(0) || "";
+    const last = lastName?.charAt(0) || "";
+    return (first + last).toUpperCase() || "A";
+  };
+
+  const getDisplayName = (firstName?: string | null, lastName?: string | null) => {
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`;
+    }
+    if (firstName) return firstName;
+    if (lastName) return lastName;
+    return "Administrador";
+  };
 
   // Verificar permisos de admin
   useEffect(() => {
@@ -207,7 +237,7 @@ export default function UsersPage() {
     const cleanedData = {
       ...data,
       supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null,
-      assignedSegment: data.role === "supervisor" && data.assignedSegment ? data.assignedSegment : null
+      assignedSegment: data.role === "supervisor" && data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
     };
     console.log("Enviando datos:", cleanedData);
     createUserMutation.mutate(cleanedData);
@@ -219,7 +249,7 @@ export default function UsersPage() {
     const cleanedData = {
       ...data,
       supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null,
-      assignedSegment: data.role === "supervisor" && data.assignedSegment ? data.assignedSegment : null
+      assignedSegment: data.role === "supervisor" && data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
     };
     console.log("Editando datos:", cleanedData);
     updateUserMutation.mutate({ id: editingUser.id, userData: cleanedData });
@@ -251,7 +281,94 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <>
+      {/* Mobile Menu Button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="fixed top-4 left-4 z-50 lg:hidden glass-card p-2"
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        data-testid="mobile-menu-toggle"
+      >
+        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </Button>
+
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-700/50 transition-transform duration-300 lg:translate-x-0 ${
+        isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
+        <div className="flex flex-col h-full">
+          <div className="p-6 border-b border-slate-700/50">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Panel Admin</h1>
+                <p className="text-sm text-slate-400">Gestión del Sistema</p>
+              </div>
+            </div>
+          </div>
+        
+          <nav className="flex-1 p-4 space-y-1">
+            {sidebarItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location === item.href;
+              return (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    variant="ghost"
+                    className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                      isActive ? "bg-slate-800 text-white" : ""
+                    }`}
+                    data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <Icon className="w-5 h-5 mr-3" />
+                    {item.label}
+                  </Button>
+                </Link>
+              );
+            })}
+          </nav>
+          
+          <div className="p-6 border-t border-slate-700/50">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+                <span className="text-xs font-medium text-white">
+                  {getInitials(user?.firstName, user?.lastName)}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">
+                  {getDisplayName(user?.firstName, user?.lastName)}
+                </p>
+                <p className="text-xs text-slate-400">Administrador</p>
+              </div>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
+              onClick={handleLogout}
+              data-testid="logout-button"
+            >
+              <LogOut className="w-4 h-4 mr-3" />
+              Cerrar Sesión
+            </Button>
+          </div>
+        </div>
+      </div>
+      
+      <div className="lg:ml-64 transition-all duration-300">
+        <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
@@ -390,14 +507,14 @@ export default function UsersPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Segmento Asignado</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                          <Select onValueChange={field.onChange} value={field.value ?? "none"}>
                             <FormControl>
                               <SelectTrigger data-testid="select-assigned-segment">
                                 <SelectValue placeholder="Selecciona un segmento" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="">Sin segmento</SelectItem>
+                              <SelectItem value="none">Sin segmento</SelectItem>
                               <SelectItem value="CONSTRUCCION">CONSTRUCCION</SelectItem>
                               <SelectItem value="DIGITAL">DIGITAL</SelectItem>
                               <SelectItem value="FERRETERIAS">FERRETERIAS</SelectItem>
@@ -735,14 +852,14 @@ export default function UsersPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Segmento Asignado</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                      <Select onValueChange={field.onChange} value={field.value ?? "none"}>
                         <FormControl>
                           <SelectTrigger data-testid="select-edit-assigned-segment">
                             <SelectValue placeholder="Selecciona un segmento" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">Sin segmento</SelectItem>
+                          <SelectItem value="none">Sin segmento</SelectItem>
                           <SelectItem value="CONSTRUCCION">CONSTRUCCION</SelectItem>
                           <SelectItem value="DIGITAL">DIGITAL</SelectItem>
                           <SelectItem value="FERRETERIAS">FERRETERIAS</SelectItem>
@@ -785,6 +902,8 @@ export default function UsersPage() {
           </Form>
         </DialogContent>
       </Dialog>
-    </div>
+        </div>
+      </div>
+    </>
   );
 }
