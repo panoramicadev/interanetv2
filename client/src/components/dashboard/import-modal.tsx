@@ -89,11 +89,19 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
   const parseDate = (value: string): string | null => {
     if (!value || value.trim() === '') return null;
     try {
-      // Assuming format DD-MM-YYYY
+      // Format DD-MM-YYYY from CSV
       const parts = value.split('-');
       if (parts.length === 3) {
-        const date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-        return date.toISOString().split('T')[0];
+        const day = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+        const year = parseInt(parts[2]);
+        
+        if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900) {
+          // Convert to YYYY-MM-DD format for database
+          const formattedMonth = month.toString().padStart(2, '0');
+          const formattedDay = day.toString().padStart(2, '0');
+          return `${year}-${formattedMonth}-${formattedDay}`;
+        }
       }
     } catch (e) {
       console.warn('Invalid date format:', value);

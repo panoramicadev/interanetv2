@@ -119,13 +119,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Validate each transaction
       const validatedTransactions = [];
-      for (const transaction of transactions) {
+      const errors = [];
+      
+      for (let i = 0; i < transactions.length; i++) {
+        const transaction = transactions[i];
         try {
           const validated = insertSalesTransactionSchema.parse(transaction);
           validatedTransactions.push(validated);
-        } catch (error) {
-          console.warn("Skipping invalid transaction:", error);
+        } catch (error: any) {
+          errors.push({
+            index: i,
+            transaction: transaction.nudo || `Row ${i + 1}`,
+            error: error.issues ? error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ') : error.message
+          });
+          console.warn(`Skipping invalid transaction at row ${i + 1}:`, transaction.nudo, error.issues);
         }
+      }
+
+      if (validatedTransactions.length === 0) {
+        return res.status(400).json({ 
+          message: "No valid transactions found",
+          errors: errors.slice(0, 5) // Show first 5 errors
+        });
       }
 
       await storage.insertMultipleSalesTransactions(validatedTransactions);
@@ -133,7 +148,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         message: "Data imported successfully",
         imported: validatedTransactions.length,
-        total: transactions.length
+        total: transactions.length,
+        errors: errors.length > 0 ? errors.slice(0, 5) : undefined
       });
     } catch (error) {
       console.error("Error importing sales data:", error);
