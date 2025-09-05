@@ -29,25 +29,25 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
     window.location.href = "/api/logout";
   };
 
-  const getInitials = (firstName?: string | null, lastName?: string | null, salespersonName?: string | null) => {
-    if (salespersonName) {
-      const parts = salespersonName.split(' ');
+  const getInitials = (user: any) => {
+    if (user?.salespersonName) {
+      const parts = user.salespersonName.split(' ');
       return (parts[0]?.charAt(0) + (parts[1]?.charAt(0) || '')).toUpperCase();
     }
-    const first = firstName?.charAt(0) || "";
-    const last = lastName?.charAt(0) || "";
+    const first = user?.firstName?.charAt(0) || "";
+    const last = user?.lastName?.charAt(0) || "";
     return (first + last).toUpperCase() || "U";
   };
 
-  const getDisplayName = (firstName?: string | null, lastName?: string | null, salespersonName?: string | null) => {
-    if (salespersonName) {
-      return salespersonName;
+  const getDisplayName = (user: any) => {
+    if (user?.salespersonName) {
+      return user.salespersonName;
     }
-    if (firstName && lastName) {
-      return `${firstName} ${lastName}`;
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName} ${user.lastName}`;
     }
-    if (firstName) return firstName;
-    if (lastName) return lastName;
+    if (user?.firstName) return user.firstName;
+    if (user?.lastName) return user.lastName;
     return "Usuario";
   };
 
@@ -156,12 +156,12 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                 <span className="text-xs font-medium text-white">
-                  {getInitials(user?.firstName, user?.lastName, (user as SalespersonUser)?.salespersonName)}
+                  {getInitials(user)}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
-                  {getDisplayName(user?.firstName, user?.lastName, (user as SalespersonUser)?.salespersonName)}
+                  {getDisplayName(user)}
                 </p>
                 <p className="text-xs text-slate-400 truncate">
                   {user?.role === 'admin' ? 'Administrador' : 

@@ -1406,6 +1406,43 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // 3. Obtener metas de vendedores bajo supervisión
+    const salespeople = await db
+      .select({ salespersonName: salespeopleUsers.salespersonName })
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.supervisorId, supervisorId));
+
+    for (const salesperson of salespeople) {
+      const salespersonGoals = await db
+        .select()
+        .from(goals)
+        .where(and(
+          eq(goals.type, 'salesperson'),
+          eq(goals.target, salesperson.salespersonName)
+        ))
+        .orderBy(desc(goals.createdAt));
+      
+      // Procesar metas de cada vendedor
+      for (const goal of salespersonGoals) {
+        const currentSales = await this.getSalespersonSalesForPeriod(salesperson.salespersonName, goal.period);
+        const targetAmount = parseFloat(goal.amount);
+        const remaining = Math.max(targetAmount - currentSales, 0);
+        const progress = targetAmount > 0 ? Math.min((currentSales / targetAmount) * 100, 100) : 0;
+
+        processedGoals.push({
+          id: goal.id,
+          type: goal.type,
+          target: goal.target,
+          description: goal.description || `Meta de ${salesperson.salespersonName}`,
+          targetAmount,
+          currentSales,
+          remaining,
+          period: goal.period,
+          progress: Math.round(progress)
+        });
+      }
+    }
+
     return processedGoals;
   }
 

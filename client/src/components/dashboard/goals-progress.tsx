@@ -70,12 +70,21 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
     return goal.type === selectedFilter;
   }) || [];
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | string) => {
+    // Ensure amount is a number
+    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    
+    // Check if conversion was successful
+    if (isNaN(numericAmount)) {
+      console.error('[DEBUG] Invalid amount for formatCurrency:', amount);
+      return '$0';
+    }
+    
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP',
       minimumFractionDigits: 0,
-    }).format(amount);
+    }).format(numericAmount);
   };
 
   const getTypeIcon = (type: string) => {
