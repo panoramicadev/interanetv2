@@ -17,8 +17,11 @@ interface SalesChartProps {
 export default function SalesChart({ selectedPeriod, filterType }: SalesChartProps) {
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('monthly');
   
+  // Auto-ajustar el período del gráfico basado en el tipo de filtro
+  const chartPeriod = filterType === 'day' ? 'daily' : period;
+  
   const { data: chartData, isLoading } = useQuery<ChartDataPoint[]>({
-    queryKey: [`/api/sales/chart-data?period=${period}&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/chart-data?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
   });
 
   const formatCurrency = (value: number) => {
@@ -99,15 +102,16 @@ export default function SalesChart({ selectedPeriod, filterType }: SalesChartPro
           <CardTitle>Tendencia de Ventas</CardTitle>
           <div className="flex space-x-2">
             <Button
-              variant={period === 'monthly' ? 'default' : 'outline'}
+              variant={chartPeriod === 'monthly' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPeriod('monthly')}
+              disabled={filterType === 'day'}
               data-testid="button-monthly"
             >
               Mensual
             </Button>
             <Button
-              variant={period === 'daily' ? 'default' : 'outline'}
+              variant={chartPeriod === 'daily' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPeriod('daily')}
               data-testid="button-daily"
@@ -115,9 +119,10 @@ export default function SalesChart({ selectedPeriod, filterType }: SalesChartPro
               Diario
             </Button>
             <Button
-              variant={period === 'weekly' ? 'default' : 'outline'}
+              variant={chartPeriod === 'weekly' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPeriod('weekly')}
+              disabled={filterType === 'day'}
               data-testid="button-weekly"
             >
               Semanal
