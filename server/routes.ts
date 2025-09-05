@@ -147,6 +147,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Vendedor-specific metrics endpoint
+  app.get('/api/sales/metrics/salesperson/:salespersonName', isAuthenticated, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { startDate, endDate, period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
+      const metrics = await storage.getSalesMetrics({
+        startDate: (startDate as string) || dateRange.startDate,
+        endDate: (endDate as string) || dateRange.endDate,
+        salesperson: salespersonName,
+      });
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching salesperson metrics:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson metrics" });
+    }
+  });
+
+  // Vendedor-specific clients endpoint  
+  app.get('/api/sales/clients/salesperson/:salespersonName', isAuthenticated, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { startDate, endDate, period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
+      const clients = await storage.getTopClients(10, 
+        (startDate as string) || dateRange.startDate,
+        (endDate as string) || dateRange.endDate,
+        salespersonName
+      );
+      res.json(clients);
+    } catch (error) {
+      console.error("Error fetching salesperson clients:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson clients" });
+    }
+  });
+
+  // Vendedor-specific sales chart data
+  app.get('/api/sales/chart-data/salesperson/:salespersonName', isAuthenticated, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const chartData = await storage.getSalesChartData('monthly', undefined, undefined, salespersonName);
+      res.json(chartData);
+    } catch (error) {
+      console.error("Error fetching salesperson chart data:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson chart data" });
+    }
+  });
+
   // Sales transactions endpoint
   app.get('/api/sales/transactions', isAuthenticated, async (req, res) => {
     try {
