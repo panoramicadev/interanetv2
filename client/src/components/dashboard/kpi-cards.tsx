@@ -14,9 +14,14 @@ interface SalesMetrics {
   activeCustomers: number;
 }
 
-export default function KPICards() {
+interface KPICardsProps {
+  selectedPeriod: string;
+  filterType: "day" | "month" | "range";
+}
+
+export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) {
   const { data: metrics, isLoading } = useQuery<SalesMetrics>({
-    queryKey: ["/api/sales/metrics"],
+    queryKey: [`/api/sales/metrics?period=${selectedPeriod}&filterType=${filterType}`],
   });
 
   const formatCurrency = (amount: number) => {

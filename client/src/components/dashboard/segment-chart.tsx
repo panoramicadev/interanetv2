@@ -9,9 +9,14 @@ interface SegmentData {
   percentage: number;
 }
 
-export default function SegmentChart() {
+interface SegmentChartProps {
+  selectedPeriod: string;
+  filterType: "day" | "month" | "range";
+}
+
+export default function SegmentChart({ selectedPeriod, filterType }: SegmentChartProps) {
   const { data: segmentData, isLoading } = useQuery<SegmentData[]>({
-    queryKey: ["/api/sales/segments"],
+    queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
   });
 
   const formatCurrency = (value: number) => {

@@ -9,9 +9,14 @@ interface TopClient {
   transactionCount: number;
 }
 
-export default function TopClientsPanel() {
+interface TopClientsPanelProps {
+  selectedPeriod: string;
+  filterType: "day" | "month" | "range";
+}
+
+export default function TopClientsPanel({ selectedPeriod, filterType }: TopClientsPanelProps) {
   const { data: topClients, isLoading } = useQuery<TopClient[]>({
-    queryKey: ["/api/sales/top-clients?limit=8"],
+    queryKey: [`/api/sales/top-clients?limit=8&period=${selectedPeriod}&filterType=${filterType}`],
   });
 
   const formatCurrency = (amount: number) => {

@@ -205,19 +205,19 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <main className="p-6 space-y-6">
-          <KPICards />
+          <KPICards selectedPeriod={selectedPeriod} filterType={filterType} />
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SalesChart />
-            <TopProductsChart />
+            <SalesChart selectedPeriod={selectedPeriod} filterType={filterType} />
+            <TopProductsChart selectedPeriod={selectedPeriod} filterType={filterType} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SegmentChart />
-            <TopClientsPanel />
+            <SegmentChart selectedPeriod={selectedPeriod} filterType={filterType} />
+            <TopClientsPanel selectedPeriod={selectedPeriod} filterType={filterType} />
           </div>
 
-          <TransactionsTable />
+          <TransactionsTable selectedPeriod={selectedPeriod} filterType={filterType} />
         </main>
       </div>
 

@@ -28,15 +28,20 @@ interface TopSalesperson {
   transactionCount: number;
 }
 
-export default function TransactionsTable() {
+interface TransactionsTableProps {
+  selectedPeriod: string;
+  filterType: "day" | "month" | "range";
+}
+
+export default function TransactionsTable({ selectedPeriod, filterType }: TransactionsTableProps) {
   const [limit] = useState(10);
   
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/sales/transactions?limit=${limit}`],
+    queryKey: [`/api/sales/transactions?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}`],
   });
 
   const { data: topSalespeople } = useQuery<TopSalesperson[]>({
-    queryKey: ["/api/sales/top-salespeople"],
+    queryKey: [`/api/sales/top-salespeople?period=${selectedPeriod}&filterType=${filterType}`],
   });
 
   const formatCurrency = (amount: number) => {

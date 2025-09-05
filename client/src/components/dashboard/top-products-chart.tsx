@@ -8,9 +8,14 @@ interface TopProduct {
   totalUnits: number;
 }
 
-export default function TopProductsChart() {
+interface TopProductsChartProps {
+  selectedPeriod: string;
+  filterType: "day" | "month" | "range";
+}
+
+export default function TopProductsChart({ selectedPeriod, filterType }: TopProductsChartProps) {
   const { data: topProducts, isLoading } = useQuery<TopProduct[]>({
-    queryKey: ["/api/sales/top-products?limit=5"],
+    queryKey: [`/api/sales/top-products?limit=5&period=${selectedPeriod}&filterType=${filterType}`],
   });
 
   // Modern gradient colors for products

@@ -9,11 +9,16 @@ interface ChartDataPoint {
   sales: number;
 }
 
-export default function SalesChart() {
+interface SalesChartProps {
+  selectedPeriod: string;
+  filterType: "day" | "month" | "range";
+}
+
+export default function SalesChart({ selectedPeriod, filterType }: SalesChartProps) {
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('monthly');
   
   const { data: chartData, isLoading } = useQuery<ChartDataPoint[]>({
-    queryKey: [`/api/sales/chart-data?period=${period}`],
+    queryKey: [`/api/sales/chart-data?period=${period}&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
   });
 
   const formatCurrency = (value: number) => {
