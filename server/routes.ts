@@ -100,7 +100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/sales/chart-data', isAuthenticated, async (req, res) => {
     try {
       const { period = 'monthly' } = req.query;
-      const chartData = await storage.getSalesChartData(period as 'weekly' | 'monthly');
+      const chartData = await storage.getSalesChartData(period as 'weekly' | 'monthly' | 'daily');
       res.json(chartData);
     } catch (error) {
       console.error("Error fetching chart data:", error);

@@ -172,7 +172,7 @@ export default function TransactionsTable() {
                         {transaction.caprad2 ? `${transaction.caprad2} GL` : 'N/A'}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {transaction.vabrdo ? formatCurrency(Number(transaction.vabrdo)) : 'N/A'}
+                        {transaction.monto ? formatCurrency(Number(transaction.monto)) : 'N/A'}
                       </TableCell>
                     </TableRow>
                   ))

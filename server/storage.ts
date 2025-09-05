@@ -51,7 +51,7 @@ export interface IStorage {
     totalSales: number;
     percentage: number;
   }>>;
-  getSalesChartData(period: 'weekly' | 'monthly'): Promise<Array<{
+  getSalesChartData(period: 'weekly' | 'monthly' | 'daily'): Promise<Array<{
     period: string;
     sales: number;
   }>>;
@@ -255,18 +255,29 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSalesChartData(period: 'weekly' | 'monthly'): Promise<Array<{
+  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily'): Promise<Array<{
     period: string;
     sales: number;
   }>> {
-    const dateFormat = period === 'weekly' 
-      ? `'Semana ' || EXTRACT(week FROM ${salesTransactions.feemdo})`
-      : `TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`;
+    let dateFormat: string;
+    
+    switch (period) {
+      case 'daily':
+        dateFormat = `TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`;
+        break;
+      case 'weekly':
+        dateFormat = `'Semana ' || EXTRACT(week FROM ${salesTransactions.feemdo})`;
+        break;
+      case 'monthly':
+      default:
+        dateFormat = `TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`;
+        break;
+    }
 
     const results = await db
       .select({
         period: sql<string>`${sql.raw(dateFormat)}`,
-        sales: sql<number>`COALESCE(SUM(${salesTransactions.vabrdo}), 0)`,
+        sales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions)
       .groupBy(sql.raw(dateFormat))

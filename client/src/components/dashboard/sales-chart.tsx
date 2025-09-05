@@ -10,7 +10,7 @@ interface ChartDataPoint {
 }
 
 export default function SalesChart() {
-  const [period, setPeriod] = useState<'weekly' | 'monthly'>('monthly');
+  const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('monthly');
   
   const { data: chartData, isLoading } = useQuery<ChartDataPoint[]>({
     queryKey: ["/api/sales/chart-data", { period }],
@@ -73,6 +73,14 @@ export default function SalesChart() {
               data-testid="button-monthly"
             >
               Mensual
+            </Button>
+            <Button
+              variant={period === 'daily' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPeriod('daily')}
+              data-testid="button-daily"
+            >
+              Diario
             </Button>
             <Button
               variant={period === 'weekly' ? 'default' : 'outline'}
