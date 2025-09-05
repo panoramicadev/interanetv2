@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, relations } from 'drizzle-orm';
 import {
   index,
   jsonb,
@@ -221,7 +221,8 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   email: varchar("email").unique(),
   password: varchar("password"), // Hash de la contraseña
   isActive: boolean("is_active").default(true),
-  role: varchar("role").default("salesperson"), // "salesperson" | "admin"
+  role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "salesperson" | "client"
+  supervisorId: varchar("supervisor_id"), // ID del supervisor que gestiona este vendedor (solo para role="salesperson")
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -229,12 +230,26 @@ export const salespeopleUsers = pgTable("salespeople_users", {
 export type SalespersonUser = typeof salespeopleUsers.$inferSelect;
 export type InsertSalespersonUser = typeof salespeopleUsers.$inferInsert;
 
+// Relaciones para usuarios vendedores
+export const salespeopleUsersRelations = relations(salespeopleUsers, ({ one, many }) => ({
+  supervisor: one(salespeopleUsers, {
+    fields: [salespeopleUsers.supervisorId],
+    references: [salespeopleUsers.id],
+    relationName: "supervisor"
+  }),
+  managedSalespeople: many(salespeopleUsers, {
+    relationName: "supervisor"
+  }),
+}));
+
 // Esquemas de validación para usuarios vendedores
 export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, {
-  salespersonName: z.string().min(1, "Nombre del vendedor es requerido"),
+  salespersonName: z.string().min(1, "Nombre del usuario es requerido"),
   username: z.string().min(2, "Usuario debe tener al menos 2 caracteres").optional().or(z.literal("")),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().or(z.literal("")),
+  role: z.enum(["admin", "supervisor", "salesperson", "client"]).default("salesperson"),
+  supervisorId: z.string().optional().nullable(),
 }).omit({
   id: true,
   createdAt: true,
