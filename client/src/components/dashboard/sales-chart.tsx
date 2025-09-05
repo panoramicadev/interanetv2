@@ -36,7 +36,7 @@ interface SalesChartProps {
 }
 
 export default function SalesChart({ selectedPeriod, filterType }: SalesChartProps) {
-  const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('monthly');
+  const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('daily');
   
   // Auto-ajustar el período del gráfico basado en el tipo de filtro
   const chartPeriod = filterType === 'day' ? 'daily' : period;
