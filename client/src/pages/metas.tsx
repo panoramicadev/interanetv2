@@ -22,6 +22,12 @@ export default function Metas() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  
+  // Global filter state for goals component
+  const [globalFilter, setGlobalFilter] = useState<{
+    type: "all" | "segment" | "salesperson";
+    value?: string;
+  }>({ type: "all" });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -256,7 +262,10 @@ export default function Metas() {
         {/* Main Content */}
         <main className="p-6 space-y-6">
           {/* Goals Progress Dashboard */}
-          <GoalsProgress />
+          <GoalsProgress 
+            globalFilter={globalFilter}
+            onFilterChange={setGlobalFilter}
+          />
           {/* Create/Edit Form */}
           {showCreateForm && (
             <Card>
