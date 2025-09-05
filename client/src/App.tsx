@@ -8,6 +8,7 @@ import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
+import ClientsDashboard from "@/pages/clients-dashboard";
 import Metas from "@/pages/metas";
 import Users from "@/pages/users";
 import SegmentDetail from "@/pages/segment-detail";
@@ -62,6 +63,7 @@ function Router() {
           {user.role === 'salesperson' && (
             <>
               <Route path="/" component={SalespersonDashboard} />
+              <Route path="/mis-clientes" component={ClientsDashboard} />
               <Route path="/client/:clientName" component={ClientDetail} />
             </>
           )}

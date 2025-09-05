@@ -81,6 +81,36 @@ export interface IStorage {
   getUniqueSalespeople(): Promise<string[]>;
   getUniqueClients(): Promise<string[]>;
   
+  // Client categorization for salespeople
+  getSalespersonClientsAnalysis(salesperson: string): Promise<{
+    vipClients: Array<{
+      clientName: string;
+      totalSales: number;
+      transactionCount: number;
+      averageTicket: number;
+      lastPurchaseDate: string;
+      daysSinceLastPurchase: number;
+    }>;
+    inactiveClients: Array<{
+      clientName: string;
+      totalSales: number;
+      lastPurchaseDate: string;
+      daysSinceLastPurchase: number;
+    }>;
+    frequentClients: Array<{
+      clientName: string;
+      transactionCount: number;
+      totalSales: number;
+      purchaseFrequency: number;
+    }>;
+    clientsWithTopProducts: Array<{
+      clientName: string;
+      topProduct: string;
+      productSales: number;
+      totalClientSales: number;
+    }>;
+  }>;
+  
   // Sales data for goals comparison
   getGlobalSalesForPeriod(period: string): Promise<number>;
   getSegmentSalesForPeriod(segment: string, period: string): Promise<number>;
@@ -1034,6 +1064,134 @@ export class DatabaseStorage implements IStorage {
       .from(salespeopleUsers)
       .where(eq(salespeopleUsers.email, email));
     return user;
+  }
+
+  async getSalespersonClientsAnalysis(salesperson: string): Promise<{
+    vipClients: Array<{
+      clientName: string;
+      totalSales: number;
+      transactionCount: number;
+      averageTicket: number;
+      lastPurchaseDate: string;
+      daysSinceLastPurchase: number;
+    }>;
+    inactiveClients: Array<{
+      clientName: string;
+      totalSales: number;
+      lastPurchaseDate: string;
+      daysSinceLastPurchase: number;
+    }>;
+    frequentClients: Array<{
+      clientName: string;
+      transactionCount: number;
+      totalSales: number;
+      purchaseFrequency: number;
+    }>;
+    clientsWithTopProducts: Array<{
+      clientName: string;
+      topProduct: string;
+      productSales: number;
+      totalClientSales: number;
+    }>;
+  }> {
+    const today = new Date();
+    
+    // Obtener todos los clientes del vendedor con estadísticas
+    const allClients = await db
+      .select({
+        clientName: salesTransactions.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        lastPurchaseDate: sql<string>`MAX(${salesTransactions.feemdo})`,
+        firstPurchaseDate: sql<string>`MIN(${salesTransactions.feemdo})`
+      })
+      .from(salesTransactions)
+      .where(and(
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`
+      ))
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+
+    // Calcular métricas para cada cliente
+    const clientsWithMetrics = allClients.map(client => {
+      const lastPurchaseDate = new Date(client.lastPurchaseDate);
+      const firstPurchaseDate = new Date(client.firstPurchaseDate);
+      const daysSinceLastPurchase = Math.floor((today.getTime() - lastPurchaseDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysBetween = Math.max(1, Math.floor((lastPurchaseDate.getTime() - firstPurchaseDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const purchaseFrequency = client.transactionCount > 1 ? daysBetween / client.transactionCount : 0;
+      const averageTicket = client.totalSales / client.transactionCount;
+
+      return {
+        clientName: client.clientName || '',
+        totalSales: Number(client.totalSales),
+        transactionCount: Number(client.transactionCount),
+        averageTicket: Number(averageTicket),
+        lastPurchaseDate: client.lastPurchaseDate,
+        daysSinceLastPurchase,
+        purchaseFrequency: Number(purchaseFrequency.toFixed(1))
+      };
+    });
+
+    // Determinar el umbral para clientes VIP (top 20%)
+    const vipThreshold = Math.ceil(clientsWithMetrics.length * 0.2);
+    const vipClients = clientsWithMetrics.slice(0, vipThreshold);
+
+    // Clientes inactivos (más de 60 días sin compras)
+    const inactiveClients = clientsWithMetrics
+      .filter(client => client.daysSinceLastPurchase > 60)
+      .map(client => ({
+        clientName: client.clientName,
+        totalSales: client.totalSales,
+        lastPurchaseDate: client.lastPurchaseDate,
+        daysSinceLastPurchase: client.daysSinceLastPurchase
+      }));
+
+    // Clientes frecuentes (frecuencia menor a 30 días y más de 3 transacciones)
+    const frequentClients = clientsWithMetrics
+      .filter(client => client.purchaseFrequency > 0 && client.purchaseFrequency < 30 && client.transactionCount > 3)
+      .map(client => ({
+        clientName: client.clientName,
+        transactionCount: client.transactionCount,
+        totalSales: client.totalSales,
+        purchaseFrequency: client.purchaseFrequency
+      }))
+      .sort((a, b) => a.purchaseFrequency - b.purchaseFrequency);
+
+    // Producto favorito por cliente
+    const clientsWithTopProducts = [];
+    for (const client of clientsWithMetrics.slice(0, 20)) { // Top 20 clientes
+      const topProducts = await db
+        .select({
+          productName: salesTransactions.nokoprct,
+          productSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+        })
+        .from(salesTransactions)
+        .where(and(
+          eq(salesTransactions.nokofu, salesperson),
+          eq(salesTransactions.nokoen, client.clientName),
+          sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`
+        ))
+        .groupBy(salesTransactions.nokoprct)
+        .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`)
+        .limit(1);
+
+      if (topProducts.length > 0) {
+        clientsWithTopProducts.push({
+          clientName: client.clientName,
+          topProduct: topProducts[0].productName || 'Producto desconocido',
+          productSales: Number(topProducts[0].productSales),
+          totalClientSales: client.totalSales
+        });
+      }
+    }
+
+    return {
+      vipClients,
+      inactiveClients,
+      frequentClients,
+      clientsWithTopProducts
+    };
   }
 
 }
