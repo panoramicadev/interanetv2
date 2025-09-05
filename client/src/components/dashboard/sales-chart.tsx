@@ -30,8 +30,14 @@ export default function SalesChart() {
       datasets: [{
         label: 'Ventas ($)',
         data: chartData?.map(d => d.sales) || [],
-        borderColor: 'hsl(var(--primary))',
-        backgroundColor: 'hsla(var(--primary), 0.7)',
+        backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        borderColor: '#667eea',
+        borderWidth: 2,
+        borderRadius: 6,
+        borderSkipped: false,
+        hoverBackgroundColor: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+        hoverBorderColor: '#764ba2',
+        hoverBorderWidth: 3,
       }]
     },
     options: {
@@ -42,15 +48,38 @@ export default function SalesChart() {
           display: false
         },
         tooltip: {
+          backgroundColor: 'rgba(102, 126, 234, 0.9)',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          borderColor: '#667eea',
+          borderWidth: 2,
+          cornerRadius: 12,
+          displayColors: false,
           callbacks: {
             label: (context: any) => formatCurrency(context.parsed.y)
           }
         }
       },
       scales: {
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            color: '#6b7280',
+            font: {
+              weight: 500
+            }
+          }
+        },
         y: {
           beginAtZero: true,
+          grid: {
+            color: 'rgba(102, 126, 234, 0.1)',
+            borderDash: [3, 3]
+          },
           ticks: {
+            color: '#6b7280',
             callback: (value: any) => formatCurrency(value)
           }
         }

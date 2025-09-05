@@ -13,23 +13,32 @@ export default function TopProductsChart() {
     queryKey: ["/api/sales/top-products?limit=5"],
   });
 
-  // Generate colors for each product
-  const generateColors = (count: number) => {
-    const colors = [];
-    for (let i = 0; i < count; i++) {
-      const hue = (i * 360) / count;
-      colors.push(`hsl(${hue}, 70%, 60%)`);
-    }
-    return colors;
-  };
+  // Modern gradient colors for products
+  const modernProductColors = [
+    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', 
+    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+    'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+    'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+    'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+  ];
+
+  const solidColors = [
+    '#667eea', '#f5576c', '#00f2fe', '#38f9d7', 
+    '#fee140', '#fed6e3', '#fecfef', '#fcb69f'
+  ];
 
   const chartData = {
     labels: topProducts?.map(p => p.productName) || [],
     datasets: [{
       data: topProducts?.map(p => p.totalSales) || [],
-      backgroundColor: generateColors(topProducts?.length || 5),
-      borderColor: generateColors(topProducts?.length || 5).map(color => color.replace('60%', '40%')),
-      borderWidth: 2,
+      backgroundColor: modernProductColors.slice(0, topProducts?.length || 5),
+      borderColor: solidColors.slice(0, topProducts?.length || 5),
+      borderWidth: 3,
+      hoverBorderWidth: 4,
+      hoverOffset: 8,
     }]
   };
 
@@ -38,9 +47,25 @@ export default function TopProductsChart() {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'bottom' as const
+        position: 'bottom' as const,
+        labels: {
+          usePointStyle: true,
+          pointStyle: 'circle',
+          padding: 20,
+          font: {
+            size: 12,
+            weight: 500
+          },
+          color: '#374151'
+        }
       },
       tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: '#fff',
+        bodyColor: '#fff',
+        borderWidth: 0,
+        cornerRadius: 12,
+        displayColors: true,
         callbacks: {
           label: (context: any) => {
             const value = new Intl.NumberFormat('es-CL', {
