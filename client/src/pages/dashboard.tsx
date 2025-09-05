@@ -205,7 +205,8 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Top Row: Ventas por Segmento y Top Clientes */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <SegmentChart 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
@@ -214,16 +215,19 @@ export default function Dashboard() {
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
             />
+          </div>
+
+          {/* Bottom Row: Top Vendedores y Últimas Transacciones */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <TopSalespeoplePanel 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
             />
+            <TransactionsTable 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+            />
           </div>
-
-          <TransactionsTable 
-            selectedPeriod={selectedPeriod} 
-            filterType={filterType}
-          />
         </main>
       </div>
 
