@@ -213,6 +213,110 @@ export const insertSalesTransactionSchema = z.object({
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
+// Products table - Master product information
+export const products = pgTable("products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sku: varchar("sku").notNull().unique(), // KOPR from CSV
+  name: text("name").notNull(), // NOKOPR from CSV
+  unit1: varchar("unit1"), // UD01PR from CSV
+  unit2: varchar("unit2"), // UD02PR from CSV
+  unitRatio: numeric("unit_ratio", { precision: 10, scale: 4 }), // RLUD from CSV
+  price: numeric("price", { precision: 15, scale: 2 }), // Precio establecido manualmente
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Product stock table - Stock by warehouse and branch
+export const productStock = pgTable("product_stock", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productSku: varchar("product_sku").notNull(), // FK to products.sku
+  branchCode: varchar("branch_code").notNull(), // KOSU from CSV
+  warehouseCode: varchar("warehouse_code").notNull(), // KOBO from CSV
+  warehouseLocation: text("warehouse_location"), // DATOSUBIC from CSV
+  
+  // Physical stock
+  physicalStock1: numeric("physical_stock1", { precision: 15, scale: 4 }), // STFI1
+  physicalStock2: numeric("physical_stock2", { precision: 15, scale: 4 }), // STFI2
+  
+  // Available stock for sales  
+  availableStock1: numeric("available_stock1", { precision: 15, scale: 4 }), // STDV1
+  availableStock2: numeric("available_stock2", { precision: 15, scale: 4 }), // STDV2
+  
+  // Committed stock
+  committedStock1: numeric("committed_stock1", { precision: 15, scale: 4 }), // STOCNV1
+  committedStock2: numeric("committed_stock2", { precision: 15, scale: 4 }), // STOCNV2
+  
+  // Committed stock alternative
+  committedStock1Alt: numeric("committed_stock1_alt", { precision: 15, scale: 4 }), // STDV1C
+  committedStock2Alt: numeric("committed_stock2_alt", { precision: 15, scale: 4 }), // STDV2C
+  
+  // Additional stock fields
+  committedStockAlt1: numeric("committed_stock_alt1", { precision: 15, scale: 4 }), // STOCNV1C
+  committedStockAlt2: numeric("committed_stock_alt2", { precision: 15, scale: 4 }), // STOCNV2C
+  
+  // Receipts and dispatches without invoice
+  receiptNoInvoice1: numeric("receipt_no_invoice1", { precision: 15, scale: 4 }), // RECENOFAC1
+  receiptNoInvoice2: numeric("receipt_no_invoice2", { precision: 15, scale: 4 }), // RECENOFAC2
+  dispatchNoInvoice1: numeric("dispatch_no_invoice1", { precision: 15, scale: 4 }), // DESPNOFAC1
+  dispatchNoInvoice2: numeric("dispatch_no_invoice2", { precision: 15, scale: 4 }), // DESPNOFAC2
+  
+  // Additional CSV fields
+  fmpr: varchar("fmpr"), // Family code
+  pfpr: varchar("pfpr"), // Price list code
+  hfpr: varchar("hfpr"), // Price list hierarchy
+  rupr: varchar("rupr"), // Route code
+  mrpr: varchar("mrpr"), // Brand code
+  
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Product price history table - Track price changes
+export const productPriceHistory = pgTable("product_price_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productSku: varchar("product_sku").notNull(), // FK to products.sku
+  oldPrice: numeric("old_price", { precision: 15, scale: 2 }),
+  newPrice: numeric("new_price", { precision: 15, scale: 2 }).notNull(),
+  changedBy: varchar("changed_by"), // User ID who made the change
+  changeReason: text("change_reason"),
+  effectiveDate: timestamp("effective_date").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Relations
+export const productsRelations = relations(products, ({ many }) => ({
+  stock: many(productStock),
+  priceHistory: many(productPriceHistory),
+}));
+
+export const productStockRelations = relations(productStock, ({ one }) => ({
+  product: one(products, {
+    fields: [productStock.productSku],
+    references: [products.sku],
+  }),
+}));
+
+export const productPriceHistoryRelations = relations(productPriceHistory, ({ one }) => ({
+  product: one(products, {
+    fields: [productPriceHistory.productSku],
+    references: [products.sku],
+  }),
+}));
+
+// Product types
+export type Product = typeof products.$inferSelect;
+export type InsertProduct = typeof products.$inferInsert;
+export type ProductStock = typeof productStock.$inferSelect;
+export type InsertProductStock = typeof productStock.$inferInsert;
+export type ProductPriceHistory = typeof productPriceHistory.$inferSelect;
+export type InsertProductPriceHistory = typeof productPriceHistory.$inferInsert;
+
+// Product schemas for validation
+export const insertProductSchema = createInsertSchema(products);
+export const insertProductStockSchema = createInsertSchema(productStock);
+export const insertProductPriceHistorySchema = createInsertSchema(productPriceHistory);
+
 // Sistema de usuarios vendedores
 export const salespeopleUsers = pgTable("salespeople_users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

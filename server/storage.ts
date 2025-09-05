@@ -3,6 +3,9 @@ import {
   salesTransactions,
   goals,
   salespeopleUsers,
+  products,
+  productStock,
+  productPriceHistory,
   type User,
   type UpsertUser,
   type SalesTransaction,
@@ -11,6 +14,12 @@ import {
   type InsertGoal,
   type SalespersonUser,
   type InsertSalespersonUser,
+  type Product,
+  type InsertProduct,
+  type ProductStock,
+  type InsertProductStock,
+  type ProductPriceHistory,
+  type InsertProductPriceHistory,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
@@ -200,6 +209,88 @@ export interface IStorage {
     salesperson: string;
     message: string;
     data: any;
+  }>>;
+  
+  // Product operations
+  getProducts(filters?: {
+    search?: string;
+    active?: boolean;
+    hasPrices?: boolean;
+    warehouseCode?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Array<Product & {
+    totalStock?: number;
+    warehouses?: string[];
+  }>>;
+  getProduct(sku: string): Promise<Product | undefined>;
+  createProduct(product: InsertProduct): Promise<Product>;
+  updateProduct(sku: string, product: Partial<InsertProduct>): Promise<Product>;
+  updateProductPrice(sku: string, newPrice: number, changedBy: string, reason?: string): Promise<Product>;
+  
+  // Product stock operations
+  getProductStock(sku: string): Promise<ProductStock[]>;
+  getProductStockByWarehouse(sku: string, warehouseCode: string, branchCode?: string): Promise<ProductStock[]>;
+  upsertProductStock(stock: InsertProductStock): Promise<ProductStock>;
+  importProductStockFromCSV(csvData: Array<{
+    sku: string;
+    name: string;
+    unit1: string;
+    unit2: string;
+    branchCode: string;
+    warehouseCode: string;
+    warehouseLocation?: string;
+    physicalStock1?: number;
+    physicalStock2?: number;
+    availableStock1?: number;
+    availableStock2?: number;
+    committedStock1?: number;
+    committedStock2?: number;
+    unitRatio?: number;
+    fmpr?: string;
+    pfpr?: string;
+    hfpr?: string;
+    rupr?: string;
+    mrpr?: string;
+  }>): Promise<{
+    processedProducts: number;
+    newProducts: number;
+    updatedStock: number;
+    errors: string[];
+  }>;
+  
+  // Product analytics
+  getProductAnalytics(sku: string): Promise<{
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    averagePrice: number;
+    topClients: Array<{
+      clientName: string;
+      totalPurchases: number;
+      units: number;
+    }>;
+    salesTrend: Array<{
+      period: string;
+      sales: number;
+      units: number;
+    }>;
+  }>;
+  
+  // Price history
+  getProductPriceHistory(sku: string): Promise<ProductPriceHistory[]>;
+  
+  // Warehouse and branch operations
+  getWarehouses(): Promise<Array<{
+    code: string;
+    name: string;
+    location?: string;
+    productCount: number;
+  }>>;
+  getBranches(): Promise<Array<{
+    code: string;
+    name: string;
+    warehouseCount: number;
   }>>;
 }
 
@@ -1599,6 +1690,371 @@ export class DatabaseStorage implements IStorage {
     if (periodLower.includes('semestral') || periodLower.includes('semestre')) return 6;
     if (periodLower.includes('anual') || periodLower.includes('año')) return 12;
     return 3; // Default trimestral
+  }
+
+  // Product operations implementation
+  async getProducts(filters?: {
+    search?: string;
+    active?: boolean;
+    hasPrices?: boolean;
+    warehouseCode?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Array<Product & { totalStock?: number; warehouses?: string[] }>> {
+    const conditions = [];
+    
+    if (filters?.search) {
+      conditions.push(
+        sql`(${products.sku} ILIKE ${`%${filters.search}%`} OR ${products.name} ILIKE ${`%${filters.search}%`})`
+      );
+    }
+    
+    if (filters?.active !== undefined) {
+      conditions.push(eq(products.active, filters.active));
+    }
+    
+    if (filters?.hasPrices !== undefined) {
+      if (filters.hasPrices) {
+        conditions.push(sql`${products.price} IS NOT NULL AND ${products.price} > 0`);
+      } else {
+        conditions.push(sql`${products.price} IS NULL OR ${products.price} = 0`);
+      }
+    }
+
+    let query = db.select().from(products);
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+    
+    if (filters?.offset) {
+      query = query.offset(filters.offset);
+    }
+
+    const productsList = await query.orderBy(products.name);
+    
+    // Get stock information for each product
+    const enrichedProducts = await Promise.all(productsList.map(async (product) => {
+      const stocks = await db.select({
+        warehouseCode: productStock.warehouseCode,
+        physicalStock1: productStock.physicalStock1,
+        physicalStock2: productStock.physicalStock2,
+        availableStock1: productStock.availableStock1,
+        availableStock2: productStock.availableStock2
+      }).from(productStock).where(eq(productStock.productSku, product.sku));
+      
+      const totalStock = stocks.reduce((sum, stock) => {
+        return sum + (Number(stock.availableStock1) || 0) + (Number(stock.availableStock2) || 0);
+      }, 0);
+      
+      const warehouseSet = new Set(stocks.map(s => s.warehouseCode));
+      const warehouses = Array.from(warehouseSet);
+      
+      return {
+        ...product,
+        totalStock,
+        warehouses
+      };
+    }));
+
+    return enrichedProducts;
+  }
+
+  async getProduct(sku: string): Promise<Product | undefined> {
+    const [product] = await db.select().from(products).where(eq(products.sku, sku));
+    return product;
+  }
+
+  async createProduct(product: InsertProduct): Promise<Product> {
+    const [newProduct] = await db.insert(products).values(product).returning();
+    return newProduct;
+  }
+
+  async updateProduct(sku: string, productData: Partial<InsertProduct>): Promise<Product> {
+    const [updatedProduct] = await db
+      .update(products)
+      .set({ ...productData, updatedAt: new Date() })
+      .where(eq(products.sku, sku))
+      .returning();
+    return updatedProduct;
+  }
+
+  async updateProductPrice(sku: string, newPrice: number, changedBy: string, reason?: string): Promise<Product> {
+    // Get current price
+    const currentProduct = await this.getProduct(sku);
+    const oldPrice = currentProduct?.price ? Number(currentProduct.price) : null;
+
+    // Update product price
+    const [updatedProduct] = await db
+      .update(products)
+      .set({ price: newPrice.toString(), updatedAt: new Date() })
+      .where(eq(products.sku, sku))
+      .returning();
+
+    // Record price history
+    await db.insert(productPriceHistory).values({
+      productSku: sku,
+      oldPrice: oldPrice?.toString() || null,
+      newPrice: newPrice.toString(),
+      changedBy,
+      changeReason: reason
+    });
+
+    return updatedProduct;
+  }
+
+  async getProductStock(sku: string): Promise<ProductStock[]> {
+    return await db.select().from(productStock).where(eq(productStock.productSku, sku));
+  }
+
+  async getProductStockByWarehouse(sku: string, warehouseCode: string, branchCode?: string): Promise<ProductStock[]> {
+    const conditions = [
+      eq(productStock.productSku, sku),
+      eq(productStock.warehouseCode, warehouseCode)
+    ];
+
+    if (branchCode) {
+      conditions.push(eq(productStock.branchCode, branchCode));
+    }
+
+    return await db.select().from(productStock).where(and(...conditions));
+  }
+
+  async upsertProductStock(stock: InsertProductStock): Promise<ProductStock> {
+    const [upsertedStock] = await db
+      .insert(productStock)
+      .values({
+        ...stock,
+        lastUpdated: new Date()
+      })
+      .onConflictDoUpdate({
+        target: [productStock.productSku, productStock.warehouseCode, productStock.branchCode],
+        set: {
+          ...stock,
+          lastUpdated: new Date()
+        }
+      })
+      .returning();
+    return upsertedStock;
+  }
+
+  async importProductStockFromCSV(csvData: Array<{
+    sku: string;
+    name: string;
+    unit1: string;
+    unit2: string;
+    branchCode: string;
+    warehouseCode: string;
+    warehouseLocation?: string;
+    physicalStock1?: number;
+    physicalStock2?: number;
+    availableStock1?: number;
+    availableStock2?: number;
+    committedStock1?: number;
+    committedStock2?: number;
+    unitRatio?: number;
+    fmpr?: string;
+    pfpr?: string;
+    hfpr?: string;
+    rupr?: string;
+    mrpr?: string;
+  }>): Promise<{
+    processedProducts: number;
+    newProducts: number;
+    updatedStock: number;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+    let processedProducts = 0;
+    let newProducts = 0;
+    let updatedStock = 0;
+
+    for (const row of csvData) {
+      try {
+        // Verificar si el producto existe
+        let product = await this.getProduct(row.sku);
+        
+        if (!product) {
+          // Crear nuevo producto (sin precio, se establece manualmente)
+          product = await this.createProduct({
+            sku: row.sku,
+            name: row.name,
+            unit1: row.unit1,
+            unit2: row.unit2,
+            unitRatio: row.unitRatio?.toString(),
+            active: true
+          });
+          newProducts++;
+        } else {
+          // Actualizar información del producto (preservando precio)
+          await this.updateProduct(row.sku, {
+            name: row.name,
+            unit1: row.unit1,
+            unit2: row.unit2,
+            unitRatio: row.unitRatio?.toString()
+          });
+        }
+
+        // Actualizar stock
+        await this.upsertProductStock({
+          productSku: row.sku,
+          branchCode: row.branchCode,
+          warehouseCode: row.warehouseCode,
+          warehouseLocation: row.warehouseLocation,
+          physicalStock1: row.physicalStock1?.toString(),
+          physicalStock2: row.physicalStock2?.toString(),
+          availableStock1: row.availableStock1?.toString(),
+          availableStock2: row.availableStock2?.toString(),
+          committedStock1: row.committedStock1?.toString(),
+          committedStock2: row.committedStock2?.toString(),
+          fmpr: row.fmpr,
+          pfpr: row.pfpr,
+          hfpr: row.hfpr,
+          rupr: row.rupr,
+          mrpr: row.mrpr
+        });
+        
+        updatedStock++;
+        processedProducts++;
+      } catch (error) {
+        errors.push(`Error procesando SKU ${row.sku}: ${error}`);
+      }
+    }
+
+    return {
+      processedProducts,
+      newProducts,
+      updatedStock,
+      errors
+    };
+  }
+
+  async getProductAnalytics(sku: string): Promise<{
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    averagePrice: number;
+    topClients: Array<{
+      clientName: string;
+      totalPurchases: number;
+      units: number;
+    }>;
+    salesTrend: Array<{
+      period: string;
+      sales: number;
+      units: number;
+    }>;
+  }> {
+    // Get sales data for this product
+    const salesData = await db
+      .select({
+        vanedo: salesTransactions.vanedo,
+        caprad2: salesTransactions.caprad2,
+        nokoen: salesTransactions.nokoen,
+        feemdo: salesTransactions.feemdo
+      })
+      .from(salesTransactions)
+      .where(eq(salesTransactions.koprct, sku));
+
+    const totalSales = salesData.reduce((sum, sale) => sum + (Number(sale.vanedo) || 0), 0);
+    const totalUnits = salesData.reduce((sum, sale) => sum + (Number(sale.caprad2) || 0), 0);
+    const transactionCount = salesData.length;
+    const averagePrice = totalUnits > 0 ? totalSales / totalUnits : 0;
+
+    // Top clients
+    const clientSales = salesData.reduce((acc, sale) => {
+      const client = sale.nokoen || 'Cliente Desconocido';
+      if (!acc[client]) {
+        acc[client] = { totalPurchases: 0, units: 0 };
+      }
+      acc[client].totalPurchases += Number(sale.vanedo) || 0;
+      acc[client].units += Number(sale.caprad2) || 0;
+      return acc;
+    }, {} as Record<string, { totalPurchases: number; units: number }>);
+
+    const topClients = Object.entries(clientSales)
+      .map(([clientName, data]) => ({ clientName, ...data }))
+      .sort((a, b) => b.totalPurchases - a.totalPurchases)
+      .slice(0, 10);
+
+    // Sales trend (monthly)
+    const salesTrend = salesData.reduce((acc, sale) => {
+      const period = sale.feemdo ? new Date(sale.feemdo).toISOString().substring(0, 7) : '2025-01';
+      if (!acc[period]) {
+        acc[period] = { sales: 0, units: 0 };
+      }
+      acc[period].sales += Number(sale.vanedo) || 0;
+      acc[period].units += Number(sale.caprad2) || 0;
+      return acc;
+    }, {} as Record<string, { sales: number; units: number }>);
+
+    const salesTrendArray = Object.entries(salesTrend)
+      .map(([period, data]) => ({ period, ...data }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+
+    return {
+      totalSales,
+      totalUnits,
+      transactionCount,
+      averagePrice,
+      topClients,
+      salesTrend: salesTrendArray
+    };
+  }
+
+  async getProductPriceHistory(sku: string): Promise<ProductPriceHistory[]> {
+    return await db
+      .select()
+      .from(productPriceHistory)
+      .where(eq(productPriceHistory.productSku, sku))
+      .orderBy(desc(productPriceHistory.createdAt));
+  }
+
+  async getWarehouses(): Promise<Array<{
+    code: string;
+    name: string;
+    location?: string;
+    productCount: number;
+  }>> {
+    const warehouses = await db
+      .select({
+        code: productStock.warehouseCode,
+        location: productStock.warehouseLocation,
+        productCount: sql<number>`COUNT(DISTINCT ${productStock.productSku})`
+      })
+      .from(productStock)
+      .groupBy(productStock.warehouseCode, productStock.warehouseLocation);
+
+    return warehouses.map(w => ({
+      code: w.code,
+      name: w.code, // Using code as name since we don't have warehouse names in CSV
+      location: w.location || undefined,
+      productCount: w.productCount
+    }));
+  }
+
+  async getBranches(): Promise<Array<{
+    code: string;
+    name: string;
+    warehouseCount: number;
+  }>> {
+    const branches = await db
+      .select({
+        code: productStock.branchCode,
+        warehouseCount: sql<number>`COUNT(DISTINCT ${productStock.warehouseCode})`
+      })
+      .from(productStock)
+      .groupBy(productStock.branchCode);
+
+    return branches.map(b => ({
+      code: b.code,
+      name: b.code, // Using code as name since we don't have branch names in CSV
+      warehouseCount: b.warehouseCount
+    }));
   }
 
 }
