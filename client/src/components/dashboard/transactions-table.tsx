@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useState } from "react";
+import { Link } from "wouter";
 
 interface Transaction {
   id: string;
@@ -90,37 +91,41 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
               ))
             ) : (
               topSalespeople?.map((person, index) => (
-                <div 
+                <Link 
                   key={person.salesperson} 
-                  className="flex items-center justify-between"
-                  data-testid={`salesperson-${index}`}
+                  href={`/salesperson/${encodeURIComponent(person.salesperson)}`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      index === 0 ? 'bg-gradient-to-r from-blue-500 to-purple-600' :
-                      index === 1 ? 'bg-gradient-to-r from-green-500 to-blue-600' :
-                      'bg-gradient-to-r from-orange-500 to-red-600'
-                    }`}>
-                      <span className="text-xs font-medium text-white">
-                        {getInitials(person.salesperson)}
-                      </span>
+                  <div 
+                    className="flex items-center justify-between hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer"
+                    data-testid={`salesperson-${index}`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        index === 0 ? 'bg-gradient-to-r from-blue-500 to-purple-600' :
+                        index === 1 ? 'bg-gradient-to-r from-green-500 to-blue-600' :
+                        'bg-gradient-to-r from-orange-500 to-red-600'
+                      }`}>
+                        <span className="text-xs font-medium text-white">
+                          {getInitials(person.salesperson)}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground hover:text-purple-600 transition-colors">
+                          {person.salesperson}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {person.transactionCount} transacciones
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {person.salesperson}
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-foreground">
+                        {formatCurrency(person.totalSales)}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {person.transactionCount} transacciones
-                      </p>
+                      <p className="text-xs text-green-600">+18%</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-foreground">
-                      {formatCurrency(person.totalSales)}
-                    </p>
-                    <p className="text-xs text-green-600">+18%</p>
-                  </div>
-                </div>
+                </Link>
               ))
             )}
           </div>
@@ -170,7 +175,15 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                         {transaction.nudo}
                       </TableCell>
                       <TableCell>
-                        {transaction.nokoen || 'N/A'}
+                        {transaction.nokoen && transaction.nokoen !== 'N/A' ? (
+                          <Link href={`/client/${encodeURIComponent(transaction.nokoen)}`}>
+                            <span className="hover:text-blue-600 hover:underline cursor-pointer">
+                              {transaction.nokoen}
+                            </span>
+                          </Link>
+                        ) : (
+                          'N/A'
+                        )}
                       </TableCell>
                       <TableCell className="max-w-xs truncate">
                         {transaction.nokoprct || 'N/A'}

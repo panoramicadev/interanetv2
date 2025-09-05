@@ -1,34 +1,35 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, TrendingUp } from "lucide-react";
+import { UserCheck, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 
-interface TopClient {
-  clientName: string;
+interface TopSalesperson {
+  salesperson: string;
   totalSales: number;
   transactionCount: number;
 }
 
-interface TopClientsPanelProps {
+interface TopSalespeoplePanelProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "range";
 }
 
-export default function TopClientsPanel({ selectedPeriod, filterType }: TopClientsPanelProps) {
-  const { data: topClients, isLoading } = useQuery<TopClient[]>({
-    queryKey: [`/api/sales/top-clients?limit=8&period=${selectedPeriod}&filterType=${filterType}`],
+export default function TopSalespeoplePanel({ selectedPeriod, filterType }: TopSalespeoplePanelProps) {
+  const { data: topSalespeople, isLoading } = useQuery<TopSalesperson[]>({
+    queryKey: [`/api/sales/top-salespeople?limit=8&period=${selectedPeriod}&filterType=${filterType}`],
   });
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CL', {
+    return new Intl.NumberFormat('es-CO', {
       style: 'currency',
-      currency: 'CLP',
+      currency: 'COP',
       minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
 
-  const getClientInitials = (name: string) => {
+  const getSalespersonInitials = (name: string) => {
     return name
       .split(' ')
       .map(word => word.charAt(0))
@@ -39,14 +40,14 @@ export default function TopClientsPanel({ selectedPeriod, filterType }: TopClien
 
   const getGradientColor = (index: number) => {
     const gradients = [
-      'from-blue-500 to-purple-600',
-      'from-green-500 to-blue-600', 
       'from-purple-500 to-pink-600',
-      'from-orange-500 to-red-600',
-      'from-teal-500 to-cyan-600',
-      'from-indigo-500 to-blue-600',
-      'from-pink-500 to-rose-600',
-      'from-emerald-500 to-teal-600',
+      'from-blue-500 to-indigo-600', 
+      'from-green-500 to-teal-600',
+      'from-orange-500 to-yellow-600',
+      'from-red-500 to-rose-600',
+      'from-cyan-500 to-blue-600',
+      'from-violet-500 to-purple-600',
+      'from-emerald-500 to-green-600',
     ];
     return gradients[index % gradients.length];
   };
@@ -56,12 +57,12 @@ export default function TopClientsPanel({ selectedPeriod, filterType }: TopClien
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Top Clientes
+            <UserCheck className="h-5 w-5" />
+            Top Vendedores
           </CardTitle>
           <Badge variant="secondary" className="gap-1">
             <TrendingUp className="h-3 w-3" />
-            {topClients?.length || 0}
+            {topSalespeople?.length || 0}
           </Badge>
         </div>
       </CardHeader>
@@ -82,31 +83,31 @@ export default function TopClientsPanel({ selectedPeriod, filterType }: TopClien
               </div>
             ))
           ) : (
-            topClients?.map((client, index) => (
+            topSalespeople?.map((salesperson, index) => (
               <Link 
-                key={client.clientName} 
-                href={`/client/${encodeURIComponent(client.clientName)}`}
+                key={salesperson.salesperson} 
+                href={`/salesperson/${encodeURIComponent(salesperson.salesperson)}`}
               >
                 <div 
                   className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer hover:scale-105 hover:shadow-md"
-                  data-testid={`client-${index}`}
+                  data-testid={`salesperson-${index}`}
                 >
                   <div className="flex items-center space-x-3">
                     <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${getGradientColor(index)} flex items-center justify-center text-white font-bold text-sm`}>
-                      {getClientInitials(client.clientName)}
+                      {getSalespersonInitials(salesperson.salesperson)}
                     </div>
                     <div>
-                      <p className="font-medium text-sm leading-tight hover:text-blue-600 transition-colors">
-                        {client.clientName}
+                      <p className="font-medium text-sm leading-tight hover:text-purple-600 transition-colors">
+                        {salesperson.salesperson}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {client.transactionCount} transacciones
+                        {salesperson.transactionCount} transacciones
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-sm">
-                      {formatCurrency(client.totalSales)}
+                      {formatCurrency(salesperson.totalSales)}
                     </p>
                     <div className="flex items-center gap-1">
                       <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${getGradientColor(index)}`}></div>
@@ -121,11 +122,11 @@ export default function TopClientsPanel({ selectedPeriod, filterType }: TopClien
           )}
         </div>
         
-        {!isLoading && topClients && topClients.length > 0 && (
+        {!isLoading && topSalespeople && topSalespeople.length > 0 && (
           <div className="mt-4 pt-4 border-t">
             <div className="flex justify-between text-sm text-muted-foreground">
-              <span>Total clientes activos</span>
-              <span className="font-medium">{topClients.length}</span>
+              <span>Total vendedores activos</span>
+              <span className="font-medium">{topSalespeople.length}</span>
             </div>
           </div>
         )}
