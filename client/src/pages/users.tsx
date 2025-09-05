@@ -266,7 +266,7 @@ export default function UsersPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Rol</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} defaultValue={field.value ?? "salesperson"}>
                           <FormControl>
                             <SelectTrigger data-testid="select-role">
                               <SelectValue placeholder="Selecciona un rol" />
@@ -294,7 +294,7 @@ export default function UsersPage() {
                         </div>
                         <FormControl>
                           <Switch
-                            checked={field.value}
+                            checked={field.value ?? true}
                             onCheckedChange={field.onChange}
                             data-testid="switch-is-active"
                           />
@@ -448,7 +448,7 @@ export default function UsersPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Rol</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value ?? "salesperson"}>
                       <FormControl>
                         <SelectTrigger data-testid="select-edit-role">
                           <SelectValue placeholder="Selecciona un rol" />
@@ -476,7 +476,7 @@ export default function UsersPage() {
                     </div>
                     <FormControl>
                       <Switch
-                        checked={field.value}
+                        checked={field.value ?? true}
                         onCheckedChange={field.onChange}
                         data-testid="switch-edit-is-active"
                       />
