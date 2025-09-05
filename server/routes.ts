@@ -1106,6 +1106,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all warehouses
+  app.get('/api/warehouses', isAuthenticated, async (req: any, res) => {
+    try {
+      const warehouses = await storage.getWarehouses();
+      res.json(warehouses);
+    } catch (error) {
+      console.error("Error fetching warehouses:", error);
+      res.status(500).json({ message: "Failed to fetch warehouses" });
+    }
+  });
+
+  // Get stock summary by warehouse
+  app.get('/api/warehouses/stock-summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const stockSummary = await storage.getStockSummaryByWarehouse();
+      res.json(stockSummary);
+    } catch (error) {
+      console.error("Error fetching warehouse stock summary:", error);
+      res.status(500).json({ message: "Failed to fetch warehouse stock summary" });
+    }
+  });
+
+  // Get detailed stock for a specific warehouse
+  app.get('/api/warehouses/:warehouseCode/stock', isAuthenticated, async (req: any, res) => {
+    try {
+      const { warehouseCode } = req.params;
+      const { branchCode } = req.query;
+      const stock = await storage.getWarehouseStock(warehouseCode, branchCode as string);
+      res.json(stock);
+    } catch (error) {
+      console.error("Error fetching warehouse stock:", error);
+      res.status(500).json({ message: "Failed to fetch warehouse stock" });
+    }
+  });
+
   app.put('/api/products/:sku/price', isAuthenticated, async (req: any, res) => {
     try {
       const { sku } = req.params;
