@@ -44,6 +44,12 @@ export default function UsersPage() {
     enabled: user?.role === 'admin',
   });
 
+  // Query para obtener vendedores disponibles
+  const { data: availableSalespeople = [] } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/salespeople"],
+    enabled: user?.role === 'admin',
+  });
+
   // Mutation para crear usuario
   const createUserMutation = useMutation({
     mutationFn: async (userData: InsertSalespersonUserInput) => {
@@ -110,32 +116,24 @@ export default function UsersPage() {
     },
   });
 
-  // Mutation para auto-crear usuarios
-  const autoCreateMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest("/api/users/salespeople/auto-create", "POST");
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
-      toast({
-        title: "Usuarios creados automáticamente",
-        description: `Se crearon ${data.createdCount} usuarios automáticamente para los vendedores.`,
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "No se pudieron crear los usuarios automáticamente.",
-        variant: "destructive",
-      });
-    },
-  });
+
+  // Función para generar nombre de usuario automáticamente
+  const generateUsername = (fullName: string): string => {
+    const nameParts = fullName.trim().toLowerCase().split(' ');
+    if (nameParts.length < 2) {
+      return nameParts[0].substring(0, 4);
+    }
+    const firstLetter = nameParts[0].charAt(0);
+    const firstLastName = nameParts[1];
+    return firstLetter + firstLastName;
+  };
 
   // Form para crear usuario
   const createForm = useForm<InsertSalespersonUserInput>({
     resolver: zodResolver(insertSalespersonUserSchema),
     defaultValues: {
       salespersonName: "",
+      username: "",
       email: "",
       password: "",
       isActive: true,
@@ -143,11 +141,21 @@ export default function UsersPage() {
     },
   });
 
+  // Watch salespersonName to auto-generate username
+  const watchedSalesperson = createForm.watch("salespersonName");
+  useEffect(() => {
+    if (watchedSalesperson) {
+      const autoUsername = generateUsername(watchedSalesperson);
+      createForm.setValue("username", autoUsername);
+    }
+  }, [watchedSalesperson, createForm]);
+
   // Form para editar usuario
   const editForm = useForm<InsertSalespersonUserInput>({
     resolver: zodResolver(insertSalespersonUserSchema),
     defaultValues: {
       salespersonName: "",
+      username: "",
       email: "",
       password: "",
       isActive: true,
@@ -168,6 +176,7 @@ export default function UsersPage() {
     setEditingUser(user);
     editForm.reset({
       salespersonName: user.salespersonName,
+      username: user.username ?? "",
       email: user.email ?? "",
       password: "", // No mostrar la contraseña actual
       isActive: user.isActive ?? true,
@@ -195,16 +204,7 @@ export default function UsersPage() {
             Administra las cuentas de acceso de los vendedores al sistema
           </p>
         </div>
-        <div className="flex space-x-2">
-          <Button
-            onClick={() => autoCreateMutation.mutate()}
-            disabled={autoCreateMutation.isPending}
-            variant="outline"
-            data-testid="button-auto-create-users"
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            Auto-crear Usuarios
-          </Button>
+        <div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-create-user">
@@ -226,9 +226,36 @@ export default function UsersPage() {
                     name="salespersonName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nombre del Vendedor</FormLabel>
+                        <FormLabel>Seleccionar Vendedor</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-salesperson-name">
+                              <SelectValue placeholder="Selecciona un vendedor" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {availableSalespeople
+                              .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
+                              .map((salesperson) => (
+                                <SelectItem key={salesperson} value={salesperson}>
+                                  {salesperson}
+                                </SelectItem>
+                              ))
+                            }
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createForm.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre de Usuario</FormLabel>
                         <FormControl>
-                          <Input {...field} data-testid="input-salesperson-name" />
+                          <Input {...field} data-testid="input-username" placeholder="Se genera automáticamente" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -332,6 +359,7 @@ export default function UsersPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Vendedor</TableHead>
+                  <TableHead>Usuario</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Rol</TableHead>
                   <TableHead>Estado</TableHead>
@@ -343,6 +371,7 @@ export default function UsersPage() {
                 {salespeopleUsers.map((user) => (
                   <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
                     <TableCell className="font-medium">{user.salespersonName}</TableCell>
+                    <TableCell className="font-mono text-sm">{user.username || "-"}</TableCell>
                     <TableCell>{user.email || "-"}</TableCell>
                     <TableCell>
                       <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
@@ -381,8 +410,8 @@ export default function UsersPage() {
                 ))}
                 {salespeopleUsers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No hay usuarios creados. Usa "Auto-crear Usuarios" para generar usuarios basados en los vendedores existentes.
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      No hay usuarios creados. Usa "Nuevo Usuario" para crear cuentas individuales para los vendedores.
                     </TableCell>
                   </TableRow>
                 )}
@@ -410,7 +439,20 @@ export default function UsersPage() {
                   <FormItem>
                     <FormLabel>Nombre del Vendedor</FormLabel>
                     <FormControl>
-                      <Input {...field} data-testid="input-edit-salesperson-name" />
+                      <Input {...field} data-testid="input-edit-salesperson-name" readOnly />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre de Usuario</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-username" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
