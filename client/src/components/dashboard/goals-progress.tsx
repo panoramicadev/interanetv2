@@ -48,6 +48,12 @@ export default function GoalsProgress({ globalFilter, onFilterChange }: GoalsPro
   const filteredGoals = goalsProgress?.filter(goal => {
     // If we have a global filter with a specific value, show only goals matching that exact target
     if (globalFilter.type !== "all" && globalFilter.value) {
+      console.log('Filtering goals:', { 
+        goalType: goal.type, 
+        goalTarget: goal.target, 
+        filterType: globalFilter.type, 
+        filterValue: globalFilter.value 
+      });
       return goal.type === globalFilter.type && goal.target === globalFilter.value;
     }
     
@@ -55,6 +61,10 @@ export default function GoalsProgress({ globalFilter, onFilterChange }: GoalsPro
     if (selectedFilter === "all") return true;
     return goal.type === selectedFilter;
   }) || [];
+
+  console.log('Goals Progress Data:', goalsProgress);
+  console.log('Filtered Goals:', filteredGoals);
+  console.log('Global Filter:', globalFilter);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
