@@ -28,6 +28,7 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<SalespersonUser | null>(null);
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [roleFilter, setRoleFilter] = useState<string>("todos");
 
   // Sidebar navigation items
   const sidebarItems = [
@@ -651,13 +652,32 @@ export default function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <Users className="w-5 h-5 mr-2" />
-            Usuarios del Sistema
-          </CardTitle>
-          <CardDescription>
-            Lista de todos los usuarios con acceso al sistema de análisis de ventas
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center">
+                <Users className="w-5 h-5 mr-2" />
+                Usuarios del Sistema
+              </CardTitle>
+              <CardDescription>
+                Lista de todos los usuarios con acceso al sistema de análisis de ventas
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">Filtrar por rol:</span>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="w-40" data-testid="filter-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los roles</SelectItem>
+                  <SelectItem value="admin">Administradores</SelectItem>
+                  <SelectItem value="supervisor">Supervisores</SelectItem>
+                  <SelectItem value="salesperson">Vendedores</SelectItem>
+                  <SelectItem value="client">Clientes</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -676,7 +696,12 @@ export default function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {salespeopleUsers.map((user) => (
+                {salespeopleUsers
+                  .filter((user) => {
+                    if (roleFilter === "todos") return true;
+                    return user.role === roleFilter;
+                  })
+                  .map((user) => (
                   <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
                     <TableCell className="font-medium">{user.salespersonName}</TableCell>
                     <TableCell className="font-mono text-sm">{user.username || "-"}</TableCell>
