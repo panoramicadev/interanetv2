@@ -122,6 +122,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Segment detail route - clients by segment
+  app.get("/api/sales/segment/:segmentName/clients", isAuthenticated, async (req, res) => {
+    try {
+      const { segmentName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const clients = await storage.getSegmentClients(segmentName, period as string, filterType as string);
+      res.json(clients);
+    } catch (error) {
+      console.error("Error fetching segment clients:", error);
+      res.status(500).json({ message: "Failed to fetch segment clients" });
+    }
+  });
+
   // CSV import endpoint
   app.post('/api/sales/import', isAuthenticated, async (req, res) => {
     try {
