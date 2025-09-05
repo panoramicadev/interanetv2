@@ -40,11 +40,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
     queryKey: [`/api/sales/transactions?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}`],
   });
 
-  const { data: salespeople } = useQuery<{ salesperson: string; totalSales: number; transactionCount: number }[]>({
-    queryKey: [`/api/sales/top-salespeople?limit=50&period=${selectedPeriod}&filterType=${filterType}`],
-  });
-
-  // Removed top salespeople query - now handled by separate component
+  // Removed artificial salesperson assignment - now using real data from transactions
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -54,18 +50,12 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
     }).format(amount);
   };
 
-  const getSalespersonForTransaction = (transactionId: string) => {
-    if (!salespeople || salespeople.length === 0) {
-      return { name: 'Vendedor no asignado', color: 'bg-gray-100 text-gray-600' };
+  const getSalespersonDisplay = (salespersonName: string | null) => {
+    if (!salespersonName) {
+      return { name: 'Sin vendedor asignado', color: 'bg-gray-100 text-gray-600' };
     }
     
-    // Crear una función hash simple basada en el ID de la transacción
-    // para asignar consistentemente el mismo vendedor a la misma transacción
-    const hash = transactionId.split('').reduce((a, b) => {
-      a = ((a << 5) - a) + b.charCodeAt(0);
-      return a & a;
-    }, 0);
-    
+    // Generate consistent color based on salesperson name
     const colors = [
       'bg-blue-100 text-blue-800',
       'bg-green-100 text-green-800', 
@@ -75,11 +65,16 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
       'bg-pink-100 text-pink-800'
     ];
     
-    const salespersonIndex = Math.abs(hash) % salespeople.length;
+    // Simple hash based on salesperson name for consistent coloring
+    const hash = salespersonName.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    
     const colorIndex = Math.abs(hash) % colors.length;
     
     return {
-      name: salespeople[salespersonIndex].salesperson,
+      name: salespersonName,
       color: colors[colorIndex]
     };
   };
@@ -120,8 +115,9 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
     }
   };
 
-  const generateEmail = (name: string) => {
-    return `${name.toLowerCase().replace(/\s+/g, '.')}@email.com`;
+  const getClientContact = (name: string) => {
+    // Don't generate fake emails - show honest placeholder
+    return 'Email no disponible';
   };
 
   const getInitials = (name: string) => {
@@ -172,7 +168,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                 ) : (
                   transactions?.map((transaction) => {
                     const customerName = transaction.nokoen || 'Cliente Anónimo';
-                    const salesperson = getSalespersonForTransaction(transaction.id);
+                    const salesperson = getSalespersonDisplay(transaction.nokofu);
                     const timeAgo = getTimeAgo(transaction.feemdo);
                     
                     return (
@@ -190,7 +186,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                             </div>
                             <div>
                               <div className="font-medium text-gray-900">{customerName}</div>
-                              <div className="text-sm text-gray-500">{generateEmail(customerName)}</div>
+                              <div className="text-sm text-gray-500">{getClientContact(customerName)}</div>
                             </div>
                           </div>
                         </TableCell>
