@@ -185,7 +185,6 @@ export default function Dashboard() {
           <KPICards 
             selectedPeriod={selectedPeriod} 
             filterType={filterType}
-            globalFilter={globalFilter}
           />
           
           {/* Goals Progress Dashboard */}
@@ -198,12 +197,10 @@ export default function Dashboard() {
             <SalesChart 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
-              globalFilter={globalFilter}
             />
             <TopProductsChart 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
-              globalFilter={globalFilter}
             />
           </div>
 
@@ -211,19 +208,16 @@ export default function Dashboard() {
             <SegmentChart 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
-              globalFilter={globalFilter}
             />
             <TopClientsPanel 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
-              globalFilter={globalFilter}
             />
           </div>
 
           <TransactionsTable 
             selectedPeriod={selectedPeriod} 
             filterType={filterType}
-            globalFilter={globalFilter}
           />
         </main>
       </div>
