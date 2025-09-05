@@ -687,16 +687,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/users/salespeople/:id', isAuthenticated, async (req: any, res) => {
+  app.put('/api/users/salespeople/:id', async (req: any, res) => {
     try {
       // Solo admin puede actualizar usuarios
-      const user = req.user as any;
-      if (!user?.claims?.sub) {
+      let userId;
+      let userRecord;
+
+      // Verificar si hay una sesión simulada
+      if (req.session.simulatedUser) {
+        userId = req.session.simulatedUser.id;
+        userRecord = req.session.simulatedUser;
+      } else if (req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+        userRecord = await storage.getUser(userId);
+      } else {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
-      
-      const userId = user.claims.sub;
-      const userRecord = await storage.getUser(userId);
       
       if (userRecord?.role !== 'admin') {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden actualizar usuarios.' });
@@ -724,16 +730,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/users/salespeople/:id', isAuthenticated, async (req: any, res) => {
+  app.delete('/api/users/salespeople/:id', async (req: any, res) => {
     try {
       // Solo admin puede eliminar usuarios
-      const user = req.user as any;
-      if (!user?.claims?.sub) {
+      let userId;
+      let userRecord;
+
+      // Verificar si hay una sesión simulada
+      if (req.session.simulatedUser) {
+        userId = req.session.simulatedUser.id;
+        userRecord = req.session.simulatedUser;
+      } else if (req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+        userRecord = await storage.getUser(userId);
+      } else {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
-      
-      const userId = user.claims.sub;
-      const userRecord = await storage.getUser(userId);
       
       if (userRecord?.role !== 'admin') {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden eliminar usuarios.' });
@@ -748,16 +760,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/users/salespeople/supervisors', isAuthenticated, async (req: any, res) => {
+  app.get('/api/users/salespeople/supervisors', async (req: any, res) => {
     try {
       // Solo admin puede acceder a esta ruta
-      const user = req.user as any;
-      if (!user?.claims?.sub) {
+      let userId;
+      let userRecord;
+
+      // Verificar si hay una sesión simulada
+      if (req.session.simulatedUser) {
+        userId = req.session.simulatedUser.id;
+        userRecord = req.session.simulatedUser;
+      } else if (req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+        userRecord = await storage.getUser(userId);
+      } else {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
-      
-      const userId = user.claims.sub;
-      const userRecord = await storage.getUser(userId);
       
       if (userRecord?.role !== 'admin') {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden acceder a la gestión de usuarios.' });
