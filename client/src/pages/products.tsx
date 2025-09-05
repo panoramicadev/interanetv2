@@ -82,8 +82,8 @@ export default function ProductsPage() {
       if (filterActive !== 'all') params.append('active', filterActive);
       if (filterPrices !== 'all') params.append('hasPrices', filterPrices);
       
-      const response = await apiRequest(`/api/products?${params.toString()}`);
-      return response as Product[];
+      const response = await apiRequest('GET', `/api/products?${params.toString()}`);
+      return await response.json() as Product[];
     }
   });
 
@@ -91,8 +91,8 @@ export default function ProductsPage() {
   const { data: warehouses = [] } = useQuery<any[]>({
     queryKey: ['/api/warehouses'],
     queryFn: async () => {
-      const response = await apiRequest('/api/warehouses');
-      return response as any[];
+      const response = await apiRequest('GET', '/api/warehouses');
+      return await response.json() as any[];
     }
   });
 
@@ -100,8 +100,8 @@ export default function ProductsPage() {
   const { data: warehouseSummary = [] } = useQuery<WarehouseSummary[]>({
     queryKey: ['/api/warehouses/stock-summary'],
     queryFn: async () => {
-      const response = await apiRequest('/api/warehouses/stock-summary');
-      return response as WarehouseSummary[];
+      const response = await apiRequest('GET', '/api/warehouses/stock-summary');
+      return await response.json() as WarehouseSummary[];
     }
   });
 
@@ -110,8 +110,8 @@ export default function ProductsPage() {
     queryKey: ['/api/warehouses', selectedWarehouse, 'stock'],
     queryFn: async () => {
       if (!selectedWarehouse) return [];
-      const response = await apiRequest(`/api/warehouses/${selectedWarehouse}/stock`);
-      return response as WarehouseStock[];
+      const response = await apiRequest('GET', `/api/warehouses/${selectedWarehouse}/stock`);
+      return await response.json() as WarehouseStock[];
     },
     enabled: !!selectedWarehouse
   });

@@ -1190,7 +1190,16 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(salesTransactions.feemdo))
       .limit(1);
 
-    return result || null;
+    if (!result) return null;
+    
+    return {
+      id: result.id,
+      nudo: result.nudo,
+      feemdo: result.feemdo ? (typeof result.feemdo === 'string' ? result.feemdo : new Date(result.feemdo).toISOString().split('T')[0]) : '',
+      nokoprct: result.nokoprct || '',
+      monto: result.monto || '0',
+      nokofu: result.nokofu || ''
+    };
   }
 
   async getClientPurchaseHistory(clientName: string, limit: number = 10): Promise<Array<{
@@ -1215,7 +1224,14 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(salesTransactions.feemdo))
       .limit(limit);
 
-    return result;
+    return result.map(r => ({
+      id: r.id,
+      nudo: r.nudo,
+      feemdo: r.feemdo ? (typeof r.feemdo === 'string' ? r.feemdo : new Date(r.feemdo).toISOString().split('T')[0]) : '',
+      nokoprct: r.nokoprct || '',
+      monto: r.monto || '0',
+      nokofu: r.nokofu || ''
+    }));
   }
 
   // Salesperson users management
@@ -1630,8 +1646,8 @@ export class DatabaseStorage implements IStorage {
         
         if (daysSinceLastSale >= 30) {
           alerts.push({
-            type: 'inactive',
-            severity: daysSinceLastSale >= 60 ? 'high' : daysSinceLastSale >= 45 ? 'medium' : 'low',
+            type: 'inactive' as const,
+            severity: daysSinceLastSale >= 60 ? ('high' as const) : daysSinceLastSale >= 45 ? ('medium' as const) : ('low' as const),
             salesperson: salesperson.salespersonName,
             message: `${salesperson.salespersonName} no ha vendido en ${daysSinceLastSale} días`,
             data: { daysSinceLastSale, lastSale: salesperson.lastSale }
@@ -1639,8 +1655,8 @@ export class DatabaseStorage implements IStorage {
         }
       } else if (salesperson.transactionCount === 0) {
         alerts.push({
-          type: 'inactive',
-          severity: 'high',
+          type: 'inactive' as const,
+          severity: 'high' as const,
           salesperson: salesperson.salespersonName,
           message: `${salesperson.salespersonName} no ha registrado ventas`,
           data: { daysSinceLastSale: null, lastSale: null }
@@ -1654,8 +1670,8 @@ export class DatabaseStorage implements IStorage {
         // Alerta por estar bajo meta
         if (progress < 50) {
           alerts.push({
-            type: 'below_goal',
-            severity: progress < 25 ? 'high' : progress < 40 ? 'medium' : 'low',
+            type: 'below_goal' as const,
+            severity: progress < 25 ? ('high' as const) : progress < 40 ? ('medium' as const) : ('low' as const),
             salesperson: salesperson.salespersonName,
             message: `${salesperson.salespersonName} está al ${progress}% de su meta (${goal.description})`,
             data: { 
@@ -1678,8 +1694,8 @@ export class DatabaseStorage implements IStorage {
           
           if (projectionPercentage < 80 && progress > 0) { // Solo si hay algo de progreso
             alerts.push({
-              type: 'projection',
-              severity: projectionPercentage < 50 ? 'high' : projectionPercentage < 65 ? 'medium' : 'low',
+              type: 'projection' as const,
+              severity: projectionPercentage < 50 ? ('high' as const) : projectionPercentage < 65 ? ('medium' as const) : ('low' as const),
               salesperson: salesperson.salespersonName,
               message: `${salesperson.salespersonName} proyecta alcanzar solo ${Math.round(projectionPercentage)}% de su meta`,
               data: { 
@@ -1696,8 +1712,8 @@ export class DatabaseStorage implements IStorage {
     }
     
     // Ordenar alertas por severidad
-    const severityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
-    return alerts.sort((a, b) => severityOrder[b.severity] - severityOrder[a.severity]);
+    const severityOrder: Record<'high' | 'medium' | 'low', number> = { 'high': 3, 'medium': 2, 'low': 1 };
+    return alerts.sort((a, b) => severityOrder[b.severity as keyof typeof severityOrder] - severityOrder[a.severity as keyof typeof severityOrder]);
   }
   
   private getMonthsFromPeriod(period: string): number {
@@ -1742,15 +1758,15 @@ export class DatabaseStorage implements IStorage {
     let query = db.select().from(products);
 
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      query = query.where(and(...conditions)) as typeof query;
     }
 
     if (filters?.limit) {
-      query = query.limit(filters.limit);
+      query = query.limit(filters.limit) as typeof query;
     }
     
     if (filters?.offset) {
-      query = query.offset(filters.offset);
+      query = query.offset(filters.offset) as typeof query;
     }
 
     const productsList = await query.orderBy(products.name);
