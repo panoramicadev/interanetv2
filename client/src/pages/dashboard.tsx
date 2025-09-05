@@ -88,28 +88,28 @@ export default function Dashboard() {
       
       <div className="lg:ml-64 transition-all duration-300">
         {/* Header */}
-        <header className="bg-card border-b border-border px-4 lg:px-6 py-4 m-4 rounded-lg shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-4">
+        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
+          <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
                 Dashboard de Ventas
               </h1>
-              <p className="text-muted-foreground text-lg">
+              <p className="text-gray-600 text-base lg:text-lg">
                 Resumen de rendimiento - {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
               </p>
             </div>
             
-            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+            <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4">
               {/* Filter Type Selector */}
-              <div className="flex items-center space-x-2">
-                <label className="text-sm font-medium text-foreground whitespace-nowrap">
+              <div className="flex items-center space-x-3">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                   Filtrar por:
                 </label>
                 <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="w-32" data-testid="select-filter-type">
+                  <SelectTrigger className="w-36 rounded-xl border-gray-200 shadow-sm" data-testid="select-filter-type">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl border-gray-200">
                     <SelectItem value="day">Día</SelectItem>
                     <SelectItem value="month">Mes</SelectItem>
                     <SelectItem value="range">Rango</SelectItem>
@@ -118,8 +118,8 @@ export default function Dashboard() {
               </div>
 
               {/* Period Selector */}
-              <div className="flex items-center space-x-2">
-                <label className="text-sm font-medium text-foreground">
+              <div className="flex items-center space-x-3">
+                <label className="text-sm font-medium text-gray-700">
                   Período:
                 </label>
                 
@@ -128,14 +128,14 @@ export default function Dashboard() {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-48 justify-start text-left font-normal"
+                        className="w-48 lg:w-52 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm"
                         data-testid="calendar-trigger"
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecciona una fecha"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
                       <Calendar
                         mode="single"
                         selected={selectedDate}
@@ -147,10 +147,10 @@ export default function Dashboard() {
                   </Popover>
                 ) : (
                   <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger className="w-48" data-testid="select-period">
+                    <SelectTrigger className="w-48 lg:w-52 rounded-xl border-gray-200 shadow-sm" data-testid="select-period">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="rounded-xl border-gray-200">
                       {filterType === "month" && (
                         <>
                           <SelectItem value="2025-09">Septiembre 2025</SelectItem>
@@ -182,9 +182,9 @@ export default function Dashboard() {
         </header>
 
         {/* Main Content */}
-        <main className="p-4 lg:p-6 space-y-6">
+        <main className="p-4 lg:p-6 space-y-4 lg:space-y-6">
           {/* KPI Cards with Modern Styling */}
-          <div className="hover-lift">
+          <div>
             <KPICards 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
@@ -192,38 +192,38 @@ export default function Dashboard() {
           </div>
           
           {/* Goals Progress Dashboard */}
-          <div className="modern-card p-6 hover-lift">
+          <div className="modern-card p-5 lg:p-6 hover-lift">
             <GoalsProgress 
               globalFilter={globalFilter}
               onFilterChange={setGlobalFilter}
             />
           </div>
           
-          {/* Charts Grid with Modern Cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="modern-card p-6 hover-lift">
+          {/* Primary Analytics - Main Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
               <SalesChart 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
               />
             </div>
-            <div className="modern-card p-6 hover-lift">
-              <TopProductsChart 
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <SegmentChart 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
               />
             </div>
           </div>
 
-          {/* Top Row: Ventas por Segmento y Top Clientes */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="modern-card p-6 hover-lift">
-              <SegmentChart 
+          {/* Secondary Analytics - Product and Client Data */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <TopProductsChart 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
               />
             </div>
-            <div className="modern-card p-6 hover-lift">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
               <TopClientsPanel 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
@@ -231,15 +231,15 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Bottom Row: Top Vendedores y Últimas Transacciones */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="modern-card p-6 hover-lift">
+          {/* Bottom Section - Sales Team and Transactions */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
               <TopSalespeoplePanel 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
               />
             </div>
-            <div className="modern-card p-6 hover-lift">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
               <TransactionsTable 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}

@@ -66,27 +66,29 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 glass-card border-r border-white/20 transition-transform duration-300 lg:translate-x-0 ${
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-700/50 transition-transform duration-300 lg:translate-x-0 ${
         isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-white/20">
+          <div className="p-6 border-b border-slate-700/50">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gradient">SalesAnalytics</h1>
-                <p className="text-sm text-muted-foreground">Panel Profesional</p>
+                <h1 className="text-xl font-bold text-white">SalesAnalytics</h1>
+                <p className="text-sm text-slate-400">Panel Profesional</p>
               </div>
             </div>
           </div>
         
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-1">
           <Link href="/">
             <Button
-              variant={location === "/" ? "secondary" : "ghost"}
-              className="w-full justify-start"
+              variant="ghost"
+              className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                location === "/" ? "bg-slate-800 text-white" : ""
+              }`}
               data-testid="nav-dashboard"
             >
               <LayoutDashboard className="w-5 h-5 mr-3" />
@@ -96,8 +98,10 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
           
           <Link href="/metas">
             <Button
-              variant={location === "/metas" ? "secondary" : "ghost"}
-              className="w-full justify-start"
+              variant="ghost"
+              className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                location === "/metas" ? "bg-slate-800 text-white" : ""
+              }`}
               data-testid="nav-metas"
             >
               <Target className="w-5 h-5 mr-3" />
@@ -107,7 +111,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
           
           <Button
             variant="ghost"
-            className="w-full justify-start"
+            className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
             onClick={onImportClick}
             data-testid="nav-import"
           >
@@ -117,7 +121,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
           
           <Button
             variant="ghost"
-            className="w-full justify-start"
+            className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
             data-testid="nav-reports"
           >
             <FileText className="w-5 h-5 mr-3" />
@@ -127,8 +131,10 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
           {user?.role === 'admin' && (
             <Link href="/usuarios">
               <Button
-                variant={location === "/usuarios" ? "secondary" : "ghost"}
-                className="w-full justify-start"
+                variant="ghost"
+                className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                  location === "/usuarios" ? "bg-slate-800 text-white" : ""
+                }`}
                 data-testid="nav-users"
               >
                 <Settings className="w-5 h-5 mr-3" />
@@ -138,24 +144,25 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
           )}
         </nav>
         
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-slate-700/50">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <span className="text-xs font-medium text-primary-foreground">
+            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <span className="text-xs font-medium text-white">
                 {getInitials(user?.firstName, user?.lastName)}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">
+              <p className="text-sm font-medium text-white truncate">
                 {getDisplayName(user?.firstName, user?.lastName)}
               </p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-xs text-slate-400 truncate">
                 {user?.role === 'admin' ? 'Administrador' : 'Usuario'}
               </p>
             </div>
             <Button
               variant="ghost"
               size="sm"
+              className="text-slate-400 hover:text-white hover:bg-slate-800/50"
               onClick={handleLogout}
               data-testid="logout-button"
             >
