@@ -13,9 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { RefreshCw, CalendarIcon } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { queryClient } from "@/lib/queryClient";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -74,25 +73,6 @@ export default function Dashboard() {
     return null;
   }
 
-  const handleRefresh = async () => {
-    try {
-      // Invalidate all sales queries to refresh data
-      await queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
-      
-      // Show success toast
-      toast({
-        title: "Datos actualizados",
-        description: "La información del dashboard se ha actualizado correctamente.",
-      });
-    } catch (error) {
-      // Show error toast
-      toast({
-        title: "Error al actualizar",
-        description: "No se pudieron actualizar los datos. Intenta de nuevo.",
-        variant: "destructive",
-      });
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -189,16 +169,6 @@ export default function Dashboard() {
                   </Select>
                 )}
               </div>
-              
-              <Button
-                onClick={handleRefresh}
-                variant="default"
-                size="sm"
-                data-testid="button-refresh"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Actualizar
-              </Button>
             </div>
           </div>
         </header>
