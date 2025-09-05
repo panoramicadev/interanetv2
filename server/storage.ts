@@ -1317,7 +1317,7 @@ export class DatabaseStorage implements IStorage {
     return results.sort((a, b) => b.totalSales - a.totalSales);
   }
 
-  async getSupervisorGoals(supervisorId: string): Promise<Goal[]> {
+  async getSupervisorGoals(supervisorId: string): Promise<any[]> {
     // Obtener supervisor con su segmento asignado
     const [supervisor] = await db
       .select({ 
@@ -1329,7 +1329,7 @@ export class DatabaseStorage implements IStorage {
 
     if (!supervisor) return [];
 
-    const allGoals = [];
+    const processedGoals = [];
 
     // 1. Obtener metas personales del supervisor
     const personalGoals = await db
@@ -1341,7 +1341,25 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(desc(goals.createdAt));
     
-    allGoals.push(...personalGoals);
+    // Procesar metas personales
+    for (const goal of personalGoals) {
+      const currentSales = await this.getSalespersonSalesForPeriod(supervisor.salespersonName, goal.period);
+      const targetAmount = parseFloat(goal.amount);
+      const remaining = Math.max(targetAmount - currentSales, 0);
+      const progress = targetAmount > 0 ? Math.min((currentSales / targetAmount) * 100, 100) : 0;
+
+      processedGoals.push({
+        id: goal.id,
+        type: goal.type,
+        target: goal.target,
+        description: goal.description || `Meta personal - ${supervisor.salespersonName}`,
+        targetAmount,
+        currentSales,
+        remaining,
+        period: goal.period,
+        progress: Math.round(progress)
+      });
+    }
 
     // 2. Obtener metas del segmento asignado (si tiene uno)
     if (supervisor.assignedSegment) {
@@ -1354,10 +1372,28 @@ export class DatabaseStorage implements IStorage {
         ))
         .orderBy(desc(goals.createdAt));
       
-      allGoals.push(...segmentGoals);
+      // Procesar metas del segmento
+      for (const goal of segmentGoals) {
+        const currentSales = await this.getSegmentSalesForPeriod(supervisor.assignedSegment, goal.period);
+        const targetAmount = parseFloat(goal.amount);
+        const remaining = Math.max(targetAmount - currentSales, 0);
+        const progress = targetAmount > 0 ? Math.min((currentSales / targetAmount) * 100, 100) : 0;
+
+        processedGoals.push({
+          id: goal.id,
+          type: goal.type,
+          target: goal.target,
+          description: goal.description || `Meta del segmento ${supervisor.assignedSegment}`,
+          targetAmount,
+          currentSales,
+          remaining,
+          period: goal.period,
+          progress: Math.round(progress)
+        });
+      }
     }
 
-    return allGoals;
+    return processedGoals;
   }
 
   async getSupervisorAlerts(supervisorId: string): Promise<Array<{
