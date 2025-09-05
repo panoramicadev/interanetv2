@@ -93,130 +93,146 @@ export default function SalespersonDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen gradient-bg-alt">
+      <div className="container mx-auto px-4 lg:px-6 py-6 lg:py-8">
         
         {/* Header */}
-        <div className="mb-8">
-          <Link href="/">
-            <Button variant="outline" className="mb-4 hover:bg-blue-50 dark:hover:bg-slate-800">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al Dashboard
-            </Button>
-          </Link>
-          <div className="bg-white/80 backdrop-blur-sm rounded-lg p-6 border-0 shadow-lg">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Análisis de Vendedor
-            </h1>
-            <p className="text-xl text-gray-600 dark:text-gray-300 mt-2 font-semibold">
-              {decodeURIComponent(salespersonName)}
-            </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Período: {new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long' })}
-            </p>
+        <div className="glass-card p-6 rounded-2xl mb-6 lg:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+              <Link href="/">
+                <Button variant="outline" size="sm" className="w-fit glass-card hover-scale">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-2xl lg:text-3xl font-bold text-gradient">
+                  Análisis de Vendedor
+                </h1>
+                <p className="text-lg lg:text-xl text-foreground mt-1 font-semibold">
+                  {decodeURIComponent(salespersonName)}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Período: {new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long' })}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Ventas Totales</CardTitle>
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600" data-testid="text-total-sales">
-                {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalSales || 0)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
+          <div className="modern-card p-6 hover-scale">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Ventas Totales</p>
+                <p className="text-xl lg:text-2xl font-bold text-green-600" data-testid="text-total-sales">
+                  {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalSales || 0)}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-xl flex items-center justify-center ml-4">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </div>
 
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Clientes Atendidos</CardTitle>
-              <Users className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600" data-testid="text-total-clients">
-                {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalClients || 0)}
+          <div className="modern-card p-6 hover-scale">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Clientes Atendidos</p>
+                <p className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="text-total-clients">
+                  {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalClients || 0)}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center ml-4">
+                <Users className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
 
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Transacciones</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600" data-testid="text-transaction-count">
-                {isLoadingDetails ? 'Cargando...' : formatNumber(details?.transactionCount || 0)}
+          <div className="modern-card p-6 hover-scale">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Transacciones</p>
+                <p className="text-xl lg:text-2xl font-bold text-purple-600" data-testid="text-transaction-count">
+                  {isLoadingDetails ? 'Cargando...' : formatNumber(details?.transactionCount || 0)}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-xl flex items-center justify-center ml-4">
+                <ShoppingCart className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
 
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Frecuencia de Ventas</CardTitle>
-              <Clock className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600" data-testid="text-sales-frequency">
-                {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.salesFrequency || 0)}
+          <div className="modern-card p-6 hover-scale">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Frecuencia de Ventas</p>
+                <p className="text-xl lg:text-2xl font-bold text-orange-600" data-testid="text-sales-frequency">
+                  {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.salesFrequency || 0)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isLoadingDetails ? '' : `${details?.salesFrequency || 0} días promedio`}
+                </p>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {isLoadingDetails ? '' : `${details?.salesFrequency || 0} días promedio`}
-              </p>
-            </CardContent>
-          </Card>
+              <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-xl flex items-center justify-center ml-4">
+                <Clock className="w-6 h-6 text-orange-600" />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Secondary KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Ticket Promedio</CardTitle>
-              <TrendingUp className="h-4 w-4 text-indigo-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-indigo-600" data-testid="text-average-ticket">
-                {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 mb-6 lg:mb-8">
+          <div className="modern-card p-6 hover-scale">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Ticket Promedio</p>
+                <p className="text-xl lg:text-2xl font-bold text-indigo-600" data-testid="text-average-ticket">
+                  {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center ml-4">
+                <TrendingUp className="w-6 h-6 text-indigo-600" />
+              </div>
+            </div>
+          </div>
 
-          <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Ventas por Cliente</CardTitle>
-              <Users className="h-4 w-4 text-cyan-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-cyan-600" data-testid="text-sales-per-client">
-                {isLoadingDetails ? 'Cargando...' : formatCurrency((details?.totalSales || 0) / Math.max(1, details?.totalClients || 1))}
+          <div className="modern-card p-6 hover-scale">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Ventas por Cliente</p>
+                <p className="text-xl lg:text-2xl font-bold text-cyan-600" data-testid="text-sales-per-client">
+                  {isLoadingDetails ? 'Cargando...' : formatCurrency((details?.totalSales || 0) / Math.max(1, details?.totalClients || 1))}
+                </p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="w-12 h-12 bg-cyan-100 dark:bg-cyan-900/20 rounded-xl flex items-center justify-center ml-4">
+                <Users className="w-6 h-6 text-cyan-600" />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Clients Table */}
-        <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold flex items-center">
+        <div className="modern-card p-6 hover-lift">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold flex items-center text-gradient mb-2">
               <Users className="mr-2 h-5 w-5 text-blue-600" />
               Principales Clientes ({clients.length})
-            </CardTitle>
-            <p className="text-sm text-gray-500">
+            </h2>
+            <p className="text-sm text-muted-foreground">
               Ranking de clientes por ventas, con análisis de frecuencia de compras
             </p>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div>
             {isLoadingClients ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Cargando clientes...</p>
+                <div className="skeleton h-8 w-8 rounded-full mx-auto"></div>
+                <p className="mt-2 text-muted-foreground">Cargando clientes...</p>
               </div>
             ) : clients.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-muted-foreground">
                 No se encontraron clientes para este vendedor
               </div>
             ) : (
@@ -277,8 +293,8 @@ export default function SalespersonDetail() {
                 </TableBody>
               </Table>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
