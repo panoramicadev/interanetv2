@@ -52,7 +52,7 @@ export interface IStorage {
     totalSales: number;
     totalUnits: number;
   }>>;
-  getTopClients(limit?: number, startDate?: string, endDate?: string): Promise<Array<{
+  getTopClients(limit?: number, startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
     clientName: string;
     totalSales: number;
     transactionCount: number;
@@ -62,7 +62,7 @@ export interface IStorage {
     totalSales: number;
     percentage: number;
   }>>;
-  getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string): Promise<Array<{
+  getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
     period: string;
     sales: number;
   }>>;
@@ -336,7 +336,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTopClients(limit = 10, startDate?: string, endDate?: string): Promise<Array<{
+  async getTopClients(limit = 10, startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
     clientName: string;
     totalSales: number;
     transactionCount: number;
@@ -350,6 +350,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (endDate) {
       conditions.push(lte(salesTransactions.feemdo, endDate));
+    }
+    if (salesperson) {
+      conditions.push(eq(salesTransactions.nokofu, salesperson));
     }
     
     const results = await db
@@ -421,7 +424,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string): Promise<Array<{
+  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
     period: string;
     sales: number;
   }>> {
@@ -432,6 +435,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (endDate) {
       conditions.push(lte(salesTransactions.feemdo, endDate));
+    }
+    if (salesperson) {
+      conditions.push(eq(salesTransactions.nokofu, salesperson));
     }
     
     let query: any;
