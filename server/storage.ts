@@ -1318,16 +1318,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSupervisorGoals(supervisorId: string): Promise<Goal[]> {
-    // Obtener supervisor name
+    // Obtener supervisor con su segmento asignado
     const [supervisor] = await db
-      .select({ salespersonName: salespeopleUsers.salespersonName })
+      .select({ 
+        salespersonName: salespeopleUsers.salespersonName,
+        assignedSegment: salespeopleUsers.assignedSegment
+      })
       .from(salespeopleUsers)
       .where(eq(salespeopleUsers.id, supervisorId));
 
     if (!supervisor) return [];
 
-    // Obtener metas asignadas al supervisor
-    return await db
+    const allGoals = [];
+
+    // 1. Obtener metas personales del supervisor
+    const personalGoals = await db
       .select()
       .from(goals)
       .where(and(
@@ -1335,6 +1340,24 @@ export class DatabaseStorage implements IStorage {
         eq(goals.target, supervisor.salespersonName)
       ))
       .orderBy(desc(goals.createdAt));
+    
+    allGoals.push(...personalGoals);
+
+    // 2. Obtener metas del segmento asignado (si tiene uno)
+    if (supervisor.assignedSegment) {
+      const segmentGoals = await db
+        .select()
+        .from(goals)
+        .where(and(
+          eq(goals.type, 'segment'),
+          eq(goals.target, supervisor.assignedSegment)
+        ))
+        .orderBy(desc(goals.createdAt));
+      
+      allGoals.push(...segmentGoals);
+    }
+
+    return allGoals;
   }
 
   async getSupervisorAlerts(supervisorId: string): Promise<Array<{
