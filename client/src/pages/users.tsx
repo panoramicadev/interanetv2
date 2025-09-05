@@ -176,17 +176,6 @@ export default function UsersPage() {
     }
   }, [watchedRole, createForm]);
 
-  // Similar logic for edit form
-  const watchedEditRole = editForm.watch("role");
-  useEffect(() => {
-    if (watchedEditRole !== "salesperson") {
-      editForm.setValue("supervisorId", null);
-    }
-    if (watchedEditRole !== "supervisor") {
-      editForm.setValue("assignedSegment", null);
-    }
-  }, [watchedEditRole, editForm]);
-
   // Form para editar usuario
   const editForm = useForm<InsertSalespersonUserInput>({
     resolver: zodResolver(insertSalespersonUserSchema),
@@ -201,6 +190,17 @@ export default function UsersPage() {
       assignedSegment: null,
     },
   });
+
+  // Logic for edit form - watch role changes
+  const watchedEditRole = editForm.watch("role");
+  useEffect(() => {
+    if (watchedEditRole !== "salesperson") {
+      editForm.setValue("supervisorId", null);
+    }
+    if (watchedEditRole !== "supervisor") {
+      editForm.setValue("assignedSegment", null);
+    }
+  }, [watchedEditRole, editForm]);
 
   const handleCreateSubmit = (data: InsertSalespersonUserInput) => {
     // Limpiar campos según el rol
