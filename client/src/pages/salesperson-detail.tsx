@@ -1,16 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
 interface SalespersonDetails {
@@ -48,7 +39,7 @@ export default function SalespersonDetail() {
 
   if (!salespersonName) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600">Vendedor no encontrado</h1>
           <Link href="/">
@@ -63,20 +54,20 @@ export default function SalespersonDetail() {
   }
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
+    return new Intl.NumberFormat('es-CL', {
       style: 'currency',
-      currency: 'COP',
+      currency: 'CLP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
   };
 
   const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('es-CO').format(num);
+    return new Intl.NumberFormat('es-CL').format(num);
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-CO');
+    return new Date(dateString).toLocaleDateString('es-CL');
   };
 
   const getFrequencyDescription = (days: number) => {
@@ -93,208 +84,207 @@ export default function SalespersonDetail() {
   };
 
   return (
-    <div className="min-h-screen gradient-bg-alt">
-      <div className="container mx-auto px-4 lg:px-6 py-6 lg:py-8">
-        
+    <div className="min-h-screen bg-background">
+      <div className="lg:ml-64 transition-all duration-300">
         {/* Header */}
-        <div className="glass-card p-6 rounded-2xl mb-6 lg:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-              <Link href="/">
-                <Button variant="outline" size="sm" className="w-fit glass-card hover-scale">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
+        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
+          <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
+            <div>
+              <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                <Link href="/" className="hover:text-blue-600 transition-colors">
                   Dashboard
-                </Button>
-              </Link>
-              <div>
-                <h1 className="text-2xl lg:text-3xl font-bold text-gradient">
-                  Análisis de Vendedor
-                </h1>
-                <p className="text-lg lg:text-xl text-foreground mt-1 font-semibold">
-                  {decodeURIComponent(salespersonName)}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Período: {new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long' })}
-                </p>
+                </Link>
+                <span>›</span>
+                <span>Vendedor</span>
+                <span>›</span>
+                <span className="font-medium text-gray-900">{decodeURIComponent(salespersonName)}</span>
+              </nav>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
+                Análisis de Vendedor
+              </h1>
+              <p className="text-gray-600 text-base lg:text-lg font-semibold">
+                {decodeURIComponent(salespersonName)}
+              </p>
+              <p className="text-gray-500 text-sm">
+                Período: {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long' })}
+              </p>
+            </div>
+            <Link href="/">
+              <Button 
+                variant="outline" 
+                className="rounded-xl border-gray-200 shadow-sm"
+                data-testid="button-back-dashboard"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al Dashboard
+              </Button>
+            </Link>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="p-4 lg:p-6 space-y-4 lg:space-y-6">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Ventas Totales</p>
+                  <p className="text-xl lg:text-2xl font-bold text-green-600" data-testid="text-total-sales">
+                    {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalSales || 0)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center ml-4">
+                  <DollarSign className="w-6 h-6 text-green-600" />
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
-          <div className="modern-card p-6 hover-scale">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-muted-foreground mb-2">Ventas Totales</p>
-                <p className="text-xl lg:text-2xl font-bold text-green-600" data-testid="text-total-sales">
-                  {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalSales || 0)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-xl flex items-center justify-center ml-4">
-                <DollarSign className="w-6 h-6 text-green-600" />
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Clientes Atendidos</p>
+                  <p className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="text-total-clients">
+                    {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalClients || 0)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center ml-4">
+                  <Users className="w-6 h-6 text-blue-600" />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="modern-card p-6 hover-scale">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-muted-foreground mb-2">Clientes Atendidos</p>
-                <p className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="text-total-clients">
-                  {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalClients || 0)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center ml-4">
-                <Users className="w-6 h-6 text-blue-600" />
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Transacciones</p>
+                  <p className="text-xl lg:text-2xl font-bold text-purple-600" data-testid="text-transaction-count">
+                    {isLoadingDetails ? 'Cargando...' : formatNumber(details?.transactionCount || 0)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center ml-4">
+                  <ShoppingCart className="w-6 h-6 text-purple-600" />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="modern-card p-6 hover-scale">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-muted-foreground mb-2">Transacciones</p>
-                <p className="text-xl lg:text-2xl font-bold text-purple-600" data-testid="text-transaction-count">
-                  {isLoadingDetails ? 'Cargando...' : formatNumber(details?.transactionCount || 0)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-xl flex items-center justify-center ml-4">
-                <ShoppingCart className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="modern-card p-6 hover-scale">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-muted-foreground mb-2">Frecuencia de Ventas</p>
-                <p className="text-xl lg:text-2xl font-bold text-orange-600" data-testid="text-sales-frequency">
-                  {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.salesFrequency || 0)}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isLoadingDetails ? '' : `${details?.salesFrequency || 0} días promedio`}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-xl flex items-center justify-center ml-4">
-                <Clock className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Secondary KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 mb-6 lg:mb-8">
-          <div className="modern-card p-6 hover-scale">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-muted-foreground mb-2">Ticket Promedio</p>
-                <p className="text-xl lg:text-2xl font-bold text-indigo-600" data-testid="text-average-ticket">
-                  {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center ml-4">
-                <TrendingUp className="w-6 h-6 text-indigo-600" />
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Frecuencia de Ventas</p>
+                  <p className="text-xl lg:text-2xl font-bold text-orange-600" data-testid="text-sales-frequency">
+                    {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.salesFrequency || 0)}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {isLoadingDetails ? '' : `${details?.salesFrequency || 0} días promedio`}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center ml-4">
+                  <Clock className="w-6 h-6 text-orange-600" />
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="modern-card p-6 hover-scale">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-muted-foreground mb-2">Ventas por Cliente</p>
-                <p className="text-xl lg:text-2xl font-bold text-cyan-600" data-testid="text-sales-per-client">
-                  {isLoadingDetails ? 'Cargando...' : formatCurrency((details?.totalSales || 0) / Math.max(1, details?.totalClients || 1))}
-                </p>
+          {/* Additional KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Ticket Promedio</p>
+                  <p className="text-xl lg:text-2xl font-bold text-indigo-600" data-testid="text-average-ticket">
+                    {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center ml-4">
+                  <TrendingUp className="w-6 h-6 text-indigo-600" />
+                </div>
               </div>
-              <div className="w-12 h-12 bg-cyan-100 dark:bg-cyan-900/20 rounded-xl flex items-center justify-center ml-4">
-                <Users className="w-6 h-6 text-cyan-600" />
+            </div>
+
+            <div className="modern-card p-5 lg:p-6 hover-lift">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Productividad</p>
+                  <p className="text-xl lg:text-2xl font-bold text-teal-600">
+                    {isLoadingDetails ? 'Cargando...' : details?.totalClients && details?.transactionCount 
+                      ? (details.transactionCount / details.totalClients).toFixed(1) 
+                      : '0.0'} 
+                    <span className="text-sm text-muted-foreground ml-1">trans/cliente</span>
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center ml-4">
+                  <TrendingUp className="w-6 h-6 text-teal-600" />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Clients Table */}
-        <div className="modern-card p-6 hover-lift">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold flex items-center text-gradient mb-2">
-              <Users className="mr-2 h-5 w-5 text-blue-600" />
-              Principales Clientes ({clients.length})
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Ranking de clientes por ventas, con análisis de frecuencia de compras
-            </p>
-          </div>
-          <div>
-            {isLoadingClients ? (
-              <div className="text-center py-8">
-                <div className="skeleton h-8 w-8 rounded-full mx-auto"></div>
-                <p className="mt-2 text-muted-foreground">Cargando clientes...</p>
+          {/* Clients Table */}
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Users className="h-5 w-5 text-blue-600" />
               </div>
-            ) : clients.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No se encontraron clientes para este vendedor
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]">Rank</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead className="text-right">Ventas Totales</TableHead>
-                    <TableHead className="text-right">Transacciones</TableHead>
-                    <TableHead className="text-right">Última Venta</TableHead>
-                    <TableHead className="text-right">Días desde Última Venta</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clients.map((client: SalespersonClient, index: number) => (
-                    <TableRow 
-                      key={client.clientName} 
-                      className="hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                      data-testid={`row-client-${index}`}
-                    >
-                      <TableCell className="font-medium">
-                        <Badge 
-                          variant={index < 3 ? "default" : "secondary"}
-                          className={
-                            index === 0 ? "bg-yellow-500 hover:bg-yellow-600" :
-                            index === 1 ? "bg-gray-400 hover:bg-gray-500" :
-                            index === 2 ? "bg-orange-500 hover:bg-orange-600" :
-                            ""
-                          }
-                        >
-                          #{index + 1}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium" data-testid={`text-client-name-${index}`}>
-                        <Link href={`/client/${encodeURIComponent(client.clientName)}`}>
-                          <span className="hover:text-blue-600 hover:underline cursor-pointer">
-                            {client.clientName}
-                          </span>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-green-600" data-testid={`text-client-sales-${index}`}>
-                        {formatCurrency(client.totalSales)}
-                      </TableCell>
-                      <TableCell className="text-right" data-testid={`text-client-transactions-${index}`}>
-                        {formatNumber(client.transactionCount)}
-                      </TableCell>
-                      <TableCell className="text-right" data-testid={`text-client-last-sale-${index}`}>
-                        {formatDate(client.lastSale)}
-                      </TableCell>
-                      <TableCell className="text-right" data-testid={`text-client-days-since-${index}`}>
-                        <span className={`font-medium ${getDaysColor(client.daysSinceLastSale)}`}>
-                          {client.daysSinceLastSale} días
-                        </span>
-                      </TableCell>
-                    </TableRow>
+              <h2 className="text-xl font-bold text-gray-900">Clientes del Vendedor</h2>
+            </div>
+            
+            <div className="space-y-3">
+              {isLoadingClients ? (
+                <div className="space-y-3">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="animate-pulse h-16 bg-gray-200 rounded-lg"></div>
                   ))}
-                </TableBody>
-              </Table>
-            )}
+                </div>
+              ) : clients.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No hay clientes registrados para este vendedor</p>
+              ) : (
+                clients.map((client, index) => (
+                  <Link key={client.clientName} href={`/client/${encodeURIComponent(client.clientName)}`}>
+                    <div 
+                      className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                      data-testid={`client-${index}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            <Badge variant="outline" className="text-xs">
+                              #{index + 1}
+                            </Badge>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {client.clientName}
+                            </p>
+                            <div className="flex items-center space-x-4 mt-1">
+                              <p className="text-xs text-gray-500">
+                                {formatNumber(client.transactionCount)} transacciones
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Ticket: {formatCurrency(client.averageTicket)}
+                              </p>
+                              <p className={`text-xs ${getDaysColor(client.daysSinceLastSale)}`}>
+                                Última venta: {client.daysSinceLastSale} días
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(client.totalSales)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatDate(client.lastSale)}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );
