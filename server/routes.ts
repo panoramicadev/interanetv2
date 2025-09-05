@@ -136,6 +136,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Segment detail route - salespeople by segment
+  app.get("/api/sales/segment/:segmentName/salespeople", isAuthenticated, async (req, res) => {
+    try {
+      const { segmentName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const salespeople = await storage.getSegmentSalespeople(segmentName, period as string, filterType as string);
+      res.json(salespeople);
+    } catch (error) {
+      console.error("Error fetching segment salespeople:", error);
+      res.status(500).json({ message: "Failed to fetch segment salespeople" });
+    }
+  });
+
   // CSV import endpoint
   app.post('/api/sales/import', isAuthenticated, async (req, res) => {
     try {
