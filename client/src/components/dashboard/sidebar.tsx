@@ -7,10 +7,13 @@ import {
   Users, 
   LogOut,
   Building2,
-  Target
+  Target,
+  Menu,
+  X
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { User } from "@shared/schema";
+import { useState } from "react";
 
 interface SidebarProps {
   onImportClick: () => void;
@@ -19,6 +22,7 @@ interface SidebarProps {
 export default function Sidebar({ onImportClick }: SidebarProps) {
   const { user } = useAuth() as { user: User | null };
   const [location] = useLocation();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const handleLogout = () => {
     window.location.href = "/api/logout";
@@ -40,17 +44,42 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
   };
 
   return (
-    <div className="fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border">
-      <div className="flex flex-col h-full">
-        <div className="p-6 border-b border-border">
-          <div className="flex items-center space-x-2">
-            <Building2 className="w-6 h-6 text-primary" />
-            <div>
-              <h1 className="text-xl font-bold text-foreground">SalesAnalytics</h1>
-              <p className="text-sm text-muted-foreground">Panel de Control</p>
+    <>
+      {/* Mobile Menu Button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="fixed top-4 left-4 z-50 lg:hidden glass-card p-2"
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        data-testid="mobile-menu-toggle"
+      >
+        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </Button>
+
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 glass-card border-r border-white/20 transition-transform duration-300 lg:translate-x-0 ${
+        isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
+        <div className="flex flex-col h-full">
+          <div className="p-6 border-b border-white/20">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
+                <Building2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gradient">SalesAnalytics</h1>
+                <p className="text-sm text-muted-foreground">Panel Profesional</p>
+              </div>
             </div>
           </div>
-        </div>
         
         <nav className="flex-1 p-4 space-y-2">
           <Link href="/">
@@ -123,13 +152,14 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
               variant="ghost"
               size="sm"
               onClick={handleLogout}
-              data-testid="button-logout"
+              data-testid="logout-button"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </div>
     </div>
+    </>
   );
 }
