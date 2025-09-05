@@ -40,15 +40,11 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[...Array(4)].map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-6">
-              <div className="animate-pulse">
-                <div className="h-4 bg-muted rounded mb-2"></div>
-                <div className="h-8 bg-muted rounded mb-1"></div>
-                <div className="h-3 bg-muted rounded w-24"></div>
-              </div>
-            </CardContent>
-          </Card>
+          <div key={i} className="modern-card p-6">
+            <div className="skeleton h-4 mb-2"></div>
+            <div className="skeleton h-8 mb-1"></div>
+            <div className="skeleton h-3 w-24"></div>
+          </div>
         ))}
       </div>
     );
@@ -100,29 +96,27 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {kpis.map((kpi) => (
-        <Card key={kpi.title}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  {kpi.title}
-                </p>
-                <p 
-                  className="text-3xl font-bold text-foreground"
-                  data-testid={kpi.testId}
-                >
-                  {kpi.value}
-                </p>
-                <p className={`text-sm mt-1 ${kpi.changeColor}`}>
-                  {kpi.change}
-                </p>
-              </div>
-              <div className={`w-12 h-12 ${kpi.bgColor} rounded-lg flex items-center justify-center`}>
-                <kpi.icon className={`w-6 h-6 ${kpi.iconColor}`} />
-              </div>
+        <div key={kpi.title} className="modern-card p-6 hover-scale">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-muted-foreground mb-2">
+                {kpi.title}
+              </p>
+              <p 
+                className="text-3xl font-bold text-foreground mb-1"
+                data-testid={kpi.testId}
+              >
+                {kpi.value}
+              </p>
+              <p className={`text-sm font-medium ${kpi.changeColor}`}>
+                {kpi.change}
+              </p>
             </div>
-          </CardContent>
-        </Card>
+            <div className={`w-14 h-14 ${kpi.bgColor} rounded-xl flex items-center justify-center ml-4 hover-scale`}>
+              <kpi.icon className={`w-7 h-7 ${kpi.iconColor}`} />
+            </div>
+          </div>
+        </div>
       ))}
     </div>
   );
