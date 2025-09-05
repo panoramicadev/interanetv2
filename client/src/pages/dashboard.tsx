@@ -231,20 +231,20 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Bottom Section - Sales Team and Transactions */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-            <div className="modern-card p-5 lg:p-6 hover-lift">
-              <TopSalespeoplePanel 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-              />
-            </div>
-            <div className="modern-card p-5 lg:p-6 hover-lift">
-              <TransactionsTable 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-              />
-            </div>
+          {/* Sales Team */}
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <TopSalespeoplePanel 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+            />
+          </div>
+
+          {/* Transactions - Full Width */}
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <TransactionsTable 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+            />
           </div>
         </main>
       </div>
