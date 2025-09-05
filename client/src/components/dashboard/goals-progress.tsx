@@ -330,7 +330,7 @@ export default function GoalsProgress({ globalFilter, onFilterChange }: GoalsPro
       )}
 
       {/* Specific Goals - Enhanced Cards or Full Width */}
-      {specificGoals.length > 0 && (
+      {specificGoals.length > 0 && !shouldShowFullWidth && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
             <TrendingUp className="h-5 w-5" />
