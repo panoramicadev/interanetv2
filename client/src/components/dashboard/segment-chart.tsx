@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, TrendingUp } from "lucide-react";
+import { Link } from "wouter";
 
 interface SegmentData {
   segment: string;
@@ -82,36 +83,41 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
             ))
           ) : (
             segmentData?.map((segment, index) => (
-              <div 
+              <Link 
                 key={segment.segment} 
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors"
-                data-testid={`segment-${index}`}
+                href={`/segment/${encodeURIComponent(segment.segment)}`}
+                className="block"
               >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${getGradientColor(index)} flex items-center justify-center text-white font-bold text-sm`}>
-                    {getSegmentInitials(segment.segment)}
+                <div 
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 hover:shadow-md transition-all duration-200 cursor-pointer"
+                  data-testid={`segment-${index}`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${getGradientColor(index)} flex items-center justify-center text-white font-bold text-sm shadow-lg`}>
+                      {getSegmentInitials(segment.segment)}
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm leading-tight">
+                        {segment.segment}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {segment.percentage.toFixed(1)}% del total
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-sm leading-tight">
-                      {segment.segment}
+                  <div className="text-right">
+                    <p className="font-semibold text-sm">
+                      {formatCurrency(segment.totalSales)}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {segment.percentage.toFixed(1)}% del total
-                    </p>
+                    <div className="flex items-center gap-1">
+                      <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${getGradientColor(index)}`}></div>
+                      <span className="text-xs text-muted-foreground">
+                        #{index + 1}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-sm">
-                    {formatCurrency(segment.totalSales)}
-                  </p>
-                  <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${getGradientColor(index)}`}></div>
-                    <span className="text-xs text-muted-foreground">
-                      #{index + 1}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              </Link>
             ))
           )}
         </div>
