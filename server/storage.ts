@@ -389,7 +389,7 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`)
       .orderBy(salesTransactions.noruen);
     
-    return result.map(r => r.segment).filter(Boolean);
+    return result.map((r: any) => r.segment).filter((segment: string | null): segment is string => Boolean(segment));
   }
 
   async getUniqueSalespeople(): Promise<string[]> {
@@ -399,7 +399,7 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`)
       .orderBy(salesTransactions.nokofu);
     
-    return result.map(r => r.salesperson).filter(Boolean);
+    return result.map((r: any) => r.salesperson).filter((salesperson: string | null): salesperson is string => Boolean(salesperson));
   }
 
   // Sales data for goals comparison
