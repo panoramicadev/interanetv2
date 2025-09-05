@@ -18,7 +18,7 @@ import type { Goal } from "@shared/schema";
 
 export default function Metas() {
   const { toast } = useToast();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -53,18 +53,31 @@ export default function Metas() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  // Fetch goals
+  // Fetch goals based on user role
+  const getGoalsEndpoint = () => {
+    if (user?.role === 'supervisor') {
+      return `/api/supervisor/${user.id}/goals`;
+    } else if (user?.role === 'salesperson') {
+      return `/api/salesperson/${user.id}/goals`;
+    }
+    // Admin and other roles see all goals
+    return "/api/goals";
+  };
+
   const { data: goals, isLoading: goalsLoading } = useQuery<Goal[]>({
-    queryKey: ["/api/goals"],
+    queryKey: [getGoalsEndpoint()],
+    enabled: !!user, // Only fetch when user is loaded
   });
 
-  // Fetch segments and salespeople for form selectors
+  // Fetch segments and salespeople for form selectors (only for admin)
   const { data: segments } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
+    enabled: user?.role === 'admin', // Only load for admin users
   });
 
   const { data: salespeople } = useQuery<string[]>({
     queryKey: ["/api/goals/data/salespeople"],
+    enabled: user?.role === 'admin', // Only load for admin users
   });
 
   // Create goal mutation
@@ -241,24 +254,32 @@ export default function Metas() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-foreground">
-                Gestión de Metas
+                {user?.role === 'supervisor' ? 'Mis Metas' : user?.role === 'salesperson' ? 'Mis Metas' : 'Gestión de Metas'}
               </h1>
               <p className="text-muted-foreground">
-                Administra las metas de ventas globales, por segmento y por vendedor
+                {user?.role === 'supervisor' 
+                  ? 'Metas de tu segmento asignado y vendedores bajo tu supervisión'
+                  : user?.role === 'salesperson'
+                  ? 'Tus metas personales de ventas'
+                  : 'Administra las metas de ventas globales, por segmento y por vendedor'
+                }
               </p>
             </div>
             
-            <Button 
-              onClick={() => {
-                setShowCreateForm(true);
-                setEditingGoal(null);
-                resetForm();
-              }}
-              data-testid="button-create-goal"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Nueva Meta
-            </Button>
+            {/* Only show create button for admin users */}
+            {user?.role === 'admin' && (
+              <Button 
+                onClick={() => {
+                  setShowCreateForm(true);
+                  setEditingGoal(null);
+                  resetForm();
+                }}
+                data-testid="button-create-goal"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Nueva Meta
+              </Button>
+            )}
           </div>
         </header>
 
@@ -269,8 +290,8 @@ export default function Metas() {
             globalFilter={globalFilter}
             onFilterChange={setGlobalFilter}
           />
-          {/* Create/Edit Form */}
-          {showCreateForm && (
+          {/* Create/Edit Form - Only for admin users */}
+          {showCreateForm && user?.role === 'admin' && (
             <Card>
               <CardHeader>
                 <CardTitle>
