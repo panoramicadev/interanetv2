@@ -1190,34 +1190,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      console.log(`📊 CSV parseado: ${parseResult.data.length} filas`);
+      
       // Transform CSV data to match our schema
-      const csvData = parseResult.data.map((row: any) => ({
-        sku: row.KOPR?.trim(),
-        name: row.NOKOPR?.trim(),
-        unit1: row.UD01PR?.trim(),
-        unit2: row.UD02PR?.trim(),
-        branchCode: row.KOSU?.trim(),
-        warehouseCode: row.KOBO?.trim(),
-        warehouseLocation: row.DATOSUBIC?.trim(),
-        physicalStock1: parseFloat(row.STFI1?.replace(',', '.')) || 0,
-        physicalStock2: parseFloat(row.STFI2?.replace(',', '.')) || 0,
-        availableStock1: parseFloat(row.STDV1?.replace(',', '.')) || 0,
-        availableStock2: parseFloat(row.STDV2?.replace(',', '.')) || 0,
-        committedStock1: parseFloat(row.STOCNV1?.replace(',', '.')) || 0,
-        committedStock2: parseFloat(row.STOCNV2?.replace(',', '.')) || 0,
-        unitRatio: parseFloat(row.RLUD?.replace(',', '.')) || 1,
-        fmpr: row.FMPR?.trim(),
-        pfpr: row.PFPR?.trim(),
-        hfpr: row.HFPR?.trim(),
-        rupr: row.RUPR?.trim(),
-        mrpr: row.MRPR?.trim()
-      })).filter((row: any) => row.sku && row.name && row.branchCode && row.warehouseCode); // Filter out incomplete rows
+      const csvData = parseResult.data.map((row: any, index: number) => {
+        const transformedRow = {
+          sku: row.KOPR?.toString()?.trim(),
+          name: row.NOKOPR?.toString()?.trim(),
+          unit1: row.UD01PR?.toString()?.trim() || 'UN',
+          unit2: row.UD02PR?.toString()?.trim() || 'UN',
+          branchCode: row.KOSU?.toString()?.trim(),
+          warehouseCode: row.KOBO?.toString()?.trim(),
+          warehouseLocation: row.DATOSUBIC?.toString()?.trim() || '',
+          physicalStock1: parseFloat(row.STFI1?.toString()?.replace(',', '.')) || 0,
+          physicalStock2: parseFloat(row.STFI2?.toString()?.replace(',', '.')) || 0,
+          availableStock1: parseFloat(row.STDV1?.toString()?.replace(',', '.')) || 0,
+          availableStock2: parseFloat(row.STDV2?.toString()?.replace(',', '.')) || 0,
+          committedStock1: parseFloat(row.STOCNV1?.toString()?.replace(',', '.')) || 0,
+          committedStock2: parseFloat(row.STOCNV2?.toString()?.replace(',', '.')) || 0,
+          unitRatio: parseFloat(row.RLUD?.toString()?.replace(',', '.')) || 1,
+          fmpr: row.FMPR?.toString()?.trim() || '',
+          pfpr: row.PFPR?.toString()?.trim() || '',
+          hfpr: row.HFPR?.toString()?.trim() || '',
+          rupr: row.RUPR?.toString()?.trim() || '',
+          mrpr: row.MRPR?.toString()?.trim() || '',
+          originalRowIndex: index + 1
+        };
+
+        // Log problematic rows
+        if (!transformedRow.sku || !transformedRow.name) {
+          console.log(`⚠️  Fila ${index + 1}: SKU o nombre vacío`, { sku: transformedRow.sku, name: transformedRow.name });
+        }
+        if (!transformedRow.branchCode || !transformedRow.warehouseCode) {
+          console.log(`⚠️  Fila ${index + 1}: Sucursal o bodega vacía`, { branchCode: transformedRow.branchCode, warehouseCode: transformedRow.warehouseCode });
+        }
+
+        return transformedRow;
+      }).filter((row: any) => {
+        const isValid = row.sku && row.name && row.branchCode && row.warehouseCode;
+        if (!isValid) {
+          console.log(`❌ Fila ${row.originalRowIndex} excluida: datos incompletos`);
+        }
+        return isValid;
+      });
+
+      console.log(`✅ Filas válidas para procesar: ${csvData.length}`)
 
       const result = await storage.importProductStockFromCSV(csvData);
       
+      console.log(`📈 Resultado de importación:`, result);
+      
       res.json({
         message: "CSV import completed",
-        result
+        result: {
+          ...result,
+          totalRowsInCSV: parseResult.data.length,
+          validRowsProcessed: csvData.length,
+          filteredOutRows: parseResult.data.length - csvData.length
+        }
       });
     } catch (error) {
       console.error("Error importing CSV:", error);
