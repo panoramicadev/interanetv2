@@ -94,16 +94,16 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
       {kpis.map((kpi) => (
-        <div key={kpi.title} className="modern-card p-6 hover-scale">
+        <div key={kpi.title} className="modern-card p-5 lg:p-6 hover-lift">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <p className="text-sm font-medium text-muted-foreground mb-2">
+              <p className="text-sm font-medium text-gray-600 mb-2">
                 {kpi.title}
               </p>
               <p 
-                className="text-3xl font-bold text-foreground mb-1"
+                className="text-2xl lg:text-3xl font-bold text-gray-900 mb-1"
                 data-testid={kpi.testId}
               >
                 {kpi.value}
@@ -112,8 +112,8 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
                 {kpi.change}
               </p>
             </div>
-            <div className={`w-14 h-14 ${kpi.bgColor} rounded-xl flex items-center justify-center ml-4 hover-scale`}>
-              <kpi.icon className={`w-7 h-7 ${kpi.iconColor}`} />
+            <div className={`w-12 h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-2xl flex items-center justify-center ml-4 transition-transform hover:scale-105`}>
+              <kpi.icon className={`w-6 h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
             </div>
           </div>
         </div>

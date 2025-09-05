@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -65,25 +64,28 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Transacciones Recientes</CardTitle>
-          <Button variant="link" size="sm" data-testid="button-view-all">
-            Ver todas
-          </Button>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+            <span className="text-sm font-medium text-blue-600">📋</span>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">Transacciones Recientes</h2>
         </div>
-      </CardHeader>
-      <CardContent>
+        <Button variant="link" size="sm" className="text-blue-600" data-testid="button-view-all">
+          Ver todas
+        </Button>
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200/60 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Transacción</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Producto</TableHead>
-                  <TableHead>Cantidad</TableHead>
-                  <TableHead className="text-right">Monto</TableHead>
+                <TableRow className="bg-gray-50/50">
+                  <TableHead className="font-semibold text-gray-700">Transacción</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Cliente</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Producto</TableHead>
+                  <TableHead className="font-semibold text-gray-700">Cantidad</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700">Monto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -132,7 +134,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
