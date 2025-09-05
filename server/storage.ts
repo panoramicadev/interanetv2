@@ -209,10 +209,12 @@ export class DatabaseStorage implements IStorage {
       query = query.where(and(...conditions));
     }
     
-    return query
+    const result = await query
       .orderBy(desc(salesTransactions.feemdo))
       .limit(limit)
       .offset(offset);
+    
+    return result;
   }
 
   async getSalesMetrics(filters: {
@@ -471,7 +473,7 @@ export class DatabaseStorage implements IStorage {
 
     const results = await query;
 
-    return results.map(r => ({
+    return results.map((r: any) => ({
       period: r.period,
       sales: Number(r.sales),
     }));
@@ -871,38 +873,78 @@ export class DatabaseStorage implements IStorage {
   }
 
   async autoCreateUsersForSalespeople(): Promise<number> {
-    // Obtener todos los vendedores únicos de las transacciones
-    const uniqueSalespeople = await db
-      .selectDistinct({ salesperson: salesTransactions.nokofu })
-      .from(salesTransactions)
-      .where(sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`);
+    try {
+      // Obtener todos los vendedores únicos de las transacciones
+      const uniqueSalespeople = await db
+        .selectDistinct({ salesperson: salesTransactions.nokofu })
+        .from(salesTransactions)
+        .where(sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`);
 
-    // Obtener vendedores que ya tienen usuarios
-    const existingUsers = await db
-      .select({ salespersonName: salespeopleUsers.salespersonName })
-      .from(salespeopleUsers);
+      console.log('Vendedores únicos encontrados:', uniqueSalespeople.length);
 
-    const existingNames = new Set(existingUsers.map(u => u.salespersonName));
-    
-    // Filtrar vendedores que no tienen usuarios
-    const newSalespeople = uniqueSalespeople.filter(
-      sp => sp.salesperson && !existingNames.has(sp.salesperson)
-    );
+      // Obtener vendedores que ya tienen usuarios
+      const existingUsers = await db
+        .select({ salespersonName: salespeopleUsers.salespersonName })
+        .from(salespeopleUsers);
 
-    if (newSalespeople.length === 0) {
-      return 0;
+      const existingNames = new Set(existingUsers.map(u => u.salespersonName));
+      
+      // Filtrar vendedores que no tienen usuarios
+      const newSalespeople = uniqueSalespeople.filter(
+        sp => sp.salesperson && !existingNames.has(sp.salesperson)
+      );
+
+      console.log('Vendedores nuevos a crear:', newSalespeople.length);
+
+      if (newSalespeople.length === 0) {
+        return 0;
+      }
+
+      // Función para generar nombre de usuario: primera letra + primer apellido
+      const generateUsername = (fullName: string): string => {
+        const nameParts = fullName.trim().toLowerCase().split(' ');
+        if (nameParts.length < 2) {
+          // Si solo hay un nombre, usar las primeras 4 letras
+          return nameParts[0].substring(0, 4);
+        }
+        // Primera letra del nombre + primer apellido completo
+        const firstLetter = nameParts[0].charAt(0);
+        const firstLastName = nameParts[1];
+        return firstLetter + firstLastName;
+      };
+
+      // Crear usuarios para vendedores nuevos con nombres de usuario únicos
+      const usersToCreate = newSalespeople.map((sp, index) => {
+        const baseUsername = generateUsername(sp.salesperson!);
+        let username = baseUsername;
+        
+        // Si hay duplicados, agregar número
+        const duplicateCount = newSalespeople
+          .slice(0, index)
+          .filter(prevSp => generateUsername(prevSp.salesperson!) === baseUsername)
+          .length;
+        
+        if (duplicateCount > 0) {
+          username = baseUsername + (duplicateCount + 1);
+        }
+
+        return {
+          salespersonName: sp.salesperson!,
+          username: username,
+          isActive: true,
+          role: 'salesperson' as const,
+        };
+      });
+
+      console.log('Usuarios a crear:', usersToCreate.map(u => ({ name: u.salespersonName, username: u.username })));
+
+      await db.insert(salespeopleUsers).values(usersToCreate);
+      
+      return usersToCreate.length;
+    } catch (error) {
+      console.error('Error en autoCreateUsersForSalespeople:', error);
+      throw error;
     }
-
-    // Crear usuarios para vendedores nuevos
-    const usersToCreate = newSalespeople.map(sp => ({
-      salespersonName: sp.salesperson!,
-      isActive: true,
-      role: 'salesperson' as const,
-    }));
-
-    await db.insert(salespeopleUsers).values(usersToCreate);
-    
-    return usersToCreate.length;
   }
 }
 
