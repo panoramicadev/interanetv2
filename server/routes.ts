@@ -803,7 +803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Rutas específicas para supervisores
-  app.get('/api/supervisor/:supervisorId/salespeople', isAuthenticated, async (req, res) => {
+  app.get('/api/supervisor/:supervisorId/salespeople', async (req: any, res) => {
     try {
       const { supervisorId } = req.params;
       console.log(`[DEBUG] Fetching salespeople for supervisor ID: ${supervisorId}`);
@@ -818,11 +818,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/supervisor/:supervisorId/goals', isAuthenticated, async (req, res) => {
+  app.get('/api/supervisor/:supervisorId/goals', async (req: any, res) => {
     try {
+      // Verificar autenticación
+      let userId;
+      let userRecord;
+
+      if (req.session?.simulatedUser) {
+        userId = req.session.simulatedUser;
+        userRecord = await storage.getSalespersonUser(userId);
+      } else if (req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+        userRecord = await storage.getUser(userId);
+      } else {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+
       const { supervisorId } = req.params;
       
+      console.log('[DEBUG] Fetching goals for supervisor:', supervisorId);
       const goals = await storage.getSupervisorGoals(supervisorId);
+      console.log('[DEBUG] Goals found:', goals);
       res.json(goals);
     } catch (error) {
       console.error("Error fetching supervisor goals:", error);
@@ -830,7 +846,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/supervisor/:supervisorId/alerts', isAuthenticated, async (req, res) => {
+  app.get('/api/supervisor/:supervisorId/alerts', async (req: any, res) => {
     try {
       const { supervisorId } = req.params;
       
