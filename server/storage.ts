@@ -1058,6 +1058,57 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  // Client buyer dashboard methods
+  async getClientLastOrder(clientName: string): Promise<{
+    id: string;
+    nudo: string;
+    feemdo: string;
+    nokoprct: string;
+    monto: string;
+    nokofu: string;
+  } | null> {
+    const [result] = await db
+      .select({
+        id: salesTransactions.id,
+        nudo: salesTransactions.nudo,
+        feemdo: salesTransactions.feemdo,
+        nokoprct: salesTransactions.nokoprct,
+        monto: sql<string>`CAST(${salesTransactions.monto} AS TEXT)`,
+        nokofu: salesTransactions.nokofu
+      })
+      .from(salesTransactions)
+      .where(eq(salesTransactions.nokoen, clientName))
+      .orderBy(desc(salesTransactions.feemdo))
+      .limit(1);
+
+    return result || null;
+  }
+
+  async getClientPurchaseHistory(clientName: string, limit: number = 10): Promise<Array<{
+    id: string;
+    nudo: string;
+    feemdo: string;
+    nokoprct: string;
+    monto: string;
+    nokofu: string;
+  }>> {
+    const result = await db
+      .select({
+        id: salesTransactions.id,
+        nudo: salesTransactions.nudo,
+        feemdo: salesTransactions.feemdo,
+        nokoprct: salesTransactions.nokoprct,
+        monto: sql<string>`CAST(${salesTransactions.monto} AS TEXT)`,
+        nokofu: salesTransactions.nokofu
+      })
+      .from(salesTransactions)
+      .where(eq(salesTransactions.nokoen, clientName))
+      .orderBy(desc(salesTransactions.feemdo))
+      .limit(limit);
+
+    return result;
+  }
+
   // Salesperson users management
   async getSalespeopleUsers(): Promise<SalespersonUser[]> {
     return await db.select().from(salespeopleUsers).orderBy(salespeopleUsers.salespersonName);
