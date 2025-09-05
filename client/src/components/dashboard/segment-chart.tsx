@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart } from "@/components/ui/charts";
+import { Badge } from "@/components/ui/badge";
+import { BarChart3, TrendingUp } from "lucide-react";
 
 interface SegmentData {
   segment: string;
@@ -21,101 +22,103 @@ export default function SegmentChart() {
     }).format(value);
   };
 
-  // Modern gradient colors for segments
-  const generateSegmentColors = (count: number) => {
-    const colors = [
-      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-      'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-      'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-      'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-      'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
-    ];
-    return colors.slice(0, count);
+  const getSegmentInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
   };
 
-  const backgroundColors = generateSegmentColors(segmentData?.length || 5);
-  const borderColors = [
-    '#667eea', '#f5576c', '#00f2fe', '#38f9d7', '#fee140', 
-    '#fed6e3', '#fecfef', '#fcb69f'
-  ].slice(0, segmentData?.length || 5);
-
-  const chartConfig = {
-    data: {
-      labels: segmentData?.map(d => d.segment) || [],
-      datasets: [{
-        label: 'Ventas por Segmento ($)',
-        data: segmentData?.map(d => d.totalSales) || [],
-        backgroundColor: backgroundColors,
-        borderColor: borderColors,
-        borderWidth: 2,
-        borderRadius: 8,
-        borderSkipped: false,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          titleColor: '#fff',
-          bodyColor: '#fff',
-          borderColor: '#667eea',
-          borderWidth: 1,
-          cornerRadius: 8,
-          callbacks: {
-            label: (context: any) => formatCurrency(context.parsed.y)
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: {
-            display: false
-          },
-          ticks: {
-            color: '#6b7280',
-            font: {
-              weight: 500
-            }
-          }
-        },
-        y: {
-          beginAtZero: true,
-          grid: {
-            color: 'rgba(107, 114, 128, 0.1)',
-            borderDash: [2, 2]
-          },
-          ticks: {
-            color: '#6b7280',
-            callback: (value: any) => formatCurrency(value)
-          }
-        }
-      }
-    }
+  const getGradientColor = (index: number) => {
+    const gradients = [
+      'from-blue-500 to-purple-600',
+      'from-green-500 to-blue-600', 
+      'from-purple-500 to-pink-600',
+      'from-orange-500 to-red-600',
+      'from-teal-500 to-cyan-600',
+      'from-indigo-500 to-blue-600',
+      'from-pink-500 to-rose-600',
+      'from-emerald-500 to-teal-600',
+    ];
+    return gradients[index % gradients.length];
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Ventas por Segmento</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Ventas por Segmento
+          </CardTitle>
+          <Badge variant="secondary" className="gap-1">
+            <TrendingUp className="h-3 w-3" />
+            {segmentData?.length || 0}
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
+        <div className="space-y-4">
           {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
+            [...Array(5)].map((_, i) => (
+              <div key={i} className="animate-pulse flex items-center space-x-3">
+                <div className="w-12 h-12 bg-muted rounded-full"></div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-muted rounded w-32"></div>
+                  <div className="h-3 bg-muted rounded w-24"></div>
+                </div>
+                <div className="space-y-1">
+                  <div className="h-4 bg-muted rounded w-20"></div>
+                  <div className="h-3 bg-muted rounded w-16"></div>
+                </div>
+              </div>
+            ))
           ) : (
-            <BarChart {...chartConfig} />
+            segmentData?.map((segment, index) => (
+              <div 
+                key={segment.segment} 
+                className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors"
+                data-testid={`segment-${index}`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${getGradientColor(index)} flex items-center justify-center text-white font-bold text-sm`}>
+                    {getSegmentInitials(segment.segment)}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm leading-tight">
+                      {segment.segment}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {segment.percentage.toFixed(1)}% del total
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-sm">
+                    {formatCurrency(segment.totalSales)}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${getGradientColor(index)}`}></div>
+                    <span className="text-xs text-muted-foreground">
+                      #{index + 1}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))
           )}
         </div>
+        
+        {!isLoading && segmentData && segmentData.length > 0 && (
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Total segmentos</span>
+              <span className="font-medium">{segmentData.length}</span>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
