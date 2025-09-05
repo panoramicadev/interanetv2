@@ -108,27 +108,27 @@
 }
 
 @layer components {
-  /* Modern Cards */
+  /* Clean Professional Cards */
   .modern-card {
-    @apply bg-white/95 backdrop-blur-sm border border-white/20 shadow-lg hover:shadow-xl transition-all duration-500 hover:scale-[1.02] rounded-xl;
+    @apply bg-card border border-border shadow-sm hover:shadow-md transition-shadow duration-200 rounded-lg;
   }
   
   .glass-card {
-    @apply bg-white/80 backdrop-blur-md border border-white/30 shadow-2xl rounded-2xl;
+    @apply bg-card border border-border shadow-sm rounded-lg;
   }
   
-  /* Gradient Backgrounds */
+  /* Clean Backgrounds */
   .gradient-bg {
-    background: linear-gradient(135deg, hsl(262, 83%, 58%) 0%, hsl(220, 90%, 65%) 100%);
+    @apply bg-background;
   }
   
   .gradient-bg-alt {
-    background: linear-gradient(135deg, hsl(220, 13%, 97%) 0%, hsl(210, 20%, 98%) 50%, hsl(220, 13%, 95%) 100%);
+    @apply bg-muted/50;
   }
   
   /* Professional Buttons */
   .btn-gradient {
-    @apply bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-medium px-6 py-2.5 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105;
+    @apply bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200;
   }
   
   /* Mobile-first Responsive Sidebar */
@@ -141,29 +141,22 @@
     transform: translateX(0);
   }
   
-  /* Hover Effects */
+  /* Subtle Hover Effects */
   .hover-scale {
-    @apply transition-transform duration-300 hover:scale-105;
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md;
   }
   
   .hover-lift {
-    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg;
+    @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md;
   }
   
-  /* Professional Typography */
+  /* Clean Typography */
   .text-gradient {
-    @apply bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent;
+    @apply text-foreground font-semibold;
   }
   
   /* Loading States */
   .skeleton {
-    @apply animate-pulse bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded;
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-  }
-  
-  @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    @apply animate-pulse bg-muted rounded;
   }
 }

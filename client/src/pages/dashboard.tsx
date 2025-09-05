@@ -83,15 +83,15 @@ export default function Dashboard() {
 
 
   return (
-    <div className="min-h-screen gradient-bg-alt">
+    <div className="min-h-screen bg-background">
       <Sidebar onImportClick={() => setShowImportModal(true)} />
       
       <div className="lg:ml-64 transition-all duration-300">
         {/* Header */}
-        <header className="glass-card border-b border-white/20 px-4 lg:px-6 py-4 m-4 rounded-2xl">
+        <header className="bg-card border-b border-border px-4 lg:px-6 py-4 m-4 rounded-lg shadow-sm">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gradient">
+              <h1 className="text-3xl font-bold text-foreground">
                 Dashboard de Ventas
               </h1>
               <p className="text-muted-foreground text-lg">
@@ -106,7 +106,7 @@ export default function Dashboard() {
                   Filtrar por:
                 </label>
                 <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="w-32 glass-card" data-testid="select-filter-type">
+                  <SelectTrigger className="w-32" data-testid="select-filter-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
