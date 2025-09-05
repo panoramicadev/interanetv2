@@ -168,10 +168,10 @@ export default function UsersPage() {
     setEditingUser(user);
     editForm.reset({
       salespersonName: user.salespersonName,
-      email: user.email || "",
+      email: user.email ?? "",
       password: "", // No mostrar la contraseña actual
       isActive: user.isActive ?? true,
-      role: user.role || "salesperson",
+      role: (user.role ?? "salesperson") as "salesperson" | "admin",
     });
     setIsEditDialogOpen(true);
   };
