@@ -687,10 +687,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/users/salespeople/:id', async (req, res) => {
+  app.put('/api/users/salespeople/:id', isAuthenticated, async (req: any, res) => {
     try {
       // Solo admin puede actualizar usuarios
       const user = req.user as any;
+      if (!user?.claims?.sub) {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+      
       const userId = user.claims.sub;
       const userRecord = await storage.getUser(userId);
       
@@ -720,10 +724,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/users/salespeople/:id', async (req, res) => {
+  app.delete('/api/users/salespeople/:id', isAuthenticated, async (req: any, res) => {
     try {
       // Solo admin puede eliminar usuarios
       const user = req.user as any;
+      if (!user?.claims?.sub) {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+      
       const userId = user.claims.sub;
       const userRecord = await storage.getUser(userId);
       
@@ -740,10 +748,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/users/salespeople/supervisors', isAuthenticated, async (req, res) => {
+  app.get('/api/users/salespeople/supervisors', isAuthenticated, async (req: any, res) => {
     try {
       // Solo admin puede acceder a esta ruta
       const user = req.user as any;
+      if (!user?.claims?.sub) {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+      
       const userId = user.claims.sub;
       const userRecord = await storage.getUser(userId);
       
