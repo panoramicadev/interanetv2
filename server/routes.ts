@@ -210,6 +210,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Vendedor-specific alerts
+  app.get('/api/alerts/salesperson/:salespersonName', isAuthenticated, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const alerts = await storage.getSalespersonAlerts(salespersonName);
+      res.json(alerts);
+    } catch (error) {
+      console.error("Error fetching salesperson alerts:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson alerts" });
+    }
+  });
+
   // Sales transactions endpoint
   app.get('/api/sales/transactions', isAuthenticated, async (req, res) => {
     try {

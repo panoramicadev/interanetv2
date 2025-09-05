@@ -71,6 +71,7 @@ export interface IStorage {
   getGoals(): Promise<Goal[]>;
   getGoalsByType(type: string): Promise<Goal[]>;
   getGoalsBySalesperson(salesperson: string): Promise<Goal[]>;
+  getSalespersonAlerts(salesperson: string): Promise<any[]>;
   createGoal(goal: InsertGoal): Promise<Goal>;
   updateGoal(id: string, goal: Partial<InsertGoal>): Promise<Goal>;
   deleteGoal(id: string): Promise<void>;
@@ -519,6 +520,130 @@ export class DatabaseStorage implements IStorage {
 
   async deleteGoal(id: string): Promise<void> {
     await db.delete(goals).where(eq(goals.id, id));
+  }
+
+  // Alerts for salesperson
+  async getSalespersonAlerts(salesperson: string): Promise<any[]> {
+    const alerts: any[] = [];
+    
+    try {
+      // 1. Clientes que no han comprado hace tiempo (más de 60 días)
+      const inactiveClients = await db
+        .select({
+          client: salesTransactions.nokoen,
+          lastPurchase: sql<string>`MAX(${salesTransactions.feemdo})`,
+          daysSince: sql<number>`EXTRACT(DAY FROM NOW() - MAX(${salesTransactions.feemdo}))`
+        })
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson))
+        .groupBy(salesTransactions.nokoen)
+        .having(sql`EXTRACT(DAY FROM NOW() - MAX(${salesTransactions.feemdo})) > 60`)
+        .orderBy(sql`MAX(${salesTransactions.feemdo}) DESC`)
+        .limit(3);
+
+      inactiveClients.forEach(client => {
+        if (client.client) {
+          alerts.push({
+            type: 'inactive_client',
+            priority: 'medium',
+            title: 'Cliente inactivo',
+            message: `${client.client} no compra hace ${Math.round(client.daysSince)} días`,
+            actionText: 'Contactar cliente',
+            data: { client: client.client, daysSince: client.daysSince }
+          });
+        }
+      });
+
+      // 2. Clientes con patrones estacionales (compran en fechas similares cada mes)
+      const seasonalClients = await db
+        .select({
+          client: salesTransactions.nokoen,
+          purchaseMonth: sql<string>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
+          transactionCount: sql<number>`COUNT(*)`
+        })
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson))
+        .groupBy(salesTransactions.nokoen, sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`)
+        .having(sql`COUNT(*) >= 2`)
+        .limit(2);
+
+      seasonalClients.forEach(client => {
+        if (client.client) {
+          const monthNames = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                             'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+          alerts.push({
+            type: 'seasonal_pattern',
+            priority: 'high',
+            title: 'Patrón estacional',
+            message: `${client.client} compra regularmente en ${monthNames[parseInt(client.purchaseMonth)]}`,
+            actionText: 'Preparar contacto',
+            data: { client: client.client, month: client.purchaseMonth }
+          });
+        }
+      });
+
+      // 3. Clientes con alto volumen que pueden necesitar atención especial
+      const highValueClients = await db
+        .select({
+          client: salesTransactions.nokoen,
+          totalSales: sql<number>`SUM(CAST(${salesTransactions.monto} AS DECIMAL))`,
+          transactionCount: sql<number>`COUNT(*)`
+        })
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson))
+        .groupBy(salesTransactions.nokoen)
+        .having(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) > 1000000`)
+        .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) DESC`)
+        .limit(2);
+
+      highValueClients.forEach(client => {
+        if (client.client) {
+          alerts.push({
+            type: 'high_value',
+            priority: 'high',
+            title: 'Cliente VIP',
+            message: `${client.client} - Cliente de alto valor (${new Intl.NumberFormat('es-CL', {
+              style: 'currency',
+              currency: 'CLP',
+              minimumFractionDigits: 0,
+            }).format(client.totalSales)})`,
+            actionText: 'Contacto prioritario',
+            data: { client: client.client, totalSales: client.totalSales }
+          });
+        }
+      });
+
+      // 4. Oportunidades de venta cruzada (clientes que compran pocos productos)
+      const crossSellOpportunities = await db
+        .select({
+          client: salesTransactions.nokoen,
+          uniqueProducts: sql<number>`COUNT(DISTINCT ${salesTransactions.koprct})`,
+          totalTransactions: sql<number>`COUNT(*)`
+        })
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson))
+        .groupBy(salesTransactions.nokoen)
+        .having(sql`COUNT(*) > 3 AND COUNT(DISTINCT ${salesTransactions.koprct}) <= 2`)
+        .limit(2);
+
+      crossSellOpportunities.forEach(client => {
+        if (client.client) {
+          alerts.push({
+            type: 'cross_sell',
+            priority: 'medium',
+            title: 'Oportunidad venta cruzada',
+            message: `${client.client} compra pocos productos diferentes - Oportunidad de ampliar`,
+            actionText: 'Mostrar catálogo',
+            data: { client: client.client, uniqueProducts: client.uniqueProducts }
+          });
+        }
+      });
+
+    } catch (error) {
+      console.error('Error generating salesperson alerts:', error);
+    }
+
+    return alerts.slice(0, 5); // Limitar a 5 alertas máximo
   }
 
   // Data for goals form
