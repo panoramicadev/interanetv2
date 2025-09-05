@@ -61,24 +61,38 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
   };
 
   const getTimeAgo = (dateString: string | null) => {
-    if (!dateString) return 'fecha no disponible';
+    if (!dateString) return 'sin fecha';
     
-    const transactionDate = new Date(dateString);
-    const now = new Date();
-    const diffInMs = now.getTime() - transactionDate.getTime();
-    
-    const minutes = Math.floor(diffInMs / (1000 * 60));
-    const hours = Math.floor(diffInMs / (1000 * 60 * 60));
-    const days = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-    
-    if (days > 0) {
-      return `hace ${days} día${days > 1 ? 's' : ''}`;
-    } else if (hours > 0) {
-      return `hace ${hours} hora${hours > 1 ? 's' : ''}`;
-    } else if (minutes > 0) {
-      return `hace ${minutes} min`;
-    } else {
-      return 'hace unos segundos';
+    try {
+      const transactionDate = new Date(dateString);
+      
+      // Verificar si la fecha es válida
+      if (isNaN(transactionDate.getTime())) {
+        return 'fecha inválida';
+      }
+      
+      const now = new Date();
+      const diffInMs = now.getTime() - transactionDate.getTime();
+      
+      const minutes = Math.floor(diffInMs / (1000 * 60));
+      const hours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const days = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+      const months = Math.floor(days / 30);
+      
+      if (months > 0) {
+        return `hace ${months} mes${months > 1 ? 'es' : ''}`;
+      } else if (days > 0) {
+        return `hace ${days} día${days > 1 ? 's' : ''}`;
+      } else if (hours > 0) {
+        return `hace ${hours} hora${hours > 1 ? 's' : ''}`;
+      } else if (minutes > 0) {
+        return `hace ${minutes} min`;
+      } else {
+        return 'hace unos segundos';
+      }
+    } catch (error) {
+      console.error('Error parsing date:', dateString, error);
+      return 'error en fecha';
     }
   };
 
