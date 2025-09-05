@@ -690,17 +690,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/users/salespeople/:id', async (req: any, res) => {
     try {
       // Solo admin puede actualizar usuarios
+      console.log('[DEBUG] Update user - req.session:', !!req.session);
+      console.log('[DEBUG] Update user - req.session.simulatedUser:', !!req.session?.simulatedUser);
+      console.log('[DEBUG] Update user - req.user:', !!req.user);
+      
       let userId;
       let userRecord;
 
       // Verificar si hay una sesión simulada
-      if (req.session.simulatedUser) {
+      if (req.session?.simulatedUser) {
+        console.log('[DEBUG] Using simulated user');
         userId = req.session.simulatedUser.id;
         userRecord = req.session.simulatedUser;
       } else if (req.user?.claims?.sub) {
+        console.log('[DEBUG] Using authenticated user');
         userId = req.user.claims.sub;
         userRecord = await storage.getUser(userId);
       } else {
+        console.log('[DEBUG] No authentication found');
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
       
