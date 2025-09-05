@@ -139,7 +139,6 @@ export interface IStorage {
   updateSalespersonUser(id: string, user: Partial<InsertSalespersonUser>): Promise<SalespersonUser>;
   deleteSalespersonUser(id: string): Promise<void>;
   getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined>;
-  autoCreateUsersForSalespeople(): Promise<number>; // Returns count of created users
 }
 
 export class DatabaseStorage implements IStorage {
@@ -872,80 +871,6 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async autoCreateUsersForSalespeople(): Promise<number> {
-    try {
-      // Obtener todos los vendedores únicos de las transacciones
-      const uniqueSalespeople = await db
-        .selectDistinct({ salesperson: salesTransactions.nokofu })
-        .from(salesTransactions)
-        .where(sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`);
-
-      console.log('Vendedores únicos encontrados:', uniqueSalespeople.length);
-
-      // Obtener vendedores que ya tienen usuarios
-      const existingUsers = await db
-        .select({ salespersonName: salespeopleUsers.salespersonName })
-        .from(salespeopleUsers);
-
-      const existingNames = new Set(existingUsers.map(u => u.salespersonName));
-      
-      // Filtrar vendedores que no tienen usuarios
-      const newSalespeople = uniqueSalespeople.filter(
-        sp => sp.salesperson && !existingNames.has(sp.salesperson)
-      );
-
-      console.log('Vendedores nuevos a crear:', newSalespeople.length);
-
-      if (newSalespeople.length === 0) {
-        return 0;
-      }
-
-      // Función para generar nombre de usuario: primera letra + primer apellido
-      const generateUsername = (fullName: string): string => {
-        const nameParts = fullName.trim().toLowerCase().split(' ');
-        if (nameParts.length < 2) {
-          // Si solo hay un nombre, usar las primeras 4 letras
-          return nameParts[0].substring(0, 4);
-        }
-        // Primera letra del nombre + primer apellido completo
-        const firstLetter = nameParts[0].charAt(0);
-        const firstLastName = nameParts[1];
-        return firstLetter + firstLastName;
-      };
-
-      // Crear usuarios para vendedores nuevos con nombres de usuario únicos
-      const usersToCreate = newSalespeople.map((sp, index) => {
-        const baseUsername = generateUsername(sp.salesperson!);
-        let username = baseUsername;
-        
-        // Si hay duplicados, agregar número
-        const duplicateCount = newSalespeople
-          .slice(0, index)
-          .filter(prevSp => generateUsername(prevSp.salesperson!) === baseUsername)
-          .length;
-        
-        if (duplicateCount > 0) {
-          username = baseUsername + (duplicateCount + 1);
-        }
-
-        return {
-          salespersonName: sp.salesperson!,
-          username: username,
-          isActive: true,
-          role: 'salesperson' as const,
-        };
-      });
-
-      console.log('Usuarios a crear:', usersToCreate.map(u => ({ name: u.salespersonName, username: u.username })));
-
-      await db.insert(salespeopleUsers).values(usersToCreate);
-      
-      return usersToCreate.length;
-    } catch (error) {
-      console.error('Error en autoCreateUsersForSalespeople:', error);
-      throw error;
-    }
-  }
 }
 
 export const storage = new DatabaseStorage();

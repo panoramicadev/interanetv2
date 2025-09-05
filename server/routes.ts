@@ -589,27 +589,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/users/salespeople/auto-create', isAuthenticated, async (req, res) => {
-    try {
-      // Solo admin puede auto-crear usuarios
-      const user = req.user as any;
-      const userId = user.claims.sub;
-      const userRecord = await storage.getUser(userId);
-      
-      if (userRecord?.role !== 'admin') {
-        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden crear usuarios automáticamente.' });
-      }
-
-      const createdCount = await storage.autoCreateUsersForSalespeople();
-      res.json({ 
-        message: `${createdCount} usuarios creados automáticamente`,
-        createdCount 
-      });
-    } catch (error) {
-      console.error("Error auto-creating salesperson users:", error);
-      res.status(500).json({ message: "Failed to auto-create salesperson users" });
-    }
-  });
 
   const httpServer = createServer(app);
   return httpServer;
