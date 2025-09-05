@@ -690,9 +690,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/users/salespeople/:id', async (req: any, res) => {
     try {
       // Solo admin puede actualizar usuarios
-      console.log('[DEBUG] Update user - req.session:', !!req.session);
-      console.log('[DEBUG] Update user - req.session.simulatedUser:', !!req.session?.simulatedUser);
-      console.log('[DEBUG] Update user - req.user:', !!req.user);
+      console.log('[DEBUG] Update user - Full req.session:', req.session);
+      console.log('[DEBUG] Update user - req.session.simulatedUser:', req.session?.simulatedUser);
+      console.log('[DEBUG] Update user - req.user:', req.user);
       
       let userId;
       let userRecord;
@@ -711,9 +711,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
       
+      console.log('[DEBUG] userRecord:', userRecord);
+      console.log('[DEBUG] userRecord.role:', userRecord?.role);
+      
       if (userRecord?.role !== 'admin') {
+        console.log('[DEBUG] Access denied - role is not admin');
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden actualizar usuarios.' });
       }
+      
+      console.log('[DEBUG] Access granted - user is admin');
 
       const { id } = req.params;
       const validatedUser = insertSalespersonUserSchema.partial().parse(req.body);
