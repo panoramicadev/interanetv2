@@ -10,6 +10,7 @@ import {
   date,
   integer,
   boolean,
+  unique,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -270,7 +271,10 @@ export const productStock = pgTable("product_stock", {
   
   lastUpdated: timestamp("last_updated").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  // Constraint único compuesto para upsert operations
+  uniqueProductStockLocation: unique("unique_product_stock_location").on(table.productSku, table.branchCode, table.warehouseCode),
+}));
 
 // Product price history table - Track price changes
 export const productPriceHistory = pgTable("product_price_history", {
