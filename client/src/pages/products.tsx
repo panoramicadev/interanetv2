@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter } from "lucide-react";
+import { Search, Upload, Package, TrendingUp, Warehouse, Edit, History, Filter, Eye, Building2 } from "lucide-react";
 
 interface Product {
   id: string;
@@ -28,6 +29,26 @@ interface Product {
   updatedAt: string;
 }
 
+interface WarehouseSummary {
+  warehouseCode: string;
+  warehouseName: string;
+  totalProducts: number;
+  totalPhysicalStock: number;
+  totalAvailableStock: number;
+}
+
+interface WarehouseStock {
+  productSku: string;
+  productName: string;
+  branchCode: string;
+  physicalStock1: number;
+  physicalStock2: number;
+  availableStock1: number;
+  availableStock2: number;
+  unit1?: string;
+  unit2?: string;
+}
+
 interface ImportResult {
   processedProducts: number;
   newProducts: number;
@@ -40,11 +61,14 @@ export default function ProductsPage() {
   const [filterActive, setFilterActive] = useState<string>("all");
   const [filterPrices, setFilterPrices] = useState<string>("all");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
   const [newPrice, setNewPrice] = useState("");
   const [priceReason, setPriceReason] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showPriceDialog, setShowPriceDialog] = useState(false);
+  const [showStockDialog, setShowStockDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState("products");
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -70,6 +94,26 @@ export default function ProductsPage() {
       const response = await apiRequest('/api/warehouses');
       return response as any[];
     }
+  });
+
+  // Fetch warehouse stock summary
+  const { data: warehouseSummary = [] } = useQuery<WarehouseSummary[]>({
+    queryKey: ['/api/warehouses/stock-summary'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/warehouses/stock-summary');
+      return response as WarehouseSummary[];
+    }
+  });
+
+  // Fetch warehouse detailed stock
+  const { data: warehouseStock = [] } = useQuery<WarehouseStock[]>({
+    queryKey: ['/api/warehouses', selectedWarehouse, 'stock'],
+    queryFn: async () => {
+      if (!selectedWarehouse) return [];
+      const response = await apiRequest(`/api/warehouses/${selectedWarehouse}/stock`);
+      return response as WarehouseStock[];
+    },
+    enabled: !!selectedWarehouse
   });
 
   // Update price mutation
@@ -130,6 +174,7 @@ export default function ProductsPage() {
     },
     onSuccess: (data: { result: ImportResult }) => {
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouses'] });
       setShowImportDialog(false);
       setImportFile(null);
       
@@ -187,7 +232,7 @@ export default function ProductsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestión de Productos</h1>
           <p className="text-muted-foreground">
-            Administra el catálogo de productos, precios y stock
+            Administra el catálogo de productos, precios y stock por bodega
           </p>
         </div>
         
@@ -239,46 +284,6 @@ export default function ProductsPage() {
         </Dialog>
       </div>
 
-      {/* Filtros y búsqueda */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por SKU o nombre del producto..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                  data-testid="input-search-products"
-                />
-              </div>
-            </div>
-            <Select value={filterActive} onValueChange={setFilterActive}>
-              <SelectTrigger className="w-[180px]" data-testid="select-filter-active">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="true">Activos</SelectItem>
-                <SelectItem value="false">Inactivos</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={filterPrices} onValueChange={setFilterPrices}>
-              <SelectTrigger className="w-[180px]" data-testid="select-filter-prices">
-                <SelectValue placeholder="Precios" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="true">Con precio</SelectItem>
-                <SelectItem value="false">Sin precio</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Estadísticas rápidas */}
       {!isLoading && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -322,92 +327,214 @@ export default function ProductsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="text-total-stock">
-                {products.reduce((sum, p) => sum + (p.totalStock || 0), 0).toLocaleString()}
+                {warehouseSummary.reduce((sum, w) => sum + w.totalPhysicalStock, 0).toLocaleString()}
               </div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Tabla de productos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Productos</CardTitle>
-          <CardDescription>
-            Lista de todos los productos en el sistema
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">Cargando productos...</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Precio</TableHead>
-                  <TableHead>Stock</TableHead>
-                  <TableHead>Bodegas</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+      {/* Tabs para diferentes vistas */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="products">Productos</TabsTrigger>
+          <TabsTrigger value="warehouses">Stock por Bodega</TabsTrigger>
+          <TabsTrigger value="skus">SKUs Disponibles</TabsTrigger>
+        </TabsList>
+
+        {/* Tab de Productos */}
+        <TabsContent value="products" className="space-y-4">
+          {/* Filtros y búsqueda */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por SKU o nombre del producto..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                      data-testid="input-search-products"
+                    />
+                  </div>
+                </div>
+                <Select value={filterActive} onValueChange={setFilterActive}>
+                  <SelectTrigger className="w-[180px]" data-testid="select-filter-active">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="true">Activos</SelectItem>
+                    <SelectItem value="false">Inactivos</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filterPrices} onValueChange={setFilterPrices}>
+                  <SelectTrigger className="w-[180px]" data-testid="select-filter-prices">
+                    <SelectValue placeholder="Precios" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="true">Con precio</SelectItem>
+                    <SelectItem value="false">Sin precio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tabla de productos */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Productos</CardTitle>
+              <CardDescription>
+                Lista de todos los productos en el sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="text-center py-8">Cargando productos...</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Precio</TableHead>
+                      <TableHead>Stock</TableHead>
+                      <TableHead>Bodegas</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {products.map((product) => (
+                      <TableRow key={product.id} data-testid={`row-product-${product.sku}`}>
+                        <TableCell className="font-mono text-sm">{product.sku}</TableCell>
+                        <TableCell className="max-w-xs truncate" title={product.name}>
+                          {product.name}
+                        </TableCell>
+                        <TableCell>
+                          <span className={!product.price || parseFloat(product.price) === 0 ? "text-muted-foreground" : ""}>
+                            {formatPrice(product.price)}
+                          </span>
+                        </TableCell>
+                        <TableCell>{formatStock(product.totalStock)}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1 flex-wrap">
+                            {product.warehouses?.slice(0, 3).map((warehouse) => (
+                              <Badge key={warehouse} variant="secondary" className="text-xs">
+                                {warehouse}
+                              </Badge>
+                            ))}
+                            {(product.warehouses?.length || 0) > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{(product.warehouses?.length || 0) - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={product.active ? "default" : "secondary"}>
+                            {product.active ? "Activo" : "Inactivo"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setNewPrice(product.price || "");
+                                setShowPriceDialog(true);
+                              }}
+                              data-testid={`button-edit-price-${product.sku}`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab de Stock por Bodega */}
+        <TabsContent value="warehouses" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {warehouseSummary.map((warehouse) => (
+              <Card key={warehouse.warehouseCode} className="cursor-pointer hover:shadow-lg transition-shadow"
+                    onClick={() => {
+                      setSelectedWarehouse(warehouse.warehouseCode);
+                      setShowStockDialog(true);
+                    }}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    {warehouse.warehouseName}
+                  </CardTitle>
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Productos:</span>
+                      <span className="font-medium">{warehouse.totalProducts}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Stock Físico:</span>
+                      <span className="font-medium">{warehouse.totalPhysicalStock.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Stock Disponible:</span>
+                      <span className="font-medium">{warehouse.totalAvailableStock.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        {/* Tab de SKUs Disponibles */}
+        <TabsContent value="skus" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>SKUs Disponibles</CardTitle>
+              <CardDescription>
+                Lista de SKUs únicos en el sistema con información básica
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {products.map((product) => (
-                  <TableRow key={product.id} data-testid={`row-product-${product.sku}`}>
-                    <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                    <TableCell className="max-w-xs truncate" title={product.name}>
-                      {product.name}
-                    </TableCell>
-                    <TableCell>
-                      <span className={!product.price || parseFloat(product.price) === 0 ? "text-muted-foreground" : ""}>
-                        {formatPrice(product.price)}
-                      </span>
-                    </TableCell>
-                    <TableCell>{formatStock(product.totalStock)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1 flex-wrap">
-                        {product.warehouses?.slice(0, 3).map((warehouse) => (
-                          <Badge key={warehouse} variant="secondary" className="text-xs">
-                            {warehouse}
+                  <Card key={product.sku}>
+                    <CardContent className="pt-4">
+                      <div className="space-y-2">
+                        <div className="font-mono text-sm font-medium">{product.sku}</div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {product.name}
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm">{formatPrice(product.price)}</span>
+                          <Badge variant={product.active ? "default" : "secondary"} className="text-xs">
+                            {product.active ? "Activo" : "Inactivo"}
                           </Badge>
-                        ))}
-                        {(product.warehouses?.length || 0) > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{(product.warehouses?.length || 0) - 3}
-                          </Badge>
-                        )}
+                        </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={product.active ? "default" : "secondary"}>
-                        {product.active ? "Activo" : "Inactivo"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedProduct(product);
-                            setNewPrice(product.price || "");
-                            setShowPriceDialog(true);
-                          }}
-                          data-testid={`button-edit-price-${product.sku}`}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                    </CardContent>
+                  </Card>
                 ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Dialog para editar precio */}
       <Dialog open={showPriceDialog} onOpenChange={setShowPriceDialog}>
@@ -453,6 +580,46 @@ export default function ProductsPage() {
                 {updatePriceMutation.isPending ? "Actualizando..." : "Actualizar Precio"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para ver stock detallado de bodega */}
+      <Dialog open={showStockDialog} onOpenChange={setShowStockDialog}>
+        <DialogContent className="max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>Stock Detallado - {selectedWarehouse}</DialogTitle>
+            <DialogDescription>
+              Inventario completo por producto en esta bodega
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Producto</TableHead>
+                  <TableHead>Sucursal</TableHead>
+                  <TableHead>Stock Físico 1</TableHead>
+                  <TableHead>Stock Físico 2</TableHead>
+                  <TableHead>Stock Disponible 1</TableHead>
+                  <TableHead>Stock Disponible 2</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {warehouseStock.map((stock, index) => (
+                  <TableRow key={`${stock.productSku}-${stock.branchCode}-${index}`}>
+                    <TableCell className="font-mono text-sm">{stock.productSku}</TableCell>
+                    <TableCell className="max-w-xs truncate">{stock.productName}</TableCell>
+                    <TableCell>{stock.branchCode}</TableCell>
+                    <TableCell>{stock.physicalStock1.toLocaleString()} {stock.unit1}</TableCell>
+                    <TableCell>{stock.physicalStock2.toLocaleString()} {stock.unit2}</TableCell>
+                    <TableCell>{stock.availableStock1.toLocaleString()} {stock.unit1}</TableCell>
+                    <TableCell>{stock.availableStock2.toLocaleString()} {stock.unit2}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </DialogContent>
       </Dialog>

@@ -292,6 +292,24 @@ export interface IStorage {
     name: string;
     warehouseCount: number;
   }>>;
+  getStockSummaryByWarehouse(): Promise<Array<{
+    warehouseCode: string;
+    warehouseName: string;
+    totalProducts: number;
+    totalPhysicalStock: number;
+    totalAvailableStock: number;
+  }>>;
+  getWarehouseStock(warehouseCode: string, branchCode?: string): Promise<Array<{
+    productSku: string;
+    productName: string;
+    branchCode: string;
+    physicalStock1: number;
+    physicalStock2: number;
+    availableStock1: number;
+    availableStock2: number;
+    unit1?: string;
+    unit2?: string;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2054,6 +2072,80 @@ export class DatabaseStorage implements IStorage {
       code: b.code,
       name: b.code, // Using code as name since we don't have branch names in CSV
       warehouseCount: b.warehouseCount
+    }));
+  }
+
+  async getStockSummaryByWarehouse(): Promise<Array<{
+    warehouseCode: string;
+    warehouseName: string;
+    totalProducts: number;
+    totalPhysicalStock: number;
+    totalAvailableStock: number;
+  }>> {
+    const stockSummary = await db
+      .select({
+        warehouseCode: productStock.warehouseCode,
+        warehouseLocation: productStock.warehouseLocation,
+        totalProducts: sql<number>`COUNT(DISTINCT ${productStock.productSku})`,
+        totalPhysicalStock: sql<number>`COALESCE(SUM(CAST(${productStock.physicalStock1} AS DECIMAL)), 0) + COALESCE(SUM(CAST(${productStock.physicalStock2} AS DECIMAL)), 0)`,
+        totalAvailableStock: sql<number>`COALESCE(SUM(CAST(${productStock.availableStock1} AS DECIMAL)), 0) + COALESCE(SUM(CAST(${productStock.availableStock2} AS DECIMAL)), 0)`
+      })
+      .from(productStock)
+      .groupBy(productStock.warehouseCode, productStock.warehouseLocation);
+
+    return stockSummary.map(s => ({
+      warehouseCode: s.warehouseCode,
+      warehouseName: s.warehouseLocation || s.warehouseCode,
+      totalProducts: s.totalProducts,
+      totalPhysicalStock: s.totalPhysicalStock,
+      totalAvailableStock: s.totalAvailableStock
+    }));
+  }
+
+  async getWarehouseStock(warehouseCode: string, branchCode?: string): Promise<Array<{
+    productSku: string;
+    productName: string;
+    branchCode: string;
+    physicalStock1: number;
+    physicalStock2: number;
+    availableStock1: number;
+    availableStock2: number;
+    unit1?: string;
+    unit2?: string;
+  }>> {
+    const conditions = [eq(productStock.warehouseCode, warehouseCode)];
+    
+    if (branchCode) {
+      conditions.push(eq(productStock.branchCode, branchCode));
+    }
+
+    const stockData = await db
+      .select({
+        productSku: productStock.productSku,
+        productName: products.name,
+        branchCode: productStock.branchCode,
+        physicalStock1: productStock.physicalStock1,
+        physicalStock2: productStock.physicalStock2,
+        availableStock1: productStock.availableStock1,
+        availableStock2: productStock.availableStock2,
+        unit1: products.unit1,
+        unit2: products.unit2
+      })
+      .from(productStock)
+      .leftJoin(products, eq(productStock.productSku, products.sku))
+      .where(and(...conditions))
+      .orderBy(productStock.productSku);
+
+    return stockData.map(item => ({
+      productSku: item.productSku,
+      productName: item.productName || item.productSku,
+      branchCode: item.branchCode,
+      physicalStock1: Number(item.physicalStock1 || 0),
+      physicalStock2: Number(item.physicalStock2 || 0),
+      availableStock1: Number(item.availableStock1 || 0),
+      availableStock2: Number(item.availableStock2 || 0),
+      unit1: item.unit1 || undefined,
+      unit2: item.unit2 || undefined
     }));
   }
 
