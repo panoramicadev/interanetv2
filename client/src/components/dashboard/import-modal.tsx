@@ -78,12 +78,12 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
     return result;
   };
 
-  const parseNumber = (value: string): number | null => {
+  const parseNumber = (value: string): string | null => {
     if (!value || value.trim() === '') return null;
-    // Remove thousands separators and replace comma with dot
+    // Remove thousands separators and replace comma with dot, return as string
     const cleanValue = value.replace(/\./g, '').replace(',', '.');
     const parsed = parseFloat(cleanValue);
-    return isNaN(parsed) ? null : parsed;
+    return isNaN(parsed) ? null : cleanValue;
   };
 
   const parseDate = (value: string): string | null => {
