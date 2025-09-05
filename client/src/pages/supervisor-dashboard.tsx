@@ -481,7 +481,7 @@ export default function SupervisorDashboard() {
                             <Target className="w-4 h-4 mr-1 text-blue-600" />
                             Metas Asignadas
                           </p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="space-y-3">
                             {salesperson.goals.map((goal: any) => (
                               <div key={goal.id} className="bg-gray-50 rounded-lg p-3 border">
                                 <div className="flex items-center justify-between mb-2">
