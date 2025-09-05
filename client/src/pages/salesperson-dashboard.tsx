@@ -622,14 +622,14 @@ export default function SalespersonDashboard() {
               <CardContent>
                 <div className="space-y-4">
                   {(salespersonClients as any[])?.slice(0, 5).map((client: any, index: number) => (
-                    <div key={`${client.client}-${index}`} className="flex items-center justify-between">
+                    <div key={`${client.clientName}-${index}`} className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
                           <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">{client.client}</p>
-                          <p className="text-sm text-gray-600">{client.transactions} transacciones</p>
+                          <p className="font-medium text-gray-900">{client.clientName}</p>
+                          <p className="text-sm text-gray-600">{client.transactionCount} transacciones</p>
                         </div>
                       </div>
                       <div className="text-right">
