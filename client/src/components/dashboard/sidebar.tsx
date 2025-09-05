@@ -9,7 +9,8 @@ import {
   Building2,
   Target,
   Menu,
-  X
+  X,
+  Settings
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { User } from "@shared/schema";
@@ -123,14 +124,18 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
             Reportes
           </Button>
           
-          <Button
-            variant="ghost"
-            className="w-full justify-start"
-            data-testid="nav-users"
-          >
-            <Users className="w-5 h-5 mr-3" />
-            Usuarios
-          </Button>
+          {user?.role === 'admin' && (
+            <Link href="/usuarios">
+              <Button
+                variant={location === "/usuarios" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                data-testid="nav-users"
+              >
+                <Settings className="w-5 h-5 mr-3" />
+                Gestión de Usuarios
+              </Button>
+            </Link>
+          )}
         </nav>
         
         <div className="p-4 border-t border-border">
