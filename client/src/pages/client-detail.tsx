@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock } from "lucide-react";
+import { useParams, Link, useLocation } from "wouter";
+import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, BarChart3, Users, Target, Settings, Building2, Menu, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
+import { useState } from "react";
 
 interface ClientDetails {
   totalPurchases: number;
@@ -23,6 +25,33 @@ interface ClientProduct {
 
 export default function ClientDetail() {
   const { clientName } = useParams();
+  const { user } = useAuth();
+  const [location] = useLocation();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Sidebar navigation items para admin
+  const sidebarItems = [
+    { icon: BarChart3, label: "Dashboard", href: "/" },
+    { icon: Users, label: "Gestión de Usuarios", href: "/usuarios" },
+    { icon: Target, label: "Gestión de Metas", href: "/metas" },
+  ];
+
+  const handleLogout = () => {
+    window.location.href = "/api/logout";
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name) return "A";
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+    }
+    return parts[0].charAt(0).toUpperCase();
+  };
+
+  const getDisplayName = () => {
+    return user?.salespersonName || "Administrador";
+  };
   
   // Get current period (could be enhanced with date filters later)
   const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM format
@@ -85,6 +114,94 @@ export default function ClientDetail() {
 
   return (
     <div className="min-h-screen bg-background">
+      {user?.role === 'admin' && (
+        <>
+          {/* Mobile Menu Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="fixed top-4 left-4 z-50 lg:hidden glass-card p-2"
+            onClick={() => setIsMobileOpen(!isMobileOpen)}
+            data-testid="mobile-menu-toggle"
+          >
+            {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+
+          {/* Mobile Overlay */}
+          {isMobileOpen && (
+            <div 
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+              onClick={() => setIsMobileOpen(false)}
+            />
+          )}
+
+          {/* Sidebar */}
+          <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-700/50 transition-transform duration-300 lg:translate-x-0 ${
+            isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}>
+            <div className="flex flex-col h-full">
+              <div className="p-6 border-b border-slate-700/50">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-500 to-violet-600 flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold text-white">Panel Admin</h1>
+                    <p className="text-sm text-slate-400">Gestión del Sistema</p>
+                  </div>
+                </div>
+              </div>
+            
+              <nav className="flex-1 p-4 space-y-1">
+                {sidebarItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location === item.href;
+                  return (
+                    <Link key={item.href} href={item.href}>
+                      <Button
+                        variant="ghost"
+                        className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                          isActive ? "bg-slate-800 text-white" : ""
+                        }`}
+                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <Icon className="w-5 h-5 mr-3" />
+                        {item.label}
+                      </Button>
+                    </Link>
+                  );
+                })}
+              </nav>
+              
+              <div className="p-6 border-t border-slate-700/50">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+                    <span className="text-xs font-medium text-white">
+                      {getInitials(user?.salespersonName)}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">
+                      {getDisplayName()}
+                    </p>
+                    <p className="text-xs text-slate-400">Administrador</p>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
+                  onClick={handleLogout}
+                  data-testid="logout-button"
+                >
+                  <LogOut className="w-4 h-4 mr-3" />
+                  Cerrar Sesión
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
       <div className="lg:ml-64 transition-all duration-300">
         {/* Header */}
         <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
