@@ -217,6 +217,7 @@ export type User = typeof users.$inferSelect;
 export const salespeopleUsers = pgTable("salespeople_users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   salespersonName: varchar("salesperson_name").notNull().unique(), // Nombre del vendedor de las ventas
+  username: varchar("username").unique(), // Usuario para login (primera letra + apellido)
   email: varchar("email").unique(),
   password: varchar("password"), // Hash de la contraseña
   isActive: boolean("is_active").default(true),
@@ -231,6 +232,7 @@ export type InsertSalespersonUser = typeof salespeopleUsers.$inferInsert;
 // Esquemas de validación para usuarios vendedores
 export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, {
   salespersonName: z.string().min(1, "Nombre del vendedor es requerido"),
+  username: z.string().min(2, "Usuario debe tener al menos 2 caracteres").optional().or(z.literal("")),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().or(z.literal("")),
 }).omit({
