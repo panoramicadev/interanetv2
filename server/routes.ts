@@ -418,6 +418,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Análisis categorizado de clientes para vendedores
+  app.get("/api/sales/salesperson/:salespersonName/clients-analysis", isAuthenticated, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      
+      const analysis = await storage.getSalespersonClientsAnalysis(salespersonName);
+      res.json(analysis);
+    } catch (error) {
+      console.error("Error fetching salesperson clients analysis:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson clients analysis" });
+    }
+  });
+
   // CSV import endpoint
   app.post('/api/sales/import', isAuthenticated, async (req, res) => {
     try {
