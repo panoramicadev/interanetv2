@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import Sidebar from "@/components/dashboard/sidebar";
@@ -14,9 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RefreshCw, CalendarIcon } from "lucide-react";
-import { useState } from "react";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -33,7 +31,7 @@ export default function Dashboard() {
         if (selectedDate) {
           setSelectedPeriod(format(selectedDate, "yyyy-MM-dd"));
         } else {
-          setSelectedPeriod("today");
+          setSelectedPeriod(format(new Date(), "yyyy-MM-dd"));
         }
         break;
       case "month":
@@ -129,7 +127,7 @@ export default function Dashboard() {
                         data-testid="calendar-trigger"
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {selectedDate ? format(selectedDate, "PPP", { locale: es }) : "Selecciona una fecha"}
+                        {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecciona una fecha"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
