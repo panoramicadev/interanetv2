@@ -185,6 +185,11 @@ export default function SalespersonDashboard() {
       icon: LayoutDashboard,
     },
     {
+      href: "/mis-clientes",
+      label: "Mis Clientes",
+      icon: Users,
+    },
+    {
       href: "/presupuestos",
       label: "Presupuestos",
       icon: FileText,
