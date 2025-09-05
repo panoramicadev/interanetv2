@@ -13,18 +13,23 @@ export default function TopProductsChart() {
     queryKey: ["/api/sales/top-products?limit=5"],
   });
 
-  // Use NOKOPRCT (product code) directly for chart colors
+  // Generate colors for each product
+  const generateColors = (count: number) => {
+    const colors = [];
+    for (let i = 0; i < count; i++) {
+      const hue = (i * 360) / count;
+      colors.push(`hsl(${hue}, 70%, 60%)`);
+    }
+    return colors;
+  };
+
   const chartData = {
     labels: topProducts?.map(p => p.productName) || [],
     datasets: [{
       data: topProducts?.map(p => p.totalSales) || [],
-      backgroundColor: [
-        'hsl(var(--chart-1))',
-        'hsl(var(--chart-2))',
-        'hsl(var(--chart-3))',
-        'hsl(var(--chart-4))',
-        'hsl(var(--chart-5))',
-      ]
+      backgroundColor: generateColors(topProducts?.length || 5),
+      borderColor: generateColors(topProducts?.length || 5).map(color => color.replace('60%', '40%')),
+      borderWidth: 2,
     }]
   };
 

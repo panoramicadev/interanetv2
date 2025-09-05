@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { LineChart } from "@/components/ui/charts";
+import { BarChart } from "@/components/ui/charts";
 import { useState } from "react";
 
 interface ChartDataPoint {
@@ -31,9 +31,7 @@ export default function SalesChart() {
         label: 'Ventas ($)',
         data: chartData?.map(d => d.sales) || [],
         borderColor: 'hsl(var(--primary))',
-        backgroundColor: 'hsla(var(--primary), 0.1)',
-        tension: 0.4,
-        fill: true,
+        backgroundColor: 'hsla(var(--primary), 0.7)',
       }]
     },
     options: {
@@ -100,7 +98,7 @@ export default function SalesChart() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           ) : (
-            <LineChart {...chartConfig} />
+            <BarChart {...chartConfig} />
           )}
         </div>
       </CardContent>

@@ -259,33 +259,46 @@ export class DatabaseStorage implements IStorage {
     period: string;
     sales: number;
   }>> {
-    let periodExpression: any;
-    let groupByExpression: any;
+    let query: any;
     
     switch (period) {
       case 'daily':
-        periodExpression = sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`;
-        groupByExpression = sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`;
+        query = db
+          .select({
+            period: sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`,
+            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+          })
+          .from(salesTransactions)
+          .where(sql`${salesTransactions.feemdo} IS NOT NULL`)
+          .groupBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`)
+          .orderBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`);
         break;
       case 'weekly':
-        periodExpression = sql<string>`'Semana ' || EXTRACT(week FROM ${salesTransactions.feemdo})`;
-        groupByExpression = sql`EXTRACT(week FROM ${salesTransactions.feemdo})`;
+        query = db
+          .select({
+            period: sql<string>`'Semana ' || EXTRACT(week FROM ${salesTransactions.feemdo})`,
+            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+          })
+          .from(salesTransactions)
+          .where(sql`${salesTransactions.feemdo} IS NOT NULL`)
+          .groupBy(sql`EXTRACT(week FROM ${salesTransactions.feemdo})`)
+          .orderBy(sql`EXTRACT(week FROM ${salesTransactions.feemdo})`);
         break;
       case 'monthly':
       default:
-        periodExpression = sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`;
-        groupByExpression = sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`;
+        query = db
+          .select({
+            period: sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`,
+            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+          })
+          .from(salesTransactions)
+          .where(sql`${salesTransactions.feemdo} IS NOT NULL`)
+          .groupBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`)
+          .orderBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`);
         break;
     }
 
-    const results = await db
-      .select({
-        period: periodExpression,
-        sales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
-      })
-      .from(salesTransactions)
-      .groupBy(groupByExpression)
-      .orderBy(periodExpression);
+    const results = await query;
 
     return results.map(r => ({
       period: r.period,

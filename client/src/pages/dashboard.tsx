@@ -5,6 +5,7 @@ import Sidebar from "@/components/dashboard/sidebar";
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
+import SegmentChart from "@/components/dashboard/segment-chart";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import ImportModal from "@/components/dashboard/import-modal";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,11 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <SalesChart />
             <TopProductsChart />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SegmentChart />
+            <div></div>
           </div>
 
           <TransactionsTable />
