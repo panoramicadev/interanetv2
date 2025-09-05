@@ -69,10 +69,7 @@ export default function Metas() {
         target: goalData.type === 'global' ? null : goalData.target
       };
       
-      return await apiRequest("/api/goals", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+      return await apiRequest("POST", "/api/goals", payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
@@ -102,10 +99,7 @@ export default function Metas() {
         target: data.type === 'global' ? null : data.target
       };
       
-      return await apiRequest(`/api/goals/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
+      return await apiRequest("PUT", `/api/goals/${id}`, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
@@ -129,9 +123,7 @@ export default function Metas() {
   // Delete goal mutation
   const deleteGoalMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/goals/${id}`, {
-        method: "DELETE",
-      });
+      return await apiRequest("DELETE", `/api/goals/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/goals"] });
