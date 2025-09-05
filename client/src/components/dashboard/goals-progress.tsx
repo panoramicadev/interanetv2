@@ -53,6 +53,11 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
   const goalsProgress = goalsData || fetchedGoalsProgress;
   const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
 
+  // Debug logging (remove after fixing)
+  // console.log('[DEBUG] GoalsProgress - goalsData:', goalsData);
+  // console.log('[DEBUG] GoalsProgress - fetchedGoalsProgress:', fetchedGoalsProgress);
+  // console.log('[DEBUG] GoalsProgress - final goalsProgress:', goalsProgress);
+
   // Filter goals based on selected filter and global filter
   const filteredGoals = goalsProgress?.filter(goal => {
     // If we have a global filter with a specific value, show only goals matching that exact target

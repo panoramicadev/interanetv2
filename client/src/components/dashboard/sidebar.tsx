@@ -13,7 +13,7 @@ import {
   Settings
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import type { User } from "@shared/schema";
+import type { User, SalespersonUser } from "@shared/schema";
 import { useState } from "react";
 
 interface SidebarProps {
@@ -21,7 +21,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onImportClick }: SidebarProps) {
-  const { user } = useAuth() as { user: User | null };
+  const { user } = useAuth() as { user: (User | SalespersonUser) | null };
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -29,13 +29,20 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
     window.location.href = "/api/logout";
   };
 
-  const getInitials = (firstName?: string | null, lastName?: string | null) => {
+  const getInitials = (firstName?: string | null, lastName?: string | null, salespersonName?: string | null) => {
+    if (salespersonName) {
+      const parts = salespersonName.split(' ');
+      return (parts[0]?.charAt(0) + (parts[1]?.charAt(0) || '')).toUpperCase();
+    }
     const first = firstName?.charAt(0) || "";
     const last = lastName?.charAt(0) || "";
     return (first + last).toUpperCase() || "U";
   };
 
-  const getDisplayName = (firstName?: string | null, lastName?: string | null) => {
+  const getDisplayName = (firstName?: string | null, lastName?: string | null, salespersonName?: string | null) => {
+    if (salespersonName) {
+      return salespersonName;
+    }
     if (firstName && lastName) {
       return `${firstName} ${lastName}`;
     }
@@ -145,30 +152,58 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
         </nav>
         
         <div className="p-4 border-t border-slate-700/50">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-xs font-medium text-white">
-                {getInitials(user?.firstName, user?.lastName)}
-              </span>
+          {user ? (
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                <span className="text-xs font-medium text-white">
+                  {getInitials(user?.firstName, user?.lastName, (user as SalespersonUser)?.salespersonName)}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">
+                  {getDisplayName(user?.firstName, user?.lastName, (user as SalespersonUser)?.salespersonName)}
+                </p>
+                <p className="text-xs text-slate-400 truncate">
+                  {user?.role === 'admin' ? 'Administrador' : 
+                   user?.role === 'supervisor' ? 'Supervisor' : 
+                   user?.role === 'salesperson' ? 'Vendedor' : 'Usuario'}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-slate-400 hover:text-white hover:bg-slate-800/50"
+                onClick={handleLogout}
+                data-testid="logout-button"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">
-                {getDisplayName(user?.firstName, user?.lastName)}
-              </p>
-              <p className="text-xs text-slate-400 truncate">
-                {user?.role === 'admin' ? 'Administrador' : 'Usuario'}
-              </p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400 text-center">No autenticado</p>
+              <Button 
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/auth/simulate-login', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ userId: 'fe1fc91c-6fb2-4263-aaa7-75de93bcf68a' })
+                    });
+                    if (response.ok) {
+                      window.location.reload();
+                    }
+                  } catch (error) {
+                    console.error('Login failed:', error);
+                  }
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                size="sm"
+              >
+                Login como Daniel (Supervisor)
+              </Button>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-slate-400 hover:text-white hover:bg-slate-800/50"
-              onClick={handleLogout}
-              data-testid="logout-button"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+          )}
         </div>
       </div>
     </div>
