@@ -151,6 +151,7 @@ export default function UsersPage() {
       isActive: true,
       role: "salesperson",
       supervisorId: null,
+      assignedSegment: null,
     },
   });
 
@@ -165,12 +166,26 @@ export default function UsersPage() {
     }
   }, [watchedSalesperson, createForm]);
 
-  // Clear supervisorId when role is not salesperson
+  // Clear fields when role changes
   useEffect(() => {
     if (watchedRole !== "salesperson") {
       createForm.setValue("supervisorId", null);
     }
+    if (watchedRole !== "supervisor") {
+      createForm.setValue("assignedSegment", null);
+    }
   }, [watchedRole, createForm]);
+
+  // Similar logic for edit form
+  const watchedEditRole = editForm.watch("role");
+  useEffect(() => {
+    if (watchedEditRole !== "salesperson") {
+      editForm.setValue("supervisorId", null);
+    }
+    if (watchedEditRole !== "supervisor") {
+      editForm.setValue("assignedSegment", null);
+    }
+  }, [watchedEditRole, editForm]);
 
   // Form para editar usuario
   const editForm = useForm<InsertSalespersonUserInput>({
@@ -183,14 +198,16 @@ export default function UsersPage() {
       isActive: true,
       role: "salesperson",
       supervisorId: null,
+      assignedSegment: null,
     },
   });
 
   const handleCreateSubmit = (data: InsertSalespersonUserInput) => {
-    // Limpiar supervisorId si no es vendedor o si es "none"
+    // Limpiar campos según el rol
     const cleanedData = {
       ...data,
-      supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null
+      supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null,
+      assignedSegment: data.role === "supervisor" && data.assignedSegment ? data.assignedSegment : null
     };
     console.log("Enviando datos:", cleanedData);
     createUserMutation.mutate(cleanedData);
@@ -198,10 +215,11 @@ export default function UsersPage() {
 
   const handleEditSubmit = (data: InsertSalespersonUserInput) => {
     if (!editingUser) return;
-    // Limpiar supervisorId si no es vendedor o si es "none"  
+    // Limpiar campos según el rol
     const cleanedData = {
       ...data,
-      supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null
+      supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null,
+      assignedSegment: data.role === "supervisor" && data.assignedSegment ? data.assignedSegment : null
     };
     console.log("Editando datos:", cleanedData);
     updateUserMutation.mutate({ id: editingUser.id, userData: cleanedData });
@@ -217,6 +235,7 @@ export default function UsersPage() {
       isActive: user.isActive ?? true,
       role: (user.role ?? "salesperson") as "admin" | "supervisor" | "salesperson" | "client",
       supervisorId: user.supervisorId ?? null,
+      assignedSegment: user.assignedSegment ?? null,
     });
     setIsEditDialogOpen(true);
   };
@@ -358,6 +377,34 @@ export default function UsersPage() {
                               placeholder="Ingresa el nombre completo" 
                             />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {createForm.watch("role") === "supervisor" && (
+                    <FormField
+                      control={createForm.control}
+                      name="assignedSegment"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Segmento Asignado</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-assigned-segment">
+                                <SelectValue placeholder="Selecciona un segmento" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="">Sin segmento</SelectItem>
+                              <SelectItem value="CONSTRUCCION">CONSTRUCCION</SelectItem>
+                              <SelectItem value="DIGITAL">DIGITAL</SelectItem>
+                              <SelectItem value="FERRETERIAS">FERRETERIAS</SelectItem>
+                              <SelectItem value="MCT">MCT</SelectItem>
+                              <SelectItem value="PANORAMICA STORE">PANORAMICA STORE</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -643,8 +690,10 @@ export default function UsersPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="salesperson">Vendedor</SelectItem>
                         <SelectItem value="admin">Administrador</SelectItem>
+                        <SelectItem value="supervisor">Supervisor</SelectItem>
+                        <SelectItem value="salesperson">Vendedor</SelectItem>
+                        <SelectItem value="client">Cliente</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -671,6 +720,34 @@ export default function UsersPage() {
                               {supervisor.salespersonName}
                             </SelectItem>
                           ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {editForm.watch("role") === "supervisor" && (
+                <FormField
+                  control={editForm.control}
+                  name="assignedSegment"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Segmento Asignado</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-assigned-segment">
+                            <SelectValue placeholder="Selecciona un segmento" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="">Sin segmento</SelectItem>
+                          <SelectItem value="CONSTRUCCION">CONSTRUCCION</SelectItem>
+                          <SelectItem value="DIGITAL">DIGITAL</SelectItem>
+                          <SelectItem value="FERRETERIAS">FERRETERIAS</SelectItem>
+                          <SelectItem value="MCT">MCT</SelectItem>
+                          <SelectItem value="PANORAMICA STORE">PANORAMICA STORE</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
