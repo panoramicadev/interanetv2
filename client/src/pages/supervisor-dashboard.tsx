@@ -31,8 +31,10 @@ export default function SupervisorDashboard() {
 
   // Obtener vendedores bajo supervisión
   const { data: salespeople = [], isLoading: loadingSalespeople } = useQuery({
-    queryKey: [`/api/supervisor/${user?.id}/salespeople`],
+    queryKey: [`/api/supervisor/${user?.id}/salespeople`, Date.now()],
     enabled: !!user?.id && user?.role === 'supervisor',
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 
   // Obtener metas del supervisor

@@ -1265,6 +1265,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(salesTransactions.nokofu, salesperson.salespersonName));
 
       // Obtener metas del vendedor
+      console.log(`[DEBUG] Looking for goals for salesperson: ${salesperson.salespersonName}`);
       const salespersonGoals = await db
         .select()
         .from(goals)
@@ -1273,6 +1274,8 @@ export class DatabaseStorage implements IStorage {
           eq(goals.target, salesperson.salespersonName)
         ))
         .orderBy(desc(goals.createdAt));
+      
+      console.log(`[DEBUG] Found ${salespersonGoals.length} goals for ${salesperson.salespersonName}:`, salespersonGoals);
 
       // Procesar metas con progreso
       const processedGoals = [];
