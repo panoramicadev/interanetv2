@@ -24,6 +24,12 @@ export default function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState("2025-09");
   const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  
+  // Global filter state for goals/segments/salespeople
+  const [globalFilter, setGlobalFilter] = useState<{
+    type: "all" | "segment" | "salesperson";
+    value?: string;
+  }>({ type: "all" });
 
   // Update selected period when filter type changes
   useEffect(() => {
@@ -176,22 +182,49 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <main className="p-6 space-y-6">
-          <KPICards selectedPeriod={selectedPeriod} filterType={filterType} />
+          <KPICards 
+            selectedPeriod={selectedPeriod} 
+            filterType={filterType}
+            globalFilter={globalFilter}
+          />
           
           {/* Goals Progress Dashboard */}
-          <GoalsProgress />
+          <GoalsProgress 
+            globalFilter={globalFilter}
+            onFilterChange={setGlobalFilter}
+          />
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SalesChart selectedPeriod={selectedPeriod} filterType={filterType} />
-            <TopProductsChart selectedPeriod={selectedPeriod} filterType={filterType} />
+            <SalesChart 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+              globalFilter={globalFilter}
+            />
+            <TopProductsChart 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+              globalFilter={globalFilter}
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SegmentChart selectedPeriod={selectedPeriod} filterType={filterType} />
-            <TopClientsPanel selectedPeriod={selectedPeriod} filterType={filterType} />
+            <SegmentChart 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+              globalFilter={globalFilter}
+            />
+            <TopClientsPanel 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+              globalFilter={globalFilter}
+            />
           </div>
 
-          <TransactionsTable selectedPeriod={selectedPeriod} filterType={filterType} />
+          <TransactionsTable 
+            selectedPeriod={selectedPeriod} 
+            filterType={filterType}
+            globalFilter={globalFilter}
+          />
         </main>
       </div>
 

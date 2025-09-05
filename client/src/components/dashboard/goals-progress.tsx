@@ -20,8 +20,25 @@ interface GoalProgress {
   isCompleted: boolean;
 }
 
-export default function GoalsProgress() {
+interface GoalsProgressProps {
+  globalFilter: {
+    type: "all" | "segment" | "salesperson";
+    value?: string;
+  };
+  onFilterChange: (filter: { type: "all" | "segment" | "salesperson"; value?: string }) => void;
+}
+
+export default function GoalsProgress({ globalFilter, onFilterChange }: GoalsProgressProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  
+  // Fetch segments and salespeople for the filter dropdown
+  const { data: segments } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/segments"],
+  });
+
+  const { data: salespeople } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/salespeople"],
+  });
   
   const { data: goalsProgress, isLoading } = useQuery<GoalProgress[]>({
     queryKey: ["/api/goals/progress"],
@@ -124,27 +141,45 @@ export default function GoalsProgress() {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <Target className="h-6 w-6 text-primary" />
-          <h2 className="text-2xl font-bold text-foreground">Progreso de Metas</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Progreso de Metas</h2>
+            {globalFilter.type !== "all" && globalFilter.value && (
+              <p className="text-sm text-muted-foreground">
+                Filtrando por {globalFilter.type === "segment" ? "segmento" : "vendedor"}: 
+                <span className="font-medium ml-1">{globalFilter.value}</span>
+              </p>
+            )}
+          </div>
         </div>
         
         {/* Elegant Filter Dropdown */}
         <div className="flex items-center space-x-3">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={selectedFilter} onValueChange={setSelectedFilter}>
+          <Select 
+            value={selectedFilter} 
+            onValueChange={(value) => {
+              setSelectedFilter(value);
+              if (value === "all") {
+                onFilterChange({ type: "all" });
+              } else {
+                onFilterChange({ type: value as "segment" | "salesperson" });
+              }
+            }}
+          >
             <SelectTrigger className="w-48 bg-card border border-border/50 shadow-sm hover:shadow-md transition-shadow">
-              <SelectValue placeholder="Filtrar metas" />
+              <SelectValue placeholder="Filtrar dashboard" />
             </SelectTrigger>
             <SelectContent className="border border-border/50 shadow-lg">
               <SelectItem value="all" className="hover:bg-muted/50">
                 <div className="flex items-center space-x-2">
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                  <span>Todas las metas</span>
+                  <span>Todo el dashboard</span>
                 </div>
               </SelectItem>
               <SelectItem value="global" className="hover:bg-muted/50">
                 <div className="flex items-center space-x-2">
                   <Target className="h-4 w-4 text-blue-500" />
-                  <span>Metas globales</span>
+                  <span>Solo metas globales</span>
                 </div>
               </SelectItem>
               <SelectItem value="segment" className="hover:bg-muted/50">
@@ -161,6 +196,40 @@ export default function GoalsProgress() {
               </SelectItem>
             </SelectContent>
           </Select>
+          
+          {/* Secondary selector for specific segment/salesperson */}
+          {(selectedFilter === "segment" || selectedFilter === "salesperson") && (
+            <Select 
+              value={globalFilter.value || ""} 
+              onValueChange={(value) => {
+                onFilterChange({ 
+                  type: selectedFilter as "segment" | "salesperson", 
+                  value 
+                });
+              }}
+            >
+              <SelectTrigger className="w-56 bg-card border border-border/50 shadow-sm">
+                <SelectValue placeholder={
+                  selectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"
+                } />
+              </SelectTrigger>
+              <SelectContent className="border border-border/50 shadow-lg max-h-60 overflow-y-auto">
+                {selectedFilter === "segment" ? (
+                  segments?.map((segment) => (
+                    <SelectItem key={segment} value={segment} className="hover:bg-muted/50">
+                      {segment}
+                    </SelectItem>
+                  ))
+                ) : (
+                  salespeople?.map((salesperson) => (
+                    <SelectItem key={salesperson} value={salesperson} className="hover:bg-muted/50">
+                      {salesperson}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
