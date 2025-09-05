@@ -2,12 +2,15 @@ import {
   users,
   salesTransactions,
   goals,
+  salespeopleUsers,
   type User,
   type UpsertUser,
   type SalesTransaction,
   type InsertSalesTransaction,
   type Goal,
   type InsertGoal,
+  type SalespersonUser,
+  type InsertSalespersonUser,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
@@ -129,6 +132,14 @@ export interface IStorage {
     lastPurchase: string;
     daysSinceLastPurchase: number;
   }>>;
+  
+  // Salesperson users management
+  getSalespeopleUsers(): Promise<SalespersonUser[]>;
+  createSalespersonUser(user: InsertSalespersonUser): Promise<SalespersonUser>;
+  updateSalespersonUser(id: string, user: Partial<InsertSalespersonUser>): Promise<SalespersonUser>;
+  deleteSalespersonUser(id: string): Promise<void>;
+  getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined>;
+  autoCreateUsersForSalespeople(): Promise<number>; // Returns count of created users
 }
 
 export class DatabaseStorage implements IStorage {
@@ -823,6 +834,75 @@ export class DatabaseStorage implements IStorage {
         daysSinceLastPurchase
       };
     });
+  }
+
+  // Salesperson users management
+  async getSalespeopleUsers(): Promise<SalespersonUser[]> {
+    return await db.select().from(salespeopleUsers).orderBy(salespeopleUsers.salespersonName);
+  }
+
+  async createSalespersonUser(user: InsertSalespersonUser): Promise<SalespersonUser> {
+    const [result] = await db
+      .insert(salespeopleUsers)
+      .values(user)
+      .returning();
+    return result;
+  }
+
+  async updateSalespersonUser(id: string, user: Partial<InsertSalespersonUser>): Promise<SalespersonUser> {
+    const [result] = await db
+      .update(salespeopleUsers)
+      .set({ ...user, updatedAt: new Date() })
+      .where(eq(salespeopleUsers.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSalespersonUser(id: string): Promise<void> {
+    await db.delete(salespeopleUsers).where(eq(salespeopleUsers.id, id));
+  }
+
+  async getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined> {
+    const [user] = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.email, email));
+    return user;
+  }
+
+  async autoCreateUsersForSalespeople(): Promise<number> {
+    // Obtener todos los vendedores únicos de las transacciones
+    const uniqueSalespeople = await db
+      .selectDistinct({ salesperson: salesTransactions.nokofu })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`);
+
+    // Obtener vendedores que ya tienen usuarios
+    const existingUsers = await db
+      .select({ salespersonName: salespeopleUsers.salespersonName })
+      .from(salespeopleUsers);
+
+    const existingNames = new Set(existingUsers.map(u => u.salespersonName));
+    
+    // Filtrar vendedores que no tienen usuarios
+    const newSalespeople = uniqueSalespeople.filter(
+      sp => sp.salesperson && !existingNames.has(sp.salesperson)
+    );
+
+    if (newSalespeople.length === 0) {
+      return 0;
+    }
+
+    // Crear usuarios para vendedores nuevos
+    const usersToCreate = newSalespeople.map(sp => ({
+      salespersonName: sp.salesperson!,
+      isActive: true,
+      role: 'salesperson' as const,
+    }));
+
+    await db.insert(salespeopleUsers).values(usersToCreate);
+    
+    return usersToCreate.length;
   }
 }
 
