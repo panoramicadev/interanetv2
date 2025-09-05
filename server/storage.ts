@@ -70,6 +70,7 @@ export interface IStorage {
   // Goals operations
   getGoals(): Promise<Goal[]>;
   getGoalsByType(type: string): Promise<Goal[]>;
+  getGoalsBySalesperson(salesperson: string): Promise<Goal[]>;
   createGoal(goal: InsertGoal): Promise<Goal>;
   updateGoal(id: string, goal: Partial<InsertGoal>): Promise<Goal>;
   deleteGoal(id: string): Promise<void>;
@@ -494,6 +495,17 @@ export class DatabaseStorage implements IStorage {
 
   async getGoalsByType(type: string): Promise<Goal[]> {
     return await db.select().from(goals).where(eq(goals.type, type)).orderBy(desc(goals.createdAt));
+  }
+
+  async getGoalsBySalesperson(salesperson: string): Promise<Goal[]> {
+    return await db.select().from(goals)
+      .where(
+        and(
+          eq(goals.type, 'salesperson'),
+          eq(goals.targetEntity, salesperson)
+        )
+      )
+      .orderBy(desc(goals.createdAt));
   }
 
   async createGoal(goal: InsertGoal): Promise<Goal> {

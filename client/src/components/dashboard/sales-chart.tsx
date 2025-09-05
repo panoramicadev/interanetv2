@@ -33,16 +33,19 @@ interface ChartDataPoint {
 interface SalesChartProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "range";
+  salespersonFilter?: string;
 }
 
-export default function SalesChart({ selectedPeriod, filterType }: SalesChartProps) {
+export default function SalesChart({ selectedPeriod, filterType, salespersonFilter }: SalesChartProps) {
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('daily');
   
   // Auto-ajustar el período del gráfico basado en el tipo de filtro
   const chartPeriod = filterType === 'day' ? 'daily' : period;
   
   const { data: chartData, isLoading } = useQuery<ChartDataPoint[]>({
-    queryKey: [`/api/sales/chart-data?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: salespersonFilter 
+      ? [`/api/sales/chart-data/salesperson/${salespersonFilter}?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}`]
+      : [`/api/sales/chart-data?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
   });
 
   const formatCurrency = (value: number) => {
