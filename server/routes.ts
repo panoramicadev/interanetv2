@@ -522,17 +522,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.warn("ADVERTENCIA: La contraseña no está hasheada. Esto es solo para desarrollo.");
       }
 
+      console.log("Datos validados:", validatedUser);
       const newUser = await storage.createSalespersonUser(validatedUser);
+      console.log("Usuario creado exitosamente:", newUser);
       res.json(newUser);
     } catch (error: any) {
       console.error("Error creating salesperson user:", error);
+      console.error("Error stack:", error.stack);
+      console.error("Error name:", error.name);
+      console.error("Error code:", error.code);
       if (error.name === 'ZodError') {
         return res.status(400).json({ 
           message: "Datos inválidos", 
           details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
         });
       }
-      res.status(500).json({ message: "Failed to create salesperson user" });
+      if (error.code === '23505') { // PostgreSQL unique violation
+        return res.status(400).json({ 
+          message: "Ya existe un usuario con esos datos",
+          details: `Conflicto en: ${error.detail || 'campo único'}`
+        });
+      }
+      res.status(500).json({ 
+        message: "Failed to create salesperson user",
+        error: error.message,
+        details: error.stack
+      });
     }
   });
 
