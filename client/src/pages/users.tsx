@@ -264,8 +264,8 @@ export default function UsersPage() {
       password: "", // No mostrar la contraseña actual
       isActive: user.isActive ?? true,
       role: (user.role ?? "salesperson") as "admin" | "supervisor" | "salesperson" | "client",
-      supervisorId: user.supervisorId ?? null,
-      assignedSegment: user.assignedSegment ?? null,
+      supervisorId: user.supervisorId ?? "none",
+      assignedSegment: user.assignedSegment ?? "none",
     });
     setIsEditDialogOpen(true);
   };
