@@ -759,6 +759,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rutas específicas para supervisores
+  app.get('/api/supervisor/:supervisorId/salespeople', isAuthenticated, async (req, res) => {
+    try {
+      const { supervisorId } = req.params;
+      
+      const salespeople = await storage.getSalespeopleUnderSupervisor(supervisorId);
+      res.json(salespeople);
+    } catch (error) {
+      console.error("Error fetching supervisor salespeople:", error);
+      res.status(500).json({ message: "Failed to fetch supervisor salespeople" });
+    }
+  });
+
+  app.get('/api/supervisor/:supervisorId/goals', isAuthenticated, async (req, res) => {
+    try {
+      const { supervisorId } = req.params;
+      
+      const goals = await storage.getSupervisorGoals(supervisorId);
+      res.json(goals);
+    } catch (error) {
+      console.error("Error fetching supervisor goals:", error);
+      res.status(500).json({ message: "Failed to fetch supervisor goals" });
+    }
+  });
+
 
   const httpServer = createServer(app);
   return httpServer;

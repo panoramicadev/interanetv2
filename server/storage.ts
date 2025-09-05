@@ -174,6 +174,17 @@ export interface IStorage {
   deleteSalespersonUser(id: string): Promise<void>;
   getSalespersonUser(id: string): Promise<SalespersonUser | undefined>;
   getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined>;
+  
+  // Supervisor specific methods
+  getSalespeopleUnderSupervisor(supervisorId: string): Promise<Array<{
+    id: string;
+    salespersonName: string;
+    email: string;
+    totalSales: number;
+    transactionCount: number;
+    lastSale: string;
+  }>>;
+  getSupervisorGoals(supervisorId: string): Promise<Goal[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1192,6 +1203,69 @@ export class DatabaseStorage implements IStorage {
       frequentClients,
       clientsWithTopProducts
     };
+  }
+
+  async getSalespeopleUnderSupervisor(supervisorId: string): Promise<Array<{
+    id: string;
+    salespersonName: string;
+    email: string;
+    totalSales: number;
+    transactionCount: number;
+    lastSale: string;
+  }>> {
+    // Obtener vendedores bajo este supervisor
+    const salespeople = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(and(
+        eq(salespeopleUsers.supervisorId, supervisorId),
+        eq(salespeopleUsers.role, 'salesperson'),
+        eq(salespeopleUsers.isActive, true)
+      ));
+
+    const results = [];
+    for (const salesperson of salespeople) {
+      // Obtener estadísticas de ventas para cada vendedor
+      const [salesStats] = await db
+        .select({
+          totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+          transactionCount: sql<number>`COUNT(*)`,
+          lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
+        })
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson.salespersonName));
+
+      results.push({
+        id: salesperson.id,
+        salespersonName: salesperson.salespersonName,
+        email: salesperson.email || '',
+        totalSales: Number(salesStats?.totalSales || 0),
+        transactionCount: Number(salesStats?.transactionCount || 0),
+        lastSale: salesStats?.lastSale || ''
+      });
+    }
+
+    return results.sort((a, b) => b.totalSales - a.totalSales);
+  }
+
+  async getSupervisorGoals(supervisorId: string): Promise<Goal[]> {
+    // Obtener supervisor name
+    const [supervisor] = await db
+      .select({ salespersonName: salespeopleUsers.salespersonName })
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.id, supervisorId));
+
+    if (!supervisor) return [];
+
+    // Obtener metas asignadas al supervisor
+    return await db
+      .select()
+      .from(goals)
+      .where(and(
+        eq(goals.type, 'salesperson'),
+        eq(goals.target, supervisor.salespersonName)
+      ))
+      .orderBy(desc(goals.createdAt));
   }
 
 }

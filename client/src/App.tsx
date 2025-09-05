@@ -8,6 +8,7 @@ import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
+import SupervisorDashboard from "@/pages/supervisor-dashboard";
 import ClientsDashboard from "@/pages/clients-dashboard";
 import Metas from "@/pages/metas";
 import Users from "@/pages/users";
@@ -53,7 +54,7 @@ function Router() {
           )}
           {user.role === 'supervisor' && (
             <>
-              <Route path="/" component={Dashboard} />
+              <Route path="/" component={SupervisorDashboard} />
               <Route path="/metas" component={Metas} />
               <Route path="/segment/:segmentName" component={SegmentDetail} />
               <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
