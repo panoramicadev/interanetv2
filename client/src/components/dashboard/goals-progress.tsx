@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Target, TrendingUp, Users, Building, CheckCircle, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Target, TrendingUp, Users, Building, CheckCircle, AlertCircle, Filter } from "lucide-react";
 
 interface GoalProgress {
   id: string;
@@ -19,9 +21,17 @@ interface GoalProgress {
 }
 
 export default function GoalsProgress() {
+  const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  
   const { data: goalsProgress, isLoading } = useQuery<GoalProgress[]>({
     queryKey: ["/api/goals/progress"],
   });
+
+  // Filter goals based on selected filter
+  const filteredGoals = goalsProgress?.filter(goal => {
+    if (selectedFilter === "all") return true;
+    return goal.type === selectedFilter;
+  }) || [];
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -54,6 +64,15 @@ export default function GoalsProgress() {
     if (percentage >= 75) return "bg-blue-500";
     if (percentage >= 50) return "bg-yellow-500";
     return "bg-red-500";
+  };
+
+  const getFilterLabel = (filter: string) => {
+    switch (filter) {
+      case "global": return "Metas Globales";
+      case "segment": return "Metas por Segmento";
+      case "salesperson": return "Metas por Vendedor";
+      default: return "Todas las Metas";
+    }
   };
 
   if (isLoading) {
@@ -96,16 +115,79 @@ export default function GoalsProgress() {
   }
 
   // Separate global goals from specific goals
-  const globalGoals = goalsProgress.filter(goal => goal.type === 'global');
-  const specificGoals = goalsProgress.filter(goal => goal.type !== 'global');
+  const globalGoals = filteredGoals.filter(goal => goal.type === 'global');
+  const specificGoals = filteredGoals.filter(goal => goal.type !== 'global');
 
   return (
-    <div className="space-y-4">
-      {/* Global Goals - Subtle Design */}
+    <div className="space-y-6">
+      {/* Header with Filter */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <Target className="h-6 w-6 text-primary" />
+          <h2 className="text-2xl font-bold text-foreground">Progreso de Metas</h2>
+        </div>
+        
+        {/* Elegant Filter Dropdown */}
+        <div className="flex items-center space-x-3">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Select value={selectedFilter} onValueChange={setSelectedFilter}>
+            <SelectTrigger className="w-48 bg-card border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+              <SelectValue placeholder="Filtrar metas" />
+            </SelectTrigger>
+            <SelectContent className="border border-border/50 shadow-lg">
+              <SelectItem value="all" className="hover:bg-muted/50">
+                <div className="flex items-center space-x-2">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <span>Todas las metas</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="global" className="hover:bg-muted/50">
+                <div className="flex items-center space-x-2">
+                  <Target className="h-4 w-4 text-blue-500" />
+                  <span>Metas globales</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="segment" className="hover:bg-muted/50">
+                <div className="flex items-center space-x-2">
+                  <Building className="h-4 w-4 text-green-500" />
+                  <span>Por segmento</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="salesperson" className="hover:bg-muted/50">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-4 w-4 text-purple-500" />
+                  <span>Por vendedor</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* No results message */}
+      {filteredGoals.length === 0 && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Target className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              No hay metas {selectedFilter === "all" ? "" : getFilterLabel(selectedFilter).toLowerCase()}
+            </h3>
+            <p className="text-muted-foreground">
+              {selectedFilter === "all" 
+                ? "Configura tu primera meta para empezar a monitorear el progreso."
+                : `No tienes metas configuradas para ${getFilterLabel(selectedFilter).toLowerCase()}.`
+              }
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Global Goals - Enhanced Design */}
       {globalGoals.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {globalGoals.map((goal) => (
-            <div key={goal.id} className="bg-muted/30 border border-border/50 rounded-lg p-4">
+            <Card key={goal.id} className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5 shadow-sm hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-3">
                   <Target className="h-5 w-5 text-muted-foreground" />
@@ -163,22 +245,28 @@ export default function GoalsProgress() {
                   </div>
                 </div>
               </div>
-            </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
 
-      {/* Specific Goals - Compact Cards */}
+      {/* Specific Goals - Enhanced Cards */}
       {specificGoals.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium text-muted-foreground flex items-center space-x-2">
-            <TrendingUp className="h-4 w-4" />
-            <span>Metas Específicas</span>
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
+            <TrendingUp className="h-5 w-5" />
+            <span>
+              {selectedFilter === "segment" ? "Metas por Segmento" : 
+               selectedFilter === "salesperson" ? "Metas por Vendedor" : 
+               "Metas Específicas"}
+            </span>
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {specificGoals.map((goal) => (
-              <div key={goal.id} className="bg-card border border-border/30 rounded-md p-3">
+              <Card key={goal.id} className="hover:shadow-md transition-shadow border border-border/50">
+                <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-2">
                     {getTypeIcon(goal.type)}
@@ -233,7 +321,8 @@ export default function GoalsProgress() {
                     </div>
                   )}
                 </div>
-              </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>

@@ -172,16 +172,14 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          
-          {/* Goals Progress - Subtle Integration */}
-          <div className="px-6 pb-4">
-            <GoalsProgress />
-          </div>
         </header>
 
         {/* Main Content */}
         <main className="p-6 space-y-6">
           <KPICards selectedPeriod={selectedPeriod} filterType={filterType} />
+          
+          {/* Goals Progress Dashboard */}
+          <GoalsProgress />
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <SalesChart selectedPeriod={selectedPeriod} filterType={filterType} />
