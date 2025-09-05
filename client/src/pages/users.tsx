@@ -1,0 +1,498 @@
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Edit, Trash2, Users, UserPlus } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { insertSalespersonUserSchema, type InsertSalespersonUserInput, type SalespersonUser } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import type { User } from "@shared/schema";
+
+export default function UsersPage() {
+  const { user } = useAuth() as { user: User | null };
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<SalespersonUser | null>(null);
+
+  // Verificar permisos de admin
+  useEffect(() => {
+    if (user && user.role !== 'admin') {
+      toast({
+        title: "Acceso denegado",
+        description: "Solo los administradores pueden acceder a esta página.",
+        variant: "destructive",
+      });
+      window.location.href = '/';
+    }
+  }, [user, toast]);
+
+  // Query para obtener usuarios
+  const { data: salespeopleUsers = [], isLoading } = useQuery<SalespersonUser[]>({
+    queryKey: ["/api/users/salespeople"],
+    enabled: user?.role === 'admin',
+  });
+
+  // Mutation para crear usuario
+  const createUserMutation = useMutation({
+    mutationFn: async (userData: InsertSalespersonUserInput) => {
+      return await apiRequest("/api/users/salespeople", "POST", userData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      setIsCreateDialogOpen(false);
+      toast({
+        title: "Usuario creado",
+        description: "El usuario se ha creado correctamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo crear el usuario.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para actualizar usuario
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, userData }: { id: string; userData: Partial<InsertSalespersonUserInput> }) => {
+      return await apiRequest(`/api/users/salespeople/${id}`, "PUT", userData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      setIsEditDialogOpen(false);
+      setEditingUser(null);
+      toast({
+        title: "Usuario actualizado",
+        description: "El usuario se ha actualizado correctamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el usuario.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para eliminar usuario
+  const deleteUserMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/users/salespeople/${id}`, "DELETE");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      toast({
+        title: "Usuario eliminado",
+        description: "El usuario se ha eliminado correctamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar el usuario.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation para auto-crear usuarios
+  const autoCreateMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("/api/users/salespeople/auto-create", "POST");
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      toast({
+        title: "Usuarios creados automáticamente",
+        description: `Se crearon ${data.createdCount} usuarios automáticamente para los vendedores.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron crear los usuarios automáticamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Form para crear usuario
+  const createForm = useForm<InsertSalespersonUserInput>({
+    resolver: zodResolver(insertSalespersonUserSchema),
+    defaultValues: {
+      salespersonName: "",
+      email: "",
+      password: "",
+      isActive: true,
+      role: "salesperson",
+    },
+  });
+
+  // Form para editar usuario
+  const editForm = useForm<InsertSalespersonUserInput>({
+    resolver: zodResolver(insertSalespersonUserSchema),
+    defaultValues: {
+      salespersonName: "",
+      email: "",
+      password: "",
+      isActive: true,
+      role: "salesperson",
+    },
+  });
+
+  const handleCreateSubmit = (data: InsertSalespersonUserInput) => {
+    createUserMutation.mutate(data);
+  };
+
+  const handleEditSubmit = (data: InsertSalespersonUserInput) => {
+    if (!editingUser) return;
+    updateUserMutation.mutate({ id: editingUser.id, userData: data });
+  };
+
+  const handleEdit = (user: SalespersonUser) => {
+    setEditingUser(user);
+    editForm.reset({
+      salespersonName: user.salespersonName,
+      email: user.email || "",
+      password: "", // No mostrar la contraseña actual
+      isActive: user.isActive ?? true,
+      role: user.role || "salesperson",
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm("¿Estás seguro de que deseas eliminar este usuario?")) {
+      deleteUserMutation.mutate(id);
+    }
+  };
+
+  if (user?.role !== 'admin') {
+    return null; // No renderizar nada si no es admin
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
+          <p className="text-muted-foreground">
+            Administra las cuentas de acceso de los vendedores al sistema
+          </p>
+        </div>
+        <div className="flex space-x-2">
+          <Button
+            onClick={() => autoCreateMutation.mutate()}
+            disabled={autoCreateMutation.isPending}
+            variant="outline"
+            data-testid="button-auto-create-users"
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Auto-crear Usuarios
+          </Button>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-user">
+                <Plus className="w-4 h-4 mr-2" />
+                Nuevo Usuario
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+                <DialogDescription>
+                  Crea una cuenta de acceso para un vendedor del sistema
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...createForm}>
+                <form onSubmit={createForm.handleSubmit(handleCreateSubmit)} className="space-y-4">
+                  <FormField
+                    control={createForm.control}
+                    name="salespersonName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre del Vendedor</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-salesperson-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email (opcional)</FormLabel>
+                        <FormControl>
+                          <Input type="email" {...field} data-testid="input-email" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contraseña (opcional)</FormLabel>
+                        <FormControl>
+                          <Input type="password" {...field} data-testid="input-password" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rol</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-role">
+                              <SelectValue placeholder="Selecciona un rol" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="salesperson">Vendedor</SelectItem>
+                            <SelectItem value="admin">Administrador</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createForm.control}
+                    name="isActive"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <FormLabel>Usuario Activo</FormLabel>
+                          <p className="text-sm text-muted-foreground">
+                            El usuario puede acceder al sistema
+                          </p>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-is-active"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button type="submit" disabled={createUserMutation.isPending} data-testid="button-submit-create">
+                      {createUserMutation.isPending ? "Creando..." : "Crear Usuario"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Users className="w-5 h-5 mr-2" />
+            Usuarios del Sistema
+          </CardTitle>
+          <CardDescription>
+            Lista de todos los usuarios con acceso al sistema de análisis de ventas
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8">Cargando usuarios...</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Vendedor</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Rol</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Fecha Creación</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {salespeopleUsers.map((user) => (
+                  <TableRow key={user.id} data-testid={`user-row-${user.id}`}>
+                    <TableCell className="font-medium">{user.salespersonName}</TableCell>
+                    <TableCell>{user.email || "-"}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                        {user.role === 'admin' ? 'Administrador' : 'Vendedor'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.isActive ? 'default' : 'secondary'}>
+                        {user.isActive ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(user)}
+                          data-testid={`button-edit-${user.id}`}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(user.id)}
+                          data-testid={`button-delete-${user.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {salespeopleUsers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      No hay usuarios creados. Usa "Auto-crear Usuarios" para generar usuarios basados en los vendedores existentes.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog de edición */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Usuario</DialogTitle>
+            <DialogDescription>
+              Modifica la información del usuario seleccionado
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(handleEditSubmit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="salespersonName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre del Vendedor</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-salesperson-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} data-testid="input-edit-email" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nueva Contraseña (dejar vacío para no cambiar)</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} data-testid="input-edit-password" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rol</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-role">
+                          <SelectValue placeholder="Selecciona un rol" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="salesperson">Vendedor</SelectItem>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="isActive"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>Usuario Activo</FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        El usuario puede acceder al sistema
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="switch-edit-is-active"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit" disabled={updateUserMutation.isPending} data-testid="button-submit-edit">
+                  {updateUserMutation.isPending ? "Actualizando..." : "Actualizar Usuario"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

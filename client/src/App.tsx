@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Metas from "@/pages/metas";
+import Users from "@/pages/users";
 import SegmentDetail from "@/pages/segment-detail";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
@@ -23,6 +24,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/metas" component={Metas} />
+          <Route path="/usuarios" component={Users} />
           <Route path="/segment/:segmentName" component={SegmentDetail} />
           <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
           <Route path="/client/:clientName" component={ClientDetail} />
