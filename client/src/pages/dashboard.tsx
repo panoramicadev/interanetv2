@@ -182,51 +182,69 @@ export default function Dashboard() {
         </header>
 
         {/* Main Content */}
-        <main className="p-6 space-y-6">
-          <KPICards 
-            selectedPeriod={selectedPeriod} 
-            filterType={filterType}
-          />
+        <main className="p-4 lg:p-6 space-y-6">
+          {/* KPI Cards with Modern Styling */}
+          <div className="hover-lift">
+            <KPICards 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+            />
+          </div>
           
           {/* Goals Progress Dashboard */}
-          <GoalsProgress 
-            globalFilter={globalFilter}
-            onFilterChange={setGlobalFilter}
-          />
+          <div className="modern-card p-6 hover-lift">
+            <GoalsProgress 
+              globalFilter={globalFilter}
+              onFilterChange={setGlobalFilter}
+            />
+          </div>
           
+          {/* Charts Grid with Modern Cards */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SalesChart 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
-            <TopProductsChart 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
+            <div className="modern-card p-6 hover-lift">
+              <SalesChart 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
+            <div className="modern-card p-6 hover-lift">
+              <TopProductsChart 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
           </div>
 
           {/* Top Row: Ventas por Segmento y Top Clientes */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SegmentChart 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
-            <TopClientsPanel 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
+            <div className="modern-card p-6 hover-lift">
+              <SegmentChart 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
+            <div className="modern-card p-6 hover-lift">
+              <TopClientsPanel 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
           </div>
 
           {/* Bottom Row: Top Vendedores y Últimas Transacciones */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <TopSalespeoplePanel 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
-            <TransactionsTable 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
+            <div className="modern-card p-6 hover-lift">
+              <TopSalespeoplePanel 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
+            <div className="modern-card p-6 hover-lift">
+              <TransactionsTable 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
           </div>
         </main>
       </div>

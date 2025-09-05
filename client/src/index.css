@@ -157,7 +157,7 @@
   
   /* Loading States */
   .skeleton {
-    @apply animate-pulse bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 bg-size-200 rounded;
+    @apply animate-pulse bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded;
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
