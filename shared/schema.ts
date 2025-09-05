@@ -9,6 +9,7 @@ import {
   numeric,
   date,
   integer,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -211,6 +212,34 @@ export const insertSalesTransactionSchema = z.object({
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Sistema de usuarios vendedores
+export const salespeopleUsers = pgTable("salespeople_users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  salespersonName: varchar("salesperson_name").notNull().unique(), // Nombre del vendedor de las ventas
+  email: varchar("email").unique(),
+  password: varchar("password"), // Hash de la contraseña
+  isActive: boolean("is_active").default(true),
+  role: varchar("role").default("salesperson"), // "salesperson" | "admin"
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type SalespersonUser = typeof salespeopleUsers.$inferSelect;
+export type InsertSalespersonUser = typeof salespeopleUsers.$inferInsert;
+
+// Esquemas de validación para usuarios vendedores
+export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, {
+  salespersonName: z.string().min(1, "Nombre del vendedor es requerido"),
+  email: z.string().email("Email inválido").optional().or(z.literal("")),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().or(z.literal("")),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSalespersonUserInput = z.infer<typeof insertSalespersonUserSchema>;
 
 // Goals/Metas table for managing sales targets
 export const goals = pgTable("goals", {
