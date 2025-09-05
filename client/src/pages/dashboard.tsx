@@ -83,30 +83,30 @@ export default function Dashboard() {
 
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen gradient-bg-alt">
       <Sidebar onImportClick={() => setShowImportModal(true)} />
       
-      <div className="ml-64">
+      <div className="lg:ml-64 transition-all duration-300">
         {/* Header */}
-        <header className="bg-card border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
+        <header className="glass-card border-b border-white/20 px-4 lg:px-6 py-4 m-4 rounded-2xl">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">
+              <h1 className="text-3xl font-bold text-gradient">
                 Dashboard de Ventas
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-lg">
                 Resumen de rendimiento - {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
               </p>
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
               {/* Filter Type Selector */}
               <div className="flex items-center space-x-2">
-                <label className="text-sm font-medium text-foreground">
+                <label className="text-sm font-medium text-foreground whitespace-nowrap">
                   Filtrar por:
                 </label>
                 <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="w-32" data-testid="select-filter-type">
+                  <SelectTrigger className="w-32 glass-card" data-testid="select-filter-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
