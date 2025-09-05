@@ -9,6 +9,7 @@ import SegmentChart from "@/components/dashboard/segment-chart";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import ImportModal from "@/components/dashboard/import-modal";
+import GoalsProgress from "@/components/dashboard/goals-progress";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -176,6 +177,9 @@ export default function Dashboard() {
         {/* Main Content */}
         <main className="p-6 space-y-6">
           <KPICards selectedPeriod={selectedPeriod} filterType={filterType} />
+          
+          {/* Goals Progress Dashboard */}
+          <GoalsProgress />
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <SalesChart selectedPeriod={selectedPeriod} filterType={filterType} />
