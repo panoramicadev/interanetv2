@@ -111,14 +111,29 @@ export default function SalespersonDashboard() {
     );
   }
 
-  // Queries específicas para el vendedor
+  // Construir parámetros de fecha basados en el filtro
+  const buildDateParams = () => {
+    const params = new URLSearchParams();
+    params.append('period', selectedPeriod);
+    params.append('filterType', filterType);
+    
+    if (filterType === 'day' && selectedDate) {
+      params.append('selectedDate', format(selectedDate, 'yyyy-MM-dd'));
+    }
+    
+    return params.toString();
+  };
+
+  // Queries específicas para el vendedor con filtros de fecha
   const { data: salespersonMetrics = {} } = useQuery({
-    queryKey: [`/api/sales/metrics/salesperson/${user?.salespersonName}`],
+    queryKey: [`/api/sales/metrics/salesperson/${user?.salespersonName}`, selectedPeriod, filterType, selectedDate],
+    queryFn: () => fetch(`/api/sales/metrics/salesperson/${user?.salespersonName}?${buildDateParams()}`).then(res => res.json()),
     enabled: !!user?.salespersonName,
   });
 
   const { data: salespersonClients = [] } = useQuery({
-    queryKey: [`/api/sales/clients/salesperson/${user?.salespersonName}`],
+    queryKey: [`/api/sales/clients/salesperson/${user?.salespersonName}`, selectedPeriod, filterType, selectedDate],
+    queryFn: () => fetch(`/api/sales/clients/salesperson/${user?.salespersonName}?${buildDateParams()}`).then(res => res.json()),
     enabled: !!user?.salespersonName,
   });
 
@@ -133,12 +148,14 @@ export default function SalespersonDashboard() {
   ) || [];
 
   const { data: chartData = [] } = useQuery({
-    queryKey: [`/api/sales/chart-data/salesperson/${user?.salespersonName}?period=monthly&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/chart-data/salesperson/${user?.salespersonName}`, selectedPeriod, filterType, selectedDate],
+    queryFn: () => fetch(`/api/sales/chart-data/salesperson/${user?.salespersonName}?${buildDateParams()}`).then(res => res.json()),
     enabled: !!user?.salespersonName,
   });
 
   const { data: salespersonAlerts = [] } = useQuery({
-    queryKey: [`/api/alerts/salesperson/${user?.salespersonName}`],
+    queryKey: [`/api/alerts/salesperson/${user?.salespersonName}`, selectedPeriod, filterType, selectedDate],
+    queryFn: () => fetch(`/api/alerts/salesperson/${user?.salespersonName}?${buildDateParams()}`).then(res => res.json()),
     enabled: !!user?.salespersonName,
   });
 
@@ -529,6 +546,7 @@ export default function SalespersonDashboard() {
                 <SalesChart 
                   selectedPeriod={selectedPeriod} 
                   filterType={filterType}
+                  selectedDate={selectedDate}
                   salespersonFilter={user?.salespersonName}
                 />
               </CardContent>
