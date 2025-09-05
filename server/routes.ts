@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import multer from "multer";
+import Papa from "papaparse";
 
 // Helper function to convert period and filterType to date range
 function getDateRange(period?: string, filterType?: string): { startDate?: string; endDate?: string } {
@@ -55,7 +57,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1018,6 +1020,193 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+  // Configure multer for file uploads
+  const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+  });
+
+  // Product routes
+  app.get('/api/products', isAuthenticated, async (req: any, res) => {
+    try {
+      const { search, active, hasPrices, warehouseCode, limit = 50, offset = 0 } = req.query;
+      
+      const filters = {
+        search: search || undefined,
+        active: active !== undefined ? active === 'true' : undefined,
+        hasPrices: hasPrices !== undefined ? hasPrices === 'true' : undefined,
+        warehouseCode: warehouseCode || undefined,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      };
+
+      const products = await storage.getProducts(filters);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  app.get('/api/products/:sku', isAuthenticated, async (req: any, res) => {
+    try {
+      const { sku } = req.params;
+      const product = await storage.getProduct(sku);
+      
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      res.json(product);
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      res.status(500).json({ message: "Failed to fetch product" });
+    }
+  });
+
+  app.get('/api/products/:sku/stock', isAuthenticated, async (req: any, res) => {
+    try {
+      const { sku } = req.params;
+      const { warehouseCode, branchCode } = req.query;
+      
+      let stock;
+      if (warehouseCode) {
+        stock = await storage.getProductStockByWarehouse(sku, warehouseCode, branchCode);
+      } else {
+        stock = await storage.getProductStock(sku);
+      }
+
+      res.json(stock);
+    } catch (error) {
+      console.error("Error fetching product stock:", error);
+      res.status(500).json({ message: "Failed to fetch product stock" });
+    }
+  });
+
+  app.get('/api/products/:sku/analytics', isAuthenticated, async (req: any, res) => {
+    try {
+      const { sku } = req.params;
+      const analytics = await storage.getProductAnalytics(sku);
+      res.json(analytics);
+    } catch (error) {
+      console.error("Error fetching product analytics:", error);
+      res.status(500).json({ message: "Failed to fetch product analytics" });
+    }
+  });
+
+  app.get('/api/products/:sku/price-history', isAuthenticated, async (req: any, res) => {
+    try {
+      const { sku } = req.params;
+      const history = await storage.getProductPriceHistory(sku);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching price history:", error);
+      res.status(500).json({ message: "Failed to fetch price history" });
+    }
+  });
+
+  app.put('/api/products/:sku/price', isAuthenticated, async (req: any, res) => {
+    try {
+      const { sku } = req.params;
+      const { price, reason } = req.body;
+      
+      if (!price || isNaN(price)) {
+        return res.status(400).json({ message: "Valid price is required" });
+      }
+
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+
+      const product = await storage.updateProductPrice(sku, parseFloat(price), userId, reason);
+      res.json(product);
+    } catch (error) {
+      console.error("Error updating product price:", error);
+      res.status(500).json({ message: "Failed to update product price" });
+    }
+  });
+
+  // CSV Import endpoint
+  app.post('/api/products/import-csv', isAuthenticated, upload.single('csvFile'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No CSV file provided" });
+      }
+
+      const csvContent = req.file.buffer.toString('utf-8');
+      
+      // Parse CSV using Papa Parse
+      const parseResult = Papa.parse(csvContent, {
+        header: true,
+        delimiter: ';', // CSV uses semicolon as delimiter
+        skipEmptyLines: true,
+        transformHeader: (header: string) => header.trim()
+      });
+
+      if (parseResult.errors.length > 0) {
+        return res.status(400).json({ 
+          message: "CSV parsing errors", 
+          errors: parseResult.errors 
+        });
+      }
+
+      // Transform CSV data to match our schema
+      const csvData = parseResult.data.map((row: any) => ({
+        sku: row.KOPR?.trim(),
+        name: row.NOKOPR?.trim(),
+        unit1: row.UD01PR?.trim(),
+        unit2: row.UD02PR?.trim(),
+        branchCode: row.KOSU?.trim(),
+        warehouseCode: row.KOBO?.trim(),
+        warehouseLocation: row.DATOSUBIC?.trim(),
+        physicalStock1: parseFloat(row.STFI1?.replace(',', '.')) || 0,
+        physicalStock2: parseFloat(row.STFI2?.replace(',', '.')) || 0,
+        availableStock1: parseFloat(row.STDV1?.replace(',', '.')) || 0,
+        availableStock2: parseFloat(row.STDV2?.replace(',', '.')) || 0,
+        committedStock1: parseFloat(row.STOCNV1?.replace(',', '.')) || 0,
+        committedStock2: parseFloat(row.STOCNV2?.replace(',', '.')) || 0,
+        unitRatio: parseFloat(row.RLUD?.replace(',', '.')) || 1,
+        fmpr: row.FMPR?.trim(),
+        pfpr: row.PFPR?.trim(),
+        hfpr: row.HFPR?.trim(),
+        rupr: row.RUPR?.trim(),
+        mrpr: row.MRPR?.trim()
+      })).filter((row: any) => row.sku && row.name); // Filter out empty rows
+
+      const result = await storage.importProductStockFromCSV(csvData);
+      
+      res.json({
+        message: "CSV import completed",
+        result
+      });
+    } catch (error) {
+      console.error("Error importing CSV:", error);
+      res.status(500).json({ message: "Failed to import CSV", error: error });
+    }
+  });
+
+  // Warehouse and branch routes
+  app.get('/api/warehouses', isAuthenticated, async (req: any, res) => {
+    try {
+      const warehouses = await storage.getWarehouses();
+      res.json(warehouses);
+    } catch (error) {
+      console.error("Error fetching warehouses:", error);
+      res.status(500).json({ message: "Failed to fetch warehouses" });
+    }
+  });
+
+  app.get('/api/branches', isAuthenticated, async (req: any, res) => {
+    try {
+      const branches = await storage.getBranches();
+      res.json(branches);
+    } catch (error) {
+      console.error("Error fetching branches:", error);
+      res.status(500).json({ message: "Failed to fetch branches" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
