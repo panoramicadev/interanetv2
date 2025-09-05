@@ -767,6 +767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const salespeople = await storage.getSalespeopleUnderSupervisor(supervisorId);
       console.log(`[DEBUG] Found ${salespeople.length} salespeople:`, salespeople.map(sp => sp.salespersonName));
+      console.log(`[DEBUG] Complete response being sent:`, JSON.stringify(salespeople, null, 2));
       res.json(salespeople);
     } catch (error) {
       console.error("Error fetching supervisor salespeople:", error);

@@ -1282,11 +1282,11 @@ export class DatabaseStorage implements IStorage {
       for (const goal of salespersonGoals) {
         // Calcular ventas actuales para la meta basado en el vendedor
         const currentSales = Number(salesStats?.totalSales || 0);
-        const targetAmount = parseFloat(goal.targetAmount || "0");
+        const targetAmount = parseFloat(goal.amount || "0"); // CORREGIDO: era goal.targetAmount pero la BD tiene 'amount'
         const remaining = Math.max(targetAmount - currentSales, 0);
         const progress = targetAmount > 0 ? Math.min((currentSales / targetAmount) * 100, 100) : 0;
 
-        processedGoals.push({
+        const processedGoal = {
           id: goal.id,
           description: goal.description || "Meta de ventas",
           targetAmount,
@@ -1294,10 +1294,13 @@ export class DatabaseStorage implements IStorage {
           remaining,
           period: goal.period || "",
           progress: Math.round(progress)
-        });
+        };
+        
+        console.log(`[DEBUG] Processed goal for ${salesperson.salespersonName}:`, processedGoal);
+        processedGoals.push(processedGoal);
       }
 
-      results.push({
+      const salespersonResult = {
         id: salesperson.id,
         salespersonName: salesperson.salespersonName,
         email: salesperson.email || '',
@@ -1305,7 +1308,10 @@ export class DatabaseStorage implements IStorage {
         transactionCount: Number(salesStats?.transactionCount || 0),
         lastSale: salesStats?.lastSale || '',
         goals: processedGoals
-      });
+      };
+      
+      console.log(`[DEBUG] Final salesperson data for ${salesperson.salespersonName}:`, salespersonResult);
+      results.push(salespersonResult);
     }
 
     return results.sort((a, b) => b.totalSales - a.totalSales);
