@@ -161,7 +161,7 @@ export class DatabaseStorage implements IStorage {
 
     const [metrics] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vabrdo}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         totalTransactions: sql<number>`COUNT(*)`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprad2}), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
@@ -185,13 +185,13 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         salesperson: salesTransactions.nokofu,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vabrdo}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(salesTransactions)
       .where(sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`)
       .groupBy(salesTransactions.nokofu)
-      .orderBy(sql`SUM(${salesTransactions.vabrdo}) DESC`)
+      .orderBy(sql`SUM(${salesTransactions.monto}) DESC`)
       .limit(limit);
 
     return results.map(r => ({
@@ -209,13 +209,13 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         productName: salesTransactions.nokoprct,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vabrdo}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprad2}), 0)`,
       })
       .from(salesTransactions)
       .where(sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`)
       .groupBy(salesTransactions.nokoprct)
-      .orderBy(sql`SUM(${salesTransactions.vabrdo}) DESC`)
+      .orderBy(sql`SUM(${salesTransactions.monto}) DESC`)
       .limit(limit);
 
     return results.map(r => ({
@@ -232,7 +232,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const [totalSalesResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${salesTransactions.vabrdo}), 0)`,
+        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions);
 
@@ -241,12 +241,12 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         segment: salesTransactions.noruen,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vabrdo}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions)
       .where(sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`)
       .groupBy(salesTransactions.noruen)
-      .orderBy(sql`SUM(${salesTransactions.vabrdo}) DESC`);
+      .orderBy(sql`SUM(${salesTransactions.monto}) DESC`);
 
     return results.map(r => ({
       segment: r.segment || '',

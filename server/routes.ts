@@ -124,15 +124,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (let i = 0; i < transactions.length; i++) {
         const transaction = transactions[i];
         
-        // Debug log to see what we're receiving
-        if (i === 0) {
-          console.log('DEBUG: First transaction sample:', {
-            vaivdo: typeof transaction.vaivdo, 
-            vaivdoValue: transaction.vaivdo,
-            monto: typeof transaction.monto,
-            montoValue: transaction.monto
-          });
-        }
         
         try {
           const validated = insertSalesTransactionSchema.parse(transaction);
