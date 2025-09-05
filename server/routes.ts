@@ -269,6 +269,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Goals progress endpoint
+  app.get('/api/goals/progress', isAuthenticated, async (req, res) => {
+    try {
+      const goals = await storage.getGoals();
+      const goalsWithProgress = await Promise.all(
+        goals.map(async (goal) => {
+          let currentSales = 0;
+          
+          switch (goal.type) {
+            case 'global':
+              currentSales = await storage.getGlobalSalesForPeriod(goal.period);
+              break;
+            case 'segment':
+              if (goal.target) {
+                currentSales = await storage.getSegmentSalesForPeriod(goal.target, goal.period);
+              }
+              break;
+            case 'salesperson':
+              if (goal.target) {
+                currentSales = await storage.getSalespersonSalesForPeriod(goal.target, goal.period);
+              }
+              break;
+          }
+
+          const targetAmount = parseFloat(goal.amount);
+          const percentage = targetAmount > 0 ? (currentSales / targetAmount) * 100 : 0;
+          const remaining = Math.max(0, targetAmount - currentSales);
+
+          return {
+            ...goal,
+            currentSales,
+            targetAmount,
+            percentage: Math.min(100, percentage),
+            remaining,
+            isCompleted: percentage >= 100
+          };
+        })
+      );
+
+      res.json(goalsWithProgress);
+    } catch (error) {
+      console.error("Error fetching goals progress:", error);
+      res.status(500).json({ message: "Failed to fetch goals progress" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

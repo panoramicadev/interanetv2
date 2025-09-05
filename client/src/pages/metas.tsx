@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/dashboard/sidebar";
 import ImportModal from "@/components/dashboard/import-modal";
+import GoalsProgress from "@/components/dashboard/goals-progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -254,6 +255,8 @@ export default function Metas() {
 
         {/* Main Content */}
         <main className="p-6 space-y-6">
+          {/* Goals Progress Dashboard */}
+          <GoalsProgress />
           {/* Create/Edit Form */}
           {showCreateForm && (
             <Card>

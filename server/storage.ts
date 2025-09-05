@@ -74,6 +74,11 @@ export interface IStorage {
   // Data for goals form
   getUniqueSegments(): Promise<string[]>;
   getUniqueSalespeople(): Promise<string[]>;
+  
+  // Sales data for goals comparison
+  getGlobalSalesForPeriod(period: string): Promise<number>;
+  getSegmentSalesForPeriod(segment: string, period: string): Promise<number>;
+  getSalespersonSalesForPeriod(salesperson: string, period: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -395,6 +400,53 @@ export class DatabaseStorage implements IStorage {
       .orderBy(salesTransactions.nokofu);
     
     return result.map(r => r.salesperson).filter(Boolean);
+  }
+
+  // Sales data for goals comparison
+  async getGlobalSalesForPeriod(period: string): Promise<number> {
+    const result = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`
+      })
+      .from(salesTransactions)
+      .where(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`)
+      .execute();
+
+    return Number(result[0]?.total || 0);
+  }
+
+  async getSegmentSalesForPeriod(segment: string, period: string): Promise<number> {
+    const result = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`
+      })
+      .from(salesTransactions)
+      .where(
+        and(
+          eq(salesTransactions.noruen, segment),
+          sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`
+        )
+      )
+      .execute();
+
+    return Number(result[0]?.total || 0);
+  }
+
+  async getSalespersonSalesForPeriod(salesperson: string, period: string): Promise<number> {
+    const result = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`
+      })
+      .from(salesTransactions)
+      .where(
+        and(
+          eq(salesTransactions.nokofu, salesperson),
+          sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`
+        )
+      )
+      .execute();
+
+    return Number(result[0]?.total || 0);
   }
 }
 
