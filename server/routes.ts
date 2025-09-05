@@ -55,7 +55,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -479,6 +479,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching goals progress:", error);
       res.status(500).json({ message: "Failed to fetch goals progress" });
+    }
+  });
+
+  // Salesperson users management endpoints
+  app.get('/api/users/salespeople', isAuthenticated, async (req, res) => {
+    try {
+      // Solo admin puede acceder a esta ruta
+      const user = req.user as any;
+      const userId = user.claims.sub;
+      const userRecord = await storage.getUser(userId);
+      
+      if (userRecord?.role !== 'admin') {
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden gestionar usuarios.' });
+      }
+
+      const users = await storage.getSalespeopleUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching salesperson users:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson users" });
+    }
+  });
+
+  app.post('/api/users/salespeople', isAuthenticated, async (req, res) => {
+    try {
+      // Solo admin puede crear usuarios
+      const user = req.user as any;
+      const userId = user.claims.sub;
+      const userRecord = await storage.getUser(userId);
+      
+      if (userRecord?.role !== 'admin') {
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden crear usuarios.' });
+      }
+
+      const validatedUser = insertSalespersonUserSchema.parse(req.body);
+      
+      // Hash de la contraseña si se proporciona
+      if (validatedUser.password) {
+        // En un entorno real, aquí usarías bcrypt para hashear la contraseña
+        // Por simplicidad, la guardamos tal como viene (NO recomendado para producción)
+        console.warn("ADVERTENCIA: La contraseña no está hasheada. Esto es solo para desarrollo.");
+      }
+
+      const newUser = await storage.createSalespersonUser(validatedUser);
+      res.json(newUser);
+    } catch (error: any) {
+      console.error("Error creating salesperson user:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: "Datos inválidos", 
+          details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
+        });
+      }
+      res.status(500).json({ message: "Failed to create salesperson user" });
+    }
+  });
+
+  app.put('/api/users/salespeople/:id', isAuthenticated, async (req, res) => {
+    try {
+      // Solo admin puede actualizar usuarios
+      const user = req.user as any;
+      const userId = user.claims.sub;
+      const userRecord = await storage.getUser(userId);
+      
+      if (userRecord?.role !== 'admin') {
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden actualizar usuarios.' });
+      }
+
+      const { id } = req.params;
+      const validatedUser = insertSalespersonUserSchema.partial().parse(req.body);
+      
+      // Hash de la contraseña si se proporciona
+      if (validatedUser.password) {
+        console.warn("ADVERTENCIA: La contraseña no está hasheada. Esto es solo para desarrollo.");
+      }
+
+      const updatedUser = await storage.updateSalespersonUser(id, validatedUser);
+      res.json(updatedUser);
+    } catch (error: any) {
+      console.error("Error updating salesperson user:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: "Datos inválidos", 
+          details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
+        });
+      }
+      res.status(500).json({ message: "Failed to update salesperson user" });
+    }
+  });
+
+  app.delete('/api/users/salespeople/:id', isAuthenticated, async (req, res) => {
+    try {
+      // Solo admin puede eliminar usuarios
+      const user = req.user as any;
+      const userId = user.claims.sub;
+      const userRecord = await storage.getUser(userId);
+      
+      if (userRecord?.role !== 'admin') {
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden eliminar usuarios.' });
+      }
+
+      const { id } = req.params;
+      await storage.deleteSalespersonUser(id);
+      res.json({ message: 'Usuario eliminado correctamente' });
+    } catch (error) {
+      console.error("Error deleting salesperson user:", error);
+      res.status(500).json({ message: "Failed to delete salesperson user" });
+    }
+  });
+
+  app.post('/api/users/salespeople/auto-create', isAuthenticated, async (req, res) => {
+    try {
+      // Solo admin puede auto-crear usuarios
+      const user = req.user as any;
+      const userId = user.claims.sub;
+      const userRecord = await storage.getUser(userId);
+      
+      if (userRecord?.role !== 'admin') {
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden crear usuarios automáticamente.' });
+      }
+
+      const createdCount = await storage.autoCreateUsersForSalespeople();
+      res.json({ 
+        message: `${createdCount} usuarios creados automáticamente`,
+        createdCount 
+      });
+    } catch (error) {
+      console.error("Error auto-creating salesperson users:", error);
+      res.status(500).json({ message: "Failed to auto-create salesperson users" });
     }
   });
 
