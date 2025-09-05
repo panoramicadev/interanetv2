@@ -39,18 +39,16 @@ export default function ClientsDashboard() {
     window.location.href = "/api/logout";
   };
 
-  const getInitials = (firstName?: string | null, lastName?: string | null) => {
-    const first = firstName?.charAt(0) || "";
-    const last = lastName?.charAt(0) || "";
-    return (first + last).toUpperCase() || "V";
+  const getInitials = (name?: string) => {
+    if (!name) return "V";
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+    }
+    return parts[0].charAt(0).toUpperCase();
   };
 
-  const getDisplayName = (firstName?: string | null, lastName?: string | null) => {
-    if (firstName && lastName) {
-      return `${firstName} ${lastName}`;
-    }
-    if (firstName) return firstName;
-    if (lastName) return lastName;
+  const getDisplayName = () => {
     return user?.salespersonName || "Vendedor";
   };
 
@@ -151,12 +149,12 @@ export default function ClientsDashboard() {
             <div className="flex items-center space-x-3 mb-4">
               <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
                 <span className="text-xs font-medium text-white">
-                  {getInitials(user?.firstName, user?.lastName)}
+                  {getInitials(user?.salespersonName)}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
-                  {getDisplayName(user?.firstName, user?.lastName)}
+                  {getDisplayName()}
                 </p>
                 <p className="text-xs text-slate-400">Vendedor</p>
               </div>
