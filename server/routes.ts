@@ -189,7 +189,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/sales/chart-data', isAuthenticated, async (req, res) => {
     try {
       const { period = 'monthly', selectedPeriod, filterType } = req.query;
-      const dateRange = getDateRange(selectedPeriod as string, filterType as string);
+      
+      // Si tenemos selectedPeriod y filterType, usamos esos para el filtro de fecha
+      const dateRange = selectedPeriod && filterType 
+        ? getDateRange(selectedPeriod as string, filterType as string)
+        : { startDate: undefined, endDate: undefined };
       
       const chartData = await storage.getSalesChartData(
         period as 'weekly' | 'monthly' | 'daily',
