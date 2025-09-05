@@ -168,11 +168,6 @@ export default function SalespersonDashboard() {
       icon: LayoutDashboard,
     },
     {
-      href: "/metas",
-      label: "Mis Metas",
-      icon: Target,
-    },
-    {
       href: "/presupuestos",
       label: "Presupuestos",
       icon: FileText,
