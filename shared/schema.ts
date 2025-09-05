@@ -223,6 +223,7 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   isActive: boolean("is_active").default(true),
   role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "salesperson" | "client"
   supervisorId: varchar("supervisor_id"), // ID del supervisor que gestiona este vendedor (solo para role="salesperson")
+  assignedSegment: varchar("assigned_segment"), // Segmento asignado al supervisor (solo para role="supervisor")
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -250,6 +251,7 @@ export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, 
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().or(z.literal("")),
   role: z.enum(["admin", "supervisor", "salesperson", "client"]).default("salesperson"),
   supervisorId: z.string().optional().nullable(),
+  assignedSegment: z.string().optional().nullable(),
 }).omit({
   id: true,
   createdAt: true,
