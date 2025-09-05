@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/landing";
+import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Metas from "@/pages/metas";
 import Users from "@/pages/users";
@@ -14,20 +15,60 @@ import ClientDetail from "@/pages/client-detail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
+      {!user ? (
+        <>
+          <Route path="/" component={Login} />
+          <Route path="/login" component={Login} />
+          <Route component={Login} />
+        </>
       ) : (
         <>
-          <Route path="/" component={Dashboard} />
-          <Route path="/metas" component={Metas} />
-          <Route path="/usuarios" component={Users} />
-          <Route path="/segment/:segmentName" component={SegmentDetail} />
-          <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
-          <Route path="/client/:clientName" component={ClientDetail} />
+          {/* Rutas según el rol del usuario */}
+          {user.role === 'admin' && (
+            <>
+              <Route path="/" component={Dashboard} />
+              <Route path="/metas" component={Metas} />
+              <Route path="/usuarios" component={Users} />
+              <Route path="/segment/:segmentName" component={SegmentDetail} />
+              <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
+              <Route path="/client/:clientName" component={ClientDetail} />
+            </>
+          )}
+          {user.role === 'supervisor' && (
+            <>
+              <Route path="/" component={Dashboard} />
+              <Route path="/metas" component={Metas} />
+              <Route path="/segment/:segmentName" component={SegmentDetail} />
+              <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
+              <Route path="/client/:clientName" component={ClientDetail} />
+            </>
+          )}
+          {user.role === 'salesperson' && (
+            <>
+              <Route path="/" component={Dashboard} />
+              <Route path="/client/:clientName" component={ClientDetail} />
+            </>
+          )}
+          {user.role === 'client' && (
+            <>
+              <Route path="/" component={Dashboard} />
+            </>
+          )}
         </>
       )}
       <Route component={NotFound} />
