@@ -499,12 +499,7 @@ export class DatabaseStorage implements IStorage {
 
   async getGoalsBySalesperson(salesperson: string): Promise<Goal[]> {
     return await db.select().from(goals)
-      .where(
-        and(
-          eq(goals.type, 'salesperson'),
-          eq(goals.targetEntity, salesperson)
-        )
-      )
+      .where(sql`${goals.type} = 'salesperson' AND ${goals.target} = ${salesperson}`)
       .orderBy(desc(goals.createdAt));
   }
 

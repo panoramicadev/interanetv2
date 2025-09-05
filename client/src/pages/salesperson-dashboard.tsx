@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import type { User } from "@shared/schema";
+import type { User, SalespersonUser } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +36,7 @@ import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
 
 export default function SalespersonDashboard() {
-  const { user, isAuthenticated, isLoading } = useAuth() as { user: User | null; isAuthenticated: boolean; isLoading: boolean };
+  const { user, isAuthenticated, isLoading } = useAuth() as { user: (User & { salespersonName?: string }) | null; isAuthenticated: boolean; isLoading: boolean };
   const { toast } = useToast();
   const [selectedPeriod, setSelectedPeriod] = useState("2025-09");
   const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
@@ -108,20 +108,24 @@ export default function SalespersonDashboard() {
   }
 
   // Queries específicas para el vendedor
-  const { data: salespersonMetrics } = useQuery({
+  const { data: salespersonMetrics = {} } = useQuery({
     queryKey: [`/api/sales/metrics/salesperson/${user?.salespersonName}`],
+    enabled: !!user?.salespersonName,
   });
 
-  const { data: salespersonClients } = useQuery({
+  const { data: salespersonClients = [] } = useQuery({
     queryKey: [`/api/sales/clients/salesperson/${user?.salespersonName}`],
+    enabled: !!user?.salespersonName,
   });
 
-  const { data: salespersonGoals } = useQuery({
+  const { data: salespersonGoals = [] } = useQuery({
     queryKey: [`/api/goals/salesperson/${user?.salespersonName}`],
+    enabled: !!user?.salespersonName,
   });
 
-  const { data: chartData } = useQuery({
+  const { data: chartData = [] } = useQuery({
     queryKey: [`/api/sales/chart-data/salesperson/${user?.salespersonName}?period=monthly&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
+    enabled: !!user?.salespersonName,
   });
 
   const handleLogout = () => {
@@ -352,11 +356,11 @@ export default function SalespersonDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-900">
-                  {salespersonMetrics ? new Intl.NumberFormat('es-CL', {
+                  {(salespersonMetrics as any)?.totalSales ? new Intl.NumberFormat('es-CL', {
                     style: 'currency',
                     currency: 'CLP',
                     minimumFractionDigits: 0,
-                  }).format(salespersonMetrics.totalSales) : "Cargando..."}
+                  }).format((salespersonMetrics as any).totalSales) : "Cargando..."}
                 </div>
                 <p className="text-xs text-gray-600 mt-1">
                   Total de ventas personales
@@ -371,7 +375,7 @@ export default function SalespersonDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-900">
-                  {salespersonMetrics?.totalTransactions || 0}
+                  {(salespersonMetrics as any)?.totalTransactions || 0}
                 </div>
                 <p className="text-xs text-gray-600 mt-1">
                   Transacciones realizadas
@@ -386,7 +390,7 @@ export default function SalespersonDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-900">
-                  {salespersonClients?.length || 0}
+                  {(salespersonClients as any[])?.length || 0}
                 </div>
                 <p className="text-xs text-gray-600 mt-1">
                   Clientes únicos atendidos
@@ -401,11 +405,11 @@ export default function SalespersonDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-900">
-                  {salespersonMetrics ? new Intl.NumberFormat('es-CL', {
+                  {(salespersonMetrics as any)?.averageTransaction ? new Intl.NumberFormat('es-CL', {
                     style: 'currency',
                     currency: 'CLP',
                     minimumFractionDigits: 0,
-                  }).format(salespersonMetrics.averageTransaction) : "Cargando..."}
+                  }).format((salespersonMetrics as any).averageTransaction) : "Cargando..."}
                 </div>
                 <p className="text-xs text-gray-600 mt-1">
                   Valor promedio por transacción
@@ -449,7 +453,7 @@ export default function SalespersonDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {salespersonGoals?.map((goal: any) => {
+                    {(salespersonGoals as any[])?.map((goal: any) => {
                       const progress = Math.min((goal.currentSales / parseFloat(goal.targetAmount)) * 100, 100);
                       const isCompleted = progress >= 100;
                       
@@ -499,7 +503,7 @@ export default function SalespersonDashboard() {
                       );
                     })}
                     
-                    {(!salespersonGoals || salespersonGoals.length === 0) && (
+                    {(!salespersonGoals || (salespersonGoals as any[]).length === 0) && (
                       <div className="text-center py-8">
                         <Target className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                         <p className="text-gray-500 text-sm">No tienes metas asignadas</p>
@@ -524,8 +528,8 @@ export default function SalespersonDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {salespersonClients?.slice(0, 5).map((client: any, index: number) => (
-                    <div key={client.client} className="flex items-center justify-between">
+                  {(salespersonClients as any[])?.slice(0, 5).map((client: any, index: number) => (
+                    <div key={`${client.client}-${index}`} className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
                           <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
@@ -550,29 +554,70 @@ export default function SalespersonDashboard() {
               </CardContent>
             </Card>
 
-            {/* Recent Transactions */}
+            {/* Sistema de Mensajería */}
             <Card className="rounded-2xl border-gray-200/60 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-xl font-semibold text-gray-900">Transacciones Recientes</CardTitle>
+                <CardTitle className="text-xl font-semibold text-gray-900">Centro de Mensajes</CardTitle>
                 <CardDescription className="text-gray-600">
-                  Tus últimas ventas realizadas
+                  Comunicación con supervisores y clientes
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="space-y-3">
-                    {salespersonMetrics ? (
-                      <div className="text-center py-4">
-                        <p className="text-sm text-gray-600">
-                          Consulta tus transacciones detalladas en el panel principal
-                        </p>
+                  {/* Mensaje de supervisor */}
+                  <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
+                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                      <Users className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-blue-900">Supervisor</p>
+                        <span className="text-xs text-blue-600">Hace 2 horas</span>
                       </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500 text-sm">No hay transacciones recientes</p>
+                      <p className="text-sm text-blue-800 mt-1">
+                        Excelente trabajo este mes. Has superado tu meta en un 15%. ¡Sigue así!
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Mensaje de cliente */}
+                  <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
+                    <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                      <MessageSquare className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-green-900">Cliente</p>
+                        <span className="text-xs text-green-600">Hace 1 día</span>
                       </div>
-                    )}
+                      <p className="text-sm text-green-800 mt-1">
+                        Gracias por la atención. Los productos llegaron en perfecto estado.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Alerta del sistema */}
+                  <div className="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg">
+                    <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center">
+                      <AlertCircle className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-orange-900">Sistema</p>
+                        <span className="text-xs text-orange-600">Hace 3 días</span>
+                      </div>
+                      <p className="text-sm text-orange-800 mt-1">
+                        Recordatorio: Actualizar información de contacto de clientes pendientes.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Botón para enviar mensaje */}
+                  <div className="pt-2 border-t">
+                    <Button variant="outline" className="w-full text-sm">
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Enviar nuevo mensaje
+                    </Button>
                   </div>
                 </div>
               </CardContent>
