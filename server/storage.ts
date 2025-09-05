@@ -1896,76 +1896,119 @@ export class DatabaseStorage implements IStorage {
     hfpr?: string;
     rupr?: string;
     mrpr?: string;
+    originalRowIndex?: number;
   }>): Promise<{
     processedProducts: number;
     newProducts: number;
     updatedStock: number;
+    skippedProducts: number;
     errors: string[];
   }> {
+    console.log(`🚀 Iniciando importación de ${csvData.length} productos`);
+    
     const errors: string[] = [];
     let processedProducts = 0;
     let newProducts = 0;
     let updatedStock = 0;
+    let skippedProducts = 0;
 
     for (const row of csvData) {
       try {
+        // Validación extra de datos críticos
+        if (!row.sku || row.sku.length === 0) {
+          skippedProducts++;
+          errors.push(`Fila ${row.originalRowIndex}: SKU vacío o inválido`);
+          continue;
+        }
+
+        if (!row.name || row.name.length === 0) {
+          skippedProducts++;
+          errors.push(`Fila ${row.originalRowIndex}: Nombre de producto vacío para SKU ${row.sku}`);
+          continue;
+        }
+
+        if (!row.branchCode || !row.warehouseCode) {
+          skippedProducts++;
+          errors.push(`Fila ${row.originalRowIndex}: Sucursal (${row.branchCode}) o Bodega (${row.warehouseCode}) inválida para SKU ${row.sku}`);
+          continue;
+        }
+
+        console.log(`📦 Procesando SKU: ${row.sku} (${row.name}) - Sucursal: ${row.branchCode}, Bodega: ${row.warehouseCode}`);
+
         // Verificar si el producto existe
         let product = await this.getProduct(row.sku);
         
         if (!product) {
+          console.log(`➕ Creando nuevo producto: ${row.sku}`);
           // Crear nuevo producto (sin precio, se establece manualmente)
           product = await this.createProduct({
             sku: row.sku,
             name: row.name,
-            unit1: row.unit1,
-            unit2: row.unit2,
-            unitRatio: row.unitRatio?.toString(),
+            unit1: row.unit1 || 'UN',
+            unit2: row.unit2 || 'UN',
+            unitRatio: row.unitRatio?.toString() || '1',
             active: true
           });
           newProducts++;
         } else {
+          console.log(`🔄 Actualizando producto existente: ${row.sku}`);
           // Actualizar información del producto (preservando precio)
           await this.updateProduct(row.sku, {
             name: row.name,
-            unit1: row.unit1,
-            unit2: row.unit2,
-            unitRatio: row.unitRatio?.toString()
+            unit1: row.unit1 || 'UN',
+            unit2: row.unit2 || 'UN',
+            unitRatio: row.unitRatio?.toString() || '1'
           });
         }
 
         // Actualizar stock
-        await this.upsertProductStock({
+        console.log(`📊 Actualizando stock para ${row.sku}: Stock Físico 1: ${row.physicalStock1}, Disponible 1: ${row.availableStock1}`);
+        
+        const stockData = {
           productSku: row.sku,
           branchCode: row.branchCode,
           warehouseCode: row.warehouseCode,
-          warehouseLocation: row.warehouseLocation,
-          physicalStock1: row.physicalStock1?.toString(),
-          physicalStock2: row.physicalStock2?.toString(),
-          availableStock1: row.availableStock1?.toString(),
-          availableStock2: row.availableStock2?.toString(),
-          committedStock1: row.committedStock1?.toString(),
-          committedStock2: row.committedStock2?.toString(),
-          fmpr: row.fmpr,
-          pfpr: row.pfpr,
-          hfpr: row.hfpr,
-          rupr: row.rupr,
-          mrpr: row.mrpr
-        });
+          warehouseLocation: row.warehouseLocation || '',
+          physicalStock1: row.physicalStock1?.toString() || '0',
+          physicalStock2: row.physicalStock2?.toString() || '0',
+          availableStock1: row.availableStock1?.toString() || '0',
+          availableStock2: row.availableStock2?.toString() || '0',
+          committedStock1: row.committedStock1?.toString() || '0',
+          committedStock2: row.committedStock2?.toString() || '0',
+          fmpr: row.fmpr || '',
+          pfpr: row.pfpr || '',
+          hfpr: row.hfpr || '',
+          rupr: row.rupr || '',
+          mrpr: row.mrpr || ''
+        };
+
+        await this.upsertProductStock(stockData);
         
         updatedStock++;
         processedProducts++;
+        
+        if (processedProducts % 50 === 0) {
+          console.log(`📈 Progreso: ${processedProducts} productos procesados`);
+        }
+        
       } catch (error) {
-        console.error(`Error procesando SKU ${row.sku}:`, error);
-        errors.push(`Error procesando SKU ${row.sku}: ${error}`);
+        console.error(`❌ Error procesando SKU ${row.sku} (Fila ${row.originalRowIndex}):`, error);
+        errors.push(`Fila ${row.originalRowIndex} - SKU ${row.sku}: ${error instanceof Error ? error.message : String(error)}`);
+        skippedProducts++;
       }
     }
 
-    return {
+    const summary = {
       processedProducts,
       newProducts,
       updatedStock,
+      skippedProducts,
       errors
     };
+
+    console.log(`🎉 Importación completada:`, summary);
+    
+    return summary;
   }
 
   async getProductAnalytics(sku: string): Promise<{
