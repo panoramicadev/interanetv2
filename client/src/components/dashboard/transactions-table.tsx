@@ -40,6 +40,10 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
     queryKey: [`/api/sales/transactions?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}`],
   });
 
+  const { data: salespeople } = useQuery<{ salesperson: string; totalSales: number; transactionCount: number }[]>({
+    queryKey: [`/api/sales/top-salespeople?limit=50&period=${selectedPeriod}&filterType=${filterType}`],
+  });
+
   // Removed top salespeople query - now handled by separate component
 
   const formatCurrency = (amount: number) => {
@@ -50,14 +54,34 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
     }).format(amount);
   };
 
-  const getRandomSalesperson = () => {
-    const salespeople = [
-      { name: 'Carlos Mendoza', color: 'bg-blue-100 text-blue-800' },
-      { name: 'Ana García', color: 'bg-green-100 text-green-800' },
-      { name: 'Luis Rodríguez', color: 'bg-purple-100 text-purple-800' },
-      { name: 'María Silva', color: 'bg-orange-100 text-orange-800' }
+  const getSalespersonForTransaction = (transactionId: string) => {
+    if (!salespeople || salespeople.length === 0) {
+      return { name: 'Vendedor no asignado', color: 'bg-gray-100 text-gray-600' };
+    }
+    
+    // Crear una función hash simple basada en el ID de la transacción
+    // para asignar consistentemente el mismo vendedor a la misma transacción
+    const hash = transactionId.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    
+    const colors = [
+      'bg-blue-100 text-blue-800',
+      'bg-green-100 text-green-800', 
+      'bg-purple-100 text-purple-800',
+      'bg-orange-100 text-orange-800',
+      'bg-teal-100 text-teal-800',
+      'bg-pink-100 text-pink-800'
     ];
-    return salespeople[Math.floor(Math.random() * salespeople.length)];
+    
+    const salespersonIndex = Math.abs(hash) % salespeople.length;
+    const colorIndex = Math.abs(hash) % colors.length;
+    
+    return {
+      name: salespeople[salespersonIndex].salesperson,
+      color: colors[colorIndex]
+    };
   };
 
   const getTimeAgo = (dateString: string | null) => {
@@ -148,7 +172,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                 ) : (
                   transactions?.map((transaction) => {
                     const customerName = transaction.nokoen || 'Cliente Anónimo';
-                    const salesperson = getRandomSalesperson();
+                    const salesperson = getSalespersonForTransaction(transaction.id);
                     const timeAgo = getTimeAgo(transaction.feemdo);
                     
                     return (
