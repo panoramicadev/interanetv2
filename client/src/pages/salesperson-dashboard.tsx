@@ -122,10 +122,15 @@ export default function SalespersonDashboard() {
     enabled: !!user?.salespersonName,
   });
 
-  const { data: salespersonGoals = [] } = useQuery({
-    queryKey: [`/api/goals/salesperson/${user?.salespersonName}`],
+  const { data: allGoalsProgress = [] } = useQuery({
+    queryKey: [`/api/goals/progress`],
     enabled: !!user?.salespersonName,
   });
+
+  // Filtrar metas específicas del vendedor desde el endpoint del administrador
+  const salespersonGoals = (allGoalsProgress as any[])?.filter((goal: any) => 
+    goal.type === 'salesperson' && goal.target === user?.salespersonName
+  ) || [];
 
   const { data: chartData = [] } = useQuery({
     queryKey: [`/api/sales/chart-data/salesperson/${user?.salespersonName}?period=monthly&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
@@ -440,8 +445,8 @@ export default function SalespersonDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {(salespersonGoals as any[])?.map((goal: any) => {
-                  const progress = Math.min((goal.currentSales / parseFloat(goal.targetAmount)) * 100, 100);
+                {salespersonGoals?.map((goal: any) => {
+                  const progress = Math.min((goal.percentage || 0), 100);
                   const isCompleted = progress >= 100;
                   
                   return (
@@ -459,6 +464,7 @@ export default function SalespersonDashboard() {
                       </div>
                       <div className="space-y-2">
                         <div className="flex justify-between text-xs text-gray-600">
+                          <span>Actual:</span>
                           <span>
                             {new Intl.NumberFormat('es-CL', {
                               style: 'currency',
@@ -466,12 +472,15 @@ export default function SalespersonDashboard() {
                               minimumFractionDigits: 0,
                             }).format(goal.currentSales || 0)}
                           </span>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-600">
+                          <span>Meta:</span>
                           <span>
                             {new Intl.NumberFormat('es-CL', {
                               style: 'currency',
                               currency: 'CLP',
                               minimumFractionDigits: 0,
-                            }).format(parseFloat(goal.targetAmount))}
+                            }).format(goal.targetAmount || 0)}
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-3">
@@ -482,6 +491,16 @@ export default function SalespersonDashboard() {
                             style={{ width: `${Math.min(progress, 100)}%` }}
                           />
                         </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">Restante:</span>
+                          <span className={`font-medium ${goal.remaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                            {new Intl.NumberFormat('es-CL', {
+                              style: 'currency',
+                              currency: 'CLP',
+                              minimumFractionDigits: 0,
+                            }).format(Math.max(goal.remaining || 0, 0))}
+                          </span>
+                        </div>
                       </div>
                       <p className="text-xs text-gray-500">
                         Período: {goal.period}
@@ -490,7 +509,7 @@ export default function SalespersonDashboard() {
                   );
                 })}
                 
-                {(!salespersonGoals || (salespersonGoals as any[]).length === 0) && (
+                {(!salespersonGoals || salespersonGoals.length === 0) && (
                   <div className="col-span-full text-center py-8">
                     <Target className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 text-sm">No tienes metas asignadas</p>
