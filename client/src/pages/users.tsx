@@ -50,6 +50,12 @@ export default function UsersPage() {
     enabled: user?.role === 'admin',
   });
 
+  // Query para obtener supervisores disponibles
+  const { data: availableSupervisors = [] } = useQuery<SalespersonUser[]>({
+    queryKey: ["/api/users/salespeople/supervisors"],
+    enabled: user?.role === 'admin',
+  });
+
   // Mutation para crear usuario
   const createUserMutation = useMutation({
     mutationFn: async (userData: InsertSalespersonUserInput) => {
@@ -138,17 +144,27 @@ export default function UsersPage() {
       password: "",
       isActive: true,
       role: "salesperson",
+      supervisorId: null,
     },
   });
 
   // Watch salespersonName to auto-generate username
   const watchedSalesperson = createForm.watch("salespersonName");
+  const watchedRole = createForm.watch("role");
+  
   useEffect(() => {
     if (watchedSalesperson) {
       const autoUsername = generateUsername(watchedSalesperson);
       createForm.setValue("username", autoUsername);
     }
   }, [watchedSalesperson, createForm]);
+
+  // Clear supervisorId when role is not salesperson
+  useEffect(() => {
+    if (watchedRole !== "salesperson") {
+      createForm.setValue("supervisorId", null);
+    }
+  }, [watchedRole, createForm]);
 
   // Form para editar usuario
   const editForm = useForm<InsertSalespersonUserInput>({
@@ -160,6 +176,7 @@ export default function UsersPage() {
       password: "",
       isActive: true,
       role: "salesperson",
+      supervisorId: null,
     },
   });
 
@@ -180,7 +197,8 @@ export default function UsersPage() {
       email: user.email ?? "",
       password: "", // No mostrar la contraseña actual
       isActive: user.isActive ?? true,
-      role: (user.role ?? "salesperson") as "salesperson" | "admin",
+      role: (user.role ?? "salesperson") as "admin" | "supervisor" | "salesperson" | "client",
+      supervisorId: user.supervisorId ?? null,
     });
     setIsEditDialogOpen(true);
   };
@@ -250,6 +268,56 @@ export default function UsersPage() {
                   />
                   <FormField
                     control={createForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rol</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? "salesperson"}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-role">
+                              <SelectValue placeholder="Selecciona un rol" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="admin">Administrador</SelectItem>
+                            <SelectItem value="supervisor">Supervisor</SelectItem>
+                            <SelectItem value="salesperson">Vendedor</SelectItem>
+                            <SelectItem value="client">Cliente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {createForm.watch("role") === "salesperson" && (
+                    <FormField
+                      control={createForm.control}
+                      name="supervisorId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Supervisor</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value ?? undefined}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-supervisor">
+                                <SelectValue placeholder="Selecciona un supervisor" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">Sin supervisor</SelectItem>
+                              {availableSupervisors.map((supervisor) => (
+                                <SelectItem key={supervisor.id} value={supervisor.id}>
+                                  {supervisor.salespersonName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  <FormField
+                    control={createForm.control}
                     name="username"
                     render={({ field }) => (
                       <FormItem>
@@ -293,15 +361,17 @@ export default function UsersPage() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Rol</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value ?? "salesperson"}>
+                        <Select onValueChange={field.onChange} value={field.value ?? "salesperson"}>
                           <FormControl>
                             <SelectTrigger data-testid="select-role">
                               <SelectValue placeholder="Selecciona un rol" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="salesperson">Vendedor</SelectItem>
                             <SelectItem value="admin">Administrador</SelectItem>
+                            <SelectItem value="supervisor">Supervisor</SelectItem>
+                            <SelectItem value="salesperson">Vendedor</SelectItem>
+                            <SelectItem value="client">Cliente</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -374,8 +444,10 @@ export default function UsersPage() {
                     <TableCell className="font-mono text-sm">{user.username || "-"}</TableCell>
                     <TableCell>{user.email || "-"}</TableCell>
                     <TableCell>
-                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                        {user.role === 'admin' ? 'Administrador' : 'Vendedor'}
+                      <Badge variant={user.role === 'admin' || user.role === 'supervisor' ? 'default' : 'secondary'}>
+                        {user.role === 'admin' ? 'Administrador' : 
+                         user.role === 'supervisor' ? 'Supervisor' :
+                         user.role === 'client' ? 'Cliente' : 'Vendedor'}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -505,6 +577,33 @@ export default function UsersPage() {
                   </FormItem>
                 )}
               />
+              {editForm.watch("role") === "salesperson" && (
+                <FormField
+                  control={editForm.control}
+                  name="supervisorId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supervisor</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? "none"}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-supervisor">
+                            <SelectValue placeholder="Selecciona un supervisor" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Sin supervisor</SelectItem>
+                          {availableSupervisors.map((supervisor) => (
+                            <SelectItem key={supervisor.id} value={supervisor.id}>
+                              {supervisor.salespersonName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={editForm.control}
                 name="isActive"

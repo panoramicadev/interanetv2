@@ -589,6 +589,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/users/salespeople/supervisors', isAuthenticated, async (req, res) => {
+    try {
+      // Solo admin puede acceder a esta ruta
+      const user = req.user as any;
+      const userId = user.claims.sub;
+      const userRecord = await storage.getUser(userId);
+      
+      if (userRecord?.role !== 'admin') {
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden acceder a la gestión de usuarios.' });
+      }
+
+      const supervisors = await storage.getSupervisors();
+      res.json(supervisors);
+    } catch (error) {
+      console.error("Error fetching supervisors:", error);
+      res.status(500).json({ message: "Failed to fetch supervisors" });
+    }
+  });
+
 
   const httpServer = createServer(app);
   return httpServer;

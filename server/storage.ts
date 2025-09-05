@@ -135,6 +135,7 @@ export interface IStorage {
   
   // Salesperson users management
   getSalespeopleUsers(): Promise<SalespersonUser[]>;
+  getSupervisors(): Promise<SalespersonUser[]>;
   createSalespersonUser(user: InsertSalespersonUser): Promise<SalespersonUser>;
   updateSalespersonUser(id: string, user: Partial<InsertSalespersonUser>): Promise<SalespersonUser>;
   deleteSalespersonUser(id: string): Promise<void>;
@@ -861,6 +862,12 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSalespersonUser(id: string): Promise<void> {
     await db.delete(salespeopleUsers).where(eq(salespeopleUsers.id, id));
+  }
+
+  async getSupervisors(): Promise<SalespersonUser[]> {
+    return await db.select().from(salespeopleUsers)
+      .where(eq(salespeopleUsers.role, 'supervisor'))
+      .orderBy(salespeopleUsers.salespersonName);
   }
 
   async getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined> {
