@@ -56,6 +56,12 @@ export default function UsersPage() {
     enabled: user?.role === 'admin',
   });
 
+  // Query para obtener clientes disponibles
+  const { data: availableClients = [] } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/clients"],
+    enabled: user?.role === 'admin',
+  });
+
   // Mutation para crear usuario
   const createUserMutation = useMutation({
     mutationFn: async (userData: InsertSalespersonUserInput) => {
@@ -253,37 +259,10 @@ export default function UsersPage() {
                 <form onSubmit={createForm.handleSubmit(handleCreateSubmit)} className="space-y-4">
                   <FormField
                     control={createForm.control}
-                    name="salespersonName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Seleccionar Vendedor</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-salesperson-name">
-                              <SelectValue placeholder="Selecciona un vendedor" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {availableSalespeople
-                              .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
-                              .map((salesperson) => (
-                                <SelectItem key={salesperson} value={salesperson}>
-                                  {salesperson}
-                                </SelectItem>
-                              ))
-                            }
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={createForm.control}
                     name="role"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Rol</FormLabel>
+                        <FormLabel>Rol de Usuario</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value ?? "salesperson"}>
                           <FormControl>
                             <SelectTrigger data-testid="select-role">
@@ -301,6 +280,89 @@ export default function UsersPage() {
                       </FormItem>
                     )}
                   />
+                  
+                  {/* Dropdown para Vendedores */}
+                  {createForm.watch("role") === "salesperson" && (
+                    <FormField
+                      control={createForm.control}
+                      name="salespersonName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Seleccionar Vendedor</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-salesperson-name">
+                                <SelectValue placeholder="Selecciona un vendedor" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {availableSalespeople
+                                .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
+                                .map((salesperson) => (
+                                  <SelectItem key={salesperson} value={salesperson}>
+                                    {salesperson}
+                                  </SelectItem>
+                                ))
+                              }
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  
+                  {/* Dropdown para Clientes */}
+                  {createForm.watch("role") === "client" && (
+                    <FormField
+                      control={createForm.control}
+                      name="salespersonName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Seleccionar Cliente</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-client-name">
+                                <SelectValue placeholder="Selecciona un cliente" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {availableClients
+                                .filter(client => !salespeopleUsers.some(user => user.salespersonName === client))
+                                .map((client) => (
+                                  <SelectItem key={client} value={client}>
+                                    {client}
+                                  </SelectItem>
+                                ))
+                              }
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  
+                  {/* Campo de texto para Administradores y Supervisores */}
+                  {(createForm.watch("role") === "admin" || createForm.watch("role") === "supervisor") && (
+                    <FormField
+                      control={createForm.control}
+                      name="salespersonName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre Completo</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              data-testid="input-user-name" 
+                              placeholder="Ingresa el nombre completo" 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   {createForm.watch("role") === "salesperson" && (
                     <FormField
                       control={createForm.control}

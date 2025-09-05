@@ -77,6 +77,7 @@ export interface IStorage {
   // Data for goals form
   getUniqueSegments(): Promise<string[]>;
   getUniqueSalespeople(): Promise<string[]>;
+  getUniqueClients(): Promise<string[]>;
   
   // Sales data for goals comparison
   getGlobalSalesForPeriod(period: string): Promise<number>;
@@ -139,6 +140,7 @@ export interface IStorage {
   createSalespersonUser(user: InsertSalespersonUser): Promise<SalespersonUser>;
   updateSalespersonUser(id: string, user: Partial<InsertSalespersonUser>): Promise<SalespersonUser>;
   deleteSalespersonUser(id: string): Promise<void>;
+  getSalespersonUser(id: string): Promise<SalespersonUser | undefined>;
   getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined>;
 }
 
@@ -527,6 +529,16 @@ export class DatabaseStorage implements IStorage {
     return result.map((r: any) => r.salesperson).filter((salesperson: string | null): salesperson is string => Boolean(salesperson));
   }
 
+  async getUniqueClients(): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ client: salesTransactions.nokoen })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`)
+      .orderBy(salesTransactions.nokoen);
+    
+    return result.map((r: any) => r.client).filter((client: string | null): client is string => Boolean(client));
+  }
+
   // Sales data for goals comparison
   async getGlobalSalesForPeriod(period: string): Promise<number> {
     const result = await db
@@ -868,6 +880,14 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(salespeopleUsers)
       .where(eq(salespeopleUsers.role, 'supervisor'))
       .orderBy(salespeopleUsers.salespersonName);
+  }
+
+  async getSalespersonUser(id: string): Promise<SalespersonUser | undefined> {
+    const [user] = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.id, id));
+    return user;
   }
 
   async getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined> {

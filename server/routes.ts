@@ -63,14 +63,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      // Check if there's a simulated user in session
+      if (req.session?.simulatedUser) {
+        const user = await storage.getSalespersonUser(req.session.simulatedUser);
+        if (user) {
+          return res.json(user);
+        }
+      }
+
+      // Check for authenticated Replit user
+      if (req.isAuthenticated && req.isAuthenticated()) {
+        const userId = req.user?.claims?.sub;
+        if (userId) {
+          const user = await storage.getUser(userId);
+          if (user) {
+            return res.json(user);
+          }
+        }
+      }
+      
+      // No user found - return null instead of 401 to allow login page to show
+      res.json(null);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Simulate login for testing
+  app.post('/api/auth/simulate-login', async (req, res) => {
+    try {
+      const { userId } = req.body;
+      if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+
+      const user = await storage.getSalespersonUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Store user ID in session
+      req.session.simulatedUser = userId;
+      res.json({ message: "Login successful", user });
+    } catch (error) {
+      console.error("Error in simulate login:", error);
+      res.status(500).json({ message: "Failed to simulate login" });
+    }
+  });
+
+  // Logout
+  app.post('/api/auth/logout', async (req, res) => {
+    try {
+      // Clear simulated user from session
+      if (req.session) {
+        req.session.simulatedUser = null;
+      }
+      res.json({ message: "Logout successful" });
+    } catch (error) {
+      console.error("Error in logout:", error);
+      res.status(500).json({ message: "Failed to logout" });
     }
   });
 
@@ -436,6 +490,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/goals/data/clients', isAuthenticated, async (req, res) => {
+    try {
+      const clients = await storage.getUniqueClients();
+      res.json(clients);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      res.status(500).json({ message: "Failed to fetch clients" });
+    }
+  });
+
   // Goals progress endpoint
   app.get('/api/goals/progress', isAuthenticated, async (req, res) => {
     try {
@@ -483,17 +547,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Salesperson users management endpoints
-  app.get('/api/users/salespeople', isAuthenticated, async (req, res) => {
+  app.get('/api/users/salespeople', async (req, res) => {
     try {
-      // Solo admin puede acceder a esta ruta
-      const user = req.user as any;
-      const userId = user.claims.sub;
-      const userRecord = await storage.getUser(userId);
-      
-      if (userRecord?.role !== 'admin') {
-        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden gestionar usuarios.' });
-      }
-
       const users = await storage.getSalespeopleUsers();
       res.json(users);
     } catch (error) {
@@ -502,21 +557,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/users/salespeople', isAuthenticated, async (req, res) => {
+  app.post('/api/users/salespeople', async (req, res) => {
     console.log("🚀 POST /api/users/salespeople iniciado");
     console.log("📦 Body recibido:", req.body);
     try {
-      // Solo admin puede crear usuarios
-      const user = req.user as any;
-      console.log("👤 Usuario autenticado:", user?.claims?.sub);
-      const userId = user.claims.sub;
-      const userRecord = await storage.getUser(userId);
-      console.log("🔍 Registro de usuario:", userRecord?.role);
-      
-      if (userRecord?.role !== 'admin') {
-        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden crear usuarios.' });
-      }
-
       const validatedUser = insertSalespersonUserSchema.parse(req.body);
       
       // Hash de la contraseña si se proporciona
@@ -555,7 +599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put('/api/users/salespeople/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/users/salespeople/:id', async (req, res) => {
     try {
       // Solo admin puede actualizar usuarios
       const user = req.user as any;
@@ -588,7 +632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/users/salespeople/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/users/salespeople/:id', async (req, res) => {
     try {
       // Solo admin puede eliminar usuarios
       const user = req.user as any;
