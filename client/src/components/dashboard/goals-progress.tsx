@@ -44,8 +44,14 @@ export default function GoalsProgress({ globalFilter, onFilterChange }: GoalsPro
     queryKey: ["/api/goals/progress"],
   });
 
-  // Filter goals based on selected filter
+  // Filter goals based on selected filter and global filter
   const filteredGoals = goalsProgress?.filter(goal => {
+    // If we have a global filter with a specific value, show only goals matching that exact target
+    if (globalFilter.type !== "all" && globalFilter.value) {
+      return goal.type === globalFilter.type && goal.target === globalFilter.value;
+    }
+    
+    // Otherwise filter by selected filter type
     if (selectedFilter === "all") return true;
     return goal.type === selectedFilter;
   }) || [];
@@ -134,6 +140,9 @@ export default function GoalsProgress({ globalFilter, onFilterChange }: GoalsPro
   // Separate global goals from specific goals
   const globalGoals = filteredGoals.filter(goal => goal.type === 'global');
   const specificGoals = filteredGoals.filter(goal => goal.type !== 'global');
+  
+  // When we have a specific filter (segment/salesperson), treat all goals as full-width
+  const shouldShowFullWidth = globalFilter.type !== "all" && globalFilter.value;
 
   return (
     <div className="space-y-6">
@@ -320,7 +329,7 @@ export default function GoalsProgress({ globalFilter, onFilterChange }: GoalsPro
         </div>
       )}
 
-      {/* Specific Goals - Enhanced Cards */}
+      {/* Specific Goals - Enhanced Cards or Full Width */}
       {specificGoals.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-foreground flex items-center space-x-2">
@@ -332,68 +341,140 @@ export default function GoalsProgress({ globalFilter, onFilterChange }: GoalsPro
             </span>
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {specificGoals.map((goal) => (
-              <Card key={goal.id} className="hover:shadow-md transition-shadow border border-border/50">
-                <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    {getTypeIcon(goal.type)}
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {getTypeLabel(goal.type)}
-                    </span>
-                  </div>
-                  {goal.isCompleted ? (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <span className="text-xs font-semibold text-foreground">
-                      {goal.percentage.toFixed(0)}%
-                    </span>
-                  )}
-                </div>
-                
-                <h4 className="text-sm font-semibold text-foreground mb-1 truncate">
-                  {goal.target}
-                </h4>
-                
-                <p className="text-xs text-muted-foreground mb-2">
-                  {goal.period}
-                </p>
-
-                {/* Mini Progress Bar */}
-                <Progress 
-                  value={goal.percentage} 
-                  className="h-1 mb-2"
-                  data-testid={`progress-${goal.id}`}
-                />
-
-                {/* Compact Stats */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Actual:</span>
-                    <span className="font-medium">
-                      {formatCurrency(goal.currentSales)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Meta:</span>
-                    <span className="font-medium">
-                      {formatCurrency(goal.targetAmount)}
-                    </span>
-                  </div>
-                  {!goal.isCompleted && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-red-600">Falta:</span>
-                      <span className="font-semibold text-red-600">
-                        {formatCurrency(goal.remaining)}
-                      </span>
+          {/* Full Width Display for Filtered Goals */}
+          {shouldShowFullWidth ? (
+            <div className="space-y-4">
+              {specificGoals.map((goal) => (
+                <Card key={goal.id} className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5 shadow-sm hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-3">
+                        {getTypeIcon(goal.type)}
+                        <div>
+                          <h3 className="text-lg font-semibold text-foreground">
+                            {goal.target} - {goal.period}
+                          </h3>
+                          {goal.description && (
+                            <p className="text-sm text-muted-foreground">{goal.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      {goal.isCompleted ? (
+                        <div className="flex items-center space-x-2 text-green-600">
+                          <CheckCircle className="h-5 w-5" />
+                          <span className="text-sm font-medium">Completada</span>
+                        </div>
+                      ) : (
+                        <div className="text-right">
+                          <div className="text-xl font-bold text-foreground">
+                            {goal.percentage.toFixed(1)}%
+                          </div>
+                          <div className="text-xs text-muted-foreground">progreso</div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+
+                    {/* Compact Progress Bar */}
+                    <div className="space-y-2 mb-3">
+                      <Progress 
+                        value={goal.percentage} 
+                        className="h-2"
+                        data-testid={`progress-specific-${goal.id}`}
+                      />
+                    </div>
+
+                    {/* Compact Stats */}
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Actual</div>
+                        <div className="text-sm font-semibold text-foreground">
+                          {formatCurrency(goal.currentSales)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">Meta</div>
+                        <div className="text-sm font-semibold text-foreground">
+                          {formatCurrency(goal.targetAmount)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground">
+                          {goal.isCompleted ? "Excedente" : "Falta"}
+                        </div>
+                        <div className={`text-sm font-semibold ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
+                          {goal.isCompleted ? "✓" : formatCurrency(goal.remaining)}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            /* Regular Card Grid Display */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {specificGoals.map((goal) => (
+                <Card key={goal.id} className="hover:shadow-md transition-shadow border border-border/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        {getTypeIcon(goal.type)}
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {getTypeLabel(goal.type)}
+                        </span>
+                      </div>
+                      {goal.isCompleted ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <span className="text-xs font-semibold text-foreground">
+                          {goal.percentage.toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
+                    
+                    <h4 className="text-sm font-semibold text-foreground mb-1 truncate">
+                      {goal.target}
+                    </h4>
+                    
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {goal.period}
+                    </p>
+
+                    {/* Mini Progress Bar */}
+                    <Progress 
+                      value={goal.percentage} 
+                      className="h-1 mb-2"
+                      data-testid={`progress-${goal.id}`}
+                    />
+
+                    {/* Compact Stats */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Actual:</span>
+                        <span className="font-medium">
+                          {formatCurrency(goal.currentSales)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Meta:</span>
+                        <span className="font-medium">
+                          {formatCurrency(goal.targetAmount)}
+                        </span>
+                      </div>
+                      {!goal.isCompleted && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-red-600">Falta:</span>
+                          <span className="font-semibold text-red-600">
+                            {formatCurrency(goal.remaining)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
