@@ -43,24 +43,25 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
   // Removed top salespeople query - now handled by separate component
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('es-CL', {
       style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
+      currency: 'CLP',
+      minimumFractionDigits: 0,
     }).format(amount);
   };
 
-  const getRandomStatus = () => {
-    const statuses = [
-      { name: 'Member', color: 'bg-yellow-100 text-yellow-800' },
-      { name: 'Signed Up', color: 'bg-orange-100 text-orange-800' },
-      { name: 'New Customer', color: 'bg-teal-100 text-teal-800' }
+  const getRandomSalesperson = () => {
+    const salespeople = [
+      { name: 'Carlos Mendoza', color: 'bg-blue-100 text-blue-800' },
+      { name: 'Ana García', color: 'bg-green-100 text-green-800' },
+      { name: 'Luis Rodríguez', color: 'bg-purple-100 text-purple-800' },
+      { name: 'María Silva', color: 'bg-orange-100 text-orange-800' }
     ];
-    return statuses[Math.floor(Math.random() * statuses.length)];
+    return salespeople[Math.floor(Math.random() * salespeople.length)];
   };
 
   const getTimeAgo = () => {
-    const times = ['5 min ago', '10 min ago', '15 min ago', '20 min ago', '1 hour ago'];
+    const times = ['hace 5 min', 'hace 10 min', 'hace 15 min', 'hace 20 min', 'hace 1 hora'];
     return times[Math.floor(Math.random() * times.length)];
   };
 
@@ -84,10 +85,10 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <span className="text-sm font-medium text-blue-600">📋</span>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
+          <h2 className="text-xl font-bold text-gray-900">Transacciones Recientes</h2>
         </div>
         <Button variant="outline" size="sm" className="text-gray-600 border-gray-300 hover:bg-gray-50" data-testid="button-view-all">
-          Last 24h ▼
+          Últimas 24h ▼
         </Button>
       </div>
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -95,11 +96,11 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-gray-100">
-                  <TableHead className="text-sm font-medium text-gray-500 py-4">Customer</TableHead>
-                  <TableHead className="text-sm font-medium text-gray-500">Status</TableHead>
-                  <TableHead className="text-sm font-medium text-gray-500">Customer ID</TableHead>
-                  <TableHead className="text-sm font-medium text-gray-500">Retained</TableHead>
-                  <TableHead className="text-sm font-medium text-gray-500 text-right">Amount</TableHead>
+                  <TableHead className="text-sm font-medium text-gray-500 py-4">Cliente</TableHead>
+                  <TableHead className="text-sm font-medium text-gray-500">Vendedor</TableHead>
+                  <TableHead className="text-sm font-medium text-gray-500">ID Cliente</TableHead>
+                  <TableHead className="text-sm font-medium text-gray-500">Tiempo</TableHead>
+                  <TableHead className="text-sm font-medium text-gray-500 text-right">Monto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -116,7 +117,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                 ) : (
                   transactions?.map((transaction) => {
                     const customerName = transaction.nokoen || 'Cliente Anónimo';
-                    const status = getRandomStatus();
+                    const salesperson = getRandomSalesperson();
                     const timeAgo = getTimeAgo();
                     
                     return (
@@ -139,8 +140,8 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${status.color}`}>
-                            {status.name}
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${salesperson.color}`}>
+                            {salesperson.name}
                           </span>
                         </TableCell>
                         <TableCell className="text-gray-600 font-medium">
@@ -150,7 +151,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                           {timeAgo}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-gray-900">
-                          {transaction.monto ? formatCurrency(Number(transaction.monto)) : '$0.00'}
+                          {transaction.monto ? formatCurrency(Number(transaction.monto)) : '$0'}
                         </TableCell>
                       </TableRow>
                     );
