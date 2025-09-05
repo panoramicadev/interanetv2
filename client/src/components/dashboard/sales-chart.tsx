@@ -1,8 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart } from "@/components/ui/charts";
+import { Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Filler,
+  Legend,
+} from 'chart.js';
 import { useState } from "react";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Filler,
+  Legend
+);
 
 interface ChartDataPoint {
   period: string;
@@ -32,115 +53,165 @@ export default function SalesChart({ selectedPeriod, filterType }: SalesChartPro
     }).format(value);
   };
 
+  const createGradient = (ctx: any) => {
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(34, 197, 94, 0.3)'); // Verde claro transparente
+    gradient.addColorStop(1, 'rgba(34, 197, 94, 0.0)'); // Transparente
+    return gradient;
+  };
+
   const chartConfig = {
-    data: {
-      labels: chartData?.map(d => d.period) || [],
-      datasets: [{
-        label: 'Ventas ($)',
-        data: chartData?.map(d => d.sales) || [],
-        backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        borderColor: '#667eea',
-        borderWidth: 2,
-        borderRadius: 6,
-        borderSkipped: false,
-        hoverBackgroundColor: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
-        hoverBorderColor: '#764ba2',
-        hoverBorderWidth: 3,
-      }]
+    labels: chartData?.map(d => d.period) || [],
+    datasets: [{
+      label: 'Ventas',
+      data: chartData?.map(d => d.sales) || [],
+      fill: true,
+      backgroundColor: (context: any) => {
+        const chart = context.chart;
+        const {ctx, chartArea} = chart;
+        if (!chartArea) return null;
+        return createGradient(ctx);
+      },
+      borderColor: '#22c55e', // Verde más brillante
+      borderWidth: 3,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      pointBackgroundColor: '#22c55e',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointHoverBackgroundColor: '#22c55e',
+      pointHoverBorderColor: '#ffffff',
+      pointHoverBorderWidth: 3,
+      tension: 0.4, // Línea suavizada
+    }]
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    elements: {
+      point: {
+        radius: 4,
+        hoverRadius: 6,
+      }
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: '#ffffff',
+        bodyColor: '#ffffff',
+        borderColor: '#22c55e',
+        borderWidth: 1,
+        cornerRadius: 8,
+        displayColors: false,
+        caretPadding: 10,
+        callbacks: {
+          title: () => '',
+          label: (context: any) => formatCurrency(context.parsed.y)
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: {
           display: false
         },
-        tooltip: {
-          backgroundColor: 'rgba(102, 126, 234, 0.9)',
-          titleColor: '#fff',
-          bodyColor: '#fff',
-          borderColor: '#667eea',
-          borderWidth: 2,
-          cornerRadius: 12,
-          displayColors: false,
-          callbacks: {
-            label: (context: any) => formatCurrency(context.parsed.y)
-          }
+        border: {
+          display: false
+        },
+        ticks: {
+          color: '#9ca3af',
+          font: {
+            size: 12,
+            weight: 500
+          },
+          padding: 10
         }
       },
-      scales: {
-        x: {
-          grid: {
-            display: false
-          },
-          ticks: {
-            color: '#6b7280',
-            font: {
-              weight: 500
-            }
-          }
+      y: {
+        grid: {
+          color: 'rgba(156, 163, 175, 0.2)',
+          drawBorder: false
         },
-        y: {
-          beginAtZero: true,
-          grid: {
-            color: 'rgba(102, 126, 234, 0.1)',
-            borderDash: [3, 3]
+        border: {
+          display: false
+        },
+        ticks: {
+          color: '#9ca3af',
+          font: {
+            size: 12
           },
-          ticks: {
-            color: '#6b7280',
-            callback: (value: any) => formatCurrency(value)
+          padding: 10,
+          callback: (value: any) => {
+            if (value >= 1000000) {
+              return (value / 1000000).toFixed(0) + 'M';
+            } else if (value >= 1000) {
+              return (value / 1000).toFixed(0) + 'k';
+            }
+            return value.toString();
           }
         }
       }
+    },
+    interaction: {
+      intersect: false,
+      mode: 'index' as const,
     }
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Tendencia de Ventas</CardTitle>
-          <div className="flex space-x-2">
-            <Button
-              variant={chartPeriod === 'monthly' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setPeriod('monthly')}
-              disabled={filterType === 'day'}
-              data-testid="button-monthly"
-            >
-              Mensual
-            </Button>
-            <Button
-              variant={chartPeriod === 'daily' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setPeriod('daily')}
-              data-testid="button-daily"
-            >
-              Diario
-            </Button>
-            <Button
-              variant={chartPeriod === 'weekly' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setPeriod('weekly')}
-              disabled={filterType === 'day'}
-              data-testid="button-weekly"
-            >
-              Semanal
-            </Button>
-          </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">Tendencia de Ventas</h2>
+          <p className="text-sm text-gray-600">Puedes ver el volumen de ventas desde aquí</p>
         </div>
-      </CardHeader>
-      <CardContent>
+        <div className="flex space-x-2">
+          <Button
+            variant={chartPeriod === 'monthly' ? 'default' : 'outline'}
+            size="sm"
+            className="rounded-xl"
+            onClick={() => setPeriod('monthly')}
+            disabled={filterType === 'day'}
+            data-testid="button-monthly"
+          >
+            Mensual
+          </Button>
+          <Button
+            variant={chartPeriod === 'daily' ? 'default' : 'outline'}
+            size="sm"
+            className="rounded-xl"
+            onClick={() => setPeriod('daily')}
+            data-testid="button-daily"
+          >
+            Diario
+          </Button>
+          <Button
+            variant={chartPeriod === 'weekly' ? 'default' : 'outline'}
+            size="sm"
+            className="rounded-xl"
+            onClick={() => setPeriod('weekly')}
+            disabled={filterType === 'day'}
+            data-testid="button-weekly"
+          >
+            Semanal
+          </Button>
+        </div>
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200/60 p-6 shadow-sm">
         <div className="h-64">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
             </div>
           ) : (
-            <BarChart {...chartConfig} />
+            <Line data={chartConfig} options={options} />
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
