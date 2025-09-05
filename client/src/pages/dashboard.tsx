@@ -199,36 +199,36 @@ export default function Dashboard() {
             />
           </div>
           
-          {/* Primary Analytics - Main Charts */}
+          {/* Primary Analytics - Sales Chart Full Width */}
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <SalesChart 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+            />
+          </div>
+
+          {/* Secondary Analytics - Segment and Products */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-            <div className="modern-card p-5 lg:p-6 hover-lift">
-              <SalesChart 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-              />
-            </div>
             <div className="modern-card p-5 lg:p-6 hover-lift">
               <SegmentChart 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
               />
             </div>
-          </div>
-
-          {/* Secondary Analytics - Product and Client Data */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
             <div className="modern-card p-5 lg:p-6 hover-lift">
               <TopProductsChart 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
               />
             </div>
-            <div className="modern-card p-5 lg:p-6 hover-lift">
-              <TopClientsPanel 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-              />
-            </div>
+          </div>
+
+          {/* Client Analytics - Full Width */}
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <TopClientsPanel 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+            />
           </div>
 
           {/* Bottom Section - Sales Team and Transactions */}
