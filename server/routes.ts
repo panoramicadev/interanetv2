@@ -846,6 +846,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Obtener progreso de metas del supervisor (formato compatible con GoalsProgress)
+  app.get('/api/supervisor/:supervisorId/goals/progress', async (req: any, res) => {
+    try {
+      // Verificar autenticación
+      let userId;
+      let userRecord;
+
+      if (req.session?.simulatedUser) {
+        userId = req.session.simulatedUser;
+        userRecord = await storage.getSalespersonUser(userId);
+      } else if (req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+        userRecord = await storage.getUser(userId);
+      } else {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+
+      const { supervisorId } = req.params;
+      
+      console.log('[DEBUG] Fetching goals progress for supervisor:', supervisorId);
+      const supervisorGoals = await storage.getSupervisorGoals(supervisorId);
+      
+      // Convertir al formato GoalProgress para compatibilidad con el componente
+      const progressData = supervisorGoals.map((goal: any) => ({
+        id: goal.id,
+        type: goal.type,
+        target: goal.target,
+        amount: goal.amount || goal.targetAmount?.toString(),
+        period: goal.period,
+        description: goal.description,
+        currentSales: goal.currentSales || 0,
+        targetAmount: goal.targetAmount || parseInt(goal.amount),
+        percentage: goal.progress || 0,
+        remaining: goal.remaining || (goal.targetAmount - goal.currentSales),
+        isCompleted: (goal.progress || 0) >= 100
+      }));
+
+      console.log('[DEBUG] Progress data for supervisor:', progressData);
+      res.json(progressData);
+    } catch (error) {
+      console.error("Error fetching supervisor goals progress:", error);
+      res.status(500).json({ message: "Failed to fetch supervisor goals progress" });
+    }
+  });
+
   app.get('/api/supervisor/:supervisorId/alerts', async (req: any, res) => {
     try {
       const { supervisorId } = req.params;

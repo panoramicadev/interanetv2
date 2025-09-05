@@ -69,6 +69,23 @@ export default function Metas() {
     enabled: !!user, // Only fetch when user is loaded
   });
 
+  // Get progress data endpoint based on user role
+  const getProgressEndpoint = () => {
+    if (user?.role === 'supervisor') {
+      return `/api/supervisor/${user.id}/goals/progress`;
+    } else if (user?.role === 'salesperson') {
+      return `/api/salesperson/${user.id}/goals/progress`;
+    }
+    // Admin and other roles see all progress
+    return "/api/goals/progress";
+  };
+
+  // Fetch progress data for the GoalsProgress component
+  const { data: progressData, isLoading: progressLoading } = useQuery({
+    queryKey: [getProgressEndpoint()],
+    enabled: !!user, // Only fetch when user is loaded
+  });
+
   // Fetch segments and salespeople for form selectors (only for admin)
   const { data: segments } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
@@ -289,6 +306,8 @@ export default function Metas() {
           <GoalsProgress 
             globalFilter={globalFilter}
             onFilterChange={setGlobalFilter}
+            goalsData={user?.role !== 'admin' ? progressData : undefined}
+            isLoading={user?.role !== 'admin' ? progressLoading : undefined}
           />
           {/* Create/Edit Form - Only for admin users */}
           {showCreateForm && user?.role === 'admin' && (
