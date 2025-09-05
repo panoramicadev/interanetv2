@@ -2,6 +2,59 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+
+// Helper function to convert period and filterType to date range
+function getDateRange(period?: string, filterType?: string): { startDate?: string; endDate?: string } {
+  if (!period || !filterType) return {};
+  
+  const now = new Date();
+  let startDate: Date | undefined;
+  let endDate: Date | undefined;
+
+  switch (filterType) {
+    case 'day':
+      // period format: "2025-09-05"
+      startDate = new Date(period);
+      endDate = new Date(period);
+      endDate.setDate(endDate.getDate() + 1); // Next day to include full day
+      break;
+    case 'month':
+      // period format: "2025-09" 
+      if (period.includes('-')) {
+        const [year, month] = period.split('-');
+        startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+        endDate = new Date(parseInt(year), parseInt(month), 0);
+      }
+      break;
+    case 'range':
+      // Handle predefined ranges
+      switch (period) {
+        case 'last-7-days':
+          endDate = new Date(now);
+          startDate = new Date(now);
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+        case 'last-30-days':
+          endDate = new Date(now);
+          startDate = new Date(now);
+          startDate.setDate(startDate.getDate() - 30);
+          break;
+        case 'last-90-days':
+          endDate = new Date(now);
+          startDate = new Date(now);
+          startDate.setDate(startDate.getDate() - 90);
+          break;
+        // Add more ranges as needed
+      }
+      break;
+  }
+
+  return {
+    startDate: startDate?.toISOString().split('T')[0],
+    endDate: endDate?.toISOString().split('T')[0]
+  };
+}
+
 import { insertSalesTransactionSchema, insertGoalSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -24,10 +77,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sales metrics endpoint
   app.get('/api/sales/metrics', isAuthenticated, async (req, res) => {
     try {
-      const { startDate, endDate, salesperson, segment } = req.query;
+      const { startDate, endDate, salesperson, segment, period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
       const metrics = await storage.getSalesMetrics({
-        startDate: startDate as string,
-        endDate: endDate as string,
+        startDate: (startDate as string) || dateRange.startDate,
+        endDate: (endDate as string) || dateRange.endDate,
         salesperson: salesperson as string,
         segment: segment as string,
       });
@@ -41,10 +96,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sales transactions endpoint
   app.get('/api/sales/transactions', isAuthenticated, async (req, res) => {
     try {
-      const { startDate, endDate, salesperson, segment, limit, offset } = req.query;
+      const { startDate, endDate, salesperson, segment, limit, offset, period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
       const transactions = await storage.getSalesTransactions({
-        startDate: startDate as string,
-        endDate: endDate as string,
+        startDate: (startDate as string) || dateRange.startDate,
+        endDate: (endDate as string) || dateRange.endDate,
         salesperson: salesperson as string,
         segment: segment as string,
         limit: limit ? parseInt(limit as string) : undefined,
@@ -60,9 +117,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Top salespeople endpoint
   app.get('/api/sales/top-salespeople', isAuthenticated, async (req, res) => {
     try {
-      const { limit } = req.query;
+      const { limit, period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
       const topSalespeople = await storage.getTopSalespeople(
-        limit ? parseInt(limit as string) : undefined
+        limit ? parseInt(limit as string) : undefined,
+        dateRange.startDate,
+        dateRange.endDate
       );
       res.json(topSalespeople);
     } catch (error) {
@@ -74,9 +135,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Top products endpoint
   app.get('/api/sales/top-products', isAuthenticated, async (req, res) => {
     try {
-      const { limit } = req.query;
+      const { limit, period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
       const topProducts = await storage.getTopProducts(
-        limit ? parseInt(limit as string) : undefined
+        limit ? parseInt(limit as string) : undefined,
+        dateRange.startDate,
+        dateRange.endDate
       );
       res.json(topProducts);
     } catch (error) {
@@ -88,9 +153,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Top clients endpoint
   app.get('/api/sales/top-clients', isAuthenticated, async (req, res) => {
     try {
-      const { limit } = req.query;
+      const { limit, period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
       const topClients = await storage.getTopClients(
-        limit ? parseInt(limit as string) : undefined
+        limit ? parseInt(limit as string) : undefined,
+        dateRange.startDate,
+        dateRange.endDate
       );
       res.json(topClients);
     } catch (error) {
@@ -102,7 +171,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Segment analysis endpoint
   app.get('/api/sales/segments', isAuthenticated, async (req, res) => {
     try {
-      const segmentAnalysis = await storage.getSegmentAnalysis();
+      const { period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
+      const segmentAnalysis = await storage.getSegmentAnalysis(
+        dateRange.startDate,
+        dateRange.endDate
+      );
       res.json(segmentAnalysis);
     } catch (error) {
       console.error("Error fetching segment analysis:", error);
@@ -113,8 +188,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sales chart data endpoint
   app.get('/api/sales/chart-data', isAuthenticated, async (req, res) => {
     try {
-      const { period = 'monthly' } = req.query;
-      const chartData = await storage.getSalesChartData(period as 'weekly' | 'monthly' | 'daily');
+      const { period = 'monthly', selectedPeriod, filterType } = req.query;
+      const dateRange = getDateRange(selectedPeriod as string, filterType as string);
+      
+      const chartData = await storage.getSalesChartData(
+        period as 'weekly' | 'monthly' | 'daily',
+        dateRange.startDate,
+        dateRange.endDate
+      );
       res.json(chartData);
     } catch (error) {
       console.error("Error fetching chart data:", error);

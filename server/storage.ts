@@ -39,27 +39,27 @@ export interface IStorage {
     totalUnits: number;
     activeCustomers: number;
   }>;
-  getTopSalespeople(limit?: number): Promise<Array<{
+  getTopSalespeople(limit?: number, startDate?: string, endDate?: string): Promise<Array<{
     salesperson: string;
     totalSales: number;
     transactionCount: number;
   }>>;
-  getTopProducts(limit?: number): Promise<Array<{
+  getTopProducts(limit?: number, startDate?: string, endDate?: string): Promise<Array<{
     productName: string;
     totalSales: number;
     totalUnits: number;
   }>>;
-  getTopClients(limit?: number): Promise<Array<{
+  getTopClients(limit?: number, startDate?: string, endDate?: string): Promise<Array<{
     clientName: string;
     totalSales: number;
     transactionCount: number;
   }>>;
-  getSegmentAnalysis(): Promise<Array<{
+  getSegmentAnalysis(startDate?: string, endDate?: string): Promise<Array<{
     segment: string;
     totalSales: number;
     percentage: number;
   }>>;
-  getSalesChartData(period: 'weekly' | 'monthly' | 'daily'): Promise<Array<{
+  getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string): Promise<Array<{
     period: string;
     sales: number;
   }>>;
@@ -251,11 +251,22 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getTopSalespeople(limit = 10): Promise<Array<{
+  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string): Promise<Array<{
     salesperson: string;
     totalSales: number;
     transactionCount: number;
   }>> {
+    const conditions = [
+      sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`
+    ];
+    
+    if (startDate) {
+      conditions.push(gte(salesTransactions.feemdo, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(salesTransactions.feemdo, endDate));
+    }
+    
     const results = await db
       .select({
         salesperson: salesTransactions.nokofu,
@@ -263,7 +274,7 @@ export class DatabaseStorage implements IStorage {
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(salesTransactions)
-      .where(sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`)
+      .where(and(...conditions))
       .groupBy(salesTransactions.nokofu)
       .orderBy(sql`SUM(${salesTransactions.monto}) DESC`)
       .limit(limit);
@@ -275,11 +286,22 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTopProducts(limit = 10): Promise<Array<{
+  async getTopProducts(limit = 10, startDate?: string, endDate?: string): Promise<Array<{
     productName: string;
     totalSales: number;
     totalUnits: number;
   }>> {
+    const conditions = [
+      sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`
+    ];
+    
+    if (startDate) {
+      conditions.push(gte(salesTransactions.feemdo, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(salesTransactions.feemdo, endDate));
+    }
+    
     const results = await db
       .select({
         productName: salesTransactions.nokoprct,
@@ -287,7 +309,7 @@ export class DatabaseStorage implements IStorage {
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprad2}), 0)`,
       })
       .from(salesTransactions)
-      .where(sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`)
+      .where(and(...conditions))
       .groupBy(salesTransactions.nokoprct)
       .orderBy(sql`SUM(${salesTransactions.monto}) DESC`)
       .limit(limit);
@@ -299,11 +321,22 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTopClients(limit = 10): Promise<Array<{
+  async getTopClients(limit = 10, startDate?: string, endDate?: string): Promise<Array<{
     clientName: string;
     totalSales: number;
     transactionCount: number;
   }>> {
+    const conditions = [
+      sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`
+    ];
+    
+    if (startDate) {
+      conditions.push(gte(salesTransactions.feemdo, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(salesTransactions.feemdo, endDate));
+    }
+    
     const results = await db
       .select({
         clientName: salesTransactions.nokoen,
@@ -311,7 +344,7 @@ export class DatabaseStorage implements IStorage {
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(salesTransactions)
-      .where(sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`)
+      .where(and(...conditions))
       .groupBy(salesTransactions.nokoen)
       .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) DESC`)
       .limit(limit);
@@ -323,18 +356,38 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSegmentAnalysis(): Promise<Array<{
+  async getSegmentAnalysis(startDate?: string, endDate?: string): Promise<Array<{
     segment: string;
     totalSales: number;
     percentage: number;
   }>> {
+    const dateConditions = [];
+    if (startDate) {
+      dateConditions.push(gte(salesTransactions.feemdo, startDate));
+    }
+    if (endDate) {
+      dateConditions.push(lte(salesTransactions.feemdo, endDate));
+    }
+    const dateFilter = dateConditions.length > 0 ? and(...dateConditions) : undefined;
+
     const [totalSalesResult] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
-      .from(salesTransactions);
+      .from(salesTransactions)
+      .where(dateFilter);
 
     const totalSales = Number(totalSalesResult.total);
+
+    const conditions = [
+      sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`
+    ];
+    if (startDate) {
+      conditions.push(gte(salesTransactions.feemdo, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(salesTransactions.feemdo, endDate));
+    }
 
     const results = await db
       .select({
@@ -342,7 +395,7 @@ export class DatabaseStorage implements IStorage {
         totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions)
-      .where(sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`)
+      .where(and(...conditions))
       .groupBy(salesTransactions.noruen)
       .orderBy(sql`SUM(${salesTransactions.monto}) DESC`);
 
@@ -353,10 +406,19 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily'): Promise<Array<{
+  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string): Promise<Array<{
     period: string;
     sales: number;
   }>> {
+    const conditions = [sql`${salesTransactions.feemdo} IS NOT NULL`];
+    
+    if (startDate) {
+      conditions.push(gte(salesTransactions.feemdo, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(salesTransactions.feemdo, endDate));
+    }
+    
     let query: any;
     
     switch (period) {
@@ -367,7 +429,7 @@ export class DatabaseStorage implements IStorage {
             sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
           })
           .from(salesTransactions)
-          .where(sql`${salesTransactions.feemdo} IS NOT NULL`)
+          .where(and(...conditions))
           .groupBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`)
           .orderBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`);
         break;
@@ -378,7 +440,7 @@ export class DatabaseStorage implements IStorage {
             sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
           })
           .from(salesTransactions)
-          .where(sql`${salesTransactions.feemdo} IS NOT NULL`)
+          .where(and(...conditions))
           .groupBy(sql`EXTRACT(week FROM ${salesTransactions.feemdo})`)
           .orderBy(sql`EXTRACT(week FROM ${salesTransactions.feemdo})`);
         break;
@@ -390,7 +452,7 @@ export class DatabaseStorage implements IStorage {
             sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
           })
           .from(salesTransactions)
-          .where(sql`${salesTransactions.feemdo} IS NOT NULL`)
+          .where(and(...conditions))
           .groupBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`)
           .orderBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`);
         break;
