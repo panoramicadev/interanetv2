@@ -230,6 +230,10 @@ export const insertGoalSchema = createInsertSchema(goals).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  amount: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
 });
 export type InsertSalesTransaction = z.infer<typeof insertSalesTransactionSchema>;
 export type SalesTransaction = typeof salesTransactions.$inferSelect;

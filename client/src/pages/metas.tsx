@@ -65,7 +65,7 @@ export default function Metas() {
     mutationFn: async (goalData: any) => {
       const payload = {
         ...goalData,
-        amount: parseFloat(goalData.amount),
+        amount: goalData.amount, // Send as string (no parsing)
         target: goalData.type === 'global' ? null : goalData.target
       };
       
@@ -95,7 +95,7 @@ export default function Metas() {
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const payload = {
         ...data,
-        amount: parseFloat(data.amount),
+        amount: data.amount, // Send as string (no parsing)
         target: data.type === 'global' ? null : data.target
       };
       
