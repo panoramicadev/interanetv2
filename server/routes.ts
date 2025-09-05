@@ -858,6 +858,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Crear meta para vendedor
+  app.post('/api/supervisor/:supervisorId/goals', async (req: any, res) => {
+    try {
+      // Verificar autenticación
+      let userId;
+      let userRecord;
+
+      if (req.session?.simulatedUser) {
+        userId = req.session.simulatedUser;
+        userRecord = await storage.getSalespersonUser(userId);
+      } else if (req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+        userRecord = await storage.getUser(userId);
+      } else {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+
+      const { supervisorId } = req.params;
+      
+      // Verificar que el usuario logueado es el supervisor
+      if (userRecord?.id !== supervisorId || userRecord?.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo el supervisor puede crear metas para sus vendedores' });
+      }
+
+      const { salespersonId, salespersonName, description, amount, period } = req.body;
+      
+      // Verificar que el vendedor está bajo la supervisión de este supervisor
+      const salesperson = await storage.getSalespersonUser(salespersonId);
+      if (!salesperson || salesperson.supervisorId !== supervisorId) {
+        return res.status(403).json({ message: 'El vendedor no está bajo tu supervisión' });
+      }
+
+      // Crear la meta
+      const goal = await storage.createGoal({
+        type: 'salesperson',
+        target: salespersonName,
+        amount: amount.toString(),
+        period,
+        description
+      });
+
+      console.log('[DEBUG] Created goal:', goal);
+      res.json(goal);
+    } catch (error) {
+      console.error("Error creating goal:", error);
+      res.status(500).json({ message: "Failed to create goal" });
+    }
+  });
+
+  // Editar meta existente
+  app.put('/api/supervisor/:supervisorId/goals/:goalId', async (req: any, res) => {
+    try {
+      // Verificar autenticación
+      let userId;
+      let userRecord;
+
+      if (req.session?.simulatedUser) {
+        userId = req.session.simulatedUser;
+        userRecord = await storage.getSalespersonUser(userId);
+      } else if (req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+        userRecord = await storage.getUser(userId);
+      } else {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+
+      const { supervisorId, goalId } = req.params;
+      
+      // Verificar que el usuario logueado es el supervisor
+      if (userRecord?.id !== supervisorId || userRecord?.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo el supervisor puede editar metas de sus vendedores' });
+      }
+
+      // Obtener la meta existente
+      const existingGoal = await storage.getGoal(goalId);
+      if (!existingGoal) {
+        return res.status(404).json({ message: 'Meta no encontrada' });
+      }
+
+      // Verificar que la meta es de un vendedor bajo su supervisión
+      const salesperson = await storage.getSalespersonUserByName(existingGoal.target);
+      if (!salesperson || salesperson.supervisorId !== supervisorId) {
+        return res.status(403).json({ message: 'No puedes editar metas de vendedores que no están bajo tu supervisión' });
+      }
+
+      const { description, amount, period } = req.body;
+      
+      // Actualizar la meta
+      const updatedGoal = await storage.updateGoal(goalId, {
+        description,
+        amount: amount.toString(),
+        period
+      });
+
+      console.log('[DEBUG] Updated goal:', updatedGoal);
+      res.json(updatedGoal);
+    } catch (error) {
+      console.error("Error updating goal:", error);
+      res.status(500).json({ message: "Failed to update goal" });
+    }
+  });
+
 
   const httpServer = createServer(app);
   return httpServer;

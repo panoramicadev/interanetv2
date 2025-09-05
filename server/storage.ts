@@ -566,13 +566,26 @@ export class DatabaseStorage implements IStorage {
     return newGoal;
   }
 
-  async updateGoal(id: string, goalData: Partial<InsertGoal>): Promise<Goal> {
+  async getGoal(goalId: string): Promise<Goal | undefined> {
+    const [goal] = await db.select().from(goals).where(eq(goals.id, goalId));
+    return goal;
+  }
+
+  async updateGoal(goalId: string, data: Partial<InsertGoal>): Promise<Goal> {
     const [updatedGoal] = await db
       .update(goals)
-      .set({ ...goalData, updatedAt: new Date() })
-      .where(eq(goals.id, id))
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(goals.id, goalId))
       .returning();
     return updatedGoal;
+  }
+
+  async getSalespersonUserByName(name: string): Promise<SalespersonUser | undefined> {
+    const [user] = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.salespersonName, name));
+    return user;
   }
 
   async deleteGoal(id: string): Promise<void> {

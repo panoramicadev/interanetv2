@@ -1,9 +1,15 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { 
   LayoutDashboard, 
   Users, 
@@ -19,7 +25,9 @@ import {
   UserCheck,
   AlertTriangle,
   Clock,
-  TrendingDown
+  TrendingDown,
+  Plus,
+  Edit
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useLocation } from "wouter";
@@ -28,6 +36,11 @@ export default function SupervisorDashboard() {
   const { user } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [location] = useLocation();
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<any>(null);
+  const [selectedSalesperson, setSelectedSalesperson] = useState<any>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Obtener vendedores bajo supervisión
   const { data: salespeople = [], isLoading: loadingSalespeople } = useQuery({
@@ -67,6 +80,91 @@ export default function SupervisorDashboard() {
     if (firstName) return firstName;
     if (lastName) return lastName;
     return user?.salespersonName || "Supervisor";
+  };
+
+  // Mutaciones para gestionar metas
+  const createGoalMutation = useMutation({
+    mutationFn: async (goalData: any) => {
+      return apiRequest(`/api/supervisor/${user?.id}/goals`, {
+        method: 'POST',
+        body: JSON.stringify(goalData),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/supervisor/${user?.id}/salespeople`] });
+      toast({
+        title: "Meta creada",
+        description: "La meta se creó exitosamente",
+      });
+      setGoalDialogOpen(false);
+      setSelectedSalesperson(null);
+      setEditingGoal(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo crear la meta",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateGoalMutation = useMutation({
+    mutationFn: async ({ goalId, ...goalData }: any) => {
+      return apiRequest(`/api/supervisor/${user?.id}/goals/${goalId}`, {
+        method: 'PUT',
+        body: JSON.stringify(goalData),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/supervisor/${user?.id}/salespeople`] });
+      toast({
+        title: "Meta actualizada",
+        description: "La meta se actualizó exitosamente",
+      });
+      setGoalDialogOpen(false);
+      setSelectedSalesperson(null);
+      setEditingGoal(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error", 
+        description: error.message || "No se pudo actualizar la meta",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreateGoal = (salesperson: any) => {
+    setSelectedSalesperson(salesperson);
+    setEditingGoal(null);
+    setGoalDialogOpen(true);
+  };
+
+  const handleEditGoal = (salesperson: any, goal: any) => {
+    setSelectedSalesperson(salesperson);
+    setEditingGoal(goal);
+    setGoalDialogOpen(true);
+  };
+
+  const handleSubmitGoal = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    
+    const goalData = {
+      salespersonId: selectedSalesperson?.id,
+      salespersonName: selectedSalesperson?.salespersonName,
+      description: formData.get('description'),
+      amount: parseFloat(formData.get('amount') as string),
+      period: formData.get('period'),
+    };
+
+    if (editingGoal) {
+      updateGoalMutation.mutate({ goalId: editingGoal.id, ...goalData });
+    } else {
+      createGoalMutation.mutate(goalData);
+    }
   };
 
   const sidebarItems = [
@@ -477,10 +575,22 @@ export default function SupervisorDashboard() {
                     {salesperson.goals && salesperson.goals.length > 0 && (
                       <div className="px-4 pb-4 border-t border-gray-200 bg-white">
                         <div className="pt-3">
-                          <p className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                            <Target className="w-4 h-4 mr-1 text-blue-600" />
-                            Metas Asignadas
-                          </p>
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-sm font-medium text-gray-700 flex items-center">
+                              <Target className="w-4 h-4 mr-1 text-blue-600" />
+                              Metas Asignadas
+                            </p>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleCreateGoal(salesperson)}
+                              className="h-7 px-2 text-xs"
+                              data-testid={`button-add-goal-${salesperson.id}`}
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              Agregar Meta
+                            </Button>
+                          </div>
                           <div className="space-y-3">
                             {salesperson.goals.map((goal: any) => (
                               <div key={goal.id} className="bg-gray-50 rounded-lg p-3 border">
@@ -488,12 +598,23 @@ export default function SupervisorDashboard() {
                                   <span className="text-xs font-medium text-gray-900 truncate">
                                     {goal.description}
                                   </span>
-                                  <Badge 
-                                    variant={goal.progress >= 100 ? "default" : goal.progress >= 75 ? "secondary" : "outline"}
-                                    className="text-xs"
-                                  >
-                                    {goal.progress}%
-                                  </Badge>
+                                  <div className="flex items-center space-x-2">
+                                    <Badge 
+                                      variant={goal.progress >= 100 ? "default" : goal.progress >= 75 ? "secondary" : "outline"}
+                                      className="text-xs"
+                                    >
+                                      {goal.progress}%
+                                    </Badge>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleEditGoal(salesperson, goal)}
+                                      className="h-6 w-6 p-0"
+                                      data-testid={`button-edit-goal-${goal.id}`}
+                                    >
+                                      <Edit className="w-3 h-3" />
+                                    </Button>
+                                  </div>
                                 </div>
                                 <div className="space-y-1">
                                   <div className="flex justify-between text-xs text-gray-600">
@@ -533,8 +654,18 @@ export default function SupervisorDashboard() {
                     {(!salesperson.goals || salesperson.goals.length === 0) && (
                       <div className="px-4 pb-4 border-t border-gray-200 bg-white">
                         <div className="pt-3 text-center">
-                          <Target className="w-6 h-6 text-gray-300 mx-auto mb-1" />
-                          <p className="text-xs text-gray-500">Sin metas asignadas</p>
+                          <Target className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+                          <p className="text-xs text-gray-500 mb-3">Sin metas asignadas</p>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleCreateGoal(salesperson)}
+                            className="h-7 px-3 text-xs"
+                            data-testid={`button-create-first-goal-${salesperson.id}`}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Crear Primera Meta
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -553,6 +684,91 @@ export default function SupervisorDashboard() {
           </Card>
         </main>
       </div>
+      
+      {/* Modal para gestionar metas */}
+      <Dialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editingGoal ? 'Editar Meta' : 'Crear Nueva Meta'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingGoal 
+                ? `Editando meta para ${selectedSalesperson?.salespersonName}`
+                : `Crear una nueva meta para ${selectedSalesperson?.salespersonName}`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleSubmitGoal} className="space-y-4">
+            <div>
+              <Label htmlFor="description">Descripción de la Meta</Label>
+              <Textarea
+                id="description"
+                name="description"
+                placeholder="Ej: Meta mensual de ventas para octubre"
+                defaultValue={editingGoal?.description || ''}
+                required
+                className="mt-1"
+                data-testid="input-goal-description"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="amount">Monto Objetivo (CLP)</Label>
+              <Input
+                id="amount"
+                name="amount"
+                type="number"
+                placeholder="Ej: 25000000"
+                defaultValue={editingGoal?.targetAmount || ''}
+                required
+                min="1"
+                step="1"
+                className="mt-1"
+                data-testid="input-goal-amount"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="period">Período</Label>
+              <Input
+                id="period"
+                name="period"
+                placeholder="Ej: 2025-09"
+                defaultValue={editingGoal?.period || new Date().toISOString().slice(0, 7)}
+                required
+                pattern="[0-9]{4}-[0-9]{2}"
+                title="Formato: YYYY-MM (ej: 2025-09)"
+                className="mt-1"
+                data-testid="input-goal-period"
+              />
+              <p className="text-xs text-gray-500 mt-1">Formato: YYYY-MM (ej: 2025-09)</p>
+            </div>
+
+            <DialogFooter>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setGoalDialogOpen(false)}
+                data-testid="button-cancel-goal"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit"
+                disabled={createGoalMutation.isPending || updateGoalMutation.isPending}
+                data-testid="button-save-goal"
+              >
+                {createGoalMutation.isPending || updateGoalMutation.isPending 
+                  ? 'Guardando...' 
+                  : editingGoal ? 'Actualizar Meta' : 'Crear Meta'
+                }
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
