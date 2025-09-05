@@ -63,12 +63,15 @@ export default function Metas() {
   // Create goal mutation
   const createGoalMutation = useMutation({
     mutationFn: async (goalData: any) => {
+      const payload = {
+        ...goalData,
+        amount: parseFloat(goalData.amount),
+        target: goalData.type === 'global' ? null : goalData.target
+      };
+      
       return await apiRequest("/api/goals", {
         method: "POST",
-        body: JSON.stringify({
-          ...goalData,
-          amount: parseFloat(goalData.amount)
-        }),
+        body: JSON.stringify(payload),
       });
     },
     onSuccess: () => {
@@ -80,10 +83,11 @@ export default function Metas() {
         description: "La meta se ha creado exitosamente.",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error("Goal creation error:", error);
       toast({
         title: "Error",
-        description: "No se pudo crear la meta.",
+        description: error.message || "No se pudo crear la meta.",
         variant: "destructive",
       });
     },
@@ -92,12 +96,15 @@ export default function Metas() {
   // Update goal mutation
   const updateGoalMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const payload = {
+        ...data,
+        amount: parseFloat(data.amount),
+        target: data.type === 'global' ? null : data.target
+      };
+      
       return await apiRequest(`/api/goals/${id}`, {
         method: "PUT",
-        body: JSON.stringify({
-          ...data,
-          amount: parseFloat(data.amount)
-        }),
+        body: JSON.stringify(payload),
       });
     },
     onSuccess: () => {
@@ -109,10 +116,11 @@ export default function Metas() {
         description: "La meta se ha actualizado exitosamente.",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error("Goal update error:", error);
       toast({
         title: "Error",
-        description: "No se pudo actualizar la meta.",
+        description: error.message || "No se pudo actualizar la meta.",
         variant: "destructive",
       });
     },

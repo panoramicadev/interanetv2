@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertSalesTransactionSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -189,10 +189,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/goals', isAuthenticated, async (req, res) => {
     try {
-      const goal = await storage.createGoal(req.body);
+      // Validate the request body
+      const validatedGoal = insertGoalSchema.parse(req.body);
+      
+      // Ensure target is null for global goals
+      if (validatedGoal.type === 'global') {
+        validatedGoal.target = null;
+      }
+      
+      const goal = await storage.createGoal(validatedGoal);
       res.json(goal);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating goal:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: "Invalid data format", 
+          details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
+        });
+      }
       res.status(500).json({ message: "Failed to create goal" });
     }
   });
@@ -200,10 +214,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/goals/:id', isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
-      const goal = await storage.updateGoal(id, req.body);
+      
+      // Validate the request body (allow partial updates)
+      const validatedGoal = insertGoalSchema.partial().parse(req.body);
+      
+      // Ensure target is null for global goals
+      if (validatedGoal.type === 'global') {
+        validatedGoal.target = null;
+      }
+      
+      const goal = await storage.updateGoal(id, validatedGoal);
       res.json(goal);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating goal:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: "Invalid data format", 
+          details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
+        });
+      }
       res.status(500).json({ message: "Failed to update goal" });
     }
   });
