@@ -15,6 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RefreshCw, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
+import { queryClient } from "@/lib/queryClient";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -73,8 +74,24 @@ export default function Dashboard() {
     return null;
   }
 
-  const handleRefresh = () => {
-    window.location.reload();
+  const handleRefresh = async () => {
+    try {
+      // Invalidate all sales queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      
+      // Show success toast
+      toast({
+        title: "Datos actualizados",
+        description: "La información del dashboard se ha actualizado correctamente.",
+      });
+    } catch (error) {
+      // Show error toast
+      toast({
+        title: "Error al actualizar",
+        description: "No se pudieron actualizar los datos. Intenta de nuevo.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
