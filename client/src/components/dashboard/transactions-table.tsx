@@ -32,11 +32,11 @@ export default function TransactionsTable() {
   const [limit] = useState(10);
   
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: ["/api/sales/transactions", { limit }],
+    queryKey: [`/api/sales/transactions?limit=${limit}`],
   });
 
   const { data: topSalespeople } = useQuery<TopSalesperson[]>({
-    queryKey: ["/api/sales/top-salespeople", { limit: 3 }],
+    queryKey: ["/api/sales/top-salespeople?limit=3"],
   });
 
   const formatCurrency = (amount: number) => {

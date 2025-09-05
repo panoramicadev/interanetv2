@@ -13,7 +13,7 @@ export default function SalesChart() {
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('monthly');
   
   const { data: chartData, isLoading } = useQuery<ChartDataPoint[]>({
-    queryKey: ["/api/sales/chart-data", { period }],
+    queryKey: [`/api/sales/chart-data?period=${period}`],
   });
 
   const formatCurrency = (value: number) => {

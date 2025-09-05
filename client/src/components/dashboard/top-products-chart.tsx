@@ -10,7 +10,7 @@ interface TopProduct {
 
 export default function TopProductsChart() {
   const { data: topProducts, isLoading } = useQuery<TopProduct[]>({
-    queryKey: ["/api/sales/top-products", { limit: 5 }],
+    queryKey: ["/api/sales/top-products?limit=5"],
   });
 
   const getProductCategory = (productName: string) => {
