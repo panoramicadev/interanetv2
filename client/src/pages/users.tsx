@@ -181,12 +181,24 @@ export default function UsersPage() {
   });
 
   const handleCreateSubmit = (data: InsertSalespersonUserInput) => {
-    createUserMutation.mutate(data);
+    // Limpiar supervisorId si no es vendedor o si es "none"
+    const cleanedData = {
+      ...data,
+      supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null
+    };
+    console.log("Enviando datos:", cleanedData);
+    createUserMutation.mutate(cleanedData);
   };
 
   const handleEditSubmit = (data: InsertSalespersonUserInput) => {
     if (!editingUser) return;
-    updateUserMutation.mutate({ id: editingUser.id, userData: data });
+    // Limpiar supervisorId si no es vendedor o si es "none"  
+    const cleanedData = {
+      ...data,
+      supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null
+    };
+    console.log("Editando datos:", cleanedData);
+    updateUserMutation.mutate({ id: editingUser.id, userData: cleanedData });
   };
 
   const handleEdit = (user: SalespersonUser) => {
