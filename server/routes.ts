@@ -1211,7 +1211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hfpr: row.HFPR?.trim(),
         rupr: row.RUPR?.trim(),
         mrpr: row.MRPR?.trim()
-      })).filter((row: any) => row.sku && row.name); // Filter out empty rows
+      })).filter((row: any) => row.sku && row.name && row.branchCode && row.warehouseCode); // Filter out incomplete rows
 
       const result = await storage.importProductStockFromCSV(csvData);
       
