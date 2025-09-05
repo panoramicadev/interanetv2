@@ -189,11 +189,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/sales/chart-data/salesperson/:salespersonName', isAuthenticated, async (req, res) => {
     try {
       const { salespersonName } = req.params;
-      const chartData = await storage.getSalesChartData('monthly', undefined, undefined, salespersonName);
+      const { period = 'monthly', selectedPeriod, filterType } = req.query;
+      const chartData = await storage.getSalesChartData(period as 'weekly' | 'monthly' | 'daily', undefined, undefined, salespersonName);
       res.json(chartData);
     } catch (error) {
       console.error("Error fetching salesperson chart data:", error);
       res.status(500).json({ message: "Failed to fetch salesperson chart data" });
+    }
+  });
+
+  // Vendedor-specific goals
+  app.get('/api/goals/salesperson/:salespersonName', isAuthenticated, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const goals = await storage.getGoalsBySalesperson(salespersonName);
+      res.json(goals);
+    } catch (error) {
+      console.error("Error fetching salesperson goals:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson goals" });
     }
   });
 
