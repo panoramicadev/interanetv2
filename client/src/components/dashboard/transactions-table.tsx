@@ -14,10 +14,12 @@ import { useState } from "react";
 interface Transaction {
   id: string;
   nudo: string;
+  feemdo: string | null;
   nokoen: string | null;
   nokoprct: string | null;
-  caprad2: number | null;
-  vabrdo: number | null;
+  nokofu: string | null;
+  caprad2: string | null;
+  monto: string | null;
 }
 
 interface TopSalesperson {
@@ -157,7 +159,7 @@ export default function TransactionsTable() {
                   transactions?.map((transaction) => (
                     <TableRow 
                       key={transaction.id}
-                      data-testid={`transaction-${transaction.nudo}`}
+                      data-testid={`transaction-${transaction.id}`}
                     >
                       <TableCell className="font-medium">
                         {transaction.nudo}
