@@ -362,7 +362,7 @@ export default function SupervisorDashboard() {
                   const isCompleted = progress >= 100;
                   
                   return (
-                    <div key={goal.id} className="space-y-3 p-4 border rounded-lg bg-gray-50">
+                    <div key={goal.id} className="col-span-full space-y-3 p-4 border rounded-lg bg-gray-50">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <Target className="w-4 h-4 text-blue-600" />
