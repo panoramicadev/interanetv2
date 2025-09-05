@@ -60,9 +60,26 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
     return salespeople[Math.floor(Math.random() * salespeople.length)];
   };
 
-  const getTimeAgo = () => {
-    const times = ['hace 5 min', 'hace 10 min', 'hace 15 min', 'hace 20 min', 'hace 1 hora'];
-    return times[Math.floor(Math.random() * times.length)];
+  const getTimeAgo = (dateString: string | null) => {
+    if (!dateString) return 'fecha no disponible';
+    
+    const transactionDate = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - transactionDate.getTime();
+    
+    const minutes = Math.floor(diffInMs / (1000 * 60));
+    const hours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const days = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    
+    if (days > 0) {
+      return `hace ${days} día${days > 1 ? 's' : ''}`;
+    } else if (hours > 0) {
+      return `hace ${hours} hora${hours > 1 ? 's' : ''}`;
+    } else if (minutes > 0) {
+      return `hace ${minutes} min`;
+    } else {
+      return 'hace unos segundos';
+    }
   };
 
   const generateEmail = (name: string) => {
@@ -118,7 +135,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                   transactions?.map((transaction) => {
                     const customerName = transaction.nokoen || 'Cliente Anónimo';
                     const salesperson = getRandomSalesperson();
-                    const timeAgo = getTimeAgo();
+                    const timeAgo = getTimeAgo(transaction.feemdo);
                     
                     return (
                       <TableRow 
