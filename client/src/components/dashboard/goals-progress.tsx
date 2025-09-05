@@ -95,15 +95,105 @@ export default function GoalsProgress() {
     );
   }
 
+  // Separate global goals from specific goals
+  const globalGoals = goalsProgress.filter(goal => goal.type === 'global');
+  const specificGoals = goalsProgress.filter(goal => goal.type !== 'global');
+
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-foreground flex items-center space-x-2">
-        <Target className="h-6 w-6" />
-        <span>Progreso de Metas</span>
-      </h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {goalsProgress.map((goal) => (
+    <div className="space-y-6">
+      {/* Global Goals - Full Width at Top */}
+      {globalGoals.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-foreground flex items-center space-x-2">
+            <Target className="h-6 w-6" />
+            <span>Meta Global</span>
+          </h2>
+          
+          {globalGoals.map((goal) => (
+            <Card key={goal.id} className="w-full border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-3 bg-primary/10 rounded-full">
+                      <Target className="h-8 w-8 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-foreground">Meta Global</h3>
+                      <p className="text-muted-foreground">Período: {goal.period}</p>
+                    </div>
+                  </div>
+                  {goal.isCompleted ? (
+                    <div className="flex items-center space-x-2 text-green-600">
+                      <CheckCircle className="h-8 w-8" />
+                      <span className="text-lg font-semibold">¡Meta alcanzada!</span>
+                    </div>
+                  ) : (
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-primary">
+                        {goal.percentage.toFixed(1)}%
+                      </div>
+                      <div className="text-sm text-muted-foreground">completado</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Large Progress Bar */}
+                <div className="space-y-3 mb-4">
+                  <Progress 
+                    value={goal.percentage} 
+                    className="h-6"
+                    data-testid={`progress-global-${goal.id}`}
+                  />
+                </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="text-center p-4 bg-card/50 rounded-lg">
+                    <div className="text-sm text-muted-foreground mb-1">Ventas Actuales</div>
+                    <div className="text-xl font-bold text-foreground">
+                      {formatCurrency(goal.currentSales)}
+                    </div>
+                  </div>
+                  <div className="text-center p-4 bg-card/50 rounded-lg">
+                    <div className="text-sm text-muted-foreground mb-1">Meta Objetivo</div>
+                    <div className="text-xl font-bold text-foreground">
+                      {formatCurrency(goal.targetAmount)}
+                    </div>
+                  </div>
+                  <div className="text-center p-4 bg-card/50 rounded-lg">
+                    <div className="text-sm text-muted-foreground mb-1">
+                      {goal.isCompleted ? "Excedente" : "Falta"}
+                    </div>
+                    <div className={`text-xl font-bold ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
+                      {goal.isCompleted ? "✓" : formatCurrency(goal.remaining)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                {goal.description && (
+                  <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Descripción:</strong> {goal.description}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Specific Goals - Cards Grid */}
+      {specificGoals.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-foreground flex items-center space-x-2">
+            <TrendingUp className="h-5 w-5" />
+            <span>Metas Específicas</span>
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {specificGoals.map((goal) => (
           <Card key={goal.id} className="relative">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -180,8 +270,10 @@ export default function GoalsProgress() {
               )}
             </CardContent>
           </Card>
-        ))}
-      </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
