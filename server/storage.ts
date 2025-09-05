@@ -1238,6 +1238,8 @@ export class DatabaseStorage implements IStorage {
       progress: number;
     }>;
   }>> {
+    console.log(`[DEBUG] Looking for salespeople under supervisor: ${supervisorId}`);
+    
     // Obtener vendedores bajo este supervisor
     const salespeople = await db
       .select()
@@ -1247,6 +1249,8 @@ export class DatabaseStorage implements IStorage {
         eq(salespeopleUsers.role, 'salesperson'),
         eq(salespeopleUsers.isActive, true)
       ));
+
+    console.log(`[DEBUG] Raw salespeople query result:`, salespeople);
 
     const results = [];
     for (const salesperson of salespeople) {

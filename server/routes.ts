@@ -763,8 +763,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/supervisor/:supervisorId/salespeople', isAuthenticated, async (req, res) => {
     try {
       const { supervisorId } = req.params;
+      console.log(`[DEBUG] Fetching salespeople for supervisor ID: ${supervisorId}`);
       
       const salespeople = await storage.getSalespeopleUnderSupervisor(supervisorId);
+      console.log(`[DEBUG] Found ${salespeople.length} salespeople:`, salespeople.map(sp => sp.salespersonName));
       res.json(salespeople);
     } catch (error) {
       console.error("Error fetching supervisor salespeople:", error);
