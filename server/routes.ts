@@ -503,11 +503,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/users/salespeople', isAuthenticated, async (req, res) => {
+    console.log("🚀 POST /api/users/salespeople iniciado");
+    console.log("📦 Body recibido:", req.body);
     try {
       // Solo admin puede crear usuarios
       const user = req.user as any;
+      console.log("👤 Usuario autenticado:", user?.claims?.sub);
       const userId = user.claims.sub;
       const userRecord = await storage.getUser(userId);
+      console.log("🔍 Registro de usuario:", userRecord?.role);
       
       if (userRecord?.role !== 'admin') {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden crear usuarios.' });
