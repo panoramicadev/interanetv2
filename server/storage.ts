@@ -95,6 +95,40 @@ export interface IStorage {
     averageTicket: number;
     percentage: number;
   }>>;
+  
+  // Salesperson detail operations
+  getSalespersonDetails(salespersonName: string, period?: string, filterType?: string): Promise<{
+    totalSales: number;
+    totalClients: number;
+    transactionCount: number;
+    averageTicket: number;
+    salesFrequency: number; // days between sales
+  }>;
+  getSalespersonClients(salespersonName: string, period?: string, filterType?: string): Promise<Array<{
+    clientName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
+    lastSale: string;
+    daysSinceLastSale: number;
+  }>>;
+  
+  // Client detail operations
+  getClientDetails(clientName: string, period?: string, filterType?: string): Promise<{
+    totalPurchases: number;
+    totalProducts: number;
+    transactionCount: number;
+    averageTicket: number;
+    purchaseFrequency: number; // days between purchases
+  }>;
+  getClientProducts(clientName: string, period?: string, filterType?: string): Promise<Array<{
+    productName: string;
+    totalPurchases: number;
+    transactionCount: number;
+    averagePrice: number;
+    lastPurchase: string;
+    daysSinceLastPurchase: number;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -547,6 +581,186 @@ export class DatabaseStorage implements IStorage {
       averageTicket: Number(salesperson.averageTicket),
       percentage: segmentTotal > 0 ? (Number(salesperson.totalSales) / segmentTotal) * 100 : 0
     }));
+  }
+
+  // Salesperson detail operations
+  async getSalespersonDetails(salespersonName: string, period?: string, filterType: string = 'month'): Promise<{
+    totalSales: number;
+    totalClients: number;
+    transactionCount: number;
+    averageTicket: number;
+    salesFrequency: number;
+  }> {
+    const conditions = [eq(salesTransactions.nokofu, salespersonName)];
+
+    if (period && filterType === 'month') {
+      const [year, month] = period.split('-');
+      conditions.push(
+        sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+      );
+    }
+
+    const [result] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        totalClients: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        firstSale: sql<string>`MIN(${salesTransactions.feemdo})`,
+        lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions));
+
+    // Calculate sales frequency
+    const firstSale = new Date(result.firstSale);
+    const lastSale = new Date(result.lastSale);
+    const daysBetween = Math.max(1, Math.floor((lastSale.getTime() - firstSale.getTime()) / (1000 * 60 * 60 * 24)));
+    const salesFrequency = result.transactionCount > 1 ? daysBetween / result.transactionCount : 0;
+
+    return {
+      totalSales: Number(result.totalSales),
+      totalClients: Number(result.totalClients),
+      transactionCount: Number(result.transactionCount),
+      averageTicket: Number(result.averageTicket),
+      salesFrequency: Number(salesFrequency.toFixed(1))
+    };
+  }
+
+  async getSalespersonClients(salespersonName: string, period?: string, filterType: string = 'month'): Promise<Array<{
+    clientName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
+    lastSale: string;
+    daysSinceLastSale: number;
+  }>> {
+    const conditions = [eq(salesTransactions.nokofu, salespersonName)];
+
+    if (period && filterType === 'month') {
+      const [year, month] = period.split('-');
+      conditions.push(
+        sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+      );
+    }
+
+    const result = await db
+      .select({
+        clientName: salesTransactions.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions))
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+
+    const today = new Date();
+    return result.map(client => {
+      const lastSaleDate = new Date(client.lastSale);
+      const daysSinceLastSale = Math.floor((today.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      return {
+        clientName: client.clientName || 'Cliente desconocido',
+        totalSales: Number(client.totalSales),
+        transactionCount: Number(client.transactionCount),
+        averageTicket: Number(client.averageTicket),
+        lastSale: client.lastSale,
+        daysSinceLastSale
+      };
+    });
+  }
+
+  // Client detail operations
+  async getClientDetails(clientName: string, period?: string, filterType: string = 'month'): Promise<{
+    totalPurchases: number;
+    totalProducts: number;
+    transactionCount: number;
+    averageTicket: number;
+    purchaseFrequency: number;
+  }> {
+    const conditions = [eq(salesTransactions.nokoen, clientName)];
+
+    if (period && filterType === 'month') {
+      const [year, month] = period.split('-');
+      conditions.push(
+        sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+      );
+    }
+
+    const [result] = await db
+      .select({
+        totalPurchases: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        totalProducts: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoprct})`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        firstPurchase: sql<string>`MIN(${salesTransactions.feemdo})`,
+        lastPurchase: sql<string>`MAX(${salesTransactions.feemdo})`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions));
+
+    // Calculate purchase frequency
+    const firstPurchase = new Date(result.firstPurchase);
+    const lastPurchase = new Date(result.lastPurchase);
+    const daysBetween = Math.max(1, Math.floor((lastPurchase.getTime() - firstPurchase.getTime()) / (1000 * 60 * 60 * 24)));
+    const purchaseFrequency = result.transactionCount > 1 ? daysBetween / result.transactionCount : 0;
+
+    return {
+      totalPurchases: Number(result.totalPurchases),
+      totalProducts: Number(result.totalProducts),
+      transactionCount: Number(result.transactionCount),
+      averageTicket: Number(result.averageTicket),
+      purchaseFrequency: Number(purchaseFrequency.toFixed(1))
+    };
+  }
+
+  async getClientProducts(clientName: string, period?: string, filterType: string = 'month'): Promise<Array<{
+    productName: string;
+    totalPurchases: number;
+    transactionCount: number;
+    averagePrice: number;
+    lastPurchase: string;
+    daysSinceLastPurchase: number;
+  }>> {
+    const conditions = [eq(salesTransactions.nokoen, clientName)];
+
+    if (period && filterType === 'month') {
+      const [year, month] = period.split('-');
+      conditions.push(
+        sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+      );
+    }
+
+    const result = await db
+      .select({
+        productName: salesTransactions.nokoprct,
+        totalPurchases: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averagePrice: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        lastPurchase: sql<string>`MAX(${salesTransactions.feemdo})`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions))
+      .groupBy(salesTransactions.nokoprct)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+
+    const today = new Date();
+    return result.map(product => {
+      const lastPurchaseDate = new Date(product.lastPurchase);
+      const daysSinceLastPurchase = Math.floor((today.getTime() - lastPurchaseDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      return {
+        productName: product.productName || 'Producto desconocido',
+        totalPurchases: Number(product.totalPurchases),
+        transactionCount: Number(product.transactionCount),
+        averagePrice: Number(product.averagePrice),
+        lastPurchase: product.lastPurchase,
+        daysSinceLastPurchase
+      };
+    });
   }
 }
 

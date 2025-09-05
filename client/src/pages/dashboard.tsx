@@ -7,6 +7,7 @@ import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
 import SegmentChart from "@/components/dashboard/segment-chart";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
+import TopSalespeoplePanel from "@/components/dashboard/top-salespeople-panel";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import ImportModal from "@/components/dashboard/import-modal";
 import GoalsProgress from "@/components/dashboard/goals-progress";
@@ -204,12 +205,16 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <SegmentChart 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
             />
             <TopClientsPanel 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+            />
+            <TopSalespeoplePanel 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
             />

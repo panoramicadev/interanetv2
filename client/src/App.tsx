@@ -8,6 +8,8 @@ import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
 import Metas from "@/pages/metas";
 import SegmentDetail from "@/pages/segment-detail";
+import SalespersonDetail from "@/pages/salesperson-detail";
+import ClientDetail from "@/pages/client-detail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -22,6 +24,8 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/metas" component={Metas} />
           <Route path="/segment/:segmentName" component={SegmentDetail} />
+          <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
+          <Route path="/client/:clientName" component={ClientDetail} />
         </>
       )}
       <Route component={NotFound} />

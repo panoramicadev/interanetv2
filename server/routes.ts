@@ -150,6 +150,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Salesperson detail routes
+  app.get("/api/sales/salesperson/:salespersonName/details", isAuthenticated, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const details = await storage.getSalespersonDetails(salespersonName, period as string, filterType as string);
+      res.json(details);
+    } catch (error) {
+      console.error("Error fetching salesperson details:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson details" });
+    }
+  });
+
+  app.get("/api/sales/salesperson/:salespersonName/clients", isAuthenticated, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const clients = await storage.getSalespersonClients(salespersonName, period as string, filterType as string);
+      res.json(clients);
+    } catch (error) {
+      console.error("Error fetching salesperson clients:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson clients" });
+    }
+  });
+
+  // Client detail routes
+  app.get("/api/sales/client/:clientName/details", isAuthenticated, async (req, res) => {
+    try {
+      const { clientName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const details = await storage.getClientDetails(clientName, period as string, filterType as string);
+      res.json(details);
+    } catch (error) {
+      console.error("Error fetching client details:", error);
+      res.status(500).json({ message: "Failed to fetch client details" });
+    }
+  });
+
+  app.get("/api/sales/client/:clientName/products", isAuthenticated, async (req, res) => {
+    try {
+      const { clientName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const products = await storage.getClientProducts(clientName, period as string, filterType as string);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching client products:", error);
+      res.status(500).json({ message: "Failed to fetch client products" });
+    }
+  });
+
   // CSV import endpoint
   app.post('/api/sales/import', isAuthenticated, async (req, res) => {
     try {
