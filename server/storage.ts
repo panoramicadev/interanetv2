@@ -183,6 +183,15 @@ export interface IStorage {
     totalSales: number;
     transactionCount: number;
     lastSale: string;
+    goals: Array<{
+      id: string;
+      description: string;
+      targetAmount: number;
+      currentSales: number;
+      remaining: number;
+      period: string;
+      progress: number;
+    }>;
   }>>;
   getSupervisorGoals(supervisorId: string): Promise<Goal[]>;
 }
@@ -1212,6 +1221,15 @@ export class DatabaseStorage implements IStorage {
     totalSales: number;
     transactionCount: number;
     lastSale: string;
+    goals: Array<{
+      id: string;
+      description: string;
+      targetAmount: number;
+      currentSales: number;
+      remaining: number;
+      period: string;
+      progress: number;
+    }>;
   }>> {
     // Obtener vendedores bajo este supervisor
     const salespeople = await db
@@ -1235,13 +1253,43 @@ export class DatabaseStorage implements IStorage {
         .from(salesTransactions)
         .where(eq(salesTransactions.nokofu, salesperson.salespersonName));
 
+      // Obtener metas del vendedor
+      const salespersonGoals = await db
+        .select()
+        .from(goals)
+        .where(and(
+          eq(goals.type, 'salesperson'),
+          eq(goals.target, salesperson.salespersonName)
+        ))
+        .orderBy(desc(goals.createdAt));
+
+      // Procesar metas con progreso
+      const processedGoals = [];
+      for (const goal of salespersonGoals) {
+        const currentSales = await this.getCurrentSalesForGoal(goal.id);
+        const targetAmount = parseFloat(goal.targetAmount || "0");
+        const remaining = Math.max(targetAmount - currentSales, 0);
+        const progress = targetAmount > 0 ? Math.min((currentSales / targetAmount) * 100, 100) : 0;
+
+        processedGoals.push({
+          id: goal.id,
+          description: goal.description || "Meta de ventas",
+          targetAmount,
+          currentSales,
+          remaining,
+          period: goal.period || "",
+          progress: Math.round(progress)
+        });
+      }
+
       results.push({
         id: salesperson.id,
         salespersonName: salesperson.salespersonName,
         email: salesperson.email || '',
         totalSales: Number(salesStats?.totalSales || 0),
         transactionCount: Number(salesStats?.transactionCount || 0),
-        lastSale: salesStats?.lastSale || ''
+        lastSale: salesStats?.lastSale || '',
+        goals: processedGoals
       });
     }
 

@@ -369,42 +369,111 @@ export default function SupervisorDashboard() {
                 Mi Equipo de Vendedores
               </CardTitle>
               <CardDescription className="text-gray-600">
-                Rendimiento y estadísticas de tu equipo
+                Rendimiento, estadísticas y metas de tu equipo
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {(salespeople as any[])?.map((salesperson: any, index: number) => (
-                  <div key={salesperson.id} className="flex items-center justify-between p-4 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
-                        <span className="text-white font-medium">
-                          {salesperson.salespersonName.charAt(0).toUpperCase()}
-                        </span>
+                  <div key={salesperson.id} className="border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                    {/* Información básica del vendedor */}
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
+                          <span className="text-white font-medium">
+                            {salesperson.salespersonName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900">{salesperson.salespersonName}</h4>
+                          <p className="text-sm text-gray-600">{salesperson.email}</p>
+                          <p className="text-xs text-gray-500">
+                            {salesperson.transactionCount} transacciones
+                            {salesperson.lastSale && (
+                              <> • Última venta: {new Date(salesperson.lastSale).toLocaleDateString()}</>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">{salesperson.salespersonName}</h4>
-                        <p className="text-sm text-gray-600">{salesperson.email}</p>
-                        <p className="text-xs text-gray-500">
-                          {salesperson.transactionCount} transacciones
-                          {salesperson.lastSale && (
-                            <> • Última venta: {new Date(salesperson.lastSale).toLocaleDateString()}</>
-                          )}
+                      <div className="text-right">
+                        <p className="text-lg font-semibold text-gray-900">
+                          {new Intl.NumberFormat('es-CL', {
+                            style: 'currency',
+                            currency: 'CLP',
+                            minimumFractionDigits: 0,
+                          }).format(salesperson.totalSales)}
                         </p>
+                        <Badge variant="outline" className="mt-1">
+                          {teamMetrics.totalSales > 0 ? ((salesperson.totalSales / teamMetrics.totalSales) * 100).toFixed(1) : 0}% del equipo
+                        </Badge>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-semibold text-gray-900">
-                        {new Intl.NumberFormat('es-CL', {
-                          style: 'currency',
-                          currency: 'CLP',
-                          minimumFractionDigits: 0,
-                        }).format(salesperson.totalSales)}
-                      </p>
-                      <Badge variant="outline" className="mt-1">
-                        {((salesperson.totalSales / teamMetrics.totalSales) * 100).toFixed(1)}% del equipo
-                      </Badge>
-                    </div>
+
+                    {/* Metas del vendedor */}
+                    {salesperson.goals && salesperson.goals.length > 0 && (
+                      <div className="px-4 pb-4 border-t border-gray-200 bg-white">
+                        <div className="pt-3">
+                          <p className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                            <Target className="w-4 h-4 mr-1 text-blue-600" />
+                            Metas Asignadas
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {salesperson.goals.map((goal: any) => (
+                              <div key={goal.id} className="bg-gray-50 rounded-lg p-3 border">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-medium text-gray-900 truncate">
+                                    {goal.description}
+                                  </span>
+                                  <Badge 
+                                    variant={goal.progress >= 100 ? "default" : goal.progress >= 75 ? "secondary" : "outline"}
+                                    className="text-xs"
+                                  >
+                                    {goal.progress}%
+                                  </Badge>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-xs text-gray-600">
+                                    <span>Actual:</span>
+                                    <span className="font-medium">
+                                      {new Intl.NumberFormat('es-CL', {
+                                        style: 'currency',
+                                        currency: 'CLP',
+                                        minimumFractionDigits: 0,
+                                      }).format(goal.currentSales)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-xs text-gray-600">
+                                    <span>Meta:</span>
+                                    <span className="font-medium">
+                                      {new Intl.NumberFormat('es-CL', {
+                                        style: 'currency',
+                                        currency: 'CLP',
+                                        minimumFractionDigits: 0,
+                                      }).format(goal.targetAmount)}
+                                    </span>
+                                  </div>
+                                  <Progress value={Math.min(goal.progress, 100)} className="h-2 mt-2" />
+                                  <div className="flex justify-between text-xs mt-1">
+                                    <span className="text-gray-500">Período:</span>
+                                    <span className="font-medium text-gray-700">{goal.period}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mensaje cuando no hay metas */}
+                    {(!salesperson.goals || salesperson.goals.length === 0) && (
+                      <div className="px-4 pb-4 border-t border-gray-200 bg-white">
+                        <div className="pt-3 text-center">
+                          <Target className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+                          <p className="text-xs text-gray-500">Sin metas asignadas</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
                 
