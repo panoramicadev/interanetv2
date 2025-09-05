@@ -127,179 +127,108 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
           const value = values[index];
           const cleanHeader = header.toLowerCase().trim();
           
-          // Map CSV headers to database fields with proper type conversion
-          switch (cleanHeader) {
-            // Core fields
-            case 'nudo':
-              transaction.nudo = value || '';
-              break;
-            case 'feemdo':
-              transaction.feemdo = parseDate(value);
-              break;
-            case 'koprct':
-              transaction.koprct = value || null;
-              break;
-            case 'nokoen':
-              transaction.nokoen = value || null;
-              break;
-            case 'noruen':
-              transaction.noruen = value || null;
-              break;
-            case 'nokoprct':
-              transaction.nokoprct = value || null;
-              break;
-            case 'nokofu':
-              transaction.nokofu = value || null;
-              break;
-            case 'caprad2':
-              transaction.caprad2 = parseNumber(value);
-              break;
-            
-            // Numeric fields
-            case 'idmaeedo':
-              transaction.idmaeedo = parseNumber(value);
-              break;
-            case 'tamodo':
-              transaction.tamodo = parseNumber(value);
-              break;
-            case 'caprad':
-              transaction.caprad = parseNumber(value);
-              break;
-            case 'caprex':
-              transaction.caprex = parseNumber(value);
-              break;
-            case 'vanedo':
-              transaction.vanedo = parseNumber(value);
-              break;
-            case 'vaivdo':
-              transaction.vaivdo = parseNumber(value);
-              break;
-            case 'vabrdo':
-              transaction.vabrdo = parseNumber(value);
-              break;
-            case 'luvtlido':
-              transaction.luvtlido = value ? parseInt(value) : null;
-              break;
-            case 'udtrpr':
-              transaction.udtrpr = parseNumber(value);
-              break;
-            case 'rludpr':
-              transaction.rludpr = parseNumber(value);
-              break;
-            case 'caprco1':
-              transaction.caprco1 = parseNumber(value);
-              break;
-            case 'caprad1':
-              transaction.caprad1 = parseNumber(value);
-              break;
-            case 'caprex1':
-              transaction.caprex1 = parseNumber(value);
-              break;
-            case 'caprnc1':
-              transaction.caprnc1 = parseNumber(value);
-              break;
-            case 'caprco2':
-              transaction.caprco2 = parseNumber(value);
-              break;
-            case 'caprex2':
-              transaction.caprex2 = parseNumber(value);
-              break;
-            case 'caprnc2':
-              transaction.caprnc2 = parseNumber(value);
-              break;
-            case 'ppprne':
-              transaction.ppprne = parseNumber(value);
-              break;
-            case 'ppprbr':
-              transaction.ppprbr = parseNumber(value);
-              break;
-            case 'vaneli':
-              transaction.vaneli = parseNumber(value);
-              break;
-            case 'vabrli':
-              transaction.vabrli = parseNumber(value);
-              break;
-            case 'ppprpm':
-              transaction.ppprpm = parseNumber(value);
-              break;
-            case 'ppprpmifrs':
-              transaction.ppprpmifrs = parseNumber(value);
-              break;
-            case 'logistica':
-              transaction.logistica = parseNumber(value);
-              break;
-            case 'ppprnere1':
-              transaction.ppprnere1 = parseNumber(value);
-              break;
-            case 'ppprnere2':
-              transaction.ppprnere2 = parseNumber(value);
-              break;
-            case 'idmaeddo':
-              transaction.idmaeddo = parseNumber(value);
-              break;
-            case 'recaprre':
-              transaction.recaprre = parseNumber(value);
-              break;
-            case 'monto':
-              transaction.monto = parseNumber(value);
-              break;
-            case 'devol1':
-              transaction.devol1 = parseNumber(value);
-              break;
-            case 'devol2':
-              transaction.devol2 = parseNumber(value);
-              break;
-            case 'stockfis':
-              transaction.stockfis = parseNumber(value);
-              break;
-            case 'liscosmod':
-              transaction.liscosmod = parseNumber(value);
-              break;
-
-            // Date fields
-            case 'feulvedo':
-              transaction.feulvedo = parseDate(value);
-              break;
-            case 'feemli':
-              transaction.feemli = parseDate(value);
-              break;
-            case 'feerli':
-              transaction.feerli = parseDate(value);
-              break;
-
-            // String fields
-            case 'tido':
-            case 'endo':
-            case 'suendo':
-            case 'sudo':
-            case 'kofudo':
-            case 'modo':
-            case 'timodo':
-            case 'lilg':
-            case 'nulido':
-            case 'sulido':
-            case 'bosulido':
-            case 'kofulido':
-            case 'prct':
-            case 'tict':
-            case 'tipr':
-            case 'nusepr':
-            case 'ud01pr':
-            case 'ud02pr':
-            case 'eslido':
-            case 'fmpr':
-            case 'mrpr':
-            case 'zona':
-            case 'ruen':
-            case 'pfpr':
-            case 'hfpr':
-            case 'ocdo':
-            case 'nofmpr':
-            case 'nopfpr':
-            case 'nohfpr':
-            case 'listacost':
-              transaction[cleanHeader] = value || null;
-              break;
+          // Map CSV headers to database fields - EXACT type conversion per schema
+          if (value && value.trim() !== '') {
+            switch (cleanHeader) {
+              // Required string fields
+              case 'nudo':
+                transaction.nudo = value.toString();
+                break;
+              
+              // Required date fields  
+              case 'feemdo':
+                transaction.feemdo = parseDate(value);
+                break;
+                
+              // Optional string fields (varchar/text)
+              case 'koprct':
+              case 'nokoen':
+              case 'noruen':
+              case 'nokoprct':
+              case 'nokofu':
+              case 'tido':
+              case 'endo':
+              case 'suendo':
+              case 'sudo':
+              case 'kofudo':
+              case 'modo':
+              case 'timodo':
+              case 'lilg':
+              case 'nulido':
+              case 'sulido':
+              case 'bosulido':
+              case 'kofulido':
+              case 'prct':
+              case 'tict':
+              case 'tipr':
+              case 'nusepr':
+              case 'ud01pr':
+              case 'ud02pr':
+              case 'eslido':
+              case 'fmpr':
+              case 'mrpr':
+              case 'zona':
+              case 'ruen':
+              case 'pfpr':
+              case 'hfpr':
+              case 'ocdo':
+              case 'nofmpr':
+              case 'nopfpr':
+              case 'nohfpr':
+              case 'listacost':
+                transaction[cleanHeader] = value.toString();
+                break;
+                
+              // Optional date fields
+              case 'feulvedo':
+              case 'feemli':
+              case 'feerli':
+                transaction[cleanHeader] = parseDate(value);
+                break;
+                
+              // Integer field
+              case 'luvtlido':
+                const intVal = parseInt(value);
+                transaction.luvtlido = isNaN(intVal) ? null : intVal;
+                break;
+                
+              // Numeric fields (all others)
+              case 'idmaeedo':
+              case 'tamodo':
+              case 'caprad':
+              case 'caprex':
+              case 'vanedo':
+              case 'vaivdo':
+              case 'vabrdo':
+              case 'udtrpr':
+              case 'rludpr':
+              case 'caprco1':
+              case 'caprad1':
+              case 'caprex1':
+              case 'caprnc1':
+              case 'caprco2':
+              case 'caprad2':
+              case 'caprex2':
+              case 'caprnc2':
+              case 'ppprne':
+              case 'ppprbr':
+              case 'vaneli':
+              case 'vabrli':
+              case 'ppprpm':
+              case 'ppprpmifrs':
+              case 'logistica':
+              case 'ppprnere1':
+              case 'ppprnere2':
+              case 'idmaeddo':
+              case 'recaprre':
+              case 'monto':
+              case 'devol1':
+              case 'devol2':
+              case 'stockfis':
+              case 'liscosmod':
+                transaction[cleanHeader] = parseNumber(value);
+                break;
+            }
           }
         });
         
