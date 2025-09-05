@@ -6,8 +6,10 @@ import {
   FileText, 
   Users, 
   LogOut,
-  Building2
+  Building2,
+  Target
 } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import type { User } from "@shared/schema";
 
 interface SidebarProps {
@@ -16,6 +18,7 @@ interface SidebarProps {
 
 export default function Sidebar({ onImportClick }: SidebarProps) {
   const { user } = useAuth() as { user: User | null };
+  const [location] = useLocation();
 
   const handleLogout = () => {
     window.location.href = "/api/logout";
@@ -50,14 +53,27 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
-          <Button
-            variant="secondary"
-            className="w-full justify-start"
-            data-testid="nav-dashboard"
-          >
-            <LayoutDashboard className="w-5 h-5 mr-3" />
-            Dashboard
-          </Button>
+          <Link href="/">
+            <Button
+              variant={location === "/" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              data-testid="nav-dashboard"
+            >
+              <LayoutDashboard className="w-5 h-5 mr-3" />
+              Dashboard
+            </Button>
+          </Link>
+          
+          <Link href="/metas">
+            <Button
+              variant={location === "/metas" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              data-testid="nav-metas"
+            >
+              <Target className="w-5 h-5 mr-3" />
+              Metas
+            </Button>
+          </Link>
           
           <Button
             variant="ghost"

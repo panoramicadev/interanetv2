@@ -211,5 +211,25 @@ export const insertSalesTransactionSchema = z.object({
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Goals/Metas table for managing sales targets
+export const goals = pgTable("goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: varchar("type").notNull(), // 'global', 'segment', 'salesperson'
+  target: varchar("target"), // segment name or salesperson name (null for global)
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  period: varchar("period").notNull(), // 'YYYY-MM' format for monthly goals
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type Goal = typeof goals.$inferSelect;
+export type InsertGoal = typeof goals.$inferInsert;
+export const insertGoalSchema = createInsertSchema(goals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export type InsertSalesTransaction = z.infer<typeof insertSalesTransactionSchema>;
 export type SalesTransaction = typeof salesTransactions.$inferSelect;

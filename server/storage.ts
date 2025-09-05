@@ -1,10 +1,13 @@
 import {
   users,
   salesTransactions,
+  goals,
   type User,
   type UpsertUser,
   type SalesTransaction,
   type InsertSalesTransaction,
+  type Goal,
+  type InsertGoal,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
@@ -60,6 +63,13 @@ export interface IStorage {
     period: string;
     sales: number;
   }>>;
+  
+  // Goals operations
+  getGoals(): Promise<Goal[]>;
+  getGoalsByType(type: string): Promise<Goal[]>;
+  createGoal(goal: InsertGoal): Promise<Goal>;
+  updateGoal(id: string, goal: Partial<InsertGoal>): Promise<Goal>;
+  deleteGoal(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -333,6 +343,33 @@ export class DatabaseStorage implements IStorage {
       period: r.period,
       sales: Number(r.sales),
     }));
+  }
+
+  // Goals operations
+  async getGoals(): Promise<Goal[]> {
+    return await db.select().from(goals).orderBy(desc(goals.createdAt));
+  }
+
+  async getGoalsByType(type: string): Promise<Goal[]> {
+    return await db.select().from(goals).where(eq(goals.type, type)).orderBy(desc(goals.createdAt));
+  }
+
+  async createGoal(goal: InsertGoal): Promise<Goal> {
+    const [newGoal] = await db.insert(goals).values(goal).returning();
+    return newGoal;
+  }
+
+  async updateGoal(id: string, goalData: Partial<InsertGoal>): Promise<Goal> {
+    const [updatedGoal] = await db
+      .update(goals)
+      .set({ ...goalData, updatedAt: new Date() })
+      .where(eq(goals.id, id))
+      .returning();
+    return updatedGoal;
+  }
+
+  async deleteGoal(id: string): Promise<void> {
+    await db.delete(goals).where(eq(goals.id, id));
   }
 }
 

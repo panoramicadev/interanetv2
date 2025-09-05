@@ -173,6 +173,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Goals/Metas endpoints
+  app.get('/api/goals', isAuthenticated, async (req, res) => {
+    try {
+      const { type } = req.query;
+      const goals = type 
+        ? await storage.getGoalsByType(type as string)
+        : await storage.getGoals();
+      res.json(goals);
+    } catch (error) {
+      console.error("Error fetching goals:", error);
+      res.status(500).json({ message: "Failed to fetch goals" });
+    }
+  });
+
+  app.post('/api/goals', isAuthenticated, async (req, res) => {
+    try {
+      const goal = await storage.createGoal(req.body);
+      res.json(goal);
+    } catch (error) {
+      console.error("Error creating goal:", error);
+      res.status(500).json({ message: "Failed to create goal" });
+    }
+  });
+
+  app.put('/api/goals/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const goal = await storage.updateGoal(id, req.body);
+      res.json(goal);
+    } catch (error) {
+      console.error("Error updating goal:", error);
+      res.status(500).json({ message: "Failed to update goal" });
+    }
+  });
+
+  app.delete('/api/goals/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteGoal(id);
+      res.json({ message: "Goal deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting goal:", error);
+      res.status(500).json({ message: "Failed to delete goal" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
