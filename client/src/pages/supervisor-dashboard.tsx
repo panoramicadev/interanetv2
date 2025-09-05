@@ -16,7 +16,10 @@ import {
   Target, 
   TrendingUp, 
   DollarSign,
-  UserCheck
+  UserCheck,
+  AlertTriangle,
+  Clock,
+  TrendingDown
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useLocation } from "wouter";
@@ -35,6 +38,12 @@ export default function SupervisorDashboard() {
   // Obtener metas del supervisor
   const { data: supervisorGoals = [], isLoading: loadingGoals } = useQuery({
     queryKey: [`/api/supervisor/${user?.id}/goals`],
+    enabled: !!user?.id && user?.role === 'supervisor',
+  });
+
+  // Obtener alertas del supervisor
+  const { data: supervisorAlerts = [], isLoading: loadingAlerts } = useQuery({
+    queryKey: [`/api/supervisor/${user?.id}/alerts`],
     enabled: !!user?.id && user?.role === 'supervisor',
   });
 
@@ -94,7 +103,7 @@ export default function SupervisorDashboard() {
       salespeople.reduce((sum: number, sp: any) => sum + (sp.totalSales || 0), 0) / salespeople.length : 0
   };
 
-  if (loadingSalespeople || loadingGoals) {
+  if (loadingSalespeople || loadingGoals || loadingAlerts) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -209,6 +218,58 @@ export default function SupervisorDashboard() {
 
         {/* Contenido principal */}
         <main className="px-4 lg:px-6 pb-6 space-y-6">
+          {/* Alertas Inteligentes */}
+          {supervisorAlerts && (supervisorAlerts as any[]).length > 0 && (
+            <Card className="rounded-2xl border-red-200/60 shadow-sm bg-red-50">
+              <CardHeader>
+                <CardTitle className="text-xl font-semibold text-red-900 flex items-center">
+                  <AlertTriangle className="w-5 h-5 mr-2 text-red-600" />
+                  Alertas del Equipo
+                </CardTitle>
+                <CardDescription className="text-red-700">
+                  Situaciones que requieren tu atención inmediata
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {(supervisorAlerts as any[]).map((alert: any, index: number) => {
+                    const severityColors = {
+                      high: 'bg-red-100 border-red-300 text-red-800',
+                      medium: 'bg-orange-100 border-orange-300 text-orange-800',
+                      low: 'bg-yellow-100 border-yellow-300 text-yellow-800'
+                    };
+                    
+                    const severityIcons = {
+                      high: AlertTriangle,
+                      medium: Clock,
+                      low: TrendingDown
+                    };
+                    
+                    const Icon = severityIcons[alert.severity];
+                    
+                    return (
+                      <div 
+                        key={index} 
+                        className={`flex items-center space-x-3 p-3 rounded-lg border ${severityColors[alert.severity]}`}
+                      >
+                        <Icon className="w-5 h-5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{alert.message}</p>
+                          <div className="flex items-center space-x-4 mt-1 text-xs opacity-75">
+                            <Badge variant="outline" className="text-xs">
+                              {alert.type === 'inactive' ? 'Inactivo' : 
+                               alert.type === 'below_goal' ? 'Bajo Meta' : 'Proyección'}
+                            </Badge>
+                            <span>Severidad: {alert.severity === 'high' ? 'Alta' : alert.severity === 'medium' ? 'Media' : 'Baja'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {/* KPI Cards del equipo */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="rounded-2xl border-gray-200/60 shadow-sm hover:shadow-md transition-shadow">
