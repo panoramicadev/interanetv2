@@ -41,9 +41,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
     queryKey: [`/api/sales/transactions?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}`],
   });
 
-  const { data: topSalespeople } = useQuery<TopSalesperson[]>({
-    queryKey: [`/api/sales/top-salespeople?period=${selectedPeriod}&filterType=${filterType}`],
-  });
+  // Removed top salespeople query - now handled by separate component
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -67,82 +65,16 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-      {/* Top Salespeople */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top Vendedores</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {isLoading ? (
-              [...Array(3)].map((_, i) => (
-                <div key={i} className="animate-pulse flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-muted rounded-full"></div>
-                  <div className="flex-1 space-y-1">
-                    <div className="h-4 bg-muted rounded w-24"></div>
-                    <div className="h-3 bg-muted rounded w-16"></div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="h-4 bg-muted rounded w-16"></div>
-                    <div className="h-3 bg-muted rounded w-8"></div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              topSalespeople?.map((person, index) => (
-                <Link 
-                  key={person.salesperson} 
-                  href={`/salesperson/${encodeURIComponent(person.salesperson)}`}
-                >
-                  <div 
-                    className="flex items-center justify-between hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer"
-                    data-testid={`salesperson-${index}`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        index === 0 ? 'bg-gradient-to-r from-blue-500 to-purple-600' :
-                        index === 1 ? 'bg-gradient-to-r from-green-500 to-blue-600' :
-                        'bg-gradient-to-r from-orange-500 to-red-600'
-                      }`}>
-                        <span className="text-xs font-medium text-white">
-                          {getInitials(person.salesperson)}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground hover:text-purple-600 transition-colors">
-                          {person.salesperson}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {person.transactionCount} transacciones
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-foreground">
-                        {formatCurrency(person.totalSales)}
-                      </p>
-                      <p className="text-xs text-green-600">+18%</p>
-                    </div>
-                  </div>
-                </Link>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent Transactions */}
-      <Card className="xl:col-span-2">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Transacciones Recientes</CardTitle>
-            <Button variant="link" size="sm" data-testid="button-view-all">
-              Ver todas
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>Transacciones Recientes</CardTitle>
+          <Button variant="link" size="sm" data-testid="button-view-all">
+            Ver todas
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -201,7 +133,6 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
             </Table>
           </div>
         </CardContent>
-      </Card>
-    </div>
+    </Card>
   );
 }
