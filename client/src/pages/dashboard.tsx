@@ -19,6 +19,22 @@ export default function Dashboard() {
   const { isAuthenticated, isLoading } = useAuth();
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState("2025-09");
+  const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
+
+  // Update selected period when filter type changes
+  useEffect(() => {
+    switch (filterType) {
+      case "day":
+        setSelectedPeriod("today");
+        break;
+      case "month":
+        setSelectedPeriod("2025-09");
+        break;
+      case "range":
+        setSelectedPeriod("last-30-days");
+        break;
+    }
+  }, [filterType]);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -67,23 +83,71 @@ export default function Dashboard() {
                 Dashboard de Ventas
               </h1>
               <p className="text-muted-foreground">
-                Resumen de rendimiento de septiembre 2025
+                Resumen de rendimiento - {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
               </p>
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* Filter Type Selector */}
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-foreground">
+                  Filtrar por:
+                </label>
+                <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
+                  <SelectTrigger className="w-32" data-testid="select-filter-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="day">Día</SelectItem>
+                    <SelectItem value="month">Mes</SelectItem>
+                    <SelectItem value="range">Rango</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Period Selector */}
               <div className="flex items-center space-x-2">
                 <label className="text-sm font-medium text-foreground">
                   Período:
                 </label>
                 <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                  <SelectTrigger className="w-40" data-testid="select-period">
+                  <SelectTrigger className="w-48" data-testid="select-period">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                    <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                    <SelectItem value="2025-07">Julio 2025</SelectItem>
+                    {filterType === "day" && (
+                      <>
+                        <SelectItem value="2025-09-01">1 Septiembre 2025</SelectItem>
+                        <SelectItem value="2025-09-02">2 Septiembre 2025</SelectItem>
+                        <SelectItem value="2025-09-03">3 Septiembre 2025</SelectItem>
+                        <SelectItem value="2025-09-04">4 Septiembre 2025</SelectItem>
+                        <SelectItem value="2025-09-05">5 Septiembre 2025</SelectItem>
+                        <SelectItem value="today">Hoy</SelectItem>
+                        <SelectItem value="yesterday">Ayer</SelectItem>
+                      </>
+                    )}
+                    {filterType === "month" && (
+                      <>
+                        <SelectItem value="2025-09">Septiembre 2025</SelectItem>
+                        <SelectItem value="2025-08">Agosto 2025</SelectItem>
+                        <SelectItem value="2025-07">Julio 2025</SelectItem>
+                        <SelectItem value="2025-06">Junio 2025</SelectItem>
+                        <SelectItem value="2025-05">Mayo 2025</SelectItem>
+                        <SelectItem value="current-month">Mes actual</SelectItem>
+                        <SelectItem value="last-month">Mes anterior</SelectItem>
+                      </>
+                    )}
+                    {filterType === "range" && (
+                      <>
+                        <SelectItem value="last-7-days">Últimos 7 días</SelectItem>
+                        <SelectItem value="last-30-days">Últimos 30 días</SelectItem>
+                        <SelectItem value="last-90-days">Últimos 90 días</SelectItem>
+                        <SelectItem value="this-week">Esta semana</SelectItem>
+                        <SelectItem value="last-week">Semana anterior</SelectItem>
+                        <SelectItem value="this-quarter">Este trimestre</SelectItem>
+                        <SelectItem value="this-year">Este año</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
