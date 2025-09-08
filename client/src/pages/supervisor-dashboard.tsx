@@ -297,11 +297,6 @@ export default function SupervisorDashboard() {
       icon: FileText,
     },
     {
-      href: "/calendario",
-      label: "Calendario",
-      icon: CalendarIcon,
-    },
-    {
       href: "#presupuesto",
       label: "Crear Presupuesto",
       icon: Calculator,

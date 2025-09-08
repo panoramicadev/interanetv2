@@ -202,11 +202,6 @@ export default function SalespersonDashboard() {
       icon: FileText,
     },
     {
-      href: "/calendario",
-      label: "Calendario",
-      icon: CalendarIcon,
-    },
-    {
       href: "#",
       label: "Crear Presupuesto",
       icon: Calculator,

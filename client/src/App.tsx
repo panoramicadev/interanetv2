@@ -68,12 +68,22 @@ function Router() {
           {/* Rutas específicas de admin */}
           <Route path="/usuarios" component={Users} />
           <Route path="/productos" component={Products} />
+          <Route path="/metas" component={Metas} />
           <Route path="/segment/:segmentName" component={SegmentDetail} />
           <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
           <Route path="/client/:clientName" component={ClientDetail} />
           
           {/* Rutas específicas de vendedor */}
           <Route path="/mis-clientes" component={ClientsDashboard} />
+          <Route path="/presupuestos" component={() => <div>Página en construcción</div>} />
+          
+          {/* Rutas específicas de supervisor */}
+          <Route path="/equipo" component={() => <div>Página en construcción</div>} />
+          <Route path="/reportes" component={() => <div>Página en construcción</div>} />
+          
+          {/* Rutas específicas de cliente */}
+          <Route path="/mis-pedidos" component={() => <div>Página en construcción</div>} />
+          <Route path="/solicitar-cotizacion" component={() => <div>Página en construcción</div>} />
         </>
       )}
       <Route component={NotFound} />

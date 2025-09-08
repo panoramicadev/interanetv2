@@ -119,11 +119,6 @@ export default function ClientBuyerDashboard() {
       icon: FileText,
     },
     {
-      href: "/calendario",
-      label: "Calendario",
-      icon: Calendar,
-    },
-    {
       href: "#",
       label: "Crear Presupuesto",
       icon: Calculator,
