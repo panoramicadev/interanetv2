@@ -731,19 +731,15 @@ export function registerRoutes(app: Express): Server {
       let userId;
       let userRecord;
 
-      // Verificar si hay una sesión simulada
-      if (req.session?.simulatedUser) {
-        console.log('[DEBUG] Using simulated user');
-        userId = req.session.simulatedUser;
-        userRecord = await storage.getSalespersonUser(userId);
-      } else if (req.user?.claims?.sub) {
-        console.log('[DEBUG] Using authenticated user');
-        userId = req.user.claims.sub;
-        userRecord = await storage.getUser(userId);
-      } else {
+      // Verificar autenticación con el nuevo sistema
+      if (!req.isAuthenticated() || !req.user) {
         console.log('[DEBUG] No authentication found');
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
+      
+      console.log('[DEBUG] Using authenticated user - new auth system');
+      userId = req.user.id;
+      userRecord = req.user;
       
       console.log('[DEBUG] userRecord:', userRecord);
       console.log('[DEBUG] userRecord.role:', userRecord?.role);
@@ -783,16 +779,13 @@ export function registerRoutes(app: Express): Server {
       let userId;
       let userRecord;
 
-      // Verificar si hay una sesión simulada
-      if (req.session?.simulatedUser) {
-        userId = req.session.simulatedUser;
-        userRecord = await storage.getSalespersonUser(userId);
-      } else if (req.user?.claims?.sub) {
-        userId = req.user.claims.sub;
-        userRecord = await storage.getUser(userId);
-      } else {
+      // Verificar autenticación con el nuevo sistema
+      if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
+      
+      userId = req.user.id;
+      userRecord = req.user;
       
       if (userRecord?.role !== 'admin') {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden eliminar usuarios.' });
@@ -813,16 +806,13 @@ export function registerRoutes(app: Express): Server {
       let userId;
       let userRecord;
 
-      // Verificar si hay una sesión simulada
-      if (req.session?.simulatedUser) {
-        userId = req.session.simulatedUser;
-        userRecord = await storage.getSalespersonUser(userId);
-      } else if (req.user?.claims?.sub) {
-        userId = req.user.claims.sub;
-        userRecord = await storage.getUser(userId);
-      } else {
+      // Verificar autenticación con el nuevo sistema
+      if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
+      
+      userId = req.user.id;
+      userRecord = req.user;
       
       if (userRecord?.role !== 'admin') {
         return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden acceder a la gestión de usuarios.' });
