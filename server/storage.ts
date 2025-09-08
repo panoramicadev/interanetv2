@@ -363,7 +363,7 @@ export class DatabaseStorage implements IStorage {
             noruen: transaction.noruen,
             nokoprct: transaction.nokoprct,
             nokofu: transaction.nokofu,
-            caprad2: transaction.caprad2,
+            caprco2: transaction.caprco2,
             // Update all other fields as well
             endo: transaction.endo,
             suendo: transaction.suendo,
@@ -458,7 +458,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         totalTransactions: sql<number>`COUNT(*)`,
-        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprad2}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
       })
       .from(salesTransactions)
@@ -527,7 +527,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         productName: salesTransactions.nokoprct,
         totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprad2}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
       })
       .from(salesTransactions)
       .where(and(...conditions))
@@ -2349,7 +2349,7 @@ export class DatabaseStorage implements IStorage {
     const salesData = await db
       .select({
         vanedo: salesTransactions.vanedo,
-        caprad2: salesTransactions.caprad2,
+        caprad2: salesTransactions.caprco2,
         nokoen: salesTransactions.nokoen,
         feemdo: salesTransactions.feemdo
       })
