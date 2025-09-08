@@ -13,7 +13,10 @@ import {
   Menu,
   X,
   Calendar,
-  FileText
+  FileText,
+  Calculator,
+  Palette,
+  Wrench
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
@@ -116,6 +119,30 @@ export default function ClientBuyerDashboard() {
       href: "/calendario",
       label: "Calendario",
       icon: Calendar,
+    },
+    {
+      href: "#",
+      label: "Crear Presupuesto",
+      icon: Calculator,
+      disabled: true,
+    },
+    {
+      href: "#",
+      label: "Calcular Tintometría",
+      icon: Palette,
+      disabled: true,
+    },
+    {
+      href: "#",
+      label: "Revisión de Stock",
+      icon: Package,
+      disabled: true,
+    },
+    {
+      href: "#",
+      label: "Herramientas de Venta",
+      icon: Wrench,
+      disabled: true,
     },
   ];
 

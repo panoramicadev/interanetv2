@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, BarChart3, Users, Target, Settings, Building2, Menu, X, LogOut } from "lucide-react";
+import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, BarChart3, Users, Target, Settings, Building2, Menu, X, LogOut, Calculator, Palette, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,6 +34,10 @@ export default function ClientDetail() {
     { icon: BarChart3, label: "Dashboard", href: "/" },
     { icon: Users, label: "Gestión de Usuarios", href: "/usuarios" },
     { icon: Target, label: "Gestión de Metas", href: "/metas" },
+    { icon: Calculator, label: "Crear Presupuesto", href: "#", disabled: true },
+    { icon: Palette, label: "Calcular Tintometría", href: "#", disabled: true },
+    { icon: Package, label: "Revisión de Stock", href: "#", disabled: true },
+    { icon: Wrench, label: "Herramientas de Venta", href: "#", disabled: true },
   ];
 
   const handleLogout = () => {

@@ -34,7 +34,10 @@ import {
   LogOut,
   Building2,
   Menu,
-  X
+  X,
+  Calculator,
+  Palette,
+  Wrench
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
@@ -198,6 +201,30 @@ export default function SalespersonDashboard() {
       href: "/calendario",
       label: "Calendario",
       icon: CalendarIcon,
+    },
+    {
+      href: "#",
+      label: "Crear Presupuesto",
+      icon: Calculator,
+      disabled: true,
+    },
+    {
+      href: "#",
+      label: "Calcular Tintometría",
+      icon: Palette,
+      disabled: true,
+    },
+    {
+      href: "#",
+      label: "Revisión de Stock",
+      icon: Package,
+      disabled: true,
+    },
+    {
+      href: "#",
+      label: "Herramientas de Venta",
+      icon: Wrench,
+      disabled: true,
     },
   ];
 

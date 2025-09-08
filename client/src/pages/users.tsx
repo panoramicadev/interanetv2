@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Users, UserPlus, Building2, Menu, X, LogOut, BarChart3, Settings, Target, Package } from "lucide-react";
+import { Plus, Edit, Trash2, Users, UserPlus, Building2, Menu, X, LogOut, BarChart3, Settings, Target, Package, Calculator, Palette, Wrench } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,6 +36,10 @@ export default function UsersPage() {
     { icon: Users, label: "Gestión de Usuarios", href: "/usuarios" },
     { icon: Target, label: "Gestión de Metas", href: "/metas" },
     { icon: Package, label: "Gestión de Productos", href: "/productos" },
+    { icon: Calculator, label: "Crear Presupuesto", href: "#", disabled: true },
+    { icon: Palette, label: "Calcular Tintometría", href: "#", disabled: true },
+    { icon: Package, label: "Revisión de Stock", href: "#", disabled: true },
+    { icon: Wrench, label: "Herramientas de Venta", href: "#", disabled: true },
   ];
 
   const handleLogout = () => {
