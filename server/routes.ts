@@ -863,6 +863,56 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Obtener productos más vendidos por el equipo del supervisor
+  app.get('/api/supervisor/:supervisorId/team-products', async (req: any, res) => {
+    try {
+      const { supervisorId } = req.params;
+      const { limit = 10 } = req.query;
+
+      // Obtener vendedores del supervisor
+      const salespeople = await storage.getSalespeopleUnderSupervisor(supervisorId);
+      const salespeopleNames = salespeople.map(sp => sp.salespersonName);
+
+      if (salespeopleNames.length === 0) {
+        return res.json([]);
+      }
+
+      // Obtener productos más vendidos por el equipo
+      const topProducts = await storage.getTopProductsByTeam(salespeopleNames, parseInt(limit));
+      res.json(topProducts);
+    } catch (error) {
+      console.error("Error fetching team products:", error);
+      res.status(500).json({ message: "Failed to fetch team products" });
+    }
+  });
+
+  // Obtener métricas consolidadas del equipo
+  app.get('/api/supervisor/:supervisorId/team-metrics', async (req: any, res) => {
+    try {
+      const { supervisorId } = req.params;
+      
+      // Obtener vendedores del supervisor
+      const salespeople = await storage.getSalespeopleUnderSupervisor(supervisorId);
+      const salespeopleNames = salespeople.map(sp => sp.salespersonName);
+
+      if (salespeopleNames.length === 0) {
+        return res.json({
+          totalSales: 0,
+          totalTransactions: 0,
+          averagePerSalesperson: 0,
+          bestPerformer: null,
+          teamGrowth: 0
+        });
+      }
+
+      const metrics = await storage.getTeamMetrics(salespeopleNames);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching team metrics:", error);
+      res.status(500).json({ message: "Failed to fetch team metrics" });
+    }
+  });
+
   // Obtener progreso de metas del supervisor (formato compatible con GoalsProgress)
   app.get('/api/supervisor/:supervisorId/goals/progress', async (req: any, res) => {
     try {
