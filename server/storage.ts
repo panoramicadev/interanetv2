@@ -351,17 +351,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
+    console.log(`[AUTH DEBUG] Looking for user with email: ${email}`);
+    
     // First, try to find user in the main users table
     const [user] = await db.select().from(users).where(eq(users.email, email));
     if (user) {
+      console.log(`[AUTH DEBUG] Found user in users table: ${user.id}, role: ${user.role}`);
       return user;
     }
 
     // If not found, try to find in salespeople_users table
     const [salespersonUser] = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, email));
     if (salespersonUser) {
+      console.log(`[AUTH DEBUG] Found user in salespeople_users table: ${salespersonUser.id}, role: ${salespersonUser.role}`);
+      console.log(`[AUTH DEBUG] Password hash starts with: ${salespersonUser.password?.substring(0, 10)}...`);
+      
       // Convert salesperson user to User format for authentication
-      return {
+      const convertedUser = {
         id: salespersonUser.id,
         email: salespersonUser.email,
         password: salespersonUser.password,
@@ -378,8 +384,12 @@ export class DatabaseStorage implements IStorage {
         supervisorId: salespersonUser.supervisorId,
         assignedSegment: salespersonUser.assignedSegment,
       } as User;
+      
+      console.log(`[AUTH DEBUG] Converted user object created for login`);
+      return convertedUser;
     }
 
+    console.log(`[AUTH DEBUG] No user found with email: ${email}`);
     return undefined;
   }
 
