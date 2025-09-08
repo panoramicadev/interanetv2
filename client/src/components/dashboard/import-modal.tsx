@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Upload, X } from "lucide-react";
+import { Upload, X, Download } from "lucide-react";
 
 interface ImportModalProps {
   open: boolean;
@@ -279,6 +279,17 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
     }
   };
 
+  const handleDownloadTemplate = () => {
+    // Create download link to the template endpoint
+    const downloadUrl = '/api/sales/template';
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = 'template-ventas.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -297,6 +308,17 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
         </DialogHeader>
         
         <div className="space-y-4">
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-2"
+              data-testid="button-download-template"
+            >
+              <Download className="w-4 h-4" />
+              Descargar Ejemplo CSV
+            </Button>
+          </div>
           <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
             <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-sm text-muted-foreground mb-2">
@@ -329,7 +351,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
               <li>NORUEN: Segmento</li>
               <li>NOKOPRCT: Nombre del producto</li>
               <li>NOKOFU: Vendedor</li>
-              <li>CAPRAD2: Unidades vendidas</li>
+              <li>CAPRCO2: Unidades vendidas</li>
             </ul>
           </div>
           
