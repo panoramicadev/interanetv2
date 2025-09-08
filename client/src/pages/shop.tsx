@@ -188,7 +188,7 @@ export default function ShopPage() {
               return (
                 <Card 
                   key={product.id} 
-                  className="relative bg-white hover:shadow-lg transition-all duration-200 overflow-hidden border-gray-200"
+                  className="relative bg-white hover:shadow-lg transition-all duration-200 overflow-hidden border-gray-200 h-full flex flex-col"
                   data-testid={`card-product-${product.sku}`}
                 >
                   {/* Etiqueta Nuevo */}
@@ -200,7 +200,7 @@ export default function ShopPage() {
                     </div>
                   )}
 
-                  <CardContent className="p-0">
+                  <CardContent className="p-0 flex flex-col h-full">
                     {/* Image Placeholder */}
                     <div className="h-48 bg-gray-100 flex items-center justify-center border-b">
                       <div className="text-center text-gray-400">
@@ -210,61 +210,67 @@ export default function ShopPage() {
                     </div>
 
                     {/* Content */}
-                    <div className="p-6">
-                      {/* Product Name */}
-                      <h3 className="font-bold text-lg text-gray-900 mb-1 leading-tight">
-                        {product.name}
-                      </h3>
-                      
-                      {/* Brand */}
-                      <p className="text-gray-500 text-sm mb-4">Pinturas Panorámica</p>
+                    <div className="p-6 flex flex-col flex-grow">
+                      {/* Top Content - Flexible */}
+                      <div className="flex-grow">
+                        {/* Product Name */}
+                        <h3 className="font-bold text-lg text-gray-900 mb-1 leading-tight">
+                          {product.name}
+                        </h3>
+                        
+                        {/* Brand */}
+                        <p className="text-gray-500 text-sm mb-4">Pinturas Panorámica</p>
 
-                      {/* Price */}
-                      <div className="mb-4">
-                        {isAuthenticated ? (
-                          <div className="text-2xl font-bold text-gray-900">
-                            {formatPrice(productPrice)}
-                            <span className="text-sm text-gray-500 font-normal">
-                              {getPackagingUnit(product.packagingUnitName)}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="text-lg font-medium text-gray-400">
-                            Inicia sesión para ver precio
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Packaging Dropdown */}
-                      <div className="mb-4">
-                        <label className="text-xs text-gray-500 block mb-1">Packaging</label>
-                        <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-3 py-2">
-                          <span className="text-sm text-gray-700">
-                            {product.packagingUnitName || 'Unidad'}
-                          </span>
-                          <ChevronDown className="h-4 w-4 text-gray-400" />
+                        {/* Price */}
+                        <div className="mb-4">
+                          {isAuthenticated ? (
+                            <div className="text-2xl font-bold text-gray-900">
+                              {formatPrice(productPrice)}
+                              <span className="text-sm text-gray-500 font-normal">
+                                {getPackagingUnit(product.packagingUnitName)}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="text-lg font-medium text-gray-400">
+                              Inicia sesión para ver precio
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {/* Action Button */}
-                      <div>
-                        {isAuthenticated ? (
-                          <Button 
-                            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-lg"
-                            onClick={() => openProductDetail(product)}
-                            disabled={!productPrice}
-                          >
-                            {index === 0 ? "Seleccionar" : "Agregar"}
-                          </Button>
-                        ) : (
-                          <Link href="/api/login">
+                      {/* Bottom Content - Always aligned */}
+                      <div className="mt-auto space-y-4">
+                        {/* Packaging Dropdown */}
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Packaging</label>
+                          <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-3 py-2">
+                            <span className="text-sm text-gray-700">
+                              {product.packagingUnitName || 'Unidad'}
+                            </span>
+                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                          </div>
+                        </div>
+
+                        {/* Action Button */}
+                        <div>
+                          {isAuthenticated ? (
                             <Button 
-                              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg"
+                              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-lg"
+                              onClick={() => openProductDetail(product)}
+                              disabled={!productPrice}
                             >
-                              Ver Precio
+                              {index === 0 ? "Seleccionar" : "Agregar"}
                             </Button>
-                          </Link>
-                        )}
+                          ) : (
+                            <Link href="/api/login">
+                              <Button 
+                                className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg"
+                              >
+                                Ver Precio
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
