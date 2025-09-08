@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, requireAuth } from "./auth";
+// import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
 
@@ -69,10 +70,10 @@ import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSc
 import { z } from "zod";
 
 export function registerRoutes(app: Express): Server {
-  // Setup new email/password auth system
+  // Setup email/password auth system (primary)
   setupAuth(app);
 
-  // Note: Auth routes are now handled in auth.ts file
+  // Note: Replit OIDC auth disabled to avoid conflicts - using email/password auth only
 
   // Sales metrics endpoint
   app.get('/api/sales/metrics', requireAuth, async (req, res) => {
