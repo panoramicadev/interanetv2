@@ -226,6 +226,11 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
               case 'nopfpr':
               case 'nohfpr':
               case 'listacost':
+              case 'nokozo': // Zone name
+              case 'nosudo': // Document branch name  
+              case 'nokofudo': // Document employee name
+              case 'nobosuli': // Warehouse branch name
+              case 'nomrpr': // Name field
                 transaction[cleanHeader] = value.toString();
                 break;
                 
