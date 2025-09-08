@@ -211,24 +211,28 @@ export default function SalespersonDashboard() {
       label: "Crear Presupuesto",
       icon: Calculator,
       disabled: true,
+      comingSoon: true,
     },
     {
       href: "#",
       label: "Calcular Tintometría",
       icon: Palette,
       disabled: true,
+      comingSoon: true,
     },
     {
       href: "#",
       label: "Revisión de Stock",
       icon: Package,
       disabled: true,
+      comingSoon: true,
     },
     {
       href: "#",
       label: "Herramientas de Venta",
       icon: Wrench,
       disabled: true,
+      comingSoon: true,
     },
   ];
 

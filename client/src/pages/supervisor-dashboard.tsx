@@ -265,24 +265,28 @@ export default function SupervisorDashboard() {
       label: "Crear Presupuesto",
       icon: Calculator,
       disabled: true,
+      comingSoon: true,
     },
     {
       href: "#tintometria",
       label: "Calcular Tintometría",
       icon: Palette,
       disabled: true,
+      comingSoon: true,
     },
     {
       href: "#stock",
       label: "Revisión de Stock",
       icon: Package,
       disabled: true,
+      comingSoon: true,
     },
     {
       href: "#herramientas",
       label: "Herramientas de Venta",
       icon: Wrench,
       disabled: true,
+      comingSoon: true,
     },
   ];
 
@@ -338,16 +342,39 @@ export default function SupervisorDashboard() {
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">Panel Supervisor</h1>
-                <p className="text-sm text-slate-400">{user?.salespersonName}</p>
+                <h1 className="text-xl font-bold text-white">{user?.firstName} {user?.lastName}</h1>
+                <p className="text-sm text-slate-400">Supervisor</p>
               </div>
             </div>
           </div>
         
           <nav className="flex-1 p-4 space-y-1">
-            {sidebarItems.map((item) => {
+            {sidebarItems.map((item, index) => {
               const Icon = item.icon;
               const isActive = location === item.href;
+              const itemKey = (item as any).disabled ? `disabled-${index}` : item.href;
+              
+              if ((item as any).disabled) {
+                return (
+                  <div key={itemKey}>
+                    <Button
+                      variant="ghost"
+                      disabled={true}
+                      className="w-full justify-start text-slate-300 opacity-60 cursor-not-allowed"
+                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-5 h-5 mr-3" />
+                      <div className="text-left">
+                        <div>{item.label}</div>
+                        {(item as any).comingSoon && (
+                          <div className="text-xs text-slate-500">Próximamente</div>
+                        )}
+                      </div>
+                    </Button>
+                  </div>
+                );
+              }
+              
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
