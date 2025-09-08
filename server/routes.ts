@@ -1030,6 +1030,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
   });
 
+  // Public product routes (for shop)
+  app.get('/api/public/products', async (req: any, res) => {
+    try {
+      const { search, category, limit = 100, offset = 0 } = req.query;
+      
+      const filters = {
+        search: search || undefined,
+        category: category || undefined,
+        active: true, // Only show active products
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      };
+
+      // Get products without prices for public access
+      const products = await storage.getProductsPublic(filters);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching public products:", error);
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  // Get prices for authenticated users only
+  app.get('/api/products/prices', isAuthenticated, async (req: any, res) => {
+    try {
+      const prices = await storage.getAllProductPrices();
+      res.json(prices);
+    } catch (error) {
+      console.error("Error fetching prices:", error);
+      res.status(500).json({ message: "Failed to fetch prices" });
+    }
+  });
+
   // Product routes
   app.get('/api/products', isAuthenticated, async (req: any, res) => {
     try {
