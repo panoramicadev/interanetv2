@@ -422,13 +422,13 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Group by NUDO to get unique transactions and avoid double counting VANEDO
+    // Group by NUDO to get unique transactions and avoid double counting MONTO
     const [metrics] = await db
       .select({
         totalSales: sql<number>`COALESCE(SUM(
           CASE 
-            WHEN tido = 'NCV' THEN -vanedo
-            ELSE vanedo
+            WHEN tido = 'NCV' THEN -monto
+            ELSE monto
           END
         ), 0)`,
         totalTransactions: sql<number>`COUNT(DISTINCT nudo)`,
@@ -439,12 +439,12 @@ export class DatabaseStorage implements IStorage {
         SELECT 
           nudo,
           tido,
-          vanedo,
+          monto,
           nokoen,
           caprco2
         FROM ${salesTransactions} 
         ${whereClause ? sql`WHERE ${whereClause}` : sql``}
-        GROUP BY nudo, tido, vanedo, nokoen, caprco2
+        GROUP BY nudo, tido, monto, nokoen, caprco2
       ) as unique_transactions`);
 
     return {
@@ -478,8 +478,8 @@ export class DatabaseStorage implements IStorage {
         salesperson: sql<string>`nokofu`,
         totalSales: sql<number>`COALESCE(SUM(
           CASE 
-            WHEN tido = 'NCV' THEN -vanedo
-            ELSE vanedo
+            WHEN tido = 'NCV' THEN -monto
+            ELSE monto
           END
         ), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
@@ -489,13 +489,13 @@ export class DatabaseStorage implements IStorage {
           nudo,
           nokofu,
           tido,
-          vanedo
+          monto
         FROM ${salesTransactions} 
         ${whereClause}
-        GROUP BY nudo, nokofu, tido, vanedo
+        GROUP BY nudo, nokofu, tido, monto
       ) as unique_transactions`)
       .groupBy(sql`nokofu`)
-      .orderBy(sql`SUM(CASE WHEN tido = 'NCV' THEN -vanedo ELSE vanedo END) DESC`)
+      .orderBy(sql`SUM(CASE WHEN tido = 'NCV' THEN -monto ELSE monto END) DESC`)
       .limit(limit);
 
     return results.map(r => ({
@@ -572,8 +572,8 @@ export class DatabaseStorage implements IStorage {
         clientName: sql<string>`nokoen`,
         totalSales: sql<number>`COALESCE(SUM(
           CASE 
-            WHEN tido = 'NCV' THEN -vanedo
-            ELSE vanedo
+            WHEN tido = 'NCV' THEN -monto
+            ELSE monto
           END
         ), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
@@ -583,13 +583,13 @@ export class DatabaseStorage implements IStorage {
           nudo,
           nokoen,
           tido,
-          vanedo
+          monto
         FROM ${salesTransactions} 
         ${whereClause}
-        GROUP BY nudo, nokoen, tido, vanedo
+        GROUP BY nudo, nokoen, tido, monto
       ) as unique_transactions`)
       .groupBy(sql`nokoen`)
-      .orderBy(sql`SUM(CASE WHEN tido = 'NCV' THEN -vanedo ELSE vanedo END) DESC`)
+      .orderBy(sql`SUM(CASE WHEN tido = 'NCV' THEN -monto ELSE monto END) DESC`)
       .limit(limit);
 
     return results.map(r => ({
@@ -615,7 +615,7 @@ export class DatabaseStorage implements IStorage {
 
     const [totalSalesResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${salesTransactions.vanedo}), 0)`,
+        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions)
       .where(dateFilter);
@@ -637,15 +637,15 @@ export class DatabaseStorage implements IStorage {
         segment: salesTransactions.noruen,
         totalSales: sql<number>`COALESCE(SUM(
           CASE 
-            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.vanedo}
-            ELSE ${salesTransactions.vanedo}
+            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.monto}
+            ELSE ${salesTransactions.monto}
           END
         ), 0)`,
       })
       .from(salesTransactions)
       .where(and(...conditions))
       .groupBy(salesTransactions.noruen)
-      .orderBy(sql`SUM(${salesTransactions.vanedo}) DESC`);
+      .orderBy(sql`SUM(${salesTransactions.monto}) DESC`);
 
     return results.map(r => ({
       segment: r.segment || '',
