@@ -33,7 +33,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Link, useLocation } from "wouter";
 
 export default function SupervisorDashboard() {
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [location] = useLocation();
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
@@ -72,7 +72,7 @@ export default function SupervisorDashboard() {
   });
 
   const handleLogout = () => {
-    window.location.href = "/login";
+    logoutMutation.mutate();
   };
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
