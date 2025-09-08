@@ -2090,7 +2090,7 @@ export class DatabaseStorage implements IStorage {
             name: row.name,
             description: row.description || '',
             category: row.category || '',
-            pricePerUnit: row.pricePerUnit ? parseFloat(row.pricePerUnit.replace(',', '.')) : null,
+            pricePerUnit: row.pricePerUnit ? parseFloat(row.pricePerUnit.replace(',', '.')) : 0,
             taxCode: row.taxCode || '',
             taxName: row.taxName || '',
             taxRate: row.taxRate ? parseFloat(row.taxRate.replace(',', '.')) : null,
