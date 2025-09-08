@@ -320,8 +320,10 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
           <div className="text-xs text-muted-foreground">
             <p className="font-medium">Formato esperado:</p>
             <ul className="list-disc list-inside mt-1 space-y-1">
+              <li>IDMAEEDO: Identificador de transacción</li>
               <li>NUDO: Número de transacción</li>
               <li>FEEMDO: Fecha de emisión</li>
+              <li>TIDO: Tipo de documento (FCV/FVL/NCV)</li>
               <li>KOPRCT: SKU del producto</li>
               <li>NOKOEN: Nombre del cliente</li>
               <li>NORUEN: Segmento</li>
