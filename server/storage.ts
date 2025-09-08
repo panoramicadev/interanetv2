@@ -346,35 +346,50 @@ export class DatabaseStorage implements IStorage {
   async insertMultipleSalesTransactions(transactions: InsertSalesTransaction[]): Promise<void> {
     if (transactions.length === 0) return;
     
-    // Get unique IDMAEEDO values from incoming transactions
-    const incomingIds = [...new Set(transactions.map(t => t.idmaeedo))];
+    const BATCH_SIZE = 100;
+    let totalInserted = 0;
+    let totalSkipped = 0;
     
-    // Check which IDMAEEDO values already exist in database
-    const existingIds = await db
-      .select({ idmaeedo: salesTransactions.idmaeedo })
-      .from(salesTransactions)
-      .where(inArray(salesTransactions.idmaeedo, incomingIds));
+    console.log(`📊 Starting import of ${transactions.length} transactions in batches of ${BATCH_SIZE}`);
     
-    const existingIdSet = new Set(existingIds.map(row => row.idmaeedo?.toString()));
-    
-    // Filter out transactions with existing IDMAEEDO
-    const newTransactions = transactions.filter(transaction => 
-      !existingIdSet.has(transaction.idmaeedo?.toString())
-    );
-    
-    const skippedCount = transactions.length - newTransactions.length;
-    
-    // Insert only new transactions
-    if (newTransactions.length > 0) {
-      await db
-        .insert(salesTransactions)
-        .values(newTransactions);
+    // Process transactions in batches to avoid memory issues
+    for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+      const batch = transactions.slice(i, i + BATCH_SIZE);
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(transactions.length / BATCH_SIZE);
+      
+      // Get unique IDMAEEDO values from this batch
+      const batchIds = [...new Set(batch.map(t => t.idmaeedo))];
+      
+      // Check which IDMAEEDO values already exist in database
+      const existingIds = await db
+        .select({ idmaeedo: salesTransactions.idmaeedo })
+        .from(salesTransactions)
+        .where(inArray(salesTransactions.idmaeedo, batchIds));
+      
+      const existingIdSet = new Set(existingIds.map(row => row.idmaeedo?.toString()));
+      
+      // Filter out transactions with existing IDMAEEDO
+      const newTransactions = batch.filter(transaction => 
+        !existingIdSet.has(transaction.idmaeedo?.toString())
+      );
+      
+      const batchSkipped = batch.length - newTransactions.length;
+      
+      // Insert only new transactions from this batch
+      if (newTransactions.length > 0) {
+        await db
+          .insert(salesTransactions)
+          .values(newTransactions);
+      }
+      
+      totalInserted += newTransactions.length;
+      totalSkipped += batchSkipped;
+      
+      console.log(`📦 Batch ${batchNumber}/${totalBatches}: Inserted ${newTransactions.length}, Skipped ${batchSkipped} duplicates`);
     }
     
-    console.log(`🔄 Successfully imported ${newTransactions.length} new sales transactions`);
-    if (skippedCount > 0) {
-      console.log(`⚠️ Skipped ${skippedCount} duplicate transactions (existing IDMAEEDO)`);
-    }
+    console.log(`✅ Import completed: ${totalInserted} new transactions imported, ${totalSkipped} duplicates skipped`);
   }
 
   async getSalesTransactions(filters: {
