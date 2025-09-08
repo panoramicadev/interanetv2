@@ -56,6 +56,10 @@ export function useAuth() {
         title: "¡Bienvenido!",
         description: "Has iniciado sesión correctamente.",
       });
+      // Navigate to dashboard immediately after successful login
+      setTimeout(() => {
+        setLocation("/");
+      }, 100);
     },
     onError: (error: any) => {
       toast({
