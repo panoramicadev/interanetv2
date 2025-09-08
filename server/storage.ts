@@ -459,15 +459,10 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Calculate metrics using MONTO field directly - sum all individual line items
+    // Calculate metrics using MONTO field directly - NCV already comes with negative values
     const [metrics] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(
-          CASE 
-            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.monto}
-            ELSE ${salesTransactions.monto}
-          END
-        ), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         totalTransactions: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
@@ -504,12 +499,7 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         salesperson: sql<string>`nokofu`,
-        totalSales: sql<number>`COALESCE(SUM(
-          CASE 
-            WHEN tido = 'NCV' THEN -monto
-            ELSE monto
-          END
-        ), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(monto), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(sql`(
@@ -523,7 +513,7 @@ export class DatabaseStorage implements IStorage {
         GROUP BY nudo, nokofu, tido, monto
       ) as unique_transactions`)
       .groupBy(sql`nokofu`)
-      .orderBy(sql`SUM(CASE WHEN tido = 'NCV' THEN -monto ELSE monto END) DESC`)
+      .orderBy(sql`SUM(monto) DESC`)
       .limit(limit);
 
     return results.map(r => ({
@@ -553,12 +543,7 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         productName: salesTransactions.nokoprct,
-        totalSales: sql<number>`COALESCE(SUM(
-          CASE 
-            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.ppprne}
-            ELSE ${salesTransactions.ppprne}
-          END
-        ), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.ppprne}), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
       })
       .from(salesTransactions)
@@ -598,12 +583,7 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         clientName: sql<string>`nokoen`,
-        totalSales: sql<number>`COALESCE(SUM(
-          CASE 
-            WHEN tido = 'NCV' THEN -monto
-            ELSE monto
-          END
-        ), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(monto), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(sql`(
@@ -617,7 +597,7 @@ export class DatabaseStorage implements IStorage {
         GROUP BY nudo, nokoen, tido, monto
       ) as unique_transactions`)
       .groupBy(sql`nokoen`)
-      .orderBy(sql`SUM(CASE WHEN tido = 'NCV' THEN -monto ELSE monto END) DESC`)
+      .orderBy(sql`SUM(monto) DESC`)
       .limit(limit);
 
     return results.map(r => ({
@@ -663,12 +643,7 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         segment: salesTransactions.noruen,
-        totalSales: sql<number>`COALESCE(SUM(
-          CASE 
-            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.monto}
-            ELSE ${salesTransactions.monto}
-          END
-        ), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions)
       .where(and(...conditions))
