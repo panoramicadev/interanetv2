@@ -1283,9 +1283,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`📊 CSV parseado: ${parseResult.data.length} productos encontrados`);
       
+      // Debug: Log first few rows to see structure
+      console.log(`🔍 Primeras 3 filas del CSV:`, JSON.stringify(parseResult.data.slice(0, 3), null, 2));
+      console.log(`🔍 Columnas disponibles:`, Object.keys(parseResult.data[0] || {}));
+      
       // Transform CSV data to match our new products schema
       const csvData = parseResult.data.map((row: any, index: number) => {
-        return {
+        const transformedRow = {
           productId: row.productId?.toString()?.trim(),
           name: row.name?.toString()?.trim(),
           description: row.description?.toString()?.trim() || '',
@@ -1319,12 +1323,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           packagingAmountPerPallet: row.packaging_amountPerPallet?.toString()?.trim() || '0',
           originalRowIndex: index + 1
         };
-      }).filter((row: any) => {
-        const isValid = row.productId && row.name;
-        if (!isValid) {
-          console.log(`❌ Fila ${row.originalRowIndex} excluida: SKU o nombre vacío`);
+        
+        // Debug: Log first few transformed rows
+        if (index < 3) {
+          console.log(`🔍 Fila ${index + 1} transformada:`, JSON.stringify(transformedRow, null, 2));
         }
-        return isValid;
+        
+        return transformedRow;
+      }).filter((row: any) => {
+        // Relajar validación temporalmente - solo requerir que exista algún identificador
+        const hasProductId = row.productId && row.productId.trim().length > 0;
+        const hasName = row.name && row.name.trim().length > 0;
+        
+        if (!hasProductId && !hasName) {
+          console.log(`❌ Fila ${row.originalRowIndex} excluida: Sin productId ni nombre - productId: "${row.productId}", name: "${row.name}"`);
+          return false;
+        }
+        
+        if (!hasProductId) {
+          console.log(`⚠️ Fila ${row.originalRowIndex}: Sin productId pero tiene nombre: "${row.name}"`);
+        }
+        
+        if (!hasName) {
+          console.log(`⚠️ Fila ${row.originalRowIndex}: Sin nombre pero tiene productId: "${row.productId}"`);
+        }
+        
+        return hasProductId || hasName; // Permitir si tiene al menos uno
       });
 
       console.log(`✅ Productos válidos para procesar: ${csvData.length}`);
