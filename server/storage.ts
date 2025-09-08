@@ -1749,9 +1749,9 @@ export class DatabaseStorage implements IStorage {
     
     if (filters?.hasPrices !== undefined) {
       if (filters.hasPrices) {
-        conditions.push(sql`${products.price} IS NOT NULL AND ${products.price} > 0`);
+        conditions.push(sql`(${products.manualPrice} IS NOT NULL AND ${products.manualPrice} != '0') OR (${products.pricePerUnit} IS NOT NULL AND ${products.pricePerUnit} != '0')`);
       } else {
-        conditions.push(sql`${products.price} IS NULL OR ${products.price} = 0`);
+        conditions.push(sql`(${products.manualPrice} IS NULL OR ${products.manualPrice} = '0') AND (${products.pricePerUnit} IS NULL OR ${products.pricePerUnit} = '0')`);
       }
     }
 
