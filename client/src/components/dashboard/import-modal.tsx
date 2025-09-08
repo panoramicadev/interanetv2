@@ -182,6 +182,10 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
           // Debug logging for first few rows
           if (i <= 3) {
             console.log(`📋 Fila ${i} - Header: "${header}" -> Clean: "${cleanHeader}" -> Value: "${value}"`);
+            // Extra TIDO debug
+            if (cleanHeader === 'tido' || header.toUpperCase() === 'TIDO') {
+              console.log(`🎯 TIDO FOUND! Header: "${header}" -> Clean: "${cleanHeader}" -> Value: "${value}"`);
+            }
           }
           
           // Map CSV headers to database fields - EXACT type conversion per schema
