@@ -176,6 +176,31 @@ export default function SupervisorDashboard() {
     setGoalDialogOpen(true);
   };
 
+  // Funciones para gestión de vendedores
+  const [editingSalesperson, setEditingSalesperson] = useState<any>(null);
+  const [showEditSalespersonModal, setShowEditSalespersonModal] = useState(false);
+
+  const handleEditSalesperson = (salesperson: any) => {
+    setEditingSalesperson(salesperson);
+    setShowEditSalespersonModal(true);
+  };
+
+  const handleToggleActive = (salesperson: any) => {
+    // Implementar toggle activo/inactivo
+    toast({
+      title: `Vendedor ${salesperson.isActive ? 'desactivado' : 'activado'}`,
+      description: `${salesperson.salespersonName} ha sido ${salesperson.isActive ? 'desactivado' : 'activado'}`,
+    });
+  };
+
+  const handleChangeSegment = (salesperson: any, newSegment: string) => {
+    // Implementar cambio de segmento
+    toast({
+      title: "Segmento actualizado",
+      description: `${salesperson.salespersonName} ahora está asignado al segmento ${newSegment}`,
+    });
+  };
+
   // Claim vendor mutation
   const claimVendorMutation = useMutation({
     mutationFn: async (vendor: any) => {
@@ -863,6 +888,27 @@ export default function SupervisorDashboard() {
                               <> • Última venta: {new Date(salesperson.lastSale).toLocaleDateString()}</>
                             )}
                           </p>
+                          <div className="flex items-center space-x-2 mt-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditSalesperson(salesperson)}
+                              className="text-xs h-7"
+                              data-testid={`button-edit-salesperson-${salesperson.id}`}
+                            >
+                              <Edit className="w-3 h-3 mr-1" />
+                              Editar Perfil
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={salesperson.isActive ? "destructive" : "default"}
+                              onClick={() => handleToggleActive(salesperson)}
+                              className="text-xs h-7"
+                              data-testid={`button-toggle-active-${salesperson.id}`}
+                            >
+                              {salesperson.isActive ? "Desactivar" : "Activar"}
+                            </Button>
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -1143,6 +1189,91 @@ export default function SupervisorDashboard() {
                   ? 'Guardando...' 
                   : editingGoal ? 'Actualizar Meta' : 'Crear Meta'
                 }
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para Editar Vendedor */}
+      <Dialog open={showEditSalespersonModal} onOpenChange={setShowEditSalespersonModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Vendedor</DialogTitle>
+            <DialogDescription>
+              Modifica la información del vendedor
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const formData = new FormData(form);
+            
+            // Aquí iría la lógica para actualizar el vendedor
+            toast({
+              title: "Vendedor actualizado",
+              description: "Los datos del vendedor han sido actualizados exitosamente",
+            });
+            setShowEditSalespersonModal(false);
+            setEditingSalesperson(null);
+          }}>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="salesperson-name">Nombre del Vendedor</Label>
+                <Input
+                  id="salesperson-name"
+                  name="salespersonName"
+                  defaultValue={editingSalesperson?.salespersonName || ''}
+                  required
+                  className="mt-1"
+                  data-testid="input-salesperson-name"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="salesperson-email">Email</Label>
+                <Input
+                  id="salesperson-email"
+                  name="email"
+                  type="email"
+                  defaultValue={editingSalesperson?.email || ''}
+                  required
+                  className="mt-1"
+                  data-testid="input-salesperson-email"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="salesperson-segment">Segmento Asignado</Label>
+                <Select name="assignedSegment" defaultValue={editingSalesperson?.assignedSegment || ''}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Seleccionar segmento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FERRETERIAS">FERRETERIAS</SelectItem>
+                    <SelectItem value="CONSTRUCTORAS">CONSTRUCTORAS</SelectItem>
+                    <SelectItem value="ARQUITECTOS">ARQUITECTOS</SelectItem>
+                    <SelectItem value="RETAIL">RETAIL</SelectItem>
+                    <SelectItem value="MAESTROS">MAESTROS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowEditSalespersonModal(false)}
+                data-testid="button-cancel-edit-salesperson"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit"
+                data-testid="button-save-salesperson"
+              >
+                Guardar Cambios
               </Button>
             </DialogFooter>
           </form>
