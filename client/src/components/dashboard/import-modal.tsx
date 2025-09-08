@@ -195,7 +195,11 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
               
             // TIDO - CRITICAL: Always process, even if empty, for NCV logic
             case 'tido':
-              transaction.tido = value ? value.toString().replace(/"/g, '').trim() : '';
+              const processedTido = value ? value.toString().replace(/"/g, '').trim() : '';
+              transaction.tido = processedTido;
+              if (i <= 3) {
+                console.log(`🔥 TIDO DEBUG - Raw: "${value}" -> Processed: "${processedTido}" -> Final: "${transaction.tido}"`);
+              }
               break;
               
             // Optional string fields (varchar/text)
