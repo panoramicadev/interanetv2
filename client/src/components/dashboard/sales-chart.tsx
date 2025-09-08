@@ -167,16 +167,16 @@ export default function SalesChart({ selectedPeriod, filterType, salespersonFilt
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Tendencia de Ventas</h2>
-          <p className="text-sm text-gray-600">Puedes ver el volumen de ventas desde aquí</p>
+      <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Tendencia de Ventas</h2>
+          <p className="text-xs sm:text-sm text-gray-600">Puedes ver el volumen de ventas desde aquí</p>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex space-x-1 sm:space-x-2 overflow-x-auto">
           <Button
             variant={chartPeriod === 'monthly' ? 'default' : 'outline'}
             size="sm"
-            className="rounded-xl"
+            className="rounded-xl text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap"
             onClick={() => setPeriod('monthly')}
             disabled={filterType === 'day'}
             data-testid="button-monthly"
@@ -186,7 +186,7 @@ export default function SalesChart({ selectedPeriod, filterType, salespersonFilt
           <Button
             variant={chartPeriod === 'daily' ? 'default' : 'outline'}
             size="sm"
-            className="rounded-xl"
+            className="rounded-xl text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap"
             onClick={() => setPeriod('daily')}
             data-testid="button-daily"
           >
@@ -195,7 +195,7 @@ export default function SalesChart({ selectedPeriod, filterType, salespersonFilt
           <Button
             variant={chartPeriod === 'weekly' ? 'default' : 'outline'}
             size="sm"
-            className="rounded-xl"
+            className="rounded-xl text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap"
             onClick={() => setPeriod('weekly')}
             disabled={filterType === 'day'}
             data-testid="button-weekly"
@@ -204,11 +204,11 @@ export default function SalesChart({ selectedPeriod, filterType, salespersonFilt
           </Button>
         </div>
       </div>
-      <div className="bg-white rounded-xl border border-gray-200/60 p-6 shadow-sm w-full">
-        <div className="h-80 w-full">
+      <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm w-full">
+        <div className="h-60 sm:h-80 w-full">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+              <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-green-500"></div>
             </div>
           ) : (
             <Line data={chartConfig} options={options} />
