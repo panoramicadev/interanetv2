@@ -42,9 +42,10 @@ function Router() {
       
       {!user ? (
         <>
-          <Route path="/" component={Landing} />
+          <Route path="/" component={Login} />
           <Route path="/login" component={Login} />
-          <Route component={Landing} />
+          <Route path="/landing" component={Landing} />
+          <Route component={Login} />
         </>
       ) : (
         <>
