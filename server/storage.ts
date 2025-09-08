@@ -2117,12 +2117,12 @@ export class DatabaseStorage implements IStorage {
             packagingPalletName: row.packagingPalletName || '',
             packagingPalletUnit: row.packagingPalletUnit || '',
             packagingAmountPerPallet: row.packagingAmountPerPallet ? parseFloat(row.packagingAmountPerPallet.replace(',', '.')) : null,
-            // Nuevas columnas de variantes (se asignarán por separado si existen)
-            ...(row.variantFeaturesKey && { variantFeaturesKey: row.variantFeaturesKey }),
-            ...(row.variantFeaturesValue && { variantFeaturesValue: row.variantFeaturesValue }),
-            ...(row.variantParentSku && { variantParentSku: row.variantParentSku }),
-            ...(row.variantGenericDisplayName && { variantGenericDisplayName: row.variantGenericDisplayName }),
-            ...(row.variantIndex && { variantIndex: parseInt(row.variantIndex) }),
+            // Campos básicos de variantes por ahora
+            variantFeaturesKey: '',
+            variantFeaturesValue: '', 
+            variantParentSku: '',
+            variantGenericDisplayName: '',
+            variantIndex: null,
             active: true
           });
           
