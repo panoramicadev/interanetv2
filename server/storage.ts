@@ -346,12 +346,20 @@ export class DatabaseStorage implements IStorage {
   async insertMultipleSalesTransactions(transactions: InsertSalesTransaction[]): Promise<void> {
     if (transactions.length === 0) return;
     
-    // Insert ALL transactions - duplicates allowed (normal in ERP systems)
-    await db
-      .insert(salesTransactions)
-      .values(transactions);
+    // Use UPSERT with composite key to prevent exact duplicates
+    for (const transaction of transactions) {
+      await db
+        .insert(salesTransactions)
+        .values(transaction)
+        .onConflictDoUpdate({
+          target: [salesTransactions.idmaeedo, salesTransactions.nudo, salesTransactions.vanedo],
+          set: {
+            updatedAt: new Date(), // Only update timestamp for duplicates
+          },
+        });
+    }
     
-    console.log(`🔄 Processed ${transactions.length} sales transactions - ALL IMPORTED`);
+    console.log(`🔄 Processed ${transactions.length} sales transactions with duplicate prevention`);
   }
 
   async getSalesTransactions(filters: {
