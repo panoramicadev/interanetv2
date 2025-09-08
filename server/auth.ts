@@ -27,6 +27,7 @@ const registerSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   firstName: z.string().min(1, "El nombre es requerido"),
   lastName: z.string().min(1, "El apellido es requerido"),
+  role: z.enum(["admin", "supervisor", "salesperson", "client"]).default("client"),
 });
 
 const loginSchema = z.object({
@@ -90,9 +91,13 @@ export function setupAuth(app: Express) {
   passport.deserializeUser(async (id: string, done) => {
     try {
       const user = await storage.getUser(id);
+      if (!user) {
+        return done(null, false);
+      }
       done(null, user);
     } catch (error) {
-      done(error);
+      console.error("Deserialize error:", error);
+      done(null, false);
     }
   });
 
