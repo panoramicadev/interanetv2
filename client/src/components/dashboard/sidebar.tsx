@@ -22,12 +22,15 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onImportClick }: SidebarProps) {
-  const { user } = useAuth() as { user: (User | SalespersonUser) | null };
+  const { user, logoutMutation } = useAuth() as { 
+    user: (User | SalespersonUser) | null;
+    logoutMutation: any;
+  };
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const handleLogout = () => {
-    window.location.href = "/api/logout";
+    logoutMutation.mutate();
   };
 
   const getInitials = (user: any) => {
