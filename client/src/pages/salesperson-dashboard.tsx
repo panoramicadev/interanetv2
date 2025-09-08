@@ -3,6 +3,7 @@ import type { User, SalespersonUser } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import ImportModal from "@/components/dashboard/import-modal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ export default function SalespersonDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   
   // Update selected period when filter type changes
   useEffect(() => {
@@ -234,6 +236,12 @@ export default function SalespersonDashboard() {
       disabled: true,
       comingSoon: true,
     },
+    {
+      href: "#import",
+      label: "Importar Datos CSV",
+      icon: Upload,
+      onClick: () => setShowImportModal(true),
+    },
   ];
 
   return (
@@ -280,6 +288,22 @@ export default function SalespersonDashboard() {
               const isActive = location === item.href;
               const itemKey = (item as any).disabled ? `disabled-${index}` : item.href;
               
+              if ((item as any).onClick) {
+                return (
+                  <div key={itemKey}>
+                    <Button
+                      variant="ghost"
+                      onClick={(item as any).onClick}
+                      className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
+                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-5 h-5 mr-3" />
+                      {item.label}
+                    </Button>
+                  </div>
+                );
+              }
+
               if ((item as any).disabled) {
                 return (
                   <div key={itemKey}>
@@ -809,6 +833,12 @@ export default function SalespersonDashboard() {
           </div>
         </main>
       </div>
+
+      {/* Modal de Importación de Datos */}
+      <ImportModal 
+        open={showImportModal} 
+        onOpenChange={setShowImportModal}
+      />
     </div>
   );
 }

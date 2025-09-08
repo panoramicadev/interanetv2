@@ -16,10 +16,12 @@ import {
   FileText,
   Calculator,
   Palette,
-  Wrench
+  Wrench,
+  Upload
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
+import ImportModal from "@/components/dashboard/import-modal";
 
 interface LastOrder {
   id: string;
@@ -42,6 +44,7 @@ interface PurchaseHistory {
 export default function ClientBuyerDashboard() {
   const { user } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   
   // Obtener último pedido del cliente
   const { data: lastOrder, isLoading: isLoadingLastOrder } = useQuery<LastOrder>({
@@ -150,6 +153,12 @@ export default function ClientBuyerDashboard() {
       disabled: true,
       comingSoon: true,
     },
+    {
+      href: "#import",
+      label: "Importar Datos CSV",
+      icon: Upload,
+      onClick: () => setShowImportModal(true),
+    },
   ];
 
   return (
@@ -195,6 +204,23 @@ export default function ClientBuyerDashboard() {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
               const itemKey = (item as any).disabled ? `disabled-${index}` : item.href;
+
+              if ((item as any).onClick) {
+                return (
+                  <div key={itemKey}>
+                    <Button
+                      variant="ghost"
+                      onClick={(item as any).onClick}
+                      className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
+                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-5 h-5 mr-3" />
+                      {item.label}
+                    </Button>
+                  </div>
+                );
+              }
+              
               return (
                 <div key={itemKey}>
                   <Button
@@ -378,6 +404,12 @@ export default function ClientBuyerDashboard() {
 
         </main>
       </div>
+
+      {/* Modal de Importación de Datos */}
+      <ImportModal 
+        open={showImportModal} 
+        onOpenChange={setShowImportModal}
+      />
     </div>
   );
 }
