@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import Sidebar from "@/components/dashboard/sidebar";
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
@@ -9,7 +8,6 @@ import SegmentChart from "@/components/dashboard/segment-chart";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import TopSalespeoplePanel from "@/components/dashboard/top-salespeople-panel";
 import TransactionsTable from "@/components/dashboard/transactions-table";
-import ImportModal from "@/components/dashboard/import-modal";
 import GoalsProgress from "@/components/dashboard/goals-progress";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,7 +19,6 @@ import { format } from "date-fns";
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
-  const [showImportModal, setShowImportModal] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState("2025-09");
   const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -91,12 +88,9 @@ export default function Dashboard() {
 
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar onImportClick={() => setShowImportModal(true)} />
-      
-      <div className="lg:ml-64 transition-all duration-300">
+    <div>
         {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 mt-16 lg:mt-4 mx-4 rounded-2xl shadow-sm">
+        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
           <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
             <div className="flex-1 min-w-0">
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
@@ -297,12 +291,6 @@ export default function Dashboard() {
             />
           </div>
         </main>
-      </div>
-
-      <ImportModal 
-        open={showImportModal} 
-        onOpenChange={setShowImportModal}
-      />
     </div>
   );
 }

@@ -28,18 +28,8 @@ import {
   Bell,
   Clock,
   TrendingDown,
-  Star,
-  LayoutDashboard,
-  Upload,
-  LogOut,
-  Building2,
-  Menu,
-  X,
-  Calculator,
-  Palette,
-  Wrench
+  Star
 } from "lucide-react";
-import { Link, useLocation } from "wouter";
 import { format } from "date-fns";
 
 export default function SalespersonDashboard() {
@@ -48,8 +38,6 @@ export default function SalespersonDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState("2025-09");
   const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [location] = useLocation();
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
   
   // Update selected period when filter type changes
   useEffect(() => {
@@ -79,13 +67,29 @@ export default function SalespersonDashboard() {
         variant: "destructive",
       });
       setTimeout(() => {
-        setLocation("/login");
+        window.location.href = "/login";
       }, 500);
       return;
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  if (isLoading) {
+  const { data: salespersonData, isLoading: loadingSalesperson } = useQuery({
+    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/dashboard`],
+    enabled: !!user && (!!user.salespersonName || !!user.id),
+    staleTime: 300000, // 5 minutos
+  });
+
+  const { data: clientsData, isLoading: loadingClients } = useQuery({
+    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/clients`],
+    enabled: !!user && (!!user.salespersonName || !!user.id),
+  });
+
+  const { data: goalsData, isLoading: loadingGoals } = useQuery({
+    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/goals`],
+    enabled: !!user && (!!user.salespersonName || !!user.id),
+  });
+
+  if (isLoading || loadingSalesperson || loadingClients || loadingGoals) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -99,728 +103,182 @@ export default function SalespersonDashboard() {
   if (!isAuthenticated) {
     return null;
   }
-  
-  if (!user || user.role !== 'salesperson') {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Acceso Denegado</h1>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">No tienes permisos para acceder a esta página.</p>
-          <Link href="/">
-            <Button>
-              Volver al Inicio
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
-  // Construir parámetros de fecha basados en el filtro
-  const buildDateParams = () => {
-    const params = new URLSearchParams();
-    params.append('period', selectedPeriod);
-    params.append('filterType', filterType);
-    
-    if (filterType === 'day' && selectedDate) {
-      params.append('selectedDate', format(selectedDate, 'yyyy-MM-dd'));
-    }
-    
-    return params.toString();
+  const salesData = salespersonData || {
+    totalSales: 0,
+    transactions: 0,
+    avgTicket: 0,
+    topProducts: [],
+    recentSales: []
   };
 
-  // Queries específicas para el vendedor con filtros de fecha
-  const { data: salespersonMetrics = {} } = useQuery({
-    queryKey: [`/api/sales/metrics/salesperson/${user?.salespersonName}`, selectedPeriod, filterType, selectedDate],
-    queryFn: () => fetch(`/api/sales/metrics/salesperson/${user?.salespersonName}?${buildDateParams()}`).then(res => res.json()),
-    enabled: !!user?.salespersonName,
-  });
-
-  const { data: salespersonClients = [] } = useQuery({
-    queryKey: [`/api/sales/clients/salesperson/${user?.salespersonName}`, selectedPeriod, filterType, selectedDate],
-    queryFn: () => fetch(`/api/sales/clients/salesperson/${user?.salespersonName}?${buildDateParams()}`).then(res => res.json()),
-    enabled: !!user?.salespersonName,
-  });
-
-  const { data: allGoalsProgress = [] } = useQuery({
-    queryKey: [`/api/goals/progress`],
-    enabled: !!user?.salespersonName,
-  });
-
-  // Filtrar metas específicas del vendedor desde el endpoint del administrador
-  const salespersonGoals = (allGoalsProgress as any[])?.filter((goal: any) => 
-    goal.type === 'salesperson' && goal.target === user?.salespersonName
-  ) || [];
-
-  const { data: chartData = [] } = useQuery({
-    queryKey: [`/api/sales/chart-data/salesperson/${user?.salespersonName}`, selectedPeriod, filterType, selectedDate],
-    queryFn: () => fetch(`/api/sales/chart-data/salesperson/${user?.salespersonName}?${buildDateParams()}`).then(res => res.json()),
-    enabled: !!user?.salespersonName,
-  });
-
-  const { data: salespersonAlerts = [] } = useQuery({
-    queryKey: [`/api/alerts/salesperson/${user?.salespersonName}`, selectedPeriod, filterType, selectedDate],
-    queryFn: () => fetch(`/api/alerts/salesperson/${user?.salespersonName}?${buildDateParams()}`).then(res => res.json()),
-    enabled: !!user?.salespersonName,
-  });
-
-  const { logoutMutation } = useAuth();
-  
-  const handleLogout = () => {
-    logoutMutation.mutate();
-  };
-
-  const getInitials = (firstName?: string | null, lastName?: string | null) => {
-    const first = firstName?.charAt(0) || "";
-    const last = lastName?.charAt(0) || "";
-    return (first + last).toUpperCase() || "V";
-  };
-
-  const getDisplayName = (firstName?: string | null, lastName?: string | null) => {
-    if (firstName && lastName) {
-      return `${firstName} ${lastName}`;
-    }
-    if (firstName) return firstName;
-    if (lastName) return lastName;
-    return user?.salespersonName || "Vendedor";
-  };
-
-  const sidebarItems = [
-    {
-      href: "/",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      href: "/mis-clientes",
-      label: "Mis Clientes",
-      icon: Users,
-    },
-    {
-      href: "/presupuestos",
-      label: "Presupuestos",
-      icon: FileText,
-    },
-    {
-      href: "#",
-      label: "Crear Presupuesto",
-      icon: Calculator,
-      disabled: true,
-      comingSoon: true,
-    },
-    {
-      href: "#",
-      label: "Calcular Tintometría",
-      icon: Palette,
-      disabled: true,
-      comingSoon: true,
-    },
-    {
-      href: "#",
-      label: "Revisión de Stock",
-      icon: Package,
-      disabled: true,
-      comingSoon: true,
-    },
-    {
-      href: "#",
-      label: "Herramientas de Venta",
-      icon: Wrench,
-      disabled: true,
-      comingSoon: true,
-    },
-  ];
+  const clients = clientsData || [];
+  const goals = goalsData || [];
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Mobile Menu Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="fixed top-4 left-4 z-50 lg:hidden glass-card p-2"
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-        data-testid="mobile-menu-toggle"
-      >
-        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </Button>
-
-      {/* Mobile Overlay */}
-      {isMobileOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-          onClick={() => setIsMobileOpen(false)}
-        />
-      )}
-
-      {/* Sidebar negro igual al admin */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-700/50 transition-transform duration-300 lg:translate-x-0 ${
-        isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      }`}>
-        <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-slate-700/50">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-white">Panel Vendedor</h1>
-                <p className="text-sm text-slate-400">{user?.salespersonName}</p>
-              </div>
-            </div>
+    <>
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
+        <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
+              Dashboard Vendedor - {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
+            </h1>
+            <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
+              Panel de control personalizado para gestión de ventas
+            </p>
           </div>
-        
-          <nav className="flex-1 p-4 space-y-1">
-            {sidebarItems.map((item, index) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-              const itemKey = (item as any).disabled ? `disabled-${index}` : item.href;
-              
-              if ((item as any).onClick) {
-                return (
-                  <div key={itemKey}>
-                    <Button
-                      variant="ghost"
-                      onClick={(item as any).onClick}
-                      className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
-                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <Icon className="w-5 h-5 mr-3" />
-                      {item.label}
-                    </Button>
-                  </div>
-                );
-              }
 
-              if ((item as any).disabled) {
-                return (
-                  <div key={itemKey}>
-                    <Button
-                      variant="ghost"
-                      disabled={true}
-                      className="w-full justify-start text-slate-300 opacity-60 cursor-not-allowed"
-                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <Icon className="w-5 h-5 mr-3" />
-                      <div className="text-left">
-                        <div>{item.label}</div>
-                        {(item as any).comingSoon && (
-                          <div className="text-xs text-slate-500">Próximamente</div>
-                        )}
-                      </div>
-                    </Button>
-                  </div>
-                );
-              }
-              
-              return (
-                <Link key={itemKey} href={item.href}>
-                  <Button
-                    variant="ghost"
-                    className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                      isActive ? "bg-slate-800 text-white" : ""
-                    }`}
-                    data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.label}
+          {/* Controles de Período */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
+            <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
+              <SelectTrigger className="w-full sm:w-[140px] rounded-xl">
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="day">Por día</SelectItem>
+                <SelectItem value="month">Por mes</SelectItem>
+                <SelectItem value="range">Rango</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {filterType === "day" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full sm:w-[200px] justify-start text-left font-normal rounded-xl">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(selectedDate, "PPP") : "Seleccionar fecha"}
                   </Button>
-                </Link>
-              );
-            })}
-          </nav>
-          
-          <div className="p-6 border-t border-slate-700/50">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                <span className="text-xs font-medium text-white">
-                  {getInitials(user?.firstName, user?.lastName)}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                  {getDisplayName(user?.firstName, user?.lastName)}
-                </p>
-                <p className="text-xs text-slate-400">Vendedor</p>
-              </div>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
-              onClick={handleLogout}
-              data-testid="logout-button"
-            >
-              <LogOut className="w-4 h-4 mr-3" />
-              Cerrar Sesión
-            </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </div>
-      </div>
-      
-      <div className="lg:ml-64 transition-all duration-300">
-        {/* Header igual al dashboard admin */}
-        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
-          <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
-                Dashboard Personal - {user?.salespersonName}
-              </h1>
-              <p className="text-gray-600 text-base lg:text-lg">
-                Resumen de tu rendimiento - {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
-              </p>
-            </div>
-            
-            <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4">
-              {/* Filter Type Selector */}
-              <div className="flex items-center space-x-3">
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Filtrar por:
-                </label>
-                <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="w-36 rounded-xl border-gray-200 shadow-sm" data-testid="select-filter-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200">
-                    <SelectItem value="day">Día</SelectItem>
-                    <SelectItem value="month">Mes</SelectItem>
-                    <SelectItem value="range">Rango</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      </header>
 
-              {/* Period Selector */}
-              <div className="flex items-center space-x-3">
-                <label className="text-sm font-medium text-gray-700">
-                  Período:
-                </label>
-                
-                {filterType === "day" ? (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-48 lg:w-52 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm"
-                        data-testid="calendar-trigger"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecciona una fecha"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={setSelectedDate}
-                        initialFocus
-                        data-testid="calendar"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                ) : (
-                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger className="w-48 lg:w-52 rounded-xl border-gray-200 shadow-sm" data-testid="select-period">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200">
-                      {filterType === "month" ? (
-                        <>
-                          <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                          <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                          <SelectItem value="2025-07">Julio 2025</SelectItem>
-                          <SelectItem value="2025-06">Junio 2025</SelectItem>
-                          <SelectItem value="2025-05">Mayo 2025</SelectItem>
-                        </>
-                      ) : (
-                        <>
-                          <SelectItem value="last-7-days">Últimos 7 días</SelectItem>
-                          <SelectItem value="last-30-days">Últimos 30 días</SelectItem>
-                          <SelectItem value="last-90-days">Últimos 90 días</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Contenido principal con el mismo estilo que admin */}
-        <main className="px-4 lg:px-6 pb-6 space-y-6">
-          {/* KPI Cards para el vendedor */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="rounded-2xl border-gray-200/60 shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Mis Ventas</CardTitle>
-                <DollarSign className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-900">
-                  {(salespersonMetrics as any)?.totalSales ? new Intl.NumberFormat('es-CL', {
-                    style: 'currency',
-                    currency: 'CLP',
-                    minimumFractionDigits: 0,
-                  }).format((salespersonMetrics as any).totalSales) : "Cargando..."}
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Total de ventas personales
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border-gray-200/60 shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Mis Transacciones</CardTitle>
-                <Package className="h-4 w-4 text-blue-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-900">
-                  {(salespersonMetrics as any)?.totalTransactions || 0}
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Transacciones realizadas
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border-gray-200/60 shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Mis Clientes</CardTitle>
-                <Users className="h-4 w-4 text-purple-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-900">
-                  {(salespersonClients as any[])?.length || 0}
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Clientes únicos atendidos
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border-gray-200/60 shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Promedio por Venta</CardTitle>
-                <TrendingUp className="h-4 w-4 text-orange-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-900">
-                  {(salespersonMetrics as any)?.averageTransaction ? new Intl.NumberFormat('es-CL', {
-                    style: 'currency',
-                    currency: 'CLP',
-                    minimumFractionDigits: 0,
-                  }).format((salespersonMetrics as any).averageTransaction) : "Cargando..."}
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Valor promedio por transacción
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Metas al ancho completo */}
-          <Card className="rounded-2xl border-gray-200/60 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
-                <Target className="w-5 h-5 mr-2 text-blue-600" />
-                Mis Metas
-              </CardTitle>
-              <CardDescription className="text-gray-600">
-                Progreso de tus objetivos personales
-              </CardDescription>
+      {/* Contenido Principal */}
+      <main className="px-4 lg:px-6 pb-6 space-y-6">
+        {/* KPIs del Vendedor */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="rounded-2xl shadow-sm border-blue-200/60">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-blue-900">Ventas Totales</CardTitle>
+              <DollarSign className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {salespersonGoals?.map((goal: any) => {
-                  const progress = Math.min((goal.percentage || 0), 100);
-                  const isCompleted = progress >= 100;
-                  
-                  return (
-                    <div key={goal.id} className="space-y-3 p-4 border rounded-lg bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <Target className="w-4 h-4 text-blue-600" />
-                          <span className="text-sm font-medium text-gray-900">
-                            {goal.description || "Meta Personal"}
-                          </span>
-                        </div>
-                        <Badge variant={isCompleted ? "default" : "secondary"}>
-                          {Math.round(progress)}%
-                        </Badge>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-xs text-gray-600">
-                          <span>Actual:</span>
-                          <span>
-                            {new Intl.NumberFormat('es-CL', {
-                              style: 'currency',
-                              currency: 'CLP',
-                              minimumFractionDigits: 0,
-                            }).format(goal.currentSales || 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-600">
-                          <span>Meta:</span>
-                          <span>
-                            {new Intl.NumberFormat('es-CL', {
-                              style: 'currency',
-                              currency: 'CLP',
-                              minimumFractionDigits: 0,
-                            }).format(goal.targetAmount || 0)}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div 
-                            className={`h-3 rounded-full transition-all duration-300 ${
-                              isCompleted ? 'bg-green-500' : 'bg-blue-500'
-                            }`}
-                            style={{ width: `${Math.min(progress, 100)}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-gray-500">Restante:</span>
-                          <span className={`font-medium ${goal.remaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                            {new Intl.NumberFormat('es-CL', {
-                              style: 'currency',
-                              currency: 'CLP',
-                              minimumFractionDigits: 0,
-                            }).format(Math.max(goal.remaining || 0, 0))}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        Período: {goal.period}
-                      </p>
-                    </div>
-                  );
-                })}
-                
-                {(!salespersonGoals || salespersonGoals.length === 0) && (
-                  <div className="col-span-full text-center py-8">
-                    <Target className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 text-sm">No tienes metas asignadas</p>
-                    <p className="text-gray-400 text-xs mt-1">Contacta a tu supervisor para establecer objetivos</p>
-                  </div>
-                )}
+              <div className="text-2xl font-bold text-blue-900">
+                ${salesData.totalSales.toLocaleString()}
               </div>
+              <p className="text-xs text-blue-700">
+                Este período
+              </p>
             </CardContent>
           </Card>
 
-          {/* Gráfico y Alertas lado a lado */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {/* Sales Chart */}
-            <Card className="rounded-2xl border-gray-200/60 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold text-gray-900">Mis Ventas por Período</CardTitle>
-                <CardDescription className="text-gray-600">
-                  Evolución de tus ventas personales
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SalesChart 
-                  selectedPeriod={selectedPeriod} 
-                  filterType={filterType}
-                  selectedDate={selectedDate}
-                  salespersonFilter={user?.salespersonName}
-                />
-              </CardContent>
-            </Card>
+          <Card className="rounded-2xl shadow-sm border-green-200/60">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-green-900">Transacciones</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-900">{salesData.transactions}</div>
+              <p className="text-xs text-green-700">
+                Operaciones realizadas
+              </p>
+            </CardContent>
+          </Card>
 
-            {/* Alertas inteligentes */}
-            <Card className="rounded-2xl border-gray-200/60 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
-                  <Bell className="w-5 h-5 mr-2 text-yellow-600" />
-                  Alertas Inteligentes
-                </CardTitle>
-                <CardDescription className="text-gray-600">
-                  Oportunidades y recordatorios basados en patrones de clientes
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {(salespersonAlerts as any[])?.map((alert: any, index: number) => {
-                    const getAlertIcon = (type: string) => {
-                      switch (type) {
-                        case 'inactive_client': return <Clock className="w-4 h-4" />;
-                        case 'seasonal_pattern': return <TrendingUp className="w-4 h-4" />;
-                        case 'high_value': return <Star className="w-4 h-4" />;
-                        case 'cross_sell': return <TrendingDown className="w-4 h-4" />;
-                        default: return <AlertCircle className="w-4 h-4" />;
-                      }
-                    };
+          <Card className="rounded-2xl shadow-sm border-purple-200/60">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-purple-900">Ticket Promedio</CardTitle>
+              <BarChart3 className="h-4 w-4 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-900">
+                ${salesData.avgTicket.toLocaleString()}
+              </div>
+              <p className="text-xs text-purple-700">
+                Promedio por venta
+              </p>
+            </CardContent>
+          </Card>
 
-                    const getAlertColor = (priority: string) => {
-                      switch (priority) {
-                        case 'high': return 'bg-red-50 border-red-200 text-red-800';
-                        case 'medium': return 'bg-yellow-50 border-yellow-200 text-yellow-800';
-                        case 'low': return 'bg-blue-50 border-blue-200 text-blue-800';
-                        default: return 'bg-gray-50 border-gray-200 text-gray-800';
-                      }
-                    };
+          <Card className="rounded-2xl shadow-sm border-orange-200/60">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-orange-900">Mis Clientes</CardTitle>
+              <Users className="h-4 w-4 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-900">{clients.length}</div>
+              <p className="text-xs text-orange-700">
+                Clientes activos
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
-                    const getIconColor = (type: string) => {
-                      switch (type) {
-                        case 'inactive_client': return 'text-orange-600';
-                        case 'seasonal_pattern': return 'text-green-600';
-                        case 'high_value': return 'text-purple-600';
-                        case 'cross_sell': return 'text-blue-600';
-                        default: return 'text-gray-600';
-                      }
-                    };
-
-                    return (
-                      <div 
-                        key={`alert-${index}`} 
-                        className={`p-3 rounded-lg border ${getAlertColor(alert.priority)}`}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className={`mt-0.5 ${getIconColor(alert.type)}`}>
-                            {getAlertIcon(alert.type)}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-medium">{alert.title}</h4>
-                              <Badge variant={alert.priority === 'high' ? 'destructive' : alert.priority === 'medium' ? 'default' : 'secondary'}>
-                                {alert.priority === 'high' ? 'Alta' : alert.priority === 'medium' ? 'Media' : 'Baja'}
-                              </Badge>
-                            </div>
-                            <p className="text-sm mt-1">{alert.message}</p>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="mt-2 text-xs h-7"
-                            >
-                              {alert.actionText}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  
-                  {(!salespersonAlerts || (salespersonAlerts as any[]).length === 0) && (
-                    <div className="text-center py-6">
-                      <Bell className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                      <p className="text-gray-500 text-sm">No hay alertas pendientes</p>
-                      <p className="text-gray-400 text-xs">El sistema analizará tus datos para generar alertas útiles</p>
+        {/* Progreso de Metas */}
+        {goals && goals.length > 0 && (
+          <Card className="rounded-2xl shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-blue-600" />
+                Progreso de Metas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {goals.map((goal: any, index: number) => (
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{goal.description}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {goal.progress.toFixed(1)}%
+                      </span>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Top Clients y Recent Transactions */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {/* Top Clients */}
-            <Card className="rounded-2xl border-gray-200/60 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold text-gray-900">Mis Mejores Clientes</CardTitle>
-                <CardDescription className="text-gray-600">
-                  Clientes con mayor volumen de compras
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {(salespersonClients as any[])?.slice(0, 5).map((client: any, index: number) => (
-                    <div key={`${client.clientName}-${index}`} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                          <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{client.clientName}</p>
-                          <p className="text-sm text-gray-600">{client.transactionCount} transacciones</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-gray-900">
-                          {new Intl.NumberFormat('es-CL', {
-                            style: 'currency',
-                            currency: 'CLP',
-                            minimumFractionDigits: 0,
-                          }).format(client.totalSales)}
-                        </p>
-                      </div>
+                    <div className="w-full bg-secondary rounded-full h-2">
+                      <div
+                        className="bg-primary h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(goal.progress, 100)}%` }}
+                      ></div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Sistema de Mensajería */}
-            <Card className="rounded-2xl border-gray-200/60 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-xl font-semibold text-gray-900">Centro de Mensajes</CardTitle>
-                <CardDescription className="text-gray-600">
-                  Comunicación con supervisores y clientes
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Mensaje de supervisor */}
-                  <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-                      <Users className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-blue-900">Supervisor</p>
-                        <span className="text-xs text-blue-600">Hace 2 horas</span>
-                      </div>
-                      <p className="text-sm text-blue-800 mt-1">
-                        Excelente trabajo este mes. Has superado tu meta en un 15%. ¡Sigue así!
-                      </p>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>${goal.currentSales.toLocaleString()}</span>
+                      <span>${goal.targetAmount.toLocaleString()}</span>
                     </div>
                   </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-                  {/* Mensaje de cliente */}
-                  <div className="flex items-start space-x-3 p-3 bg-green-50 rounded-lg">
-                    <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                      <MessageSquare className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-green-900">Cliente</p>
-                        <span className="text-xs text-green-600">Hace 1 día</span>
-                      </div>
-                      <p className="text-sm text-green-800 mt-1">
-                        Gracias por la atención. Los productos llegaron en perfecto estado.
-                      </p>
-                    </div>
-                  </div>
+        {/* Gráfico de Ventas */}
+        <div className="modern-card p-5 lg:p-6 hover-lift">
+          <SalesChart 
+            selectedPeriod={selectedPeriod} 
+            filterType={filterType}
+            salespersonFilter={user?.salespersonName}
+          />
+        </div>
 
-                  {/* Alerta del sistema */}
-                  <div className="flex items-start space-x-3 p-3 bg-orange-50 rounded-lg">
-                    <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center">
-                      <AlertCircle className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-orange-900">Sistema</p>
-                        <span className="text-xs text-orange-600">Hace 3 días</span>
-                      </div>
-                      <p className="text-sm text-orange-800 mt-1">
-                        Recordatorio: Actualizar información de contacto de clientes pendientes.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Botón para enviar mensaje */}
-                  <div className="pt-2 border-t">
-                    <Button variant="outline" className="w-full text-sm">
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      Enviar nuevo mensaje
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
-      </div>
-
-    </div>
+        {/* Tabla de Transacciones */}
+        <div className="modern-card p-5 lg:p-6 hover-lift">
+          <TransactionsTable 
+            selectedPeriod={selectedPeriod} 
+            filterType={filterType}
+            salespersonFilter={user?.salespersonName}
+          />
+        </div>
+      </main>
+    </>
   );
 }
