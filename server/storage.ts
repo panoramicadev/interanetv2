@@ -2075,7 +2075,7 @@ export class DatabaseStorage implements IStorage {
           continue;
         }
 
-        console.log(`📦 Procesando producto: ${row.productId} (${row.name})`);
+        console.log(`📦 Procesando producto: ${row.productId} - ${row.name} - Precio: ${row.pricePerUnit}`);
 
         // Verificar si el producto existe
         const existingProduct = await this.getProductByProductId(row.productId);
@@ -2117,12 +2117,12 @@ export class DatabaseStorage implements IStorage {
             packagingPalletName: row.packagingPalletName || '',
             packagingPalletUnit: row.packagingPalletUnit || '',
             packagingAmountPerPallet: row.packagingAmountPerPallet ? parseFloat(row.packagingAmountPerPallet.replace(',', '.')) : null,
-            // Nuevas columnas de variantes
-            variantFeaturesKey: row.variantFeaturesKey || '',
-            variantFeaturesValue: row.variantFeaturesValue || '',
-            variantParentSku: row.variantParentSku || '',
-            variantGenericDisplayName: row.variantGenericDisplayName || '',
-            variantIndex: row.variantIndex ? parseInt(row.variantIndex) : undefined,
+            // Nuevas columnas de variantes (se asignarán por separado si existen)
+            ...(row.variantFeaturesKey && { variantFeaturesKey: row.variantFeaturesKey }),
+            ...(row.variantFeaturesValue && { variantFeaturesValue: row.variantFeaturesValue }),
+            ...(row.variantParentSku && { variantParentSku: row.variantParentSku }),
+            ...(row.variantGenericDisplayName && { variantGenericDisplayName: row.variantGenericDisplayName }),
+            ...(row.variantIndex && { variantIndex: parseInt(row.variantIndex) }),
             active: true
           });
           

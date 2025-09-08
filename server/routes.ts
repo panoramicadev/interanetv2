@@ -1337,24 +1337,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         return transformedRow;
       }).filter((row: any) => {
-        // Relajar validación temporalmente - solo requerir que exista algún identificador
+        // Validación para importación de productos (no stock)
         const hasProductId = row.productId && row.productId.trim().length > 0;
         const hasName = row.name && row.name.trim().length > 0;
         
-        if (!hasProductId && !hasName) {
-          console.log(`❌ Fila ${row.originalRowIndex} excluida: Sin productId ni nombre - productId: "${row.productId}", name: "${row.name}"`);
+        if (!hasProductId) {
+          console.log(`❌ Fila ${row.originalRowIndex} excluida: Sin KOPR (productId) - valor: "${row.productId}"`);
           return false;
         }
         
-        if (!hasProductId) {
-          console.log(`⚠️ Fila ${row.originalRowIndex}: Sin productId pero tiene nombre: "${row.name}"`);
-        }
-        
         if (!hasName) {
-          console.log(`⚠️ Fila ${row.originalRowIndex}: Sin nombre pero tiene productId: "${row.productId}"`);
+          console.log(`❌ Fila ${row.originalRowIndex} excluida: Sin NOKOPR (nombre) - valor: "${row.name}"`);
+          return false;
         }
         
-        return hasProductId || hasName; // Permitir si tiene al menos uno
+        console.log(`✅ Fila ${row.originalRowIndex} válida: ${row.productId} - ${row.name}`);
+        return true;
       });
 
       console.log(`✅ Productos válidos para procesar: ${csvData.length}`);
