@@ -178,112 +178,130 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
           }
           
           // Map CSV headers to database fields - EXACT type conversion per schema
-          if (value && value.trim() !== '') {
-            switch (cleanHeader) {
-              // Required string fields
-              case 'nudo':
+          switch (cleanHeader) {
+            // Required string fields - always process
+            case 'nudo':
+              if (value && value.trim() !== '') {
                 transaction.nudo = value.toString();
-                break;
-              
-              // Required date fields  
-              case 'feemdo':
+              }
+              break;
+            
+            // Required date fields  
+            case 'feemdo':
+              if (value && value.trim() !== '') {
                 transaction.feemdo = parseDate(value);
-                break;
-                
-              // Optional string fields (varchar/text)
-              case 'koprct':
-              case 'nokoen':
-              case 'noruen':
-              case 'nokoprct':
-              case 'nokofu':
-              case 'tido':
-              case 'endo':
-              case 'suendo':
-              case 'sudo':
-              case 'kofudo':
-              case 'modo':
-              case 'timodo':
-              case 'lilg':
-              case 'nulido':
-              case 'sulido':
-              case 'bosulido':
-              case 'kofulido':
-              case 'prct':
-              case 'tict':
-              case 'tipr':
-              case 'nusepr':
-              case 'ud01pr':
-              case 'ud02pr':
-              case 'eslido':
-              case 'fmpr':
-              case 'mrpr':
-              case 'zona':
-              case 'ruen':
-              case 'pfpr':
-              case 'hfpr':
-              case 'ocdo':
-              case 'nofmpr':
-              case 'nopfpr':
-              case 'nohfpr':
-              case 'listacost':
-              case 'nokozo': // Zone name
-              case 'nosudo': // Document branch name  
-              case 'nokofudo': // Document employee name
-              case 'nobosuli': // Warehouse branch name
-              case 'nomrpr': // Name field
+              }
+              break;
+              
+            // TIDO - CRITICAL: Always process, even if empty, for NCV logic
+            case 'tido':
+              transaction.tido = value ? value.toString().replace(/"/g, '').trim() : '';
+              break;
+              
+            // Optional string fields (varchar/text)
+            case 'koprct':
+            case 'nokoen':
+            case 'noruen':
+            case 'nokoprct':
+            case 'nokofu':
+            case 'endo':
+            case 'suendo':
+            case 'sudo':
+            case 'kofudo':
+            case 'modo':
+            case 'timodo':
+            case 'lilg':
+            case 'nulido':
+            case 'sulido':
+            case 'bosulido':
+            case 'kofulido':
+            case 'prct':
+            case 'tict':
+            case 'tipr':
+            case 'nusepr':
+            case 'ud01pr':
+            case 'ud02pr':
+            case 'eslido':
+            case 'fmpr':
+            case 'mrpr':
+            case 'zona':
+            case 'ruen':
+            case 'pfpr':
+            case 'hfpr':
+            case 'ocdo':
+            case 'nofmpr':
+            case 'nopfpr':
+            case 'nohfpr':
+            case 'listacost':
+            case 'nokozo': // Zone name
+            case 'nosudo': // Document branch name  
+            case 'nokofudo': // Document employee name
+            case 'nobosuli': // Warehouse branch name
+            case 'nomrpr': // Name field
+              if (value && value.trim() !== '') {
                 transaction[cleanHeader] = value.toString();
-                break;
+              }
+              break;
                 
-              // Optional date fields
-              case 'feulvedo':
-              case 'feemli':
-              case 'feerli':
+            // Optional date fields
+            case 'feulvedo':
+            case 'feemli':
+            case 'feerli':
+              if (value && value.trim() !== '') {
                 transaction[cleanHeader] = parseDate(value);
-                break;
+              }
+              break;
                 
-              // Integer field
-              case 'luvtlido':
+            // Integer field
+            case 'luvtlido':
+              if (value && value.trim() !== '') {
                 const intVal = parseInt(value);
                 transaction.luvtlido = isNaN(intVal) ? null : intVal;
-                break;
+              }
+              break;
                 
-              // Numeric fields (all others)
-              case 'idmaeedo':
-              case 'tamodo':
-              case 'caprad':
-              case 'caprex':
-              case 'vanedo':
-              case 'vaivdo':
-              case 'vabrdo':
-              case 'udtrpr':
-              case 'rludpr':
-              case 'caprco1':
-              case 'caprad1':
-              case 'caprex1':
-              case 'caprnc1':
-              case 'caprco2':
-              case 'caprad2':
-              case 'caprex2':
-              case 'caprnc2':
-              case 'ppprne':
-              case 'ppprbr':
-              case 'vaneli':
-              case 'vabrli':
-              case 'ppprpm':
-              case 'ppprpmifrs':
-              case 'logistica':
-              case 'ppprnere1':
-              case 'ppprnere2':
-              case 'idmaeddo':
-              case 'recaprre':
-              case 'monto':
-              case 'devol1':
-              case 'devol2':
-              case 'stockfis':
-              case 'liscosmod':
+            // Numeric fields (all others)
+            case 'idmaeedo':
+            case 'tamodo':
+            case 'caprad':
+            case 'caprex':
+            case 'vanedo':
+            case 'vaivdo':
+            case 'vabrdo':
+            case 'udtrpr':
+            case 'rludpr':
+            case 'caprco1':
+            case 'caprad1':
+            case 'caprex1':
+            case 'caprnc1':
+            case 'caprco2':
+            case 'caprad2':
+            case 'caprex2':
+            case 'caprnc2':
+            case 'ppprne':
+            case 'ppprbr':
+            case 'vaneli':
+            case 'vabrli':
+            case 'ppprpm':
+            case 'ppprpmifrs':
+            case 'logistica':
+            case 'ppprnere1':
+            case 'ppprnere2':
+            case 'idmaeddo':
+            case 'recaprre':
+            case 'monto':
+            case 'devol1':
+            case 'devol2':
+            case 'stockfis':
+            case 'liscosmod':
+              if (value && value.trim() !== '') {
                 transaction[cleanHeader] = parseNumber(value);
-                break;
-            }
+              }
+              break;
+              
+            default:
+              // Skip unknown fields
+              break;
           }
         });
         
