@@ -346,45 +346,13 @@ export class DatabaseStorage implements IStorage {
   async insertMultipleSalesTransactions(transactions: InsertSalesTransaction[]): Promise<void> {
     if (transactions.length === 0) return;
     
-    // Use UPSERT with IDMAEEDO as unique identifier to prevent duplicates
-    for (const transaction of transactions) {
-      await db
-        .insert(salesTransactions)
-        .values(transaction)
-        .onConflictDoUpdate({
-          target: salesTransactions.idmaeedo, // Use IDMAEEDO as unique identifier
-          set: {
-            // Update all fields except ID and timestamps
-            nudo: transaction.nudo,
-            feemdo: transaction.feemdo,
-            tido: transaction.tido, // Include TIDO (document type)
-            koprct: transaction.koprct,
-            nokoen: transaction.nokoen,
-            noruen: transaction.noruen,
-            nokoprct: transaction.nokoprct,
-            nokofu: transaction.nokofu,
-            caprco2: transaction.caprco2,
-            // Update all other fields as well
-            endo: transaction.endo,
-            suendo: transaction.suendo,
-            sudo: transaction.sudo,
-            feulvedo: transaction.feulvedo,
-            kofudo: transaction.kofudo,
-            modo: transaction.modo,
-            timodo: transaction.timodo,
-            tamodo: transaction.tamodo,
-            caprad: transaction.caprad,
-            caprex: transaction.caprex,
-            vanedo: transaction.vanedo,
-            vaivdo: transaction.vaivdo,
-            vabrdo: transaction.vabrdo,
-            monto: transaction.monto,
-            updatedAt: new Date(),
-          },
-        });
-    }
+    // Insert ALL transactions - duplicates allowed (normal in ERP systems)
+    await db
+      .insert(salesTransactions)
+      .values(transactions);
     
-    console.log(`🔄 Processed ${transactions.length} sales transactions with UPSERT using IDMAEEDO`);
+    console.log(`🔄 Processed ${transactions.length} sales transactions - ALL IMPORTED`);
+  }
   }
 
   async getSalesTransactions(filters: {
