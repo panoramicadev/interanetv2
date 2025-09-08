@@ -1820,7 +1820,7 @@ export class DatabaseStorage implements IStorage {
   async updateProductPrice(sku: string, newPrice: number, changedBy: string, reason?: string): Promise<Product> {
     // Get current price
     const currentProduct = await this.getProduct(sku);
-    const oldPrice = currentProduct?.price ? Number(currentProduct.price) : null;
+    const oldPrice = currentProduct?.manualPrice ? Number(currentProduct.manualPrice) : (currentProduct?.pricePerUnit ? Number(currentProduct.pricePerUnit) : null);
 
     // Update product price
     const [updatedProduct] = await db
@@ -1944,8 +1944,8 @@ export class DatabaseStorage implements IStorage {
           product = await this.createProduct({
             sku: row.sku,
             name: row.name,
-            unit1: row.unit1 || 'UN',
-            unit2: row.unit2 || 'UN',
+            packagingUnitName: row.unit1 || 'UN', // Mantener compatibilidad
+            packagingUnit: row.unit2 || 'UN', // Mantener compatibilidad
             unitRatio: row.unitRatio?.toString() || '1',
             active: true
           });
@@ -1955,8 +1955,8 @@ export class DatabaseStorage implements IStorage {
           // Actualizar información del producto (preservando precio)
           await this.updateProduct(row.sku, {
             name: row.name,
-            unit1: row.unit1 || 'UN',
-            unit2: row.unit2 || 'UN',
+            packagingUnitName: row.unit1 || 'UN', // Mantener compatibilidad
+            packagingUnit: row.unit2 || 'UN', // Mantener compatibilidad
             unitRatio: row.unitRatio?.toString() || '1'
           });
         }
@@ -2382,8 +2382,8 @@ export class DatabaseStorage implements IStorage {
         physicalStock2: productStock.physicalStock2,
         availableStock1: productStock.availableStock1,
         availableStock2: productStock.availableStock2,
-        unit1: products.unit1,
-        unit2: products.unit2
+        unit1: products.packagingUnitName, // Mantener compatibilidad
+        unit2: products.packagingUnit // Mantener compatibilidad
       })
       .from(productStock)
       .leftJoin(products, eq(productStock.productSku, products.sku))
