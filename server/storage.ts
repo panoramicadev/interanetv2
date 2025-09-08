@@ -1727,6 +1727,83 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Product operations implementation
+  // Public products method for shop (no prices, no authentication required)
+  async getProductsPublic(filters?: {
+    search?: string;
+    category?: string;
+    active?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<Product[]> {
+    const conditions = [];
+    
+    if (filters?.search) {
+      conditions.push(
+        sql`(${products.sku} ILIKE ${`%${filters.search}%`} OR ${products.name} ILIKE ${`%${filters.search}%`})`
+      );
+    }
+    
+    if (filters?.category) {
+      conditions.push(eq(products.category, filters.category));
+    }
+    
+    if (filters?.active !== undefined) {
+      conditions.push(eq(products.active, filters.active));
+    }
+
+    let query = db.select({
+      id: products.id,
+      sku: products.sku,
+      productId: products.productId,
+      name: products.name,
+      category: products.category,
+      packagingUnit: products.packagingUnit,
+      packagingUnitName: products.packagingUnitName,
+      variantFeaturesKey: products.variantFeaturesKey,
+      variantFeaturesValue: products.variantFeaturesValue,
+      variantParentSku: products.variantParentSku,
+      variantGenericDisplayName: products.variantGenericDisplayName,
+      active: products.active,
+      createdAt: products.createdAt,
+      updatedAt: products.updatedAt
+      // No incluir campos de precio para acceso público
+    }).from(products);
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as typeof query;
+    }
+    
+    if (filters?.offset) {
+      query = query.offset(filters.offset) as typeof query;
+    }
+
+    const publicProducts = await query.orderBy(products.name);
+    return publicProducts;
+  }
+
+  // Get all product prices (only for authenticated users)
+  async getAllProductPrices(): Promise<Record<string, string>> {
+    const productPrices = await db.select({
+      sku: products.sku,
+      pricePerUnit: products.pricePerUnit,
+      manualPrice: products.manualPrice
+    }).from(products).where(eq(products.active, true));
+
+    const pricesMap: Record<string, string> = {};
+    productPrices.forEach(product => {
+      const price = product.manualPrice || product.pricePerUnit;
+      if (price) {
+        pricesMap[product.sku] = price.toString();
+      }
+    });
+
+    return pricesMap;
+  }
+
   async getProducts(filters?: {
     search?: string;
     active?: boolean;

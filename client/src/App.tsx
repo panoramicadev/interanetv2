@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
+import Shop from "@/pages/shop";
 import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
 import SupervisorDashboard from "@/pages/supervisor-dashboard";
@@ -35,11 +36,15 @@ function Router() {
 
   return (
     <Switch>
+      {/* Tienda pública accesible para todos */}
+      <Route path="/tienda" component={Shop} />
+      <Route path="/shop" component={Shop} />
+      
       {!user ? (
         <>
-          <Route path="/" component={Login} />
+          <Route path="/" component={Landing} />
           <Route path="/login" component={Login} />
-          <Route component={Login} />
+          <Route component={Landing} />
         </>
       ) : (
         <>
