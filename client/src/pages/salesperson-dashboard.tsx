@@ -275,11 +275,34 @@ export default function SalespersonDashboard() {
           </div>
         
           <nav className="flex-1 p-4 space-y-1">
-            {sidebarItems.map((item) => {
+            {sidebarItems.map((item, index) => {
               const Icon = item.icon;
               const isActive = location === item.href;
+              const itemKey = (item as any).disabled ? `disabled-${index}` : item.href;
+              
+              if ((item as any).disabled) {
+                return (
+                  <div key={itemKey}>
+                    <Button
+                      variant="ghost"
+                      disabled={true}
+                      className="w-full justify-start text-slate-300 opacity-60 cursor-not-allowed"
+                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-5 h-5 mr-3" />
+                      <div className="text-left">
+                        <div>{item.label}</div>
+                        {(item as any).comingSoon && (
+                          <div className="text-xs text-slate-500">Próximamente</div>
+                        )}
+                      </div>
+                    </Button>
+                  </div>
+                );
+              }
+              
               return (
-                <Link key={item.href} href={item.href}>
+                <Link key={itemKey} href={item.href}>
                   <Button
                     variant="ghost"
                     className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
