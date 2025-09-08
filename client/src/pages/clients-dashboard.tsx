@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Search, Users, Star, Clock, TrendingUp, Package, ArrowLeft, LayoutDashboard, FileText, CalendarIcon, Building2, LogOut, Menu, X } from "lucide-react";
+import { Search, Users, Star, Clock, TrendingUp, Package, ArrowLeft, LayoutDashboard, FileText, CalendarIcon, Building2, LogOut, Menu, X, Calculator, Palette, Wrench } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useLocation } from "wouter";
 
@@ -72,6 +72,30 @@ export default function ClientsDashboard() {
       href: "/calendario",
       label: "Calendario",
       icon: CalendarIcon,
+    },
+    {
+      href: "#",
+      label: "Crear Presupuesto",
+      icon: Calculator,
+      disabled: true,
+    },
+    {
+      href: "#",
+      label: "Calcular Tintometría",
+      icon: Palette,
+      disabled: true,
+    },
+    {
+      href: "#",
+      label: "Revisión de Stock",
+      icon: Package,
+      disabled: true,
+    },
+    {
+      href: "#",
+      label: "Herramientas de Venta",
+      icon: Wrench,
+      disabled: true,
     },
   ];
 
