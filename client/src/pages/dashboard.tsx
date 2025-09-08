@@ -26,6 +26,10 @@ export default function Dashboard() {
   const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   
+  // Date range state for custom range selection
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  
   // Global filter state for goals/segments/salespeople
   const [globalFilter, setGlobalFilter] = useState<{
     type: "all" | "segment" | "salesperson";
@@ -46,10 +50,14 @@ export default function Dashboard() {
         setSelectedPeriod("2025-09");
         break;
       case "range":
-        setSelectedPeriod("last-30-days");
+        if (startDate && endDate) {
+          setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
+        } else {
+          setSelectedPeriod("last-30-days");
+        }
         break;
     }
-  }, [filterType, selectedDate]);
+  }, [filterType, selectedDate, startDate, endDate]);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -145,34 +153,70 @@ export default function Dashboard() {
                       />
                     </PopoverContent>
                   </Popover>
+                ) : filterType === "range" ? (
+                  <div className="flex items-center space-x-2">
+                    {/* Fecha Inicio */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-36 lg:w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm"
+                          data-testid="start-date-trigger"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {startDate ? format(startDate, "dd/MM/yy") : "Fecha inicio"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={startDate}
+                          onSelect={setStartDate}
+                          initialFocus
+                          data-testid="start-date-calendar"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    
+                    <span className="text-gray-500 text-sm">a</span>
+                    
+                    {/* Fecha Final */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-36 lg:w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm"
+                          data-testid="end-date-trigger"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {endDate ? format(endDate, "dd/MM/yy") : "Fecha final"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={endDate}
+                          onSelect={setEndDate}
+                          initialFocus
+                          data-testid="end-date-calendar"
+                          disabled={(date) => startDate ? date < startDate : false}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 ) : (
                   <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                     <SelectTrigger className="w-48 lg:w-52 rounded-xl border-gray-200 shadow-sm" data-testid="select-period">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-gray-200">
-                      {filterType === "month" && (
-                        <>
-                          <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                          <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                          <SelectItem value="2025-07">Julio 2025</SelectItem>
-                          <SelectItem value="2025-06">Junio 2025</SelectItem>
-                          <SelectItem value="2025-05">Mayo 2025</SelectItem>
-                          <SelectItem value="current-month">Mes actual</SelectItem>
-                          <SelectItem value="last-month">Mes anterior</SelectItem>
-                        </>
-                      )}
-                      {filterType === "range" && (
-                        <>
-                          <SelectItem value="last-7-days">Últimos 7 días</SelectItem>
-                          <SelectItem value="last-30-days">Últimos 30 días</SelectItem>
-                          <SelectItem value="last-90-days">Últimos 90 días</SelectItem>
-                          <SelectItem value="this-week">Esta semana</SelectItem>
-                          <SelectItem value="last-week">Semana anterior</SelectItem>
-                          <SelectItem value="this-quarter">Este trimestre</SelectItem>
-                          <SelectItem value="this-year">Este año</SelectItem>
-                        </>
-                      )}
+                      <SelectItem value="2025-09">Septiembre 2025</SelectItem>
+                      <SelectItem value="2025-08">Agosto 2025</SelectItem>
+                      <SelectItem value="2025-07">Julio 2025</SelectItem>
+                      <SelectItem value="2025-06">Junio 2025</SelectItem>
+                      <SelectItem value="2025-05">Mayo 2025</SelectItem>
+                      <SelectItem value="current-month">Mes actual</SelectItem>
+                      <SelectItem value="last-month">Mes anterior</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
