@@ -23,7 +23,7 @@ interface LastOrder {
   nudo: string;
   feemdo: string;
   nokoprct: string;
-  monto: string;
+  vanedo: string;
   nokofu: string;
 }
 
@@ -32,7 +32,7 @@ interface PurchaseHistory {
   nudo: string;
   feemdo: string;
   nokoprct: string;
-  monto: string;
+  vanedo: string;
   nokofu: string;
 }
 
@@ -260,7 +260,7 @@ export default function ClientBuyerDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-emerald-600">
-                        {formatCurrency(lastOrder.monto || '0')}
+                        {formatCurrency(lastOrder.vanedo || '0')}
                       </p>
                       <p className="text-sm text-gray-500">Monto del pedido</p>
                     </div>
@@ -320,7 +320,7 @@ export default function ClientBuyerDashboard() {
                             {purchase.nokofu || 'No especificado'}
                           </TableCell>
                           <TableCell className="text-right font-semibold">
-                            {formatCurrency(purchase.monto || '0')}
+                            {formatCurrency(purchase.vanedo || '0')}
                           </TableCell>
                         </TableRow>
                       ))}

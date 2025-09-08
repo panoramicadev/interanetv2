@@ -19,7 +19,7 @@ interface Transaction {
   nokoprct: string | null;
   nokofu: string | null;
   caprad2: string | null;
-  monto: string | null;
+  vanedo: string | null;
 }
 
 interface TopSalesperson {
@@ -202,7 +202,7 @@ export default function TransactionsTable({ selectedPeriod, filterType }: Transa
                           {timeAgo}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-gray-900">
-                          {transaction.monto ? formatCurrency(Number(transaction.monto)) : '$0'}
+                          {transaction.vanedo ? formatCurrency(Number(transaction.vanedo)) : '$0'}
                         </TableCell>
                       </TableRow>
                     );
