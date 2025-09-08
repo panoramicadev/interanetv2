@@ -144,6 +144,9 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
     }
 
     const headers = parseCSVLine(lines[0]);
+    console.log('🔍 Headers detectados:', headers);
+    console.log('🔍 Total filas de datos:', lines.length - 1);
+    
     const transactions = [];
 
     for (let i = 1; i < lines.length; i++) {
@@ -153,7 +156,12 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
         
         headers.forEach((header, index) => {
           const value = values[index];
-          const cleanHeader = header.toLowerCase().trim();
+          const cleanHeader = header.toLowerCase().trim().replace(/\s+/g, '');
+          
+          // Debug logging for first few rows
+          if (i <= 3) {
+            console.log(`📋 Fila ${i} - Header: "${header}" -> Clean: "${cleanHeader}" -> Value: "${value}"`);
+          }
           
           // Map CSV headers to database fields - EXACT type conversion per schema
           if (value && value.trim() !== '') {
@@ -260,10 +268,20 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
           }
         });
         
-        transactions.push(transaction);
+        // Only add transaction if it has required fields
+        if (transaction.nudo || transaction.feemdo || transaction.idmaeedo) {
+          transactions.push(transaction);
+        } else if (i <= 5) {
+          console.warn(`❌ Fila ${i} sin campos requeridos:`, transaction);
+        }
+      } else {
+        console.warn(`⚠️  Fila ${i}: Longitud diferente. Headers: ${headers.length}, Values: ${values.length}`);
+        console.warn('Headers:', headers);
+        console.warn('Values:', values);
       }
     }
 
+    console.log('✅ Transacciones válidas procesadas:', transactions.length);
     return transactions;
   };
 
