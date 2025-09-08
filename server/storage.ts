@@ -677,7 +677,7 @@ export class DatabaseStorage implements IStorage {
         query = db
           .select({
             period: sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`,
-            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)), 0)`,
+            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
           })
           .from(salesTransactions)
           .where(and(...conditions))
@@ -688,7 +688,7 @@ export class DatabaseStorage implements IStorage {
         query = db
           .select({
             period: sql<string>`'Semana ' || EXTRACT(week FROM ${salesTransactions.feemdo})`,
-            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)), 0)`,
+            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
           })
           .from(salesTransactions)
           .where(and(...conditions))
@@ -700,7 +700,7 @@ export class DatabaseStorage implements IStorage {
         query = db
           .select({
             period: sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`,
-            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)), 0)`,
+            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
           })
           .from(salesTransactions)
           .where(and(...conditions))
