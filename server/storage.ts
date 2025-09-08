@@ -332,9 +332,9 @@ export class DatabaseStorage implements IStorage {
         id: salespersonUser.id,
         email: salespersonUser.email,
         password: salespersonUser.password,
-        firstName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ')[0] : undefined,
-        lastName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ').slice(1).join(' ') : undefined,
-        profileImageUrl: undefined,
+        firstName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ')[0] : null,
+        lastName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ').slice(1).join(' ') : null,
+        profileImageUrl: null,
         role: salespersonUser.role,
         createdAt: salespersonUser.createdAt,
         updatedAt: salespersonUser.updatedAt,
@@ -365,9 +365,9 @@ export class DatabaseStorage implements IStorage {
         id: salespersonUser.id,
         email: salespersonUser.email,
         password: salespersonUser.password,
-        firstName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ')[0] : undefined,
-        lastName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ').slice(1).join(' ') : undefined,
-        profileImageUrl: undefined,
+        firstName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ')[0] : null,
+        lastName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ').slice(1).join(' ') : null,
+        profileImageUrl: null,
         role: salespersonUser.role,
         createdAt: salespersonUser.createdAt,
         updatedAt: salespersonUser.updatedAt,
@@ -431,7 +431,7 @@ export class DatabaseStorage implements IStorage {
       const totalBatches = Math.ceil(transactions.length / BATCH_SIZE);
       
       // Get unique IDMAEEDO values from this batch
-      const batchIds = [...new Set(batch.map(t => t.idmaeedo))];
+      const batchIds = Array.from(new Set(batch.map(t => t.idmaeedo)));
       
       // Check which IDMAEEDO values already exist in database
       const existingIds = await db
@@ -2624,6 +2624,80 @@ export class DatabaseStorage implements IStorage {
       unit1: item.unit1 || undefined,
       unit2: item.unit2 || undefined
     }));
+  }
+
+  // Get available vendors in a segment that haven't been claimed yet
+  async getAvailableVendorsInSegment(segment: string) {
+    try {
+      // Get vendors from sales_transactions in this segment that are not yet in salespeople_users
+      const query = sql`
+        SELECT DISTINCT 
+          nokofu as salesperson_name,
+          noruen as segment,
+          COUNT(*) as total_transactions,
+          SUM(CAST(monto as numeric)) as total_sales
+        FROM sales_transactions 
+        WHERE noruen = ${segment}
+          AND nokofu IS NOT NULL 
+          AND nokofu != ''
+          AND nokofu NOT IN (
+            SELECT salesperson_name 
+            FROM salespeople_users 
+            WHERE salesperson_name IS NOT NULL
+              AND supervisor_id IS NOT NULL
+          )
+        GROUP BY nokofu, noruen
+        ORDER BY total_sales DESC
+      `;
+      
+      const result = await db.execute(query);
+      return result.rows.map((row: any) => ({
+        salespersonName: row.salesperson_name,
+        segment: row.segment,
+        totalTransactions: parseInt(row.total_transactions),
+        totalSales: parseFloat(row.total_sales)
+      }));
+    } catch (error) {
+      console.error("Error fetching available vendors:", error);
+      throw error;
+    }
+  }
+
+  // Claim a vendor (convert from sales data to user account)
+  async claimVendor(data: {
+    salespersonName: string;
+    email: string;
+    password: string;
+    supervisorId: string;
+    assignedSegment: string;
+  }) {
+    try {
+      // Hash the password
+      const bcrypt = await import('bcryptjs');
+      const hashedPassword = await bcrypt.hash(data.password, 12);
+
+      // Create user account in salespeople_users
+      const [user] = await db
+        .insert(salespeopleUsers)
+        .values({
+          salespersonName: data.salespersonName,
+          email: data.email,
+          password: hashedPassword,
+          username: data.email,
+          role: 'salesperson',
+          isActive: true,
+          supervisorId: data.supervisorId,
+          assignedSegment: data.assignedSegment,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      return user;
+    } catch (error) {
+      console.error("Error claiming vendor:", error);
+      throw error;
+    }
   }
 
 }

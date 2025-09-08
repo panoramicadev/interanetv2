@@ -463,6 +463,71 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get available vendors for supervisor to claim
+  app.get("/api/supervisor/:supervisorId/available-vendors", requireAuth, async (req, res) => {
+    try {
+      const { supervisorId } = req.params;
+      
+      // Get supervisor's assigned segment
+      const supervisor = await storage.getSalespersonUser(supervisorId);
+      if (!supervisor || supervisor.role !== 'supervisor') {
+        return res.status(403).json({ message: "No autorizado como supervisor" });
+      }
+      
+      const segment = supervisor.assignedSegment;
+      if (!segment) {
+        return res.status(400).json({ message: "Supervisor sin segmento asignado" });
+      }
+      
+      const availableVendors = await storage.getAvailableVendorsInSegment(segment);
+      res.json(availableVendors);
+    } catch (error) {
+      console.error("Error fetching available vendors:", error);
+      res.status(500).json({ message: "Failed to fetch available vendors" });
+    }
+  });
+
+  // Claim a vendor (convert from sales data to user account)
+  app.post("/api/supervisor/:supervisorId/claim-vendor", requireAuth, async (req, res) => {
+    try {
+      const { supervisorId } = req.params;
+      const { salespersonName, email, password } = req.body;
+      
+      // Validate supervisor
+      const supervisor = await storage.getSalespersonUser(supervisorId);
+      if (!supervisor || supervisor.role !== 'supervisor') {
+        return res.status(403).json({ message: "No autorizado como supervisor" });
+      }
+      
+      const segment = supervisor.assignedSegment;
+      if (!segment) {
+        return res.status(400).json({ message: "Supervisor sin segmento asignado" });
+      }
+      
+      // Check if vendor is available
+      const availableVendors = await storage.getAvailableVendorsInSegment(segment);
+      const vendorExists = availableVendors.some(v => v.salespersonName === salespersonName);
+      
+      if (!vendorExists) {
+        return res.status(400).json({ message: "Vendedor no disponible o ya asignado" });
+      }
+      
+      // Create user account for the vendor
+      const claimedVendor = await storage.claimVendor({
+        salespersonName,
+        email,
+        password,
+        supervisorId,
+        assignedSegment: segment
+      });
+      
+      res.status(201).json(claimedVendor);
+    } catch (error) {
+      console.error("Error claiming vendor:", error);
+      res.status(500).json({ message: "Failed to claim vendor" });
+    }
+  });
+
   // CSV template download endpoint removed - using native platform format
 
   // CSV import endpoint
