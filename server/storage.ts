@@ -429,20 +429,30 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
+    // Group by NUDO to get unique transactions and avoid double counting VANEDO
     const [metrics] = await db
       .select({
         totalSales: sql<number>`COALESCE(SUM(
           CASE 
-            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.vanedo}
-            ELSE ${salesTransactions.vanedo}
+            WHEN tido = 'NCV' THEN -vanedo
+            ELSE vanedo
           END
         ), 0)`,
         totalTransactions: sql<number>`COUNT(*)`,
-        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
-        activeCustomers: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
+        totalUnits: sql<number>`COALESCE(SUM(total_units), 0)`,
+        activeCustomers: sql<number>`COUNT(DISTINCT nokoen)`,
       })
-      .from(salesTransactions)
-      .where(whereClause);
+      .from(sql`(
+        SELECT DISTINCT 
+          nudo,
+          tido,
+          vanedo,
+          nokoen,
+          SUM(${salesTransactions.caprco2}) as total_units
+        FROM ${salesTransactions} 
+        ${whereClause ? sql`WHERE ${whereClause}` : sql``}
+        GROUP BY nudo, tido, vanedo, nokoen
+      ) as unique_transactions`);
 
     return {
       totalSales: Number(metrics.totalSales),
@@ -458,31 +468,41 @@ export class DatabaseStorage implements IStorage {
     transactionCount: number;
   }>> {
     const conditions = [
-      sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`
+      sql`nokofu IS NOT NULL AND nokofu != ''`
     ];
     
     if (startDate) {
-      conditions.push(gte(salesTransactions.feemdo, startDate));
+      conditions.push(sql`feemdo >= ${startDate}`);
     }
     if (endDate) {
-      conditions.push(lte(salesTransactions.feemdo, endDate));
+      conditions.push(sql`feemdo <= ${endDate}`);
     }
+    
+    const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
     
     const results = await db
       .select({
-        salesperson: salesTransactions.nokofu,
+        salesperson: sql<string>`nokofu`,
         totalSales: sql<number>`COALESCE(SUM(
           CASE 
-            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.vanedo}
-            ELSE ${salesTransactions.vanedo}
+            WHEN tido = 'NCV' THEN -vanedo
+            ELSE vanedo
           END
         ), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
-      .from(salesTransactions)
-      .where(and(...conditions))
-      .groupBy(salesTransactions.nokofu)
-      .orderBy(sql`SUM(${salesTransactions.vanedo}) DESC`)
+      .from(sql`(
+        SELECT DISTINCT 
+          nudo,
+          nokofu,
+          tido,
+          vanedo
+        FROM ${salesTransactions} 
+        ${whereClause}
+        GROUP BY nudo, nokofu, tido, vanedo
+      ) as unique_transactions`)
+      .groupBy(sql`nokofu`)
+      .orderBy(sql`SUM(CASE WHEN tido = 'NCV' THEN -vanedo ELSE vanedo END) DESC`)
       .limit(limit);
 
     return results.map(r => ({
@@ -497,9 +517,7 @@ export class DatabaseStorage implements IStorage {
     totalSales: number;
     totalUnits: number;
   }>> {
-    const conditions = [
-      sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`
-    ];
+    const conditions = [];
     
     if (startDate) {
       conditions.push(gte(salesTransactions.feemdo, startDate));
@@ -508,21 +526,24 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(salesTransactions.feemdo, endDate));
     }
     
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    // For products, sum by individual product lines (not NUDO grouping)
     const results = await db
       .select({
         productName: salesTransactions.nokoprct,
         totalSales: sql<number>`COALESCE(SUM(
           CASE 
-            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.vanedo}
-            ELSE ${salesTransactions.vanedo}
+            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.ppprne}
+            ELSE ${salesTransactions.ppprne}
           END
         ), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
       })
       .from(salesTransactions)
-      .where(and(...conditions))
+      .where(sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != '' ${whereClause ? sql`AND ${whereClause}` : sql``}`)
       .groupBy(salesTransactions.nokoprct)
-      .orderBy(sql`SUM(${salesTransactions.vanedo}) DESC`)
+      .orderBy(sql`SUM(CASE WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.ppprne} ELSE ${salesTransactions.ppprne} END) DESC`)
       .limit(limit);
 
     return results.map(r => ({
@@ -538,29 +559,44 @@ export class DatabaseStorage implements IStorage {
     transactionCount: number;
   }>> {
     const conditions = [
-      sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`
+      sql`nokoen IS NOT NULL AND nokoen != ''`
     ];
     
     if (startDate) {
-      conditions.push(gte(salesTransactions.feemdo, startDate));
+      conditions.push(sql`feemdo >= ${startDate}`);
     }
     if (endDate) {
-      conditions.push(lte(salesTransactions.feemdo, endDate));
+      conditions.push(sql`feemdo <= ${endDate}`);
     }
     if (salesperson) {
-      conditions.push(eq(salesTransactions.nokofu, salesperson));
+      conditions.push(sql`nokofu = ${salesperson}`);
     }
+    
+    const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
     
     const results = await db
       .select({
-        clientName: salesTransactions.nokoen,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)), 0)`,
+        clientName: sql<string>`nokoen`,
+        totalSales: sql<number>`COALESCE(SUM(
+          CASE 
+            WHEN tido = 'NCV' THEN -vanedo
+            ELSE vanedo
+          END
+        ), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
-      .from(salesTransactions)
-      .where(and(...conditions))
-      .groupBy(salesTransactions.nokoen)
-      .orderBy(sql`SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)) DESC`)
+      .from(sql`(
+        SELECT DISTINCT 
+          nudo,
+          nokoen,
+          tido,
+          vanedo
+        FROM ${salesTransactions} 
+        ${whereClause}
+        GROUP BY nudo, nokoen, tido, vanedo
+      ) as unique_transactions`)
+      .groupBy(sql`nokoen`)
+      .orderBy(sql`SUM(CASE WHEN tido = 'NCV' THEN -vanedo ELSE vanedo END) DESC`)
       .limit(limit);
 
     return results.map(r => ({
