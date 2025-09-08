@@ -53,7 +53,8 @@ export default function Landing() {
               </p>
             </div>
             
-            <Link href="/tienda">
+            {/* Temporalmente oculto - en desarrollo */}
+            {/* <Link href="/tienda">
               <Button 
                 variant="outline"
                 className="w-full mb-4"
@@ -61,7 +62,7 @@ export default function Landing() {
               >
                 Ver Catálogo de Productos
               </Button>
-            </Link>
+            </Link> */}
             
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
