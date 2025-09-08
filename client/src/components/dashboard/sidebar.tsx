@@ -199,7 +199,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
             <div className="space-y-2">
               <p className="text-xs text-slate-400 text-center">No autenticado</p>
               <Button 
-                onClick={() => window.location.href = "/api/login"}
+                onClick={() => window.location.href = "/login"}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs"
                 size="sm"
                 data-testid="login-button"
