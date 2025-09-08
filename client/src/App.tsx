@@ -77,6 +77,9 @@ function Router() {
           
           {/* Rutas específicas de vendedor */}
           <Route path="/mis-clientes" component={ClientsDashboard} />
+          
+          {/* Ruta específica de supervisor */}
+          <Route path="/equipo" component={SupervisorDashboard} />
         </>
       )}
       <Route component={NotFound} />
