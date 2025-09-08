@@ -422,30 +422,35 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Group by NUDO to get unique transactions and avoid double counting MONTO
-    const [metrics] = await db
+    // Calculate metrics using MONTO field - group by NUDO first to avoid double counting
+    const salesByNudo = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(
-          CASE 
-            WHEN tido = 'NCV' THEN -monto
-            ELSE monto
-          END
-        ), 0)`,
-        totalTransactions: sql<number>`COUNT(DISTINCT nudo)`,
-        totalUnits: sql<number>`COALESCE(SUM(caprco2), 0)`,
-        activeCustomers: sql<number>`COUNT(DISTINCT nokoen)`,
+        nudo: salesTransactions.nudo,
+        tido: salesTransactions.tido,
+        monto: salesTransactions.monto,
+        nokoen: salesTransactions.nokoen,
+        totalUnits: sql<number>`SUM(${salesTransactions.caprco2})`,
       })
-      .from(sql`(
-        SELECT 
-          nudo,
-          tido,
-          monto,
-          nokoen,
-          caprco2
-        FROM ${salesTransactions} 
-        ${whereClause ? sql`WHERE ${whereClause}` : sql``}
-        GROUP BY nudo, tido, monto, nokoen, caprco2
-      ) as unique_transactions`);
+      .from(salesTransactions)
+      .where(whereClause)
+      .groupBy(salesTransactions.nudo, salesTransactions.tido, salesTransactions.monto, salesTransactions.nokoen);
+
+    // Calculate final metrics from grouped data
+    const totalSales = salesByNudo.reduce((sum, row) => {
+      const amount = row.tido === 'NCV' ? -Number(row.monto) : Number(row.monto);
+      return sum + amount;
+    }, 0);
+
+    const totalTransactions = new Set(salesByNudo.map(row => row.nudo)).size;
+    const activeCustomers = new Set(salesByNudo.map(row => row.nokoen)).size;
+    const totalUnits = salesByNudo.reduce((sum, row) => sum + Number(row.totalUnits), 0);
+
+    const metrics = {
+      totalSales,
+      totalTransactions,
+      totalUnits,
+      activeCustomers,
+    };
 
     return {
       totalSales: Number(metrics.totalSales),
