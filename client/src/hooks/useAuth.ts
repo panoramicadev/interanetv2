@@ -20,6 +20,9 @@ export function useAuth() {
       try {
         const response = await fetch("/api/auth/user", {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
         if (response.status === 401) {
           return null; // Return null for unauthorized instead of throwing
