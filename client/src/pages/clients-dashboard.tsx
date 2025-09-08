@@ -35,8 +35,10 @@ export default function ClientsDashboard() {
     ) || [];
   };
 
+  const { logoutMutation } = useAuth();
+  
   const handleLogout = () => {
-    window.location.href = "/login";
+    logoutMutation.mutate();
   };
 
   const getInitials = (name?: string) => {

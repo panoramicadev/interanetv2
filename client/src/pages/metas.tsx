@@ -20,6 +20,7 @@ export default function Metas() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
   const [showImportModal, setShowImportModal] = useState(false);
+  const [, setLocation] = useLocation();
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   
@@ -47,7 +48,7 @@ export default function Metas() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/login";
+        setLocation("/login");
       }, 500);
       return;
     }

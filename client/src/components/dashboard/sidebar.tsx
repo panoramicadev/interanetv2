@@ -30,6 +30,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
     logoutMutation: any;
   };
   const [location] = useLocation();
+  const [, setLocation] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const handleLogout = () => {
@@ -257,7 +258,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
             <div className="space-y-2">
               <p className="text-xs text-slate-400 text-center">No autenticado</p>
               <Button 
-                onClick={() => window.location.href = "/login"}
+                onClick={() => setLocation("/login")}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs"
                 size="sm"
                 data-testid="login-button"

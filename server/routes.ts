@@ -72,69 +72,7 @@ export function registerRoutes(app: Express): Server {
   // Setup new email/password auth system
   setupAuth(app);
 
-  // Auth routes
-  app.get('/api/auth/user', async (req: any, res) => {
-    try {
-      // Check if there's a simulated user in session
-      if (req.session?.simulatedUser) {
-        const user = await storage.getSalespersonUser(req.session.simulatedUser);
-        if (user) {
-          return res.json(user);
-        }
-      }
-
-      // Check for authenticated user
-      if (req.user && req.user.id) {
-        const userId = req.user.id;
-        const user = await storage.getUser(userId);
-        if (user) {
-          return res.json(user);
-        }
-      }
-      
-      // No user found - return null instead of 401 to allow login page to show
-      res.json(null);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
-
-  // Simulate login for testing
-  app.post('/api/auth/simulate-login', async (req, res) => {
-    try {
-      const { userId } = req.body;
-      if (!userId) {
-        return res.status(400).json({ message: "User ID is required" });
-      }
-
-      const user = await storage.getSalespersonUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      // Store user ID in session
-      (req.session as any).simulatedUser = userId;
-      res.json({ message: "Login successful", user });
-    } catch (error) {
-      console.error("Error in simulate login:", error);
-      res.status(500).json({ message: "Failed to simulate login" });
-    }
-  });
-
-  // Logout
-  app.post('/api/auth/logout', async (req, res) => {
-    try {
-      // Clear simulated user from session
-      if (req.session) {
-        (req.session as any).simulatedUser = null;
-      }
-      res.json({ message: "Logout successful" });
-    } catch (error) {
-      console.error("Error in logout:", error);
-      res.status(500).json({ message: "Failed to logout" });
-    }
-  });
+  // Note: Auth routes are now handled in auth.ts file
 
   // Sales metrics endpoint
   app.get('/api/sales/metrics', requireAuth, async (req, res) => {

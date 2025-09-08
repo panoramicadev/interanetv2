@@ -79,7 +79,7 @@ export default function SalespersonDashboard() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/login";
+        setLocation("/login");
       }, 500);
       return;
     }
@@ -106,9 +106,11 @@ export default function SalespersonDashboard() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Acceso Denegado</h1>
           <p className="text-gray-600 dark:text-gray-300 mb-4">No tienes permisos para acceder a esta página.</p>
-          <Button onClick={() => window.location.href = "/"}>
-            Volver al Inicio
-          </Button>
+          <Link href="/">
+            <Button>
+              Volver al Inicio
+            </Button>
+          </Link>
         </div>
       </div>
     );
@@ -162,8 +164,10 @@ export default function SalespersonDashboard() {
     enabled: !!user?.salespersonName,
   });
 
+  const { logoutMutation } = useAuth();
+  
   const handleLogout = () => {
-    window.location.href = "/login";
+    logoutMutation.mutate();
   };
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {

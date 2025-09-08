@@ -77,6 +77,7 @@ export default function ProductsPage() {
   const { toast } = useToast();
   const { user, isAuthenticated, isLoading } = useAuth();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   // Redirect to dashboard if not authenticated or not admin
   useEffect(() => {
@@ -86,7 +87,9 @@ export default function ProductsPage() {
         description: "Solo los administradores pueden acceder a esta página.",
         variant: "destructive",
       });
-      window.location.href = '/';
+      setTimeout(() => {
+        setLocation('/');
+      }, 1000);
     }
   }, [isAuthenticated, isLoading, user, toast]);
 

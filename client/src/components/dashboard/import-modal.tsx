@@ -3,6 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const importMutation = useMutation({
     mutationFn: async (csvData: any[]) => {
@@ -44,7 +46,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/login";
+          setLocation("/login");
         }, 500);
         return;
       }
