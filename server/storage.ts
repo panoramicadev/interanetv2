@@ -214,6 +214,23 @@ export interface IStorage {
     data: any;
   }>>;
   
+  // Nuevas funciones para métricas del equipo
+  getTopProductsByTeam(salespeopleNames: string[], limit?: number): Promise<Array<{
+    productId: string;
+    productName: string;
+    totalSales: number;
+    totalQuantity: number;
+    salesCount: number;
+  }>>;
+  
+  getTeamMetrics(salespeopleNames: string[]): Promise<{
+    totalSales: number;
+    totalTransactions: number;
+    averagePerSalesperson: number;
+    bestPerformer: { name: string; sales: number } | null;
+    teamGrowth: number;
+  }>;
+  
   // Product operations
   getProducts(filters?: {
     search?: string;
@@ -2698,6 +2715,96 @@ export class DatabaseStorage implements IStorage {
       console.error("Error claiming vendor:", error);
       throw error;
     }
+  }
+
+  async getTopProductsByTeam(salespeopleNames: string[], limit: number = 10): Promise<Array<{
+    productId: string;
+    productName: string;
+    totalSales: number;
+    totalQuantity: number;
+    salesCount: number;
+  }>> {
+    if (salespeopleNames.length === 0) return [];
+
+    const results = await db
+      .select({
+        productId: salesTransactions.productId,
+        productName: salesTransactions.productName,
+        totalSales: sql<number>`SUM(${salesTransactions.monto})::numeric`,
+        totalQuantity: sql<number>`SUM(${salesTransactions.cantidad})::numeric`,
+        salesCount: sql<number>`COUNT(*)`,
+      })
+      .from(salesTransactions)
+      .where(inArray(salesTransactions.vendedor, salespeopleNames))
+      .groupBy(salesTransactions.productId, salesTransactions.productName)
+      .orderBy(desc(sql`SUM(${salesTransactions.monto})`))
+      .limit(limit);
+
+    return results.map(r => ({
+      productId: r.productId,
+      productName: r.productName,
+      totalSales: Number(r.totalSales) || 0,
+      totalQuantity: Number(r.totalQuantity) || 0,
+      salesCount: Number(r.salesCount) || 0,
+    }));
+  }
+
+  async getTeamMetrics(salespeopleNames: string[]): Promise<{
+    totalSales: number;
+    totalTransactions: number;
+    averagePerSalesperson: number;
+    bestPerformer: { name: string; sales: number } | null;
+    teamGrowth: number;
+  }> {
+    if (salespeopleNames.length === 0) {
+      return {
+        totalSales: 0,
+        totalTransactions: 0,
+        averagePerSalesperson: 0,
+        bestPerformer: null,
+        teamGrowth: 0
+      };
+    }
+
+    // Métricas totales del equipo
+    const [totalMetrics] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)::numeric`,
+        totalTransactions: sql<number>`COUNT(*)`,
+      })
+      .from(salesTransactions)
+      .where(inArray(salesTransactions.vendedor, salespeopleNames));
+
+    // Mejor performer (vendedor con más ventas)
+    const bestPerformerQuery = await db
+      .select({
+        vendedor: salesTransactions.vendedor,
+        totalSales: sql<number>`SUM(${salesTransactions.monto})::numeric`,
+      })
+      .from(salesTransactions)
+      .where(inArray(salesTransactions.vendedor, salespeopleNames))
+      .groupBy(salesTransactions.vendedor)
+      .orderBy(desc(sql`SUM(${salesTransactions.monto})`))
+      .limit(1);
+
+    const bestPerformer = bestPerformerQuery.length > 0 
+      ? { name: bestPerformerQuery[0].vendedor, sales: Number(bestPerformerQuery[0].totalSales) }
+      : null;
+
+    const totalSales = Number(totalMetrics?.totalSales) || 0;
+    const totalTransactions = Number(totalMetrics?.totalTransactions) || 0;
+    const averagePerSalesperson = salespeopleNames.length > 0 ? totalSales / salespeopleNames.length : 0;
+
+    // Crecimiento del equipo (comparado con mes anterior - simplificado)
+    const teamGrowth = 0; // Temporalmente 0, se puede calcular comparando con meses anteriores
+
+    return {
+      totalSales,
+      totalTransactions,
+      averagePerSalesperson,
+      bestPerformer,
+      teamGrowth
+    };
   }
 
 }

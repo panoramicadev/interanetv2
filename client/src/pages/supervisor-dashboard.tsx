@@ -75,6 +75,20 @@ export default function SupervisorDashboard() {
     enabled: !!user?.id && user?.role === 'supervisor',
   });
 
+  // Obtener productos más vendidos por el equipo
+  const { data: teamProducts = [], isLoading: loadingTeamProducts } = useQuery({
+    queryKey: [`/api/supervisor/${user?.id}/team-products`],
+    enabled: !!user?.id && user?.role === 'supervisor',
+    staleTime: 300000, // Cache por 5 minutos
+  });
+
+  // Obtener métricas consolidadas del equipo
+  const { data: teamMetricsData, isLoading: loadingTeamMetrics } = useQuery({
+    queryKey: [`/api/supervisor/${user?.id}/team-metrics`],
+    enabled: !!user?.id && user?.role === 'supervisor',
+    staleTime: 300000, // Cache por 5 minutos
+  });
+
   const handleLogout = () => {
     logoutMutation.mutate();
   };
@@ -299,7 +313,7 @@ export default function SupervisorDashboard() {
       salespeople.reduce((sum: number, sp: any) => sum + (sp.totalSales || 0), 0) / salespeople.length : 0
   };
 
-  if (loadingSalespeople || loadingGoals || loadingAlerts) {
+  if (loadingSalespeople || loadingGoals || loadingAlerts || loadingTeamProducts || loadingTeamMetrics) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -640,6 +654,145 @@ export default function SupervisorDashboard() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Métricas Avanzadas del Equipo */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Productos Más Vendidos por el Equipo */}
+            <Card className="rounded-2xl border-gray-200/60 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-gray-900 flex items-center">
+                  <Package className="w-5 h-5 mr-2 text-purple-600" />
+                  Productos Top del Equipo
+                </CardTitle>
+                <CardDescription>Los productos más vendidos por tu equipo</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {teamProducts.length > 0 ? (
+                  <div className="space-y-3">
+                    {teamProducts.slice(0, 5).map((product: any, index: number) => (
+                      <div key={product.productId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                            <span className="text-purple-600 font-bold text-sm">#{index + 1}</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{product.productName}</p>
+                            <p className="text-xs text-gray-500">{product.salesCount} ventas</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-green-600 text-sm">
+                            {new Intl.NumberFormat('es-CL', {
+                              style: 'currency',
+                              currency: 'CLP',
+                              minimumFractionDigits: 0,
+                            }).format(product.totalSales)}
+                          </p>
+                          <p className="text-xs text-gray-500">{product.totalQuantity} unidades</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">No hay datos de productos aún</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Métricas Consolidadas y Mejor Performer */}
+            <Card className="rounded-2xl border-gray-200/60 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-gray-900 flex items-center">
+                  <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
+                  Métricas del Equipo
+                </CardTitle>
+                <CardDescription>Análisis consolidado de rendimiento</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Mejor Performer */}
+                  {teamMetricsData?.bestPerformer && (
+                    <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-gray-900 flex items-center">
+                          <UserCheck className="w-4 h-4 mr-2 text-blue-600" />
+                          Mejor Vendedor
+                        </h4>
+                        <Badge className="bg-blue-100 text-blue-800">
+                          🏆 Top Performer
+                        </Badge>
+                      </div>
+                      <p className="font-medium text-gray-800">{teamMetricsData.bestPerformer.name}</p>
+                      <p className="text-sm text-green-600">
+                        {new Intl.NumberFormat('es-CL', {
+                          style: 'currency',
+                          currency: 'CLP',
+                          minimumFractionDigits: 0,
+                        }).format(teamMetricsData.bestPerformer.sales)} en ventas
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Métricas rápidas */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <p className="text-2xl font-bold text-blue-600">
+                        {teamMetricsData?.totalTransactions || 0}
+                      </p>
+                      <p className="text-xs text-gray-600">Transacciones Total</p>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <p className="text-lg font-bold text-green-600">
+                        {teamMetricsData?.averagePerSalesperson ? 
+                          new Intl.NumberFormat('es-CL', {
+                            style: 'currency',
+                            currency: 'CLP',
+                            minimumFractionDigits: 0,
+                          }).format(teamMetricsData.averagePerSalesperson) : '$0'}
+                      </p>
+                      <p className="text-xs text-gray-600">Promedio por Vendedor</p>
+                    </div>
+                  </div>
+
+                  {/* Alertas del equipo */}
+                  {supervisorAlerts.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-semibold text-gray-900 flex items-center mb-2">
+                        <AlertTriangle className="w-4 h-4 mr-2 text-orange-500" />
+                        Alertas del Equipo
+                      </h4>
+                      <div className="space-y-2">
+                        {supervisorAlerts.slice(0, 3).map((alert: any, index: number) => (
+                          <div 
+                            key={index}
+                            className={`p-2 rounded text-sm border ${
+                              alert.severity === 'high' ? 'bg-red-50 border-red-200 text-red-800' :
+                              alert.severity === 'medium' ? 'bg-orange-50 border-orange-200 text-orange-800' :
+                              'bg-yellow-50 border-yellow-200 text-yellow-800'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{alert.salesperson}</span>
+                              <Badge 
+                                variant={alert.severity === 'high' ? 'destructive' : 'secondary'}
+                                className="text-xs"
+                              >
+                                {alert.type}
+                              </Badge>
+                            </div>
+                            <p className="text-xs mt-1">{alert.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Lista de Vendedores del Equipo */}
           <Card className="rounded-2xl border-gray-200/60 shadow-sm">
