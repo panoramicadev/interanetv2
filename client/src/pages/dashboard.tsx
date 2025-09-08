@@ -96,25 +96,25 @@ export default function Dashboard() {
       
       <div className="lg:ml-64 transition-all duration-300">
         {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
+        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 mt-16 lg:mt-4 mx-4 rounded-2xl shadow-sm">
           <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
                 Dashboard de Ventas
               </h1>
-              <p className="text-gray-600 text-base lg:text-lg">
+              <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
                 Resumen de rendimiento - {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
               </p>
             </div>
             
-            <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4">
+            <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4 w-full lg:w-auto">
               {/* Filter Type Selector */}
-              <div className="flex items-center space-x-3">
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Filtrar por:
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
+                  Filtrar:
                 </label>
                 <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="w-36 rounded-xl border-gray-200 shadow-sm" data-testid="select-filter-type">
+                  <SelectTrigger className="w-28 sm:w-36 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm" data-testid="select-filter-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
@@ -126,8 +126,8 @@ export default function Dashboard() {
               </div>
 
               {/* Period Selector */}
-              <div className="flex items-center space-x-3">
-                <label className="text-sm font-medium text-gray-700">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-1 lg:flex-none min-w-0">
+                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
                   Período:
                 </label>
                 
@@ -136,11 +136,13 @@ export default function Dashboard() {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-48 lg:w-52 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm"
+                        className="flex-1 lg:w-52 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0"
                         data-testid="calendar-trigger"
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Selecciona una fecha"}
+                        <CalendarIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                        <span className="truncate">
+                          {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar fecha"}
+                        </span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
@@ -154,17 +156,19 @@ export default function Dashboard() {
                     </PopoverContent>
                   </Popover>
                 ) : filterType === "range" ? (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1 sm:space-x-2 flex-1 min-w-0">
                     {/* Fecha Inicio */}
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className="w-36 lg:w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm"
+                          className="flex-1 min-w-0 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
                           data-testid="start-date-trigger"
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {startDate ? format(startDate, "dd/MM/yy") : "Fecha inicio"}
+                          <CalendarIcon className="mr-1 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                          <span className="truncate">
+                            {startDate ? format(startDate, "dd/MM") : "Inicio"}
+                          </span>
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
@@ -178,18 +182,20 @@ export default function Dashboard() {
                       </PopoverContent>
                     </Popover>
                     
-                    <span className="text-gray-500 text-sm">a</span>
+                    <span className="text-gray-500 text-xs sm:text-sm shrink-0">-</span>
                     
                     {/* Fecha Final */}
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className="w-36 lg:w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm"
+                          className="flex-1 min-w-0 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
                           data-testid="end-date-trigger"
                         >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {endDate ? format(endDate, "dd/MM/yy") : "Fecha final"}
+                          <CalendarIcon className="mr-1 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                          <span className="truncate">
+                            {endDate ? format(endDate, "dd/MM") : "Final"}
+                          </span>
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
