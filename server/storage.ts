@@ -22,7 +22,7 @@ import {
   type InsertProductPriceHistory,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -346,35 +346,23 @@ export class DatabaseStorage implements IStorage {
   async insertMultipleSalesTransactions(transactions: InsertSalesTransaction[]): Promise<void> {
     if (transactions.length === 0) return;
     
-    // Filter out duplicate transactions before insertion
-    const newTransactions = [];
-    const skippedDuplicates = [];
+    // Get unique IDMAEEDO values from incoming transactions
+    const incomingIds = [...new Set(transactions.map(t => t.idmaeedo))];
     
-    for (const transaction of transactions) {
-      // Check if transaction already exists using unique identifiers
-      const existing = await db
-        .select()
-        .from(salesTransactions)
-        .where(
-          and(
-            eq(salesTransactions.nudo, transaction.nudo),
-            eq(salesTransactions.idmaeedo, transaction.idmaeedo),
-            eq(salesTransactions.koprct, transaction.koprct),
-            eq(salesTransactions.feemdo, transaction.feemdo)
-          )
-        )
-        .limit(1);
-      
-      if (existing.length === 0) {
-        newTransactions.push(transaction);
-      } else {
-        skippedDuplicates.push({
-          nudo: transaction.nudo,
-          idmaeedo: transaction.idmaeedo,
-          koprct: transaction.koprct
-        });
-      }
-    }
+    // Check which IDMAEEDO values already exist in database
+    const existingIds = await db
+      .select({ idmaeedo: salesTransactions.idmaeedo })
+      .from(salesTransactions)
+      .where(inArray(salesTransactions.idmaeedo, incomingIds));
+    
+    const existingIdSet = new Set(existingIds.map(row => row.idmaeedo?.toString()));
+    
+    // Filter out transactions with existing IDMAEEDO
+    const newTransactions = transactions.filter(transaction => 
+      !existingIdSet.has(transaction.idmaeedo?.toString())
+    );
+    
+    const skippedCount = transactions.length - newTransactions.length;
     
     // Insert only new transactions
     if (newTransactions.length > 0) {
@@ -384,8 +372,8 @@ export class DatabaseStorage implements IStorage {
     }
     
     console.log(`🔄 Successfully imported ${newTransactions.length} new sales transactions`);
-    if (skippedDuplicates.length > 0) {
-      console.log(`⚠️ Skipped ${skippedDuplicates.length} duplicate transactions`);
+    if (skippedCount > 0) {
+      console.log(`⚠️ Skipped ${skippedCount} duplicate transactions (existing IDMAEEDO)`);
     }
   }
 
