@@ -346,13 +346,47 @@ export class DatabaseStorage implements IStorage {
   async insertMultipleSalesTransactions(transactions: InsertSalesTransaction[]): Promise<void> {
     if (transactions.length === 0) return;
     
-    // Direct insertion - all transactions will be saved
-    // Duplicates are handled in queries through NUDO grouping
-    await db
-      .insert(salesTransactions)
-      .values(transactions);
+    // Filter out duplicate transactions before insertion
+    const newTransactions = [];
+    const skippedDuplicates = [];
     
-    console.log(`🔄 Successfully imported ${transactions.length} sales transactions`);
+    for (const transaction of transactions) {
+      // Check if transaction already exists using unique identifiers
+      const existing = await db
+        .select()
+        .from(salesTransactions)
+        .where(
+          and(
+            eq(salesTransactions.nudo, transaction.nudo),
+            eq(salesTransactions.idmaeedo, transaction.idmaeedo),
+            eq(salesTransactions.koprct, transaction.koprct),
+            eq(salesTransactions.feemdo, transaction.feemdo)
+          )
+        )
+        .limit(1);
+      
+      if (existing.length === 0) {
+        newTransactions.push(transaction);
+      } else {
+        skippedDuplicates.push({
+          nudo: transaction.nudo,
+          idmaeedo: transaction.idmaeedo,
+          koprct: transaction.koprct
+        });
+      }
+    }
+    
+    // Insert only new transactions
+    if (newTransactions.length > 0) {
+      await db
+        .insert(salesTransactions)
+        .values(newTransactions);
+    }
+    
+    console.log(`🔄 Successfully imported ${newTransactions.length} new sales transactions`);
+    if (skippedDuplicates.length > 0) {
+      console.log(`⚠️ Skipped ${skippedDuplicates.length} duplicate transactions`);
+    }
   }
 
   async getSalesTransactions(filters: {
