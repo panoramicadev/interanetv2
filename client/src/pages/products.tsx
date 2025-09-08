@@ -175,7 +175,7 @@ export default function ProductsPage() {
       const formData = new FormData();
       formData.append('csvFile', file);
       
-      const response = await fetch('/api/products/import-csv', {
+      const response = await fetch('/api/products/import-products-csv', {
         method: 'POST',
         body: formData,
         credentials: 'include'
