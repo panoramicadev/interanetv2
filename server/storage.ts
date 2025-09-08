@@ -1942,11 +1942,11 @@ export class DatabaseStorage implements IStorage {
           console.log(`➕ Creando nuevo producto: ${row.sku}`);
           // Crear nuevo producto (sin precio, se establece manualmente)
           product = await this.createProduct({
+            productId: row.sku, // Agregar productId requerido
             sku: row.sku,
             name: row.name,
             packagingUnitName: row.unit1 || 'UN', // Mantener compatibilidad
             packagingUnit: row.unit2 || 'UN', // Mantener compatibilidad
-            unitRatio: row.unitRatio?.toString() || '1',
             active: true
           });
           newProducts++;
@@ -1957,7 +1957,7 @@ export class DatabaseStorage implements IStorage {
             name: row.name,
             packagingUnitName: row.unit1 || 'UN', // Mantener compatibilidad
             packagingUnit: row.unit2 || 'UN', // Mantener compatibilidad
-            unitRatio: row.unitRatio?.toString() || '1'
+            // unitRatio removed from schema
           });
         }
 
@@ -2117,6 +2117,12 @@ export class DatabaseStorage implements IStorage {
             packagingPalletName: row.packagingPalletName || '',
             packagingPalletUnit: row.packagingPalletUnit || '',
             packagingAmountPerPallet: row.packagingAmountPerPallet ? parseFloat(row.packagingAmountPerPallet.replace(',', '.')) : null,
+            // Nuevas columnas de variantes
+            variantFeaturesKey: row.variantFeaturesKey || '',
+            variantFeaturesValue: row.variantFeaturesValue || '',
+            variantParentSku: row.variantParentSku || '',
+            variantGenericDisplayName: row.variantGenericDisplayName || '',
+            variantIndex: row.variantIndex ? parseInt(row.variantIndex) : undefined,
             active: true
           });
           

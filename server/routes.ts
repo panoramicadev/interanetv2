@@ -1287,29 +1287,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔍 Primeras 3 filas del CSV:`, JSON.stringify(parseResult.data.slice(0, 3), null, 2));
       console.log(`🔍 Columnas disponibles:`, Object.keys(parseResult.data[0] || {}));
       
-      // Transform CSV data to match our new products schema
+      // Transform CSV data to match our new products schema using real CSV column names
       const csvData = parseResult.data.map((row: any, index: number) => {
         const transformedRow = {
-          productId: row.productId?.toString()?.trim(),
-          name: row.name?.toString()?.trim(),
-          description: row.description?.toString()?.trim() || '',
-          category: row.category?.toString()?.trim() || '',
+          productId: row.KOPR?.toString()?.trim(), // SKU del producto
+          name: row.NOKOPR?.toString()?.trim(), // Nombre del producto
+          description: '', // No hay descripción en el CSV
+          category: row.group_name?.toString()?.trim() || '', // Categoría/Grupo
           pricePerUnit: row.pricePerUnit?.toString()?.trim() || '0',
-          taxCode: row.taxes_0_taxCode?.toString()?.trim() || '',
-          taxName: row.taxes_0_taxName?.toString()?.trim() || '',
-          taxRate: row.taxes_0_taxRate?.toString()?.trim() || '0',
-          weight: row.dimensions_weight?.toString()?.trim() || '0',
-          weightUnit: row.dimensions_weightUnit?.toString()?.trim() || '',
-          length: row.dimensions_length?.toString()?.trim() || '0',
-          lengthUnit: row.dimensions_lengthUnit?.toString()?.trim() || '',
-          width: row.dimensions_width?.toString()?.trim() || '0',
-          widthUnit: row.dimensions_widthUnit?.toString()?.trim() || '',
-          height: row.dimensions_height?.toString()?.trim() || '0',
-          heightUnit: row.dimensions_heightUnit?.toString()?.trim() || '',
-          volume: row.dimensions_volume?.toString()?.trim() || '0',
-          volumeUnit: row.dimensions_volumeUnit?.toString()?.trim() || '',
-          minUnit: row.constraints_minUnit?.toString()?.trim() || '0',
-          stepSize: row.constraints_stepSize?.toString()?.trim() || '1',
+          taxCode: '', // No hay datos de impuestos en el CSV
+          taxName: '',
+          taxRate: '0',
+          weight: '0', // No hay datos de dimensiones en el CSV
+          weightUnit: '',
+          length: '0',
+          lengthUnit: '',
+          width: '0',
+          widthUnit: '',
+          height: '0',
+          heightUnit: '',
+          volume: '0',
+          volumeUnit: '',
+          minUnit: '0',
+          stepSize: '1',
           packagingUnit: row.packaging_unit?.toString()?.trim() || '',
           packagingUnitName: row.packaging_unitName?.toString()?.trim() || '', // Presentación del producto
           packagingPackageName: row.packaging_packageName?.toString()?.trim() || '',
@@ -1321,6 +1321,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           packagingPalletName: row.packaging_palletName?.toString()?.trim() || '',
           packagingPalletUnit: row.packaging_palletUnit?.toString()?.trim() || '',
           packagingAmountPerPallet: row.packaging_amountPerPallet?.toString()?.trim() || '0',
+          // Datos de variantes del CSV
+          variantFeaturesKey: row.variant_features_0_key?.toString()?.trim() || '',
+          variantFeaturesValue: row.variant_features_0_value?.toString()?.trim() || '',
+          variantParentSku: row.variant_parentSku?.toString()?.trim() || '',
+          variantGenericDisplayName: row.variant_genericDisplayName?.toString()?.trim() || '',
+          variantIndex: row.variant_index?.toString()?.trim() || '0',
           originalRowIndex: index + 1
         };
         
