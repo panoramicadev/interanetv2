@@ -431,20 +431,20 @@ export class DatabaseStorage implements IStorage {
             ELSE vanedo
           END
         ), 0)`,
-        totalTransactions: sql<number>`COUNT(*)`,
-        totalUnits: sql<number>`COALESCE(SUM(total_units), 0)`,
+        totalTransactions: sql<number>`COUNT(DISTINCT nudo)`,
+        totalUnits: sql<number>`COALESCE(SUM(caprco2), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT nokoen)`,
       })
       .from(sql`(
-        SELECT DISTINCT 
+        SELECT 
           nudo,
           tido,
           vanedo,
           nokoen,
-          SUM(${salesTransactions.caprco2}) as total_units
+          caprco2
         FROM ${salesTransactions} 
         ${whereClause ? sql`WHERE ${whereClause}` : sql``}
-        GROUP BY nudo, tido, vanedo, nokoen
+        GROUP BY nudo, tido, vanedo, nokoen, caprco2
       ) as unique_transactions`);
 
     return {
