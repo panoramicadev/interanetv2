@@ -362,7 +362,47 @@ export type ProductPriceHistory = typeof productPriceHistory.$inferSelect;
 export type InsertProductPriceHistory = typeof productPriceHistory.$inferInsert;
 
 // Product schemas for validation
-export const insertProductSchema = createInsertSchema(products);
+export const insertProductSchema = createInsertSchema(products).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// CSV import schema for products
+export const csvProductImportSchema = z.object({
+  productId: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  pricePerUnit: z.string().optional(), // String because it comes from CSV
+  taxCode: z.string().optional(),
+  taxName: z.string().optional(),
+  taxRate: z.string().optional(),
+  weight: z.string().optional(),
+  weightUnit: z.string().optional(),
+  length: z.string().optional(),
+  lengthUnit: z.string().optional(),
+  width: z.string().optional(),
+  widthUnit: z.string().optional(),
+  height: z.string().optional(),
+  heightUnit: z.string().optional(),
+  volume: z.string().optional(),
+  volumeUnit: z.string().optional(),
+  minUnit: z.string().optional(),
+  stepSize: z.string().optional(),
+  packagingUnit: z.string().optional(),
+  packagingUnitName: z.string().optional(), // Presentación del producto
+  packagingPackageName: z.string().optional(),
+  packagingPackageUnit: z.string().optional(),
+  packagingAmountPerPackage: z.string().optional(),
+  packagingBoxName: z.string().optional(),
+  packagingBoxUnit: z.string().optional(),
+  packagingAmountPerBox: z.string().optional(),
+  packagingPalletName: z.string().optional(),
+  packagingPalletUnit: z.string().optional(),
+  packagingAmountPerPallet: z.string().optional(),
+});
+
 export const insertProductStockSchema = createInsertSchema(productStock);
 export const insertProductPriceHistorySchema = createInsertSchema(productPriceHistory);
 

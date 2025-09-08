@@ -1255,6 +1255,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Products-only CSV Import endpoint - Nueva funcionalidad separada  
+  app.post('/api/products/import-products-csv', isAuthenticated, upload.single('csvFile'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No CSV file provided" });
+      }
+
+      const csvContent = req.file.buffer.toString('utf-8');
+      
+      console.log(`📊 CSV de productos parseado: iniciando procesamiento`);
+      
+      // Parse CSV using Papa Parse
+      const parseResult = Papa.parse(csvContent, {
+        header: true,
+        delimiter: ';', // CSV uses semicolon as delimiter
+        skipEmptyLines: true,
+        transformHeader: (header: string) => header.trim()
+      });
+
+      if (parseResult.errors.length > 0) {
+        return res.status(400).json({ 
+          message: "CSV parsing errors", 
+          errors: parseResult.errors 
+        });
+      }
+
+      console.log(`📊 CSV parseado: ${parseResult.data.length} productos encontrados`);
+      
+      // Transform CSV data to match our new products schema
+      const csvData = parseResult.data.map((row: any, index: number) => {
+        return {
+          productId: row.productId?.toString()?.trim(),
+          name: row.name?.toString()?.trim(),
+          description: row.description?.toString()?.trim() || '',
+          category: row.category?.toString()?.trim() || '',
+          pricePerUnit: row.pricePerUnit?.toString()?.trim() || '0',
+          taxCode: row.taxes_0_taxCode?.toString()?.trim() || '',
+          taxName: row.taxes_0_taxName?.toString()?.trim() || '',
+          taxRate: row.taxes_0_taxRate?.toString()?.trim() || '0',
+          weight: row.dimensions_weight?.toString()?.trim() || '0',
+          weightUnit: row.dimensions_weightUnit?.toString()?.trim() || '',
+          length: row.dimensions_length?.toString()?.trim() || '0',
+          lengthUnit: row.dimensions_lengthUnit?.toString()?.trim() || '',
+          width: row.dimensions_width?.toString()?.trim() || '0',
+          widthUnit: row.dimensions_widthUnit?.toString()?.trim() || '',
+          height: row.dimensions_height?.toString()?.trim() || '0',
+          heightUnit: row.dimensions_heightUnit?.toString()?.trim() || '',
+          volume: row.dimensions_volume?.toString()?.trim() || '0',
+          volumeUnit: row.dimensions_volumeUnit?.toString()?.trim() || '',
+          minUnit: row.constraints_minUnit?.toString()?.trim() || '0',
+          stepSize: row.constraints_stepSize?.toString()?.trim() || '1',
+          packagingUnit: row.packaging_unit?.toString()?.trim() || '',
+          packagingUnitName: row.packaging_unitName?.toString()?.trim() || '', // Presentación del producto
+          packagingPackageName: row.packaging_packageName?.toString()?.trim() || '',
+          packagingPackageUnit: row.packaging_packageUnit?.toString()?.trim() || '',
+          packagingAmountPerPackage: row.packaging_amountPerPackage?.toString()?.trim() || '0',
+          packagingBoxName: row.packaging_boxName?.toString()?.trim() || '',
+          packagingBoxUnit: row.packaging_boxUnit?.toString()?.trim() || '',
+          packagingAmountPerBox: row.packaging_amountPerBox?.toString()?.trim() || '0',
+          packagingPalletName: row.packaging_palletName?.toString()?.trim() || '',
+          packagingPalletUnit: row.packaging_palletUnit?.toString()?.trim() || '',
+          packagingAmountPerPallet: row.packaging_amountPerPallet?.toString()?.trim() || '0',
+          originalRowIndex: index + 1
+        };
+      }).filter((row: any) => {
+        const isValid = row.productId && row.name;
+        if (!isValid) {
+          console.log(`❌ Fila ${row.originalRowIndex} excluida: SKU o nombre vacío`);
+        }
+        return isValid;
+      });
+
+      console.log(`✅ Productos válidos para procesar: ${csvData.length}`);
+
+      const result = await storage.importProductsFromCSV(csvData);
+      
+      console.log(`📈 Resultado de importación de productos:`, result);
+      
+      res.json({
+        message: "Products CSV import completed",
+        result: {
+          ...result,
+          totalRowsInCSV: parseResult.data.length,
+          validRowsProcessed: csvData.length,
+          filteredOutRows: parseResult.data.length - csvData.length
+        }
+      });
+    } catch (error) {
+      console.error("Error importing products CSV:", error);
+      res.status(500).json({ message: "Failed to import products CSV", error: error });
+    }
+  });
+
   // Warehouse and branch routes
   app.get('/api/warehouses', isAuthenticated, async (req: any, res) => {
     try {
