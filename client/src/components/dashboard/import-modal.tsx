@@ -56,7 +56,18 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
     },
   });
 
-  const parseCSVLine = (line: string): string[] => {
+  const detectSeparator = (csvText: string): string => {
+    // Analyze the first line to detect separator
+    const firstLine = csvText.split('\n')[0];
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    
+    const separator = semicolonCount > commaCount ? ';' : ',';
+    console.log(`🔍 Separador detectado: "${separator}" (comas: ${commaCount}, punto y coma: ${semicolonCount})`);
+    return separator;
+  };
+
+  const parseCSVLine = (line: string, separator: string = ','): string[] => {
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
@@ -66,7 +77,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
       
       if (char === '"') {
         inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
+      } else if (char === separator && !inQuotes) {
         result.push(current.trim());
         current = '';
       } else {
@@ -143,14 +154,17 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
       throw new Error('CSV debe tener al menos una fila de encabezados y una fila de datos');
     }
 
-    const headers = parseCSVLine(lines[0]);
+    // Auto-detect separator
+    const separator = detectSeparator(csvText);
+    
+    const headers = parseCSVLine(lines[0], separator);
     console.log('🔍 Headers detectados:', headers);
     console.log('🔍 Total filas de datos:', lines.length - 1);
     
     const transactions = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i]);
+      const values = parseCSVLine(lines[i], separator);
       if (values.length === headers.length) {
         const transaction: any = {};
         
