@@ -115,6 +115,12 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
     return isNaN(parsed) ? null : cleanValue;
   };
 
+  // Universal function to clean values from CSV (remove quotes, trim whitespace)
+  const cleanValue = (value: string): string => {
+    if (!value) return '';
+    return value.toString().replace(/^"|"$/g, '').trim();
+  };
+
   const parseDate = (value: string): string | null => {
     if (!value || value.trim() === '') return null;
     try {
@@ -169,7 +175,8 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
         const transaction: any = {};
         
         headers.forEach((header, index) => {
-          const value = values[index];
+          const rawValue = values[index];
+          const value = cleanValue(rawValue); // Clean quotes and whitespace
           const cleanHeader = header.toLowerCase().trim().replace(/\s+/g, '');
           
           // Debug logging for first few rows
@@ -181,24 +188,23 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
           switch (cleanHeader) {
             // Required string fields - always process
             case 'nudo':
-              if (value && value.trim() !== '') {
-                transaction.nudo = value.toString();
+              if (value) {
+                transaction.nudo = value;
               }
               break;
             
             // Required date fields  
             case 'feemdo':
-              if (value && value.trim() !== '') {
+              if (value) {
                 transaction.feemdo = parseDate(value);
               }
               break;
               
             // TIDO - CRITICAL: Always process, even if empty, for NCV logic
             case 'tido':
-              const processedTido = value ? value.toString().replace(/"/g, '').trim() : '';
-              transaction.tido = processedTido;
+              transaction.tido = value || '';
               if (i <= 3) {
-                console.log(`🔥 TIDO DEBUG - Raw: "${value}" -> Processed: "${processedTido}" -> Final: "${transaction.tido}"`);
+                console.log(`🔥 TIDO DEBUG - Raw: "${rawValue}" -> Cleaned: "${value}" -> Final: "${transaction.tido}"`);
               }
               break;
               
@@ -242,8 +248,8 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
             case 'nokofudo': // Document employee name
             case 'nobosuli': // Warehouse branch name
             case 'nomrpr': // Name field
-              if (value && value.trim() !== '') {
-                transaction[cleanHeader] = value.toString();
+              if (value) {
+                transaction[cleanHeader] = value;
               }
               break;
                 
@@ -251,14 +257,14 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
             case 'feulvedo':
             case 'feemli':
             case 'feerli':
-              if (value && value.trim() !== '') {
+              if (value) {
                 transaction[cleanHeader] = parseDate(value);
               }
               break;
                 
             // Integer field
             case 'luvtlido':
-              if (value && value.trim() !== '') {
+              if (value) {
                 const intVal = parseInt(value);
                 transaction.luvtlido = isNaN(intVal) ? null : intVal;
               }
@@ -298,7 +304,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
             case 'devol2':
             case 'stockfis':
             case 'liscosmod':
-              if (value && value.trim() !== '') {
+              if (value) {
                 transaction[cleanHeader] = parseNumber(value);
               }
               break;
