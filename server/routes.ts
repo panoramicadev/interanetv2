@@ -731,8 +731,8 @@ export function registerRoutes(app: Express): Server {
       let userId;
       let userRecord;
 
-      // Verificar autenticación con el nuevo sistema
-      if (!req.isAuthenticated() || !req.user) {
+      // Verificar autenticación con el nuevo sistema 
+      if (!req.user || !req.user.id) {
         console.log('[DEBUG] No authentication found');
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
@@ -780,7 +780,7 @@ export function registerRoutes(app: Express): Server {
       let userRecord;
 
       // Verificar autenticación con el nuevo sistema
-      if (!req.isAuthenticated() || !req.user) {
+      if (!req.user || !req.user.id) {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
       
@@ -807,7 +807,7 @@ export function registerRoutes(app: Express): Server {
       let userRecord;
 
       // Verificar autenticación con el nuevo sistema
-      if (!req.isAuthenticated() || !req.user) {
+      if (!req.user || !req.user.id) {
         return res.status(401).json({ message: 'Usuario no autenticado' });
       }
       
