@@ -58,11 +58,11 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
       <Button
         variant="ghost"
         size="sm"
-        className="fixed top-4 left-4 z-50 lg:hidden glass-card p-2"
+        className="fixed top-4 left-4 z-50 lg:hidden bg-white/90 backdrop-blur-sm border border-gray-200/60 shadow-lg rounded-xl p-2 hover:bg-white hover:shadow-xl transition-all"
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         data-testid="mobile-menu-toggle"
       >
-        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        {isMobileOpen ? <X className="h-5 w-5 text-gray-700" /> : <Menu className="h-5 w-5 text-gray-700" />}
       </Button>
 
       {/* Mobile Overlay */}
@@ -199,24 +199,12 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
             <div className="space-y-2">
               <p className="text-xs text-slate-400 text-center">No autenticado</p>
               <Button 
-                onClick={async () => {
-                  try {
-                    const response = await fetch('/api/auth/simulate-login', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ userId: 'fe1fc91c-6fb2-4263-aaa7-75de93bcf68a' })
-                    });
-                    if (response.ok) {
-                      window.location.reload();
-                    }
-                  } catch (error) {
-                    console.error('Login failed:', error);
-                  }
-                }}
+                onClick={() => window.location.href = "/api/login"}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs"
                 size="sm"
+                data-testid="login-button"
               >
-                Login como Daniel (Supervisor)
+                Iniciar Sesión
               </Button>
             </div>
           )}
