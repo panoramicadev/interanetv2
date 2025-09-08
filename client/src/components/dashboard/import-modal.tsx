@@ -66,7 +66,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
       
       if (char === '"') {
         inQuotes = !inQuotes;
-      } else if (char === ';' && !inQuotes) {
+      } else if (char === ',' && !inQuotes) {
         result.push(current.trim());
         current = '';
       } else {
@@ -80,8 +80,26 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
 
   const parseNumber = (value: string): string | null => {
     if (!value || value.trim() === '') return null;
-    // Remove thousands separators and replace comma with dot, return as string
-    const cleanValue = value.replace(/\./g, '').replace(',', '.');
+    
+    // Handle different number formats
+    // Spanish: 1.234,56 (dot for thousands, comma for decimals)
+    // English: 1,234.56 (comma for thousands, dot for decimals)
+    let cleanValue = value.toString();
+    
+    // If it contains both dot and comma, assume Spanish format
+    if (cleanValue.includes('.') && cleanValue.includes(',')) {
+      // Spanish format: remove dots (thousands) and replace comma with dot (decimal)
+      cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+    } 
+    // If it only contains comma, could be decimal separator
+    else if (cleanValue.includes(',') && !cleanValue.includes('.')) {
+      // Check if comma is likely decimal separator (2 digits after comma)
+      const parts = cleanValue.split(',');
+      if (parts.length === 2 && parts[1].length <= 3) {
+        cleanValue = cleanValue.replace(',', '.');
+      }
+    }
+    
     const parsed = parseFloat(cleanValue);
     return isNaN(parsed) ? null : cleanValue;
   };
@@ -89,8 +107,18 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
   const parseDate = (value: string): string | null => {
     if (!value || value.trim() === '') return null;
     try {
-      // Format DD-MM-YYYY from CSV
-      const parts = value.split('-');
+      // Try multiple date formats
+      let parts: string[];
+      
+      // Format DD-MM-YYYY or DD/MM/YYYY
+      if (value.includes('-')) {
+        parts = value.split('-');
+      } else if (value.includes('/')) {
+        parts = value.split('/');
+      } else {
+        return null;
+      }
+      
       if (parts.length === 3) {
         const day = parseInt(parts[0]);
         const month = parseInt(parts[1]);
