@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import type { User, InsertUser } from "@shared/schema";
 
@@ -13,6 +14,7 @@ type RegisterData = InsertUser;
 export function useAuth() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: user, isLoading, error } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
@@ -97,10 +99,10 @@ export function useAuth() {
         title: "Sesión cerrada",
         description: "Has cerrado sesión correctamente.",
       });
-      // Force redirect to login page
+      // Navigate to login page using SPA routing
       setTimeout(() => {
-        window.location.href = "/login";
-      }, 100);
+        setLocation("/login");
+      }, 500);
     },
     onError: (error: any) => {
       toast({
