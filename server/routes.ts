@@ -457,34 +457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV template download endpoint
-  app.get('/api/sales/template', isAuthenticated, async (req, res) => {
-    try {
-      const csvHeaders = [
-        'IDMAEEDO', 'TIDO', 'NUDO', 'ENDO', 'FEEMDO', 'VANEDO', 'KOFULIDO',
-        'KOPRCT', 'CAPRCO2', 'PPPRNE', 'RUEN', 'MONTO', 'NOKOPRCT', 
-        'NOKOFU', 'NOKOEN', 'NORUEN'
-      ];
-      
-      const exampleData = [
-        '12345', 'FCV', '001', 'COM01', '2025-09-08', '125000', 'VEND01',
-        'PROD01', '5', '25000', 'SEG01', '125000', 'Producto Ejemplo', 
-        'Juan Pérez', 'Ferretería ABC', 'Ferreterías'
-      ];
-      
-      const csvContent = [
-        csvHeaders.join(','),
-        exampleData.join(',')
-      ].join('\n');
-      
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename="template-ventas.csv"');
-      res.send(csvContent);
-    } catch (error) {
-      console.error("Error generating CSV template:", error);
-      res.status(500).json({ message: "Failed to generate CSV template" });
-    }
-  });
+  // CSV template download endpoint removed - using native platform format
 
   // CSV import endpoint
   app.post('/api/sales/import', isAuthenticated, async (req, res) => {
