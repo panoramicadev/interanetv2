@@ -1,0 +1,7 @@
+KOPR;NOKOPR;pricePerUnit;packaging_unit;packaging_unitName;packaging_packageName;packaging_packageUnit;packaging_amountPerPackage;packaging_boxName;packaging_boxUnit;packaging_amountPerBox;packaging_palletName;packaging_palletUnit;packaging_amountPerPallet;group_name;variant_features_0_key;variant_features_0_value;variant_parentSku;variant_genericDisplayName;variant_index
+PCA907BASE001;ZINC ACRYL BASE INCOLORA;12783;GL;Galon;Display;DIS;4;Medio Pallet;MPA;72;Pallet;PAL;144;Pinturas Especiales;Color;BASE INCOLORA;PCA907NEGRO01;ZINC ACRYL GALON;5
+PCA907BLAN001;ZINC ACRYL BLANCO;17490;GL;Galon;Display;DIS;4;Medio Pallet;MPA;72;Pallet;PAL;144;Pinturas Especiales;Color;BLANCO;PCA907NEGRO01;ZINC ACRYL GALON;0
+PCA907GRIS001;ZINC ACRYL GRIS;17490;GL;Galon;Display;DIS;4;Medio Pallet;MPA;72;Pallet;PAL;144;Pinturas Especiales;Color;GRIS;PCA907NEGRO01;ZINC ACRYL GALON;1
+PCA907NEGRO01;ZINC ACRYL NEGRO;17490;GL;Galon;Display;DIS;4;Medio Pallet;MPA;72;Pallet;PAL;144;Pinturas Especiales;Color;NEGRO;PCA907NEGRO01;ZINC ACRYL GALON;2
+PCA907ROJO001;ZINC ACRYL ROJO;17490;GL;Galon;Display;DIS;4;Medio Pallet;MPA;72;Pallet;PAL;144;Pinturas Especiales;Color;ROJO;PCA907NEGRO01;ZINC ACRYL GALON;3
+PCA907VERD001;ZINC ACRYL VERDE;17490;GL;Galon;Display;DIS;4;Medio Pallet;MPA;72;Pallet;PAL;144;Pinturas Especiales;Color;VERDE;PCA907NEGRO01;ZINC ACRYL GALON;4

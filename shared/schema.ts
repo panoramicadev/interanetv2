@@ -263,6 +263,13 @@ export const products = pgTable("products", {
   packagingPalletUnit: varchar("packaging_pallet_unit"), // packaging_palletUnit
   packagingAmountPerPallet: numeric("packaging_amount_per_pallet", { precision: 10, scale: 2 }), // packaging_amountPerPallet
   
+  // Variant information
+  variantFeaturesKey: varchar("variant_features_key").default(''), // variant_features_0_key
+  variantFeaturesValue: varchar("variant_features_value").default(''), // variant_features_0_value  
+  variantParentSku: varchar("variant_parent_sku").default(''), // variant_parentSku
+  variantGenericDisplayName: varchar("variant_generic_display_name").default(''), // variant_genericDisplayName
+  variantIndex: integer("variant_index"), // variant_index
+  
   // Additional fields for future use - all remaining CSV columns
   customField1: text("custom_field1"), // Para campos adicionales del CSV
   customField2: text("custom_field2"), // Para campos adicionales del CSV
