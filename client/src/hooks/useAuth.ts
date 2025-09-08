@@ -91,10 +91,16 @@ export function useAuth() {
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/auth/user"], null);
+      // Invalidate all queries to clear cache
+      queryClient.clear();
       toast({
         title: "Sesión cerrada",
         description: "Has cerrado sesión correctamente.",
       });
+      // Force redirect to login page
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 100);
     },
     onError: (error: any) => {
       toast({
