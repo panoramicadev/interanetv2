@@ -107,14 +107,14 @@ export default function Dashboard() {
               </p>
             </div>
             
-            <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4 w-full lg:w-auto">
+            <div className="flex flex-col space-y-2 sm:space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4 w-full lg:w-auto">
               {/* Filter Type Selector */}
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
+              <div className="flex items-center space-x-2 sm:space-x-3 flex-none">
+                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
                   Filtrar:
                 </label>
                 <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="w-28 sm:w-36 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm" data-testid="select-filter-type">
+                  <SelectTrigger className="w-24 sm:w-32 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm" data-testid="select-filter-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
@@ -212,7 +212,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger className="w-48 lg:w-52 rounded-xl border-gray-200 shadow-sm" data-testid="select-period">
+                    <SelectTrigger className="flex-1 lg:w-52 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0" data-testid="select-period">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-gray-200">
