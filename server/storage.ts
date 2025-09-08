@@ -456,7 +456,12 @@ export class DatabaseStorage implements IStorage {
 
     const [metrics] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vanedo}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(
+          CASE 
+            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.vanedo}
+            ELSE ${salesTransactions.vanedo}
+          END
+        ), 0)`,
         totalTransactions: sql<number>`COUNT(*)`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
@@ -491,7 +496,12 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         salesperson: salesTransactions.nokofu,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vanedo}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(
+          CASE 
+            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.vanedo}
+            ELSE ${salesTransactions.vanedo}
+          END
+        ), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(salesTransactions)
@@ -526,7 +536,12 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         productName: salesTransactions.nokoprct,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vanedo}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(
+          CASE 
+            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.vanedo}
+            ELSE ${salesTransactions.vanedo}
+          END
+        ), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
       })
       .from(salesTransactions)
@@ -616,7 +631,12 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         segment: salesTransactions.noruen,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vanedo}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(
+          CASE 
+            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.vanedo}
+            ELSE ${salesTransactions.vanedo}
+          END
+        ), 0)`,
       })
       .from(salesTransactions)
       .where(and(...conditions))
