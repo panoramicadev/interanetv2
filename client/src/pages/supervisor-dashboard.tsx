@@ -342,7 +342,7 @@ export default function SupervisorDashboard() {
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">{user?.firstName} {user?.lastName}</h1>
+                <h1 className="text-xl font-bold text-white">{user?.firstName} {user?.lastName} | Supervisor</h1>
                 <p className="text-sm text-slate-400">Supervisor</p>
               </div>
             </div>
@@ -426,7 +426,7 @@ export default function SupervisorDashboard() {
           <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
-                Dashboard Supervisor - {user?.salespersonName}
+                Dashboard Supervisor - {user?.firstName} {user?.lastName} | Supervisor
               </h1>
               <p className="text-gray-600 text-base lg:text-lg">
                 Gestión de equipo y seguimiento de metas
