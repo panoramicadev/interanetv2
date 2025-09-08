@@ -178,42 +178,50 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
           {/* New Tools Section */}
           <Button
             variant="ghost"
-            className="w-full justify-start text-slate-400 hover:text-slate-300 cursor-not-allowed relative group"
+            className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
             disabled
           >
-            <Calculator className="w-5 h-5 mr-3" />
-            Crear Presupuesto
-            <span className="ml-auto text-xs text-slate-500">Próximamente</span>
+            <div className="flex items-center w-full">
+              <Calculator className="w-5 h-5 mr-3" />
+              Crear Presupuesto
+            </div>
+            <span className="text-xs text-slate-500 ml-8">Próximamente</span>
           </Button>
           
           <Button
             variant="ghost"
-            className="w-full justify-start text-slate-400 hover:text-slate-300 cursor-not-allowed relative group"
+            className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
             disabled
           >
-            <Palette className="w-5 h-5 mr-3" />
-            Calcular Tintometría
-            <span className="ml-auto text-xs text-slate-500">Próximamente</span>
+            <div className="flex items-center w-full">
+              <Palette className="w-5 h-5 mr-3" />
+              Calcular Tintometría
+            </div>
+            <span className="text-xs text-slate-500 ml-8">Próximamente</span>
           </Button>
           
           <Button
             variant="ghost"
-            className="w-full justify-start text-slate-400 hover:text-slate-300 cursor-not-allowed relative group"
+            className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
             disabled
           >
-            <Package className="w-5 h-5 mr-3" />
-            Revisión de Stock
-            <span className="ml-auto text-xs text-slate-500">Próximamente</span>
+            <div className="flex items-center w-full">
+              <Package className="w-5 h-5 mr-3" />
+              Revisión de Stock
+            </div>
+            <span className="text-xs text-slate-500 ml-8">Próximamente</span>
           </Button>
           
           <Button
             variant="ghost"
-            className="w-full justify-start text-slate-400 hover:text-slate-300 cursor-not-allowed relative group"
+            className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
             disabled
           >
-            <Wrench className="w-5 h-5 mr-3" />
-            Herramientas de Venta
-            <span className="ml-auto text-xs text-slate-500">Próximamente</span>
+            <div className="flex items-center w-full">
+              <Wrench className="w-5 h-5 mr-3" />
+              Herramientas de Venta
+            </div>
+            <span className="text-xs text-slate-500 ml-8">Próximamente</span>
           </Button>
         </nav>
         
