@@ -38,6 +38,7 @@ export default function SupervisorDashboard() {
   const [location] = useLocation();
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<any>(null);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [selectedSalesperson, setSelectedSalesperson] = useState<any>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -49,6 +50,13 @@ export default function SupervisorDashboard() {
     staleTime: 0,
     refetchOnMount: true,
     refetchOnWindowFocus: false,
+  });
+
+  // Obtener vendedores disponibles para reclamar
+  const { data: availableVendors = [], isLoading: loadingVendors } = useQuery({
+    queryKey: [`/api/supervisor/${user?.id}/available-vendors`],
+    enabled: !!user?.id && user?.role === 'supervisor' && showAddMemberModal,
+    staleTime: 30000, // Cache por 30 segundos
   });
 
   // Obtener metas del supervisor
@@ -145,6 +153,61 @@ export default function SupervisorDashboard() {
     setSelectedSalesperson(salesperson);
     setEditingGoal(goal);
     setGoalDialogOpen(true);
+  };
+
+  // Claim vendor mutation
+  const claimVendorMutation = useMutation({
+    mutationFn: async (vendor: any) => {
+      const password = generatePassword();
+      const email = generateEmail(vendor.salespersonName);
+      
+      return apiRequest('POST', `/api/supervisor/${user?.id}/claim-vendor`, {
+        salespersonName: vendor.salespersonName,
+        email,
+        password
+      });
+    },
+    onSuccess: () => {
+      // Refresh both available vendors and current team
+      queryClient.invalidateQueries({ queryKey: [`/api/supervisor/${user?.id}/available-vendors`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/supervisor/${user?.id}/salespeople`] });
+      
+      toast({
+        title: "Vendedor reclamado exitosamente",
+        description: "El vendedor ha sido añadido a tu equipo",
+      });
+      
+      setShowAddMemberModal(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al reclamar vendedor",
+        description: error.message || "No se pudo reclamar el vendedor",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleClaimVendor = (vendor: any) => {
+    claimVendorMutation.mutate(vendor);
+  };
+
+  // Helper functions
+  const generateEmail = (name: string) => {
+    const cleanName = name.toLowerCase()
+      .replace(/\s+/g, '.')
+      .replace(/[áàäâ]/g, 'a')
+      .replace(/[éèëê]/g, 'e')
+      .replace(/[íìïî]/g, 'i')
+      .replace(/[óòöô]/g, 'o')
+      .replace(/[úùüû]/g, 'u')
+      .replace(/[ñ]/g, 'n')
+      .replace(/[^a-z0-9.]/g, '');
+    return `${cleanName}@pinturaspanoramica.cl`;
+  };
+
+  const generatePassword = () => {
+    return Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase() + '123!';
   };
 
   const handleSubmitGoal = (event: React.FormEvent<HTMLFormElement>) => {
@@ -526,13 +589,25 @@ export default function SupervisorDashboard() {
           {/* Lista de Vendedores del Equipo */}
           <Card className="rounded-2xl border-gray-200/60 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
-                <Users className="w-5 h-5 mr-2 text-green-600" />
-                Mi Equipo de Vendedores
-              </CardTitle>
-              <CardDescription className="text-gray-600">
-                Rendimiento, estadísticas y metas de tu equipo
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl font-semibold text-gray-900 flex items-center">
+                    <Users className="w-5 h-5 mr-2 text-green-600" />
+                    Mi Equipo de Vendedores
+                  </CardTitle>
+                  <CardDescription className="text-gray-600">
+                    Rendimiento, estadísticas y metas de tu equipo
+                  </CardDescription>
+                </div>
+                <Button 
+                  onClick={() => setShowAddMemberModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700"
+                  data-testid="button-add-team-member"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Añadir Miembro
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
@@ -685,6 +760,77 @@ export default function SupervisorDashboard() {
         </main>
       </div>
       
+      {/* Add Member Modal */}
+      <Dialog open={showAddMemberModal} onOpenChange={setShowAddMemberModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              Vendedores Disponibles para Reclamar
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Selecciona un vendedor del segmento FERRETERIAS para añadir a tu equipo
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {loadingVendors ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : availableVendors.length > 0 ? (
+              <div className="space-y-3">
+                {availableVendors.map((vendor: any, index: number) => (
+                  <div 
+                    key={index}
+                    className="p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => handleClaimVendor(vendor)}
+                    data-testid={`vendor-option-${vendor.salespersonName.replace(/\s+/g, '-').toLowerCase()}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
+                          <span className="text-white font-medium text-sm">
+                            {vendor.salespersonName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900">{vendor.salespersonName}</h4>
+                          <p className="text-sm text-gray-600">
+                            {vendor.totalTransactions} transacciones • Segmento: {vendor.segment}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-semibold text-gray-900">
+                          {new Intl.NumberFormat('es-CL', {
+                            style: 'currency',
+                            currency: 'CLP',
+                            minimumFractionDigits: 0,
+                          }).format(vendor.totalSales)}
+                        </p>
+                        <p className="text-xs text-gray-500">ventas totales</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No hay vendedores disponibles para reclamar</p>
+                <p className="text-gray-400 text-sm mt-1">Todos los vendedores ya están asignados</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddMemberModal(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal para gestionar metas */}
       <Dialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>
         <DialogContent className="sm:max-w-md">
