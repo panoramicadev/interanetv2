@@ -18,7 +18,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
       // period format: "2025-09-05"
       startDate = new Date(period);
       endDate = new Date(period);
-      endDate.setDate(endDate.getDate() + 1); // Next day to include full day
+      // Don't add extra day, we'll handle inclusive range in the query
       break;
     case 'month':
       // period format: "2025-09" 
@@ -34,8 +34,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
         const [start, end] = period.split('_');
         startDate = new Date(start);
         endDate = new Date(end);
-        // Ensure endDate includes the full day
-        endDate.setDate(endDate.getDate() + 1);
+        // Don't add extra day, we'll handle inclusive range in the query
       } else {
         // Handle predefined ranges
         switch (period) {

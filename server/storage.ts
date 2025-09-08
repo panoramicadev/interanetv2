@@ -22,7 +22,7 @@ import {
   type InsertProductPriceHistory,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
