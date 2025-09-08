@@ -68,7 +68,7 @@ export default function Dashboard() {
         variant: "destructive",
       });
       setTimeout(() => {
-        window.location.href = "/login";
+        setLocation("/login");
       }, 500);
       return;
     }

@@ -38,12 +38,14 @@ export default function UsersPage() {
     { icon: Package, label: "Gestión de Productos", href: "/productos" },
     { icon: Calculator, label: "Crear Presupuesto", href: "#", disabled: true },
     { icon: Palette, label: "Calcular Tintometría", href: "#", disabled: true },
-    { icon: Package, label: "Revisión de Stock", href: "#", disabled: true },
+    { icon: Settings, label: "Revisión de Stock", href: "#", disabled: true },
     { icon: Wrench, label: "Herramientas de Venta", href: "#", disabled: true },
   ];
 
+  const { logoutMutation } = useAuth();
+  
   const handleLogout = () => {
-    window.location.href = "/login";
+    logoutMutation.mutate();
   };
 
   const getInitials = (name?: string) => {
@@ -60,6 +62,8 @@ export default function UsersPage() {
   };
 
   // Verificar permisos de admin
+  const [, setLocation] = useLocation();
+  
   useEffect(() => {
     if (user && user.role !== 'admin') {
       toast({
@@ -67,9 +71,11 @@ export default function UsersPage() {
         description: "Solo los administradores pueden acceder a esta página.",
         variant: "destructive",
       });
-      window.location.href = '/';
+      setTimeout(() => {
+        setLocation('/');
+      }, 1000);
     }
-  }, [user, toast]);
+  }, [user, toast, setLocation]);
 
   // Query para obtener usuarios
   const { data: salespeopleUsers = [], isLoading } = useQuery<SalespersonUser[]>({

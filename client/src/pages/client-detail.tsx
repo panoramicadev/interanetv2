@@ -40,8 +40,10 @@ export default function ClientDetail() {
     { icon: Wrench, label: "Herramientas de Venta", href: "#", disabled: true },
   ];
 
+  const { logoutMutation } = useAuth();
+  
   const handleLogout = () => {
-    window.location.href = "/login";
+    logoutMutation.mutate();
   };
 
   const getInitials = (name?: string) => {
