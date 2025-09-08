@@ -49,39 +49,34 @@ function Router() {
         </>
       ) : (
         <>
-          {/* Rutas según el rol del usuario */}
-          {user.role === 'admin' && (
-            <>
-              <Route path="/" component={Dashboard} />
-              <Route path="/metas" component={Metas} />
-              <Route path="/usuarios" component={Users} />
-              <Route path="/productos" component={Products} />
-              <Route path="/segment/:segmentName" component={SegmentDetail} />
-              <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
-              <Route path="/client/:clientName" component={ClientDetail} />
-            </>
-          )}
-          {user.role === 'supervisor' && (
-            <>
-              <Route path="/" component={SupervisorDashboard} />
-              <Route path="/metas" component={Metas} />
-              <Route path="/segment/:segmentName" component={SegmentDetail} />
-              <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
-              <Route path="/client/:clientName" component={ClientDetail} />
-            </>
-          )}
-          {user.role === 'salesperson' && (
-            <>
-              <Route path="/" component={SalespersonDashboard} />
-              <Route path="/mis-clientes" component={ClientsDashboard} />
-              <Route path="/client/:clientName" component={ClientDetail} />
-            </>
-          )}
-          {user.role === 'client' && (
-            <>
-              <Route path="/" component={ClientBuyerDashboard} />
-            </>
-          )}
+          {/* Rutas para usuarios autenticados */}
+          <Route path="/" component={() => {
+            switch (user.role) {
+              case 'admin':
+                return <Dashboard />;
+              case 'supervisor':
+                return <SupervisorDashboard />;
+              case 'salesperson':
+                return <SalespersonDashboard />;
+              case 'client':
+                return <ClientBuyerDashboard />;
+              default:
+                return <Dashboard />;
+            }
+          }} />
+          
+          {/* Rutas comunes para todos los roles */}
+          <Route path="/metas" component={Metas} />
+          <Route path="/segment/:segmentName" component={SegmentDetail} />
+          <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
+          <Route path="/client/:clientName" component={ClientDetail} />
+          
+          {/* Rutas específicas de admin */}
+          <Route path="/usuarios" component={Users} />
+          <Route path="/productos" component={Products} />
+          
+          {/* Rutas específicas de vendedor */}
+          <Route path="/mis-clientes" component={ClientsDashboard} />
         </>
       )}
       <Route component={NotFound} />
