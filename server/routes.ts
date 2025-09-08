@@ -29,24 +29,33 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
       }
       break;
     case 'range':
-      // Handle predefined ranges
-      switch (period) {
-        case 'last-7-days':
-          endDate = new Date(now);
-          startDate = new Date(now);
-          startDate.setDate(startDate.getDate() - 7);
-          break;
-        case 'last-30-days':
-          endDate = new Date(now);
-          startDate = new Date(now);
-          startDate.setDate(startDate.getDate() - 30);
-          break;
-        case 'last-90-days':
-          endDate = new Date(now);
-          startDate = new Date(now);
-          startDate.setDate(startDate.getDate() - 90);
-          break;
-        // Add more ranges as needed
+      // Check if it's a custom date range (format: "2025-09-01_2025-09-30")
+      if (period.includes('_')) {
+        const [start, end] = period.split('_');
+        startDate = new Date(start);
+        endDate = new Date(end);
+        // Ensure endDate includes the full day
+        endDate.setDate(endDate.getDate() + 1);
+      } else {
+        // Handle predefined ranges
+        switch (period) {
+          case 'last-7-days':
+            endDate = new Date(now);
+            startDate = new Date(now);
+            startDate.setDate(startDate.getDate() - 7);
+            break;
+          case 'last-30-days':
+            endDate = new Date(now);
+            startDate = new Date(now);
+            startDate.setDate(startDate.getDate() - 30);
+            break;
+          case 'last-90-days':
+            endDate = new Date(now);
+            startDate = new Date(now);
+            startDate.setDate(startDate.getDate() - 90);
+            break;
+          // Add more ranges as needed
+        }
       }
       break;
   }
