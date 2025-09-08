@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
-import ImportModal from "@/components/dashboard/import-modal";
 
 interface LastOrder {
   id: string;
@@ -44,7 +43,6 @@ interface PurchaseHistory {
 export default function ClientBuyerDashboard() {
   const { user } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
   
   // Obtener último pedido del cliente
   const { data: lastOrder, isLoading: isLoadingLastOrder } = useQuery<LastOrder>({
@@ -152,12 +150,6 @@ export default function ClientBuyerDashboard() {
       icon: Wrench,
       disabled: true,
       comingSoon: true,
-    },
-    {
-      href: "#import",
-      label: "Importar Datos CSV",
-      icon: Upload,
-      onClick: () => setShowImportModal(true),
     },
   ];
 
@@ -405,11 +397,6 @@ export default function ClientBuyerDashboard() {
         </main>
       </div>
 
-      {/* Modal de Importación de Datos */}
-      <ImportModal 
-        open={showImportModal} 
-        onOpenChange={setShowImportModal}
-      />
     </div>
   );
 }

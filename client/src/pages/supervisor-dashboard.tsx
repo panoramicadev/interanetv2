@@ -11,7 +11,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import ImportModal from "@/components/dashboard/import-modal";
 import { 
   LayoutDashboard, 
   Users, 
@@ -47,7 +46,6 @@ export default function SupervisorDashboard() {
   const [editingGoal, setEditingGoal] = useState<any>(null);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [selectedSalesperson, setSelectedSalesperson] = useState<any>(null);
-  const [showImportModal, setShowImportModal] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -330,12 +328,6 @@ export default function SupervisorDashboard() {
       icon: Wrench,
       disabled: true,
       comingSoon: true,
-    },
-    {
-      href: "#import",
-      label: "Importar Datos CSV",
-      icon: Upload,
-      onClick: () => setShowImportModal(true),
     },
   ];
 
@@ -1281,11 +1273,6 @@ export default function SupervisorDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Importación de Datos */}
-      <ImportModal 
-        open={showImportModal} 
-        onOpenChange={setShowImportModal}
-      />
     </div>
   );
 }
