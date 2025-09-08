@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import ImportModal from "@/components/dashboard/import-modal";
 import { 
   LayoutDashboard, 
   Users, 
@@ -31,7 +32,8 @@ import {
   Calculator,
   Palette,
   Package,
-  Wrench
+  Wrench,
+  Upload
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link, useLocation } from "wouter";
@@ -44,6 +46,7 @@ export default function SupervisorDashboard() {
   const [editingGoal, setEditingGoal] = useState<any>(null);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [selectedSalesperson, setSelectedSalesperson] = useState<any>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -302,6 +305,12 @@ export default function SupervisorDashboard() {
       disabled: true,
       comingSoon: true,
     },
+    {
+      href: "#import",
+      label: "Importar Datos CSV",
+      icon: Upload,
+      onClick: () => setShowImportModal(true),
+    },
   ];
 
   // Calcular métricas del equipo
@@ -368,6 +377,22 @@ export default function SupervisorDashboard() {
               const isActive = location === item.href;
               const itemKey = (item as any).disabled ? `disabled-${index}` : item.href;
               
+              if ((item as any).onClick) {
+                return (
+                  <div key={itemKey}>
+                    <Button
+                      variant="ghost"
+                      onClick={(item as any).onClick}
+                      className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
+                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-5 h-5 mr-3" />
+                      {item.label}
+                    </Button>
+                  </div>
+                );
+              }
+
               if ((item as any).disabled) {
                 return (
                   <div key={itemKey}>
@@ -1123,6 +1148,12 @@ export default function SupervisorDashboard() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Importación de Datos */}
+      <ImportModal 
+        open={showImportModal} 
+        onOpenChange={setShowImportModal}
+      />
     </div>
   );
 }
