@@ -827,14 +827,14 @@ export class DatabaseStorage implements IStorage {
       const highValueClients = await db
         .select({
           client: salesTransactions.nokoen,
-          totalSales: sql<number>`SUM(CAST(${salesTransactions.vanedo} AS DECIMAL))`,
+          totalSales: sql<number>`SUM(CAST(${salesTransactions.monto} AS DECIMAL))`,
           transactionCount: sql<number>`COUNT(*)`
         })
         .from(salesTransactions)
         .where(eq(salesTransactions.nokofu, salesperson))
         .groupBy(salesTransactions.nokoen)
-        .having(sql`SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)) > 1000000`)
-        .orderBy(sql`SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)) DESC`)
+        .having(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) > 1000000`)
+        .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) DESC`)
         .limit(2);
 
       highValueClients.forEach(client => {
@@ -922,7 +922,7 @@ export class DatabaseStorage implements IStorage {
   async getGlobalSalesForPeriod(period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)), 0)`
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`
       })
       .from(salesTransactions)
       .where(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`)
@@ -934,7 +934,7 @@ export class DatabaseStorage implements IStorage {
   async getSegmentSalesForPeriod(segment: string, period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)), 0)`
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`
       })
       .from(salesTransactions)
       .where(
@@ -951,7 +951,7 @@ export class DatabaseStorage implements IStorage {
   async getSalespersonSalesForPeriod(salesperson: string, period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS DECIMAL)), 0)`
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`
       })
       .from(salesTransactions)
       .where(
@@ -986,14 +986,14 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         clientName: salesTransactions.nokoen,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
       .from(salesTransactions)
       .where(and(...conditions))
       .groupBy(salesTransactions.nokoen)
-      .orderBy(sql`SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)) DESC`);
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
     
     // Calculate segment total for percentages
     const segmentTotal = result.reduce((sum, client) => sum + client.totalSales, 0);
@@ -1028,14 +1028,14 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         salespersonName: salesTransactions.nokofu,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
       .from(salesTransactions)
       .where(and(...conditions))
       .groupBy(salesTransactions.nokofu)
-      .orderBy(sql`SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)) DESC`);
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
     
     // Calculate segment total for percentages
     const segmentTotal = result.reduce((sum, salesperson) => sum + salesperson.totalSales, 0);
@@ -1068,10 +1068,10 @@ export class DatabaseStorage implements IStorage {
 
     const [result] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         totalClients: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         firstSale: sql<string>`MIN(${salesTransactions.feemdo})`,
         lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
       })
@@ -1113,15 +1113,15 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         clientName: salesTransactions.nokoen,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
       })
       .from(salesTransactions)
       .where(and(...conditions))
       .groupBy(salesTransactions.nokoen)
-      .orderBy(sql`SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)) DESC`);
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
 
     const today = new Date();
     return result.map(client => {
@@ -1158,10 +1158,10 @@ export class DatabaseStorage implements IStorage {
 
     const [result] = await db
       .select({
-        totalPurchases: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        totalPurchases: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         totalProducts: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoprct})`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         firstPurchase: sql<string>`MIN(${salesTransactions.feemdo})`,
         lastPurchase: sql<string>`MAX(${salesTransactions.feemdo})`
       })
@@ -1203,15 +1203,15 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         productName: salesTransactions.nokoprct,
-        totalPurchases: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        totalPurchases: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averagePrice: sql<number>`COALESCE(AVG(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        averagePrice: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         lastPurchase: sql<string>`MAX(${salesTransactions.feemdo})`
       })
       .from(salesTransactions)
       .where(and(...conditions))
       .groupBy(salesTransactions.nokoprct)
-      .orderBy(sql`SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)) DESC`);
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
 
     const today = new Date();
     return result.map(product => {
@@ -1244,7 +1244,7 @@ export class DatabaseStorage implements IStorage {
         nudo: salesTransactions.nudo,
         feemdo: salesTransactions.feemdo,
         nokoprct: salesTransactions.nokoprct,
-        monto: sql<string>`CAST(${salesTransactions.vanedo} AS TEXT)`,
+        monto: sql<string>`CAST(${salesTransactions.monto} AS TEXT)`,
         nokofu: salesTransactions.nokofu
       })
       .from(salesTransactions)
@@ -1278,7 +1278,7 @@ export class DatabaseStorage implements IStorage {
         nudo: salesTransactions.nudo,
         feemdo: salesTransactions.feemdo,
         nokoprct: salesTransactions.nokoprct,
-        monto: sql<string>`CAST(${salesTransactions.vanedo} AS TEXT)`,
+        monto: sql<string>`CAST(${salesTransactions.monto} AS TEXT)`,
         nokofu: salesTransactions.nokofu
       })
       .from(salesTransactions)
@@ -1378,7 +1378,7 @@ export class DatabaseStorage implements IStorage {
     const allClients = await db
       .select({
         clientName: salesTransactions.nokoen,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
         lastPurchaseDate: sql<string>`MAX(${salesTransactions.feemdo})`,
         firstPurchaseDate: sql<string>`MIN(${salesTransactions.feemdo})`
@@ -1389,7 +1389,7 @@ export class DatabaseStorage implements IStorage {
         sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`
       ))
       .groupBy(salesTransactions.nokoen)
-      .orderBy(sql`SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)) DESC`);
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
 
     // Calcular métricas para cada cliente
     const clientsWithMetrics = allClients.map(client => {
@@ -1442,7 +1442,7 @@ export class DatabaseStorage implements IStorage {
       const topProducts = await db
         .select({
           productName: salesTransactions.nokoprct,
-          productSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`
+          productSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
         })
         .from(salesTransactions)
         .where(and(
@@ -1451,7 +1451,7 @@ export class DatabaseStorage implements IStorage {
           sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`
         ))
         .groupBy(salesTransactions.nokoprct)
-        .orderBy(sql`SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)) DESC`)
+        .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`)
         .limit(1);
 
       if (topProducts.length > 0) {
@@ -1508,7 +1508,7 @@ export class DatabaseStorage implements IStorage {
       // Obtener estadísticas de ventas para cada vendedor
       const [salesStats] = await db
         .select({
-          totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.vanedo} AS NUMERIC)), 0)`,
+          totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
           transactionCount: sql<number>`COUNT(*)`,
           lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
         })
@@ -2372,7 +2372,7 @@ export class DatabaseStorage implements IStorage {
     // Get sales data for this product
     const salesData = await db
       .select({
-        vanedo: salesTransactions.vanedo,
+        monto: salesTransactions.monto,
         caprad2: salesTransactions.caprco2,
         nokoen: salesTransactions.nokoen,
         feemdo: salesTransactions.feemdo
@@ -2380,7 +2380,7 @@ export class DatabaseStorage implements IStorage {
       .from(salesTransactions)
       .where(eq(salesTransactions.koprct, sku));
 
-    const totalSales = salesData.reduce((sum, sale) => sum + (Number(sale.vanedo) || 0), 0);
+    const totalSales = salesData.reduce((sum, sale) => sum + (Number(sale.monto) || 0), 0);
     const totalUnits = salesData.reduce((sum, sale) => sum + (Number(sale.caprad2) || 0), 0);
     const transactionCount = salesData.length;
     const averagePrice = totalUnits > 0 ? totalSales / totalUnits : 0;
@@ -2391,7 +2391,7 @@ export class DatabaseStorage implements IStorage {
       if (!acc[client]) {
         acc[client] = { totalPurchases: 0, units: 0 };
       }
-      acc[client].totalPurchases += Number(sale.vanedo) || 0;
+      acc[client].totalPurchases += Number(sale.monto) || 0;
       acc[client].units += Number(sale.caprad2) || 0;
       return acc;
     }, {} as Record<string, { totalPurchases: number; units: number }>);
@@ -2407,7 +2407,7 @@ export class DatabaseStorage implements IStorage {
       if (!acc[period]) {
         acc[period] = { sales: 0, units: 0 };
       }
-      acc[period].sales += Number(sale.vanedo) || 0;
+      acc[period].sales += Number(sale.monto) || 0;
       acc[period].units += Number(sale.caprad2) || 0;
       return acc;
     }, {} as Record<string, { sales: number; units: number }>);
