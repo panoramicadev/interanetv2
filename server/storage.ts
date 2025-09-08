@@ -318,13 +318,69 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   // User operations (mandatory for Replit Auth)
   async getUser(id: string): Promise<User | undefined> {
+    // First, try to find user in the main users table
     const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    if (user) {
+      return user;
+    }
+
+    // If not found, try to find in salespeople_users table
+    const [salespersonUser] = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.id, id));
+    if (salespersonUser) {
+      // Convert salesperson user to User format for authentication
+      return {
+        id: salespersonUser.id,
+        email: salespersonUser.email,
+        password: salespersonUser.password,
+        firstName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ')[0] : undefined,
+        lastName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ').slice(1).join(' ') : undefined,
+        profileImageUrl: undefined,
+        role: salespersonUser.role,
+        createdAt: salespersonUser.createdAt,
+        updatedAt: salespersonUser.updatedAt,
+        // Add salesperson-specific fields for compatibility
+        salespersonName: salespersonUser.salespersonName,
+        username: salespersonUser.username,
+        isActive: salespersonUser.isActive,
+        supervisorId: salespersonUser.supervisorId,
+        assignedSegment: salespersonUser.assignedSegment,
+      } as User;
+    }
+
+    return undefined;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
+    // First, try to find user in the main users table
     const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
+    if (user) {
+      return user;
+    }
+
+    // If not found, try to find in salespeople_users table
+    const [salespersonUser] = await db.select().from(salespeopleUsers).where(eq(salespeopleUsers.email, email));
+    if (salespersonUser) {
+      // Convert salesperson user to User format for authentication
+      return {
+        id: salespersonUser.id,
+        email: salespersonUser.email,
+        password: salespersonUser.password,
+        firstName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ')[0] : undefined,
+        lastName: salespersonUser.salespersonName ? salespersonUser.salespersonName.split(' ').slice(1).join(' ') : undefined,
+        profileImageUrl: undefined,
+        role: salespersonUser.role,
+        createdAt: salespersonUser.createdAt,
+        updatedAt: salespersonUser.updatedAt,
+        // Add salesperson-specific fields for compatibility
+        salespersonName: salespersonUser.salespersonName,
+        username: salespersonUser.username,
+        isActive: salespersonUser.isActive,
+        supervisorId: salespersonUser.supervisorId,
+        assignedSegment: salespersonUser.assignedSegment,
+      } as User;
+    }
+
+    return undefined;
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
