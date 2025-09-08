@@ -127,24 +127,28 @@ export default function ClientBuyerDashboard() {
       label: "Crear Presupuesto",
       icon: Calculator,
       disabled: true,
+      comingSoon: true,
     },
     {
       href: "#",
       label: "Calcular Tintometría",
       icon: Palette,
       disabled: true,
+      comingSoon: true,
     },
     {
       href: "#",
       label: "Revisión de Stock",
       icon: Package,
       disabled: true,
+      comingSoon: true,
     },
     {
       href: "#",
       label: "Herramientas de Venta",
       icon: Wrench,
       disabled: true,
+      comingSoon: true,
     },
   ];
 
@@ -187,20 +191,27 @@ export default function ClientBuyerDashboard() {
           </div>
         
           <nav className="flex-1 p-4 space-y-1">
-            {sidebarItems.map((item) => {
+            {sidebarItems.map((item, index) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
+              const itemKey = (item as any).disabled ? `disabled-${index}` : item.href;
               return (
-                <div key={item.href}>
+                <div key={itemKey}>
                   <Button
                     variant="ghost"
+                    disabled={(item as any).disabled}
                     className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
                       isActive ? "bg-slate-800 text-white" : ""
-                    }`}
+                    } ${(item as any).disabled ? "opacity-60 cursor-not-allowed" : ""}`}
                     data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                   >
                     <Icon className="w-5 h-5 mr-3" />
-                    {item.label}
+                    <div className="text-left">
+                      <div>{item.label}</div>
+                      {(item as any).comingSoon && (
+                        <div className="text-xs text-slate-500">Próximamente</div>
+                      )}
+                    </div>
                   </Button>
                 </div>
               );
