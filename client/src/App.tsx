@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import DashboardLayout from "@/components/layout/dashboard-layout";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Shop from "@/pages/shop";
@@ -48,43 +49,48 @@ function Router() {
           <Route component={Login} />
         </>
       ) : (
-        <>
-          {/* Rutas para usuarios autenticados */}
-          <Route path="/" component={() => {
-            switch (user.role) {
-              case 'admin':
-                return <Dashboard />;
-              case 'supervisor':
-                return <SupervisorDashboard />;
-              case 'salesperson':
-                return <SalespersonDashboard />;
-              case 'client':
-                return <ClientBuyerDashboard />;
-              default:
-                return <Dashboard />;
-            }
-          }} />
-          
-          {/* Rutas específicas de admin */}
-          <Route path="/usuarios" component={Users} />
-          <Route path="/productos" component={Products} />
-          <Route path="/metas" component={Metas} />
-          <Route path="/segment/:segmentName" component={SegmentDetail} />
-          <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
-          <Route path="/client/:clientName" component={ClientDetail} />
-          
-          {/* Rutas específicas de vendedor */}
-          <Route path="/mis-clientes" component={ClientsDashboard} />
-          <Route path="/presupuestos" component={() => <div>Página en construcción</div>} />
-          
-          {/* Rutas específicas de supervisor */}
-          <Route path="/equipo" component={() => <div>Página en construcción</div>} />
-          <Route path="/reportes" component={() => <div>Página en construcción</div>} />
-          
-          {/* Rutas específicas de cliente */}
-          <Route path="/mis-pedidos" component={() => <div>Página en construcción</div>} />
-          <Route path="/solicitar-cotizacion" component={() => <div>Página en construcción</div>} />
-        </>
+        <DashboardLayout>
+          <Switch>
+            {/* Ruta principal - Dashboard según rol */}
+            <Route path="/" component={() => {
+              switch (user.role) {
+                case 'admin':
+                  return <Dashboard />;
+                case 'supervisor':
+                  return <SupervisorDashboard />;
+                case 'salesperson':
+                  return <SalespersonDashboard />;
+                case 'client':
+                  return <ClientBuyerDashboard />;
+                default:
+                  return <Dashboard />;
+              }
+            }} />
+            
+            {/* Rutas específicas de admin */}
+            <Route path="/usuarios" component={Users} />
+            <Route path="/productos" component={Products} />
+            <Route path="/metas" component={Metas} />
+            <Route path="/segment/:segmentName" component={SegmentDetail} />
+            <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
+            <Route path="/client/:clientName" component={ClientDetail} />
+            
+            {/* Rutas específicas de vendedor */}
+            <Route path="/mis-clientes" component={ClientsDashboard} />
+            <Route path="/presupuestos" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Presupuestos</h1><p>Página en construcción</p></div>} />
+            
+            {/* Rutas específicas de supervisor */}
+            <Route path="/equipo" component={SupervisorDashboard} />
+            <Route path="/reportes" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Reportes</h1><p>Página en construcción</p></div>} />
+            
+            {/* Rutas específicas de cliente */}
+            <Route path="/mis-pedidos" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Mis Pedidos</h1><p>Página en construcción</p></div>} />
+            <Route path="/solicitar-cotizacion" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Solicitar Cotización</h1><p>Página en construcción</p></div>} />
+            
+            {/* 404 para rutas no encontradas */}
+            <Route component={NotFound} />
+          </Switch>
+        </DashboardLayout>
       )}
       <Route component={NotFound} />
     </Switch>
