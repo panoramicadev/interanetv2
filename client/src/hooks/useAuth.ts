@@ -1,15 +1,92 @@
-import { useQuery } from "@tanstack/react-query";
-import type { SalespersonUser } from "@shared/schema";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import type { User, InsertUser } from "@shared/schema";
+
+type LoginData = {
+  email: string;
+  password: string;
+};
+
+type RegisterData = InsertUser;
 
 export function useAuth() {
-  const { data: user, isLoading } = useQuery<SalespersonUser>({
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: user, isLoading } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
     retry: false,
+  });
+
+  const loginMutation = useMutation({
+    mutationFn: async (credentials: LoginData) => {
+      const response = await apiRequest("POST", "/api/login", credentials);
+      return await response.json();
+    },
+    onSuccess: (userData: User) => {
+      queryClient.setQueryData(["/api/auth/user"], userData);
+      toast({
+        title: "¡Bienvenido!",
+        description: "Has iniciado sesión correctamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error de acceso",
+        description: error.message || "Email o contraseña incorrectos.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: async (userData: RegisterData) => {
+      const response = await apiRequest("POST", "/api/register", userData);
+      return await response.json();
+    },
+    onSuccess: (userData: User) => {
+      queryClient.setQueryData(["/api/auth/user"], userData);
+      toast({
+        title: "¡Cuenta creada!",
+        description: "Tu cuenta ha sido creada exitosamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error de registro",
+        description: error.message || "No se pudo crear la cuenta.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", "/api/logout");
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(["/api/auth/user"], null);
+      toast({
+        title: "Sesión cerrada",
+        description: "Has cerrado sesión correctamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo cerrar sesión.",
+        variant: "destructive",
+      });
+    },
   });
 
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
+    loginMutation,
+    registerMutation,
+    logoutMutation,
   };
 }
