@@ -214,15 +214,60 @@ export const insertSalesTransactionSchema = z.object({
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
-// Products table - Master product information
+// Products table - Complete product information from CSV
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sku: varchar("sku").notNull().unique(), // KOPR from CSV
-  name: text("name").notNull(), // NOKOPR from CSV
-  unit1: varchar("unit1"), // UD01PR from CSV
-  unit2: varchar("unit2"), // UD02PR from CSV
-  unitRatio: numeric("unit_ratio", { precision: 10, scale: 4 }), // RLUD from CSV
-  price: numeric("price", { precision: 15, scale: 2 }), // Precio establecido manualmente
+  
+  // Core product identification
+  productId: varchar("product_id").notNull().unique(), // productId from CSV (SKU)
+  sku: varchar("sku").notNull().unique(), // Mantener por compatibilidad, será igual a productId
+  name: text("name").notNull(), // name from CSV
+  description: text("description"), // description from CSV
+  category: varchar("category"), // category from CSV
+  
+  // Pricing information
+  pricePerUnit: numeric("price_per_unit", { precision: 15, scale: 2 }), // pricePerUnit from CSV
+  manualPrice: numeric("manual_price", { precision: 15, scale: 2 }), // Precio establecido manualmente (sobrescribe el del CSV)
+  
+  // Tax information
+  taxCode: varchar("tax_code"), // taxes_0_taxCode
+  taxName: varchar("tax_name"), // taxes_0_taxName  
+  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }), // taxes_0_taxRate
+  
+  // Dimensions
+  weight: numeric("weight", { precision: 10, scale: 3 }), // dimensions_weight
+  weightUnit: varchar("weight_unit"), // dimensions_weightUnit
+  length: numeric("length", { precision: 10, scale: 2 }), // dimensions_length
+  lengthUnit: varchar("length_unit"), // dimensions_lengthUnit
+  width: numeric("width", { precision: 10, scale: 2 }), // dimensions_width
+  widthUnit: varchar("width_unit"), // dimensions_widthUnit
+  height: numeric("height", { precision: 10, scale: 2 }), // dimensions_height
+  heightUnit: varchar("height_unit"), // dimensions_heightUnit
+  volume: numeric("volume", { precision: 10, scale: 3 }), // dimensions_volume
+  volumeUnit: varchar("volume_unit"), // dimensions_volumeUnit
+  
+  // Constraints
+  minUnit: numeric("min_unit", { precision: 10, scale: 2 }), // constraints_minUnit
+  stepSize: numeric("step_size", { precision: 10, scale: 2 }), // constraints_stepSize
+  
+  // Packaging information (lo que mencionas como presentación)
+  packagingUnit: varchar("packaging_unit"), // packaging_unit
+  packagingUnitName: varchar("packaging_unit_name"), // packaging_unitName (presentación del producto)
+  packagingPackageName: varchar("packaging_package_name"), // packaging_packageName
+  packagingPackageUnit: varchar("packaging_package_unit"), // packaging_packageUnit
+  packagingAmountPerPackage: numeric("packaging_amount_per_package", { precision: 10, scale: 2 }), // packaging_amountPerPackage
+  packagingBoxName: varchar("packaging_box_name"), // packaging_boxName
+  packagingBoxUnit: varchar("packaging_box_unit"), // packaging_boxUnit
+  packagingAmountPerBox: numeric("packaging_amount_per_box", { precision: 10, scale: 2 }), // packaging_amountPerBox
+  packagingPalletName: varchar("packaging_pallet_name"), // packaging_palletName
+  packagingPalletUnit: varchar("packaging_pallet_unit"), // packaging_palletUnit
+  packagingAmountPerPallet: numeric("packaging_amount_per_pallet", { precision: 10, scale: 2 }), // packaging_amountPerPallet
+  
+  // Additional fields for future use - all remaining CSV columns
+  customField1: text("custom_field1"), // Para campos adicionales del CSV
+  customField2: text("custom_field2"), // Para campos adicionales del CSV
+  customField3: text("custom_field3"), // Para campos adicionales del CSV
+  
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -297,14 +342,14 @@ export const productsRelations = relations(products, ({ many }) => ({
 export const productStockRelations = relations(productStock, ({ one }) => ({
   product: one(products, {
     fields: [productStock.productSku],
-    references: [products.sku],
+    references: [products.productId],
   }),
 }));
 
 export const productPriceHistoryRelations = relations(productPriceHistory, ({ one }) => ({
   product: one(products, {
     fields: [productPriceHistory.productSku],
-    references: [products.sku],
+    references: [products.productId],
   }),
 }));
 
