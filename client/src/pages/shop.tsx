@@ -100,7 +100,7 @@ export default function ShopPage() {
                       </Button>
                     </Link>
                   ) : (
-                    <Link href="/api/login">
+                    <Link href="/login">
                       <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
                         <LogIn className="h-4 w-4 mr-2" />
                         Iniciar Sesión
@@ -163,7 +163,7 @@ export default function ShopPage() {
                   </p>
                 </div>
               </div>
-              <Link href="/api/login">
+              <Link href="/login">
                 <Button className="bg-orange-500 hover:bg-orange-600 text-white">
                   Iniciar Sesión
                 </Button>
@@ -262,7 +262,7 @@ export default function ShopPage() {
                               {index === 0 ? "Seleccionar" : "Agregar"}
                             </Button>
                           ) : (
-                            <Link href="/api/login">
+                            <Link href="/login">
                               <Button 
                                 className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg"
                               >
@@ -370,7 +370,7 @@ export default function ShopPage() {
                           Inicia sesión para ver precios y realizar pedidos
                         </p>
                       </div>
-                      <Link href="/api/login">
+                      <Link href="/login">
                         <Button className="bg-orange-500 hover:bg-orange-600 text-white">
                           Iniciar Sesión
                         </Button>
