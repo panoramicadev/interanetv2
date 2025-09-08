@@ -119,6 +119,13 @@ export const salesTransactions = pgTable("sales_transactions", {
   listacost: varchar("listacost"),
   liscosmod: numeric("liscosmod", { precision: 10, scale: 2 }),
   
+  // Missing name fields from CSV export
+  nokozo: varchar("nokozo"), // Zone name
+  nosudo: varchar("nosudo"), // Document branch name  
+  nokofudo: varchar("nokofudo"), // Document employee name
+  nobosuli: varchar("nobosuli"), // Warehouse branch name
+  nomrpr: varchar("nomrpr"), // Name field
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
