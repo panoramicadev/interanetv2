@@ -3,7 +3,6 @@ import type { User, SalespersonUser } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import ImportModal from "@/components/dashboard/import-modal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,7 +50,6 @@ export default function SalespersonDashboard() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
   
   // Update selected period when filter type changes
   useEffect(() => {
@@ -235,12 +233,6 @@ export default function SalespersonDashboard() {
       icon: Wrench,
       disabled: true,
       comingSoon: true,
-    },
-    {
-      href: "#import",
-      label: "Importar Datos CSV",
-      icon: Upload,
-      onClick: () => setShowImportModal(true),
     },
   ];
 
@@ -834,11 +826,6 @@ export default function SalespersonDashboard() {
         </main>
       </div>
 
-      {/* Modal de Importación de Datos */}
-      <ImportModal 
-        open={showImportModal} 
-        onOpenChange={setShowImportModal}
-      />
     </div>
   );
 }

@@ -65,21 +65,15 @@ function Router() {
             }
           }} />
           
-          {/* Rutas comunes para todos los roles */}
-          <Route path="/metas" component={Metas} />
+          {/* Rutas específicas de admin */}
+          <Route path="/usuarios" component={Users} />
+          <Route path="/productos" component={Products} />
           <Route path="/segment/:segmentName" component={SegmentDetail} />
           <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
           <Route path="/client/:clientName" component={ClientDetail} />
           
-          {/* Rutas específicas de admin */}
-          <Route path="/usuarios" component={Users} />
-          <Route path="/productos" component={Products} />
-          
           {/* Rutas específicas de vendedor */}
           <Route path="/mis-clientes" component={ClientsDashboard} />
-          
-          {/* Ruta específica de supervisor */}
-          <Route path="/equipo" component={SupervisorDashboard} />
         </>
       )}
       <Route component={NotFound} />
