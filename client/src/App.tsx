@@ -80,7 +80,6 @@ function Router() {
             <Route path="/presupuestos" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Presupuestos</h1><p>Página en construcción</p></div>} />
             
             {/* Rutas específicas de supervisor */}
-            <Route path="/equipo" component={SupervisorDashboard} />
             <Route path="/reportes" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Reportes</h1><p>Página en construcción</p></div>} />
             
             {/* Rutas específicas de cliente */}
