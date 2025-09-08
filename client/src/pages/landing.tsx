@@ -34,43 +34,13 @@ export default function Landing() {
             
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
-                Usa tu cuenta de Replit para acceder al sistema
+                Sistema profesional de análisis de ventas
               </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Tienda Online Card */}
-        <Card className="transition-all hover:shadow-lg">
-          <CardContent className="p-8">
-            <div className="text-center mb-8">
-              <ShoppingCart className="h-16 w-16 text-green-600 mx-auto mb-4" />
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                Tienda Online
-              </h1>
-              <p className="text-muted-foreground">
-                Explora nuestro catálogo de productos. Inicia sesión para ver precios
-              </p>
-            </div>
-            
-            {/* Temporalmente oculto - en desarrollo */}
-            {/* <Link href="/tienda">
-              <Button 
-                variant="outline"
-                className="w-full mb-4"
-                data-testid="button-shop"
-              >
-                Ver Catálogo de Productos
-              </Button>
-            </Link> */}
-            
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground">
-                Productos visibles para todos, precios para usuarios registrados
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+{/* Tienda temporalmente deshabilitada para el lanzamiento inicial */}
       </div>
     </div>
   );
