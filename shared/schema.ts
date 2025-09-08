@@ -52,7 +52,7 @@ export const salesTransactions = pgTable("sales_transactions", {
   caprad2: numeric("caprad2", { precision: 10, scale: 2 }), // Secondary units (actual quantity sold)
   
   // Additional fields from CSV for complete data storage
-  idmaeedo: numeric("idmaeedo", { precision: 10, scale: 2 }),
+  idmaeedo: numeric("idmaeedo", { precision: 10, scale: 2 }).unique(), // Unique identifier for transactions
   tido: varchar("tido"),
   endo: varchar("endo"),
   suendo: varchar("suendo"),
