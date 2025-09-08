@@ -1825,7 +1825,7 @@ export class DatabaseStorage implements IStorage {
     // Update product price
     const [updatedProduct] = await db
       .update(products)
-      .set({ price: newPrice.toString(), updatedAt: new Date() })
+      .set({ manualPrice: newPrice.toString(), updatedAt: new Date() })
       .where(eq(products.sku, sku))
       .returning();
 
@@ -2009,6 +2009,200 @@ export class DatabaseStorage implements IStorage {
     console.log(`🎉 Importación completada:`, summary);
     
     return summary;
+  }
+
+  // Nueva función para importar solo productos (separado del stock)
+  async importProductsFromCSV(csvData: Array<{
+    productId: string;
+    name: string;
+    description?: string;
+    category?: string;
+    pricePerUnit?: string;
+    taxCode?: string;
+    taxName?: string;
+    taxRate?: string;
+    weight?: string;
+    weightUnit?: string;
+    length?: string;
+    lengthUnit?: string;
+    width?: string;
+    widthUnit?: string;
+    height?: string;
+    heightUnit?: string;
+    volume?: string;
+    volumeUnit?: string;
+    minUnit?: string;
+    stepSize?: string;
+    packagingUnit?: string;
+    packagingUnitName?: string; // Presentación del producto
+    packagingPackageName?: string;
+    packagingPackageUnit?: string;
+    packagingAmountPerPackage?: string;
+    packagingBoxName?: string;
+    packagingBoxUnit?: string;
+    packagingAmountPerBox?: string;
+    packagingPalletName?: string;
+    packagingPalletUnit?: string;
+    packagingAmountPerPallet?: string;
+    originalRowIndex?: number;
+  }>): Promise<{
+    processedProducts: number;
+    newProducts: number;
+    updatedProducts: number;
+    skippedProducts: number;
+    errors: string[];
+  }> {
+    console.log(`🚀 Iniciando importación de ${csvData.length} productos`);
+    
+    const errors: string[] = [];
+    let processedProducts = 0;
+    let newProducts = 0;
+    let updatedProducts = 0;
+    let skippedProducts = 0;
+
+    for (const row of csvData) {
+      try {
+        // Validación extra de datos críticos
+        if (!row.productId || row.productId.length === 0) {
+          skippedProducts++;
+          errors.push(`Fila ${row.originalRowIndex}: productId vacío o inválido`);
+          continue;
+        }
+
+        if (!row.name || row.name.length === 0) {
+          skippedProducts++;
+          errors.push(`Fila ${row.originalRowIndex}: Nombre de producto vacío para productId ${row.productId}`);
+          continue;
+        }
+
+        console.log(`📦 Procesando producto: ${row.productId} (${row.name})`);
+
+        // Verificar si el producto existe
+        const existingProduct = await this.getProductByProductId(row.productId);
+        
+        if (!existingProduct) {
+          console.log(`➕ Creando nuevo producto: ${row.productId}`);
+          
+          // Crear nuevo producto
+          await db.insert(products).values({
+            productId: row.productId,
+            sku: row.productId, // Mantener por compatibilidad
+            name: row.name,
+            description: row.description || '',
+            category: row.category || '',
+            pricePerUnit: row.pricePerUnit ? parseFloat(row.pricePerUnit.replace(',', '.')) : null,
+            taxCode: row.taxCode || '',
+            taxName: row.taxName || '',
+            taxRate: row.taxRate ? parseFloat(row.taxRate.replace(',', '.')) : null,
+            weight: row.weight ? parseFloat(row.weight.replace(',', '.')) : null,
+            weightUnit: row.weightUnit || '',
+            length: row.length ? parseFloat(row.length.replace(',', '.')) : null,
+            lengthUnit: row.lengthUnit || '',
+            width: row.width ? parseFloat(row.width.replace(',', '.')) : null,
+            widthUnit: row.widthUnit || '',
+            height: row.height ? parseFloat(row.height.replace(',', '.')) : null,
+            heightUnit: row.heightUnit || '',
+            volume: row.volume ? parseFloat(row.volume.replace(',', '.')) : null,
+            volumeUnit: row.volumeUnit || '',
+            minUnit: row.minUnit ? parseFloat(row.minUnit.replace(',', '.')) : null,
+            stepSize: row.stepSize ? parseFloat(row.stepSize.replace(',', '.')) : null,
+            packagingUnit: row.packagingUnit || '',
+            packagingUnitName: row.packagingUnitName || '', // Presentación del producto
+            packagingPackageName: row.packagingPackageName || '',
+            packagingPackageUnit: row.packagingPackageUnit || '',
+            packagingAmountPerPackage: row.packagingAmountPerPackage ? parseFloat(row.packagingAmountPerPackage.replace(',', '.')) : null,
+            packagingBoxName: row.packagingBoxName || '',
+            packagingBoxUnit: row.packagingBoxUnit || '',
+            packagingAmountPerBox: row.packagingAmountPerBox ? parseFloat(row.packagingAmountPerBox.replace(',', '.')) : null,
+            packagingPalletName: row.packagingPalletName || '',
+            packagingPalletUnit: row.packagingPalletUnit || '',
+            packagingAmountPerPallet: row.packagingAmountPerPallet ? parseFloat(row.packagingAmountPerPallet.replace(',', '.')) : null,
+            active: true
+          });
+          
+          newProducts++;
+        } else {
+          console.log(`🔄 Actualizando producto existente: ${row.productId}`);
+          
+          // Actualizar producto existente (preservando precio manual si existe)
+          const updateData: any = {
+            name: row.name,
+            description: row.description || '',
+            category: row.category || '',
+            taxCode: row.taxCode || '',
+            taxName: row.taxName || '',
+            taxRate: row.taxRate ? parseFloat(row.taxRate.replace(',', '.')) : null,
+            weight: row.weight ? parseFloat(row.weight.replace(',', '.')) : null,
+            weightUnit: row.weightUnit || '',
+            length: row.length ? parseFloat(row.length.replace(',', '.')) : null,
+            lengthUnit: row.lengthUnit || '',
+            width: row.width ? parseFloat(row.width.replace(',', '.')) : null,
+            widthUnit: row.widthUnit || '',
+            height: row.height ? parseFloat(row.height.replace(',', '.')) : null,
+            heightUnit: row.heightUnit || '',
+            volume: row.volume ? parseFloat(row.volume.replace(',', '.')) : null,
+            volumeUnit: row.volumeUnit || '',
+            minUnit: row.minUnit ? parseFloat(row.minUnit.replace(',', '.')) : null,
+            stepSize: row.stepSize ? parseFloat(row.stepSize.replace(',', '.')) : null,
+            packagingUnit: row.packagingUnit || '',
+            packagingUnitName: row.packagingUnitName || '', // Presentación del producto
+            packagingPackageName: row.packagingPackageName || '',
+            packagingPackageUnit: row.packagingPackageUnit || '',
+            packagingAmountPerPackage: row.packagingAmountPerPackage ? parseFloat(row.packagingAmountPerPackage.replace(',', '.')) : null,
+            packagingBoxName: row.packagingBoxName || '',
+            packagingBoxUnit: row.packagingBoxUnit || '',
+            packagingAmountPerBox: row.packagingAmountPerBox ? parseFloat(row.packagingAmountPerBox.replace(',', '.')) : null,
+            packagingPalletName: row.packagingPalletName || '',
+            packagingPalletUnit: row.packagingPalletUnit || '',
+            packagingAmountPerPallet: row.packagingAmountPerPallet ? parseFloat(row.packagingAmountPerPallet.replace(',', '.')) : null,
+          };
+
+          // Solo actualizar el precio del CSV si no hay un precio manual establecido
+          if (!existingProduct.manualPrice && row.pricePerUnit) {
+            updateData.pricePerUnit = parseFloat(row.pricePerUnit.replace(',', '.'));
+          }
+
+          await db
+            .update(products)
+            .set(updateData)
+            .where(eq(products.productId, row.productId));
+          
+          updatedProducts++;
+        }
+        
+        processedProducts++;
+        
+        if (processedProducts % 50 === 0) {
+          console.log(`📈 Progreso: ${processedProducts} productos procesados`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ Error procesando producto ${row.productId} (Fila ${row.originalRowIndex}):`, error);
+        errors.push(`Fila ${row.originalRowIndex} - productId ${row.productId}: ${error instanceof Error ? error.message : String(error)}`);
+        skippedProducts++;
+      }
+    }
+
+    const summary = {
+      processedProducts,
+      newProducts,
+      updatedProducts,
+      skippedProducts,
+      errors
+    };
+
+    console.log(`🎉 Importación de productos completada:`, summary);
+    
+    return summary;
+  }
+
+  // Función auxiliar para obtener producto por productId
+  async getProductByProductId(productId: string): Promise<Product | undefined> {
+    const [product] = await db
+      .select()
+      .from(products)
+      .where(eq(products.productId, productId));
+    return product;
   }
 
   async getProductAnalytics(sku: string): Promise<{
