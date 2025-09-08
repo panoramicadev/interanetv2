@@ -226,12 +226,6 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
               case 'nopfpr':
               case 'nohfpr':
               case 'listacost':
-              case 'kofuendo': // Missing field added
-              case 'nobosuli': // Missing field added  
-              case 'nokozo': // Missing field added
-              case 'nosudo': // Missing field added
-              case 'nokofudo': // Missing field added
-              case 'nomrpr': // Missing field added
                 transaction[cleanHeader] = value.toString();
                 break;
                 
