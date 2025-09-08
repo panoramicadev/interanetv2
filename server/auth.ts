@@ -118,7 +118,7 @@ export function setupAuth(app: Express) {
         password: hashedPassword,
         firstName: validatedData.firstName,
         lastName: validatedData.lastName,
-        role: "user",
+        role: validatedData.role,
       };
 
       const user = await storage.createUser(userData);
