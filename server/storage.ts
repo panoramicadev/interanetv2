@@ -422,35 +422,21 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Calculate metrics using MONTO field - group by NUDO first to avoid double counting
-    const salesByNudo = await db
+    // Calculate metrics using MONTO field directly - sum all individual line items
+    const [metrics] = await db
       .select({
-        nudo: salesTransactions.nudo,
-        tido: salesTransactions.tido,
-        monto: salesTransactions.monto,
-        nokoen: salesTransactions.nokoen,
-        totalUnits: sql<number>`SUM(${salesTransactions.caprco2})`,
+        totalSales: sql<number>`COALESCE(SUM(
+          CASE 
+            WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.monto}
+            ELSE ${salesTransactions.monto}
+          END
+        ), 0)`,
+        totalTransactions: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
+        activeCustomers: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
       })
       .from(salesTransactions)
-      .where(whereClause)
-      .groupBy(salesTransactions.nudo, salesTransactions.tido, salesTransactions.monto, salesTransactions.nokoen);
-
-    // Calculate final metrics from grouped data
-    const totalSales = salesByNudo.reduce((sum, row) => {
-      const amount = row.tido === 'NCV' ? -Number(row.monto) : Number(row.monto);
-      return sum + amount;
-    }, 0);
-
-    const totalTransactions = new Set(salesByNudo.map(row => row.nudo)).size;
-    const activeCustomers = new Set(salesByNudo.map(row => row.nokoen)).size;
-    const totalUnits = salesByNudo.reduce((sum, row) => sum + Number(row.totalUnits), 0);
-
-    const metrics = {
-      totalSales,
-      totalTransactions,
-      totalUnits,
-      activeCustomers,
-    };
+      .where(whereClause);
 
     return {
       totalSales: Number(metrics.totalSales),
