@@ -353,7 +353,6 @@ export class DatabaseStorage implements IStorage {
     
     console.log(`🔄 Processed ${transactions.length} sales transactions - ALL IMPORTED`);
   }
-  }
 
   async getSalesTransactions(filters: {
     startDate?: string;
