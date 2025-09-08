@@ -1790,6 +1790,9 @@ export class DatabaseStorage implements IStorage {
       
       return {
         ...product,
+        // Asegurar campos compatibles con frontend
+        pricePerUnit: product.manualPrice || product.pricePerUnit,
+        packagingUnitName: product.packagingUnitName,
         totalStock,
         warehouses
       };

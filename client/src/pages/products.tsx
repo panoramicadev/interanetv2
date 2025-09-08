@@ -20,10 +20,12 @@ interface Product {
   id: string;
   sku: string;
   name: string;
-  unit1: string;
-  unit2: string;
-  unitRatio: string;
-  price: string;
+  unit1?: string;
+  unit2?: string;
+  unitRatio?: string;
+  price?: string;
+  pricePerUnit?: string;
+  packagingUnitName?: string;
   active: boolean;
   totalStock?: number;
   warehouses?: string[];
@@ -435,6 +437,7 @@ export default function ProductsPage() {
                     <TableRow>
                       <TableHead>SKU</TableHead>
                       <TableHead>Nombre</TableHead>
+                      <TableHead>Presentación</TableHead>
                       <TableHead>Precio</TableHead>
                       <TableHead>Stock</TableHead>
                       <TableHead>Bodegas</TableHead>
@@ -450,8 +453,13 @@ export default function ProductsPage() {
                           {product.name}
                         </TableCell>
                         <TableCell>
-                          <span className={!product.price || parseFloat(product.price) === 0 ? "text-muted-foreground" : ""}>
-                            {formatPrice(product.price)}
+                          <Badge variant="outline" className="text-xs">
+                            {product.packagingUnitName || product.unit1 || 'UN'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className={!product.pricePerUnit || parseFloat(product.pricePerUnit) === 0 ? "text-muted-foreground" : ""}>
+                            {formatPrice(product.pricePerUnit || product.price)}
                           </span>
                         </TableCell>
                         <TableCell>{formatStock(product.totalStock)}</TableCell>
