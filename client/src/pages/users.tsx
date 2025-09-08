@@ -39,7 +39,7 @@ export default function UsersPage() {
   ];
 
   const handleLogout = () => {
-    window.location.href = "/api/logout";
+    window.location.href = "/login";
   };
 
   const getInitials = (name?: string) => {
