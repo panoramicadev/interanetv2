@@ -142,6 +142,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const insertSalesTransactionSchema = z.object({
   nudo: z.string(),
   feemdo: z.string(),
+  tido: z.string().optional().nullable(), // CRITICAL: Document type for NCV logic
   koprct: z.string().optional().nullable(),
   nokoen: z.string().optional().nullable(),
   noruen: z.string().optional().nullable(),
