@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { useState } from "react";
 import { Link } from "wouter";
+import TransactionDetailModal from "./transaction-detail-modal";
 
 interface Transaction {
   id: string;
@@ -36,6 +37,13 @@ interface TransactionsTableProps {
 
 export default function TransactionsTable({ selectedPeriod, filterType, salespersonFilter }: TransactionsTableProps) {
   const [limit] = useState(10);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleTransactionClick = (transaction: Transaction) => {
+    setSelectedTransaction(transaction);
+    setIsModalOpen(true);
+  };
   
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: [`/api/sales/transactions?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
@@ -175,8 +183,10 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
                     return (
                       <TableRow 
                         key={transaction.id}
-                        className="border-b border-gray-50 hover:bg-gray-50/50"
+                        className="border-b border-gray-50 hover:bg-blue-50/50 cursor-pointer transition-colors"
                         data-testid={`transaction-${transaction.id}`}
+                        onClick={() => handleTransactionClick(transaction)}
+                        title="Haz clic para ver los detalles completos"
                       >
                         <TableCell className="py-4">
                           <div className="flex items-center space-x-3">
@@ -203,7 +213,14 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
                           {timeAgo}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-gray-900">
-                          {transaction.vanedo ? formatCurrency(Number(transaction.vanedo)) : '$0'}
+                          <div className="flex items-center justify-end gap-2">
+                            <span>
+                              {transaction.vanedo ? formatCurrency(Number(transaction.vanedo)) : '$0'}
+                            </span>
+                            <span className="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                              Ver detalles →
+                            </span>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -213,6 +230,19 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
             </Table>
           </div>
       </div>
+
+      {/* Modal de Detalles */}
+      {selectedTransaction && (
+        <TransactionDetailModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedTransaction(null);
+          }}
+          transactionId={selectedTransaction.id}
+          nudo={selectedTransaction.nudo}
+        />
+      )}
     </div>
   );
 }
