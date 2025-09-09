@@ -244,14 +244,16 @@ export default function Dashboard() {
             />
           </div>
           
-          {/* Goals Progress Dashboard */}
-          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            <GoalsProgress 
-              globalFilter={globalFilter}
-              onFilterChange={setGlobalFilter}
-              selectedPeriod={selectedPeriod}
-            />
-          </div>
+          {/* Goals Progress Dashboard - Solo mostrar para meses completos */}
+          {filterType === "month" && (
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <GoalsProgress 
+                globalFilter={globalFilter}
+                onFilterChange={setGlobalFilter}
+                selectedPeriod={selectedPeriod}
+              />
+            </div>
+          )}
           
           {/* Primary Analytics - Sales Chart Full Width */}
           <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
