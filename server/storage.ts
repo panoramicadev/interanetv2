@@ -75,6 +75,11 @@ export interface IStorage {
     totalSales: number;
     percentage: number;
   }>>;
+  getSegmentAnalysisByUniqueClients(startDate?: string, endDate?: string): Promise<Array<{
+    segment: string;
+    uniqueClients: number;
+    percentage: number;
+  }>>;
   getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
     period: string;
     sales: number;
@@ -2824,6 +2829,34 @@ export class DatabaseStorage implements IStorage {
       console.error('[ERROR] Failed to invalidate user sessions:', error);
       throw error;
     }
+  }
+
+  // Segment analysis by unique clients (instead of sales volume)
+  async getSegmentAnalysisByUniqueClients(startDate?: string, endDate?: string) {
+    let query = db
+      .select({
+        segment: salesTransactions.segmento,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${salesTransactions.cliente})`,
+      })
+      .from(salesTransactions)
+      .where(
+        and(
+          startDate ? gte(salesTransactions.fecha, startDate) : undefined,
+          endDate ? lte(salesTransactions.fecha, endDate) : undefined
+        )
+      )
+      .groupBy(salesTransactions.segmento);
+
+    const segments = await query;
+    
+    // Calculate total unique clients across all segments for percentage
+    const totalUniqueClients = segments.reduce((sum, segment) => sum + Number(segment.uniqueClients), 0);
+    
+    return segments.map(segment => ({
+      segment: segment.segment,
+      uniqueClients: Number(segment.uniqueClients),
+      percentage: totalUniqueClients > 0 ? (Number(segment.uniqueClients) / totalUniqueClients) * 100 : 0
+    })).sort((a, b) => b.uniqueClients - a.uniqueClients);
   }
 
 }
