@@ -174,6 +174,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/salesperson/:salespersonId/dashboard', requireAuth, async (req, res) => {
     try {
       const { salespersonId } = req.params;
+      const { period, filterType = "month" } = req.query;
       
       // Obtener el nombre del vendedor por su ID
       const user = await storage.getSalespersonUser(salespersonId);
@@ -183,15 +184,22 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "Vendedor no encontrado" });
       }
 
-      // Obtener métricas específicas del vendedor
+      // Obtener rango de fechas
+      const dateRange = getDateRange(period as string, filterType as string);
+
+      // Obtener métricas específicas del vendedor con filtros de fecha
       const metrics = await storage.getSalesMetrics({
         salesperson: salespersonName,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
       });
 
-      // Obtener transacciones recientes del vendedor
+      // Obtener transacciones recientes del vendedor con filtros de fecha
       const transactions = await storage.getSalesTransactions({
         salesperson: salespersonName,
         limit: 10,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
       });
 
       // Datos específicos del vendedor
@@ -208,6 +216,49 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching salesperson dashboard:", error);
       res.status(500).json({ message: "Failed to fetch salesperson dashboard" });
+    }
+  });
+
+  // Clients específicos del vendedor por ID
+  app.get('/api/salesperson/:salespersonId/clients', requireAuth, async (req, res) => {
+    try {
+      const { salespersonId } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      // Obtener el nombre del vendedor por su ID
+      const user = await storage.getSalespersonUser(salespersonId);
+      const salespersonName = user?.salespersonName;
+      
+      if (!salespersonName) {
+        return res.status(404).json({ message: "Vendedor no encontrado" });
+      }
+
+      const clients = await storage.getSalespersonClients(salespersonName, period as string, filterType as string);
+      res.json(clients);
+    } catch (error) {
+      console.error("Error fetching salesperson clients:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson clients" });
+    }
+  });
+
+  // Goals específicas del vendedor por ID
+  app.get('/api/salesperson/:salespersonId/goals', requireAuth, async (req, res) => {
+    try {
+      const { salespersonId } = req.params;
+      
+      // Obtener el nombre del vendedor por su ID
+      const user = await storage.getSalespersonUser(salespersonId);
+      const salespersonName = user?.salespersonName;
+      
+      if (!salespersonName) {
+        return res.status(404).json({ message: "Vendedor no encontrado" });
+      }
+
+      const goals = await storage.getGoalsBySalesperson(salespersonName);
+      res.json(goals);
+    } catch (error) {
+      console.error("Error fetching salesperson goals:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson goals" });
     }
   });
 
