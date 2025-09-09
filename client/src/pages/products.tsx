@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import Sidebar from "@/components/dashboard/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -263,11 +262,7 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar onImportClick={() => setShowImportDialog(true)} />
-      
-      <div className="lg:ml-64 transition-all duration-300">
-        <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestión de Productos</h1>
@@ -669,8 +664,6 @@ export default function ProductsPage() {
           </div>
         </DialogContent>
       </Dialog>
-        </div>
-      </div>
     </div>
   );
 }
