@@ -750,19 +750,19 @@ export default function UsersPage() {
       </Dialog>
 
         {/* Filters and Summary Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           <div className="lg:col-span-2">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Users className="w-5 h-5 mr-2" />
+              <CardHeader className="p-3 sm:p-4 lg:p-6">
+                <CardTitle className="flex items-center text-sm sm:text-base">
+                  <Users className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   Filtros de Usuario
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row gap-4">
+              <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
+                <div className="flex flex-col gap-3 sm:gap-4">
                   <div className="flex-1">
-                    <label className="text-sm font-medium mb-2 block">Filtrar por rol</label>
+                    <label className="text-xs sm:text-sm font-medium mb-2 block">Filtrar por rol</label>
                     <Select value={roleFilter} onValueChange={setRoleFilter}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona un rol" />
@@ -791,22 +791,22 @@ export default function UsersPage() {
           
           <div>
             <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Resumen</CardTitle>
+              <CardHeader className="p-3 sm:p-4 lg:p-6">
+                <CardTitle className="text-xs sm:text-sm">Resumen</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+              <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
+                <div className="space-y-2 sm:space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Total usuarios:</span>
-                    <Badge variant="outline">{salespeopleUsers.length}</Badge>
+                    <span className="text-xs sm:text-sm text-muted-foreground">Total usuarios:</span>
+                    <Badge variant="outline" className="text-xs">{salespeopleUsers.length}</Badge>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Usuarios activos:</span>
-                    <Badge variant="default">{salespeopleUsers.filter(u => u.isActive).length}</Badge>
+                    <span className="text-xs sm:text-sm text-muted-foreground">Usuarios activos:</span>
+                    <Badge variant="default" className="text-xs">{salespeopleUsers.filter(u => u.isActive).length}</Badge>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Usuarios inactivos:</span>
-                    <Badge variant="destructive">{salespeopleUsers.filter(u => !u.isActive).length}</Badge>
+                    <span className="text-xs sm:text-sm text-muted-foreground">Usuarios inactivos:</span>
+                    <Badge variant="destructive" className="text-xs">{salespeopleUsers.filter(u => !u.isActive).length}</Badge>
                   </div>
                 </div>
               </CardContent>
@@ -816,89 +816,168 @@ export default function UsersPage() {
 
       {/* Users Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Lista de Usuarios</CardTitle>
-          <CardDescription>
+        <CardHeader className="p-3 sm:p-4 lg:p-6">
+          <CardTitle className="text-lg sm:text-xl">Lista de Usuarios</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
             Gestiona los usuarios y sus permisos de acceso
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                <span className="text-muted-foreground">Cargando usuarios...</span>
+                <span className="text-muted-foreground text-sm">Cargando usuarios...</span>
               </div>
             </div>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Usuario</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Rol</TableHead>
-                    <TableHead>Supervisor</TableHead>
-                    <TableHead>Segmento</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>{user.salespersonName}</TableCell>
-                      <TableCell>{user.username || "Sin usuario"}</TableCell>
-                      <TableCell>{user.email || "Sin email"}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.role === 'admin' || user.role === 'supervisor' ? 'default' : 'secondary'}>
-                          {user.role === 'admin' ? 'Administrador' : 
-                           user.role === 'supervisor' ? 'Supervisor' :
-                           user.role === 'client' ? 'Cliente' : 'Vendedor'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{getSupervisorName(user.supervisorId)}</TableCell>
-                      <TableCell>
-                        <span className={!user.assignedSegment ? "text-blue-600 font-medium" : ""}>
-                          {getSegmentSuggestion(user.assignedSegment)}
-                        </span>
-                        {!user.assignedSegment && segmentsData[0] && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Sugerencia: {segmentsData[0].segment} (Top ventas)
+            <>
+              {/* Desktop Table */}
+              <div className="hidden lg:block rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Usuario</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Rol</TableHead>
+                      <TableHead>Supervisor</TableHead>
+                      <TableHead>Segmento</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>{user.salespersonName}</TableCell>
+                        <TableCell>{user.username || "Sin usuario"}</TableCell>
+                        <TableCell>{user.email || "Sin email"}</TableCell>
+                        <TableCell>
+                          <Badge variant={user.role === 'admin' || user.role === 'supervisor' ? 'default' : 'secondary'}>
+                            {user.role === 'admin' ? 'Administrador' : 
+                             user.role === 'supervisor' ? 'Supervisor' :
+                             user.role === 'client' ? 'Cliente' : 'Vendedor'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{getSupervisorName(user.supervisorId)}</TableCell>
+                        <TableCell>
+                          <span className={!user.assignedSegment ? "text-blue-600 font-medium" : ""}>
+                            {getSegmentSuggestion(user.assignedSegment)}
+                          </span>
+                          {!user.assignedSegment && segmentsData[0] && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Sugerencia: {segmentsData[0].segment} (Top ventas)
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={user.isActive ? 'default' : 'destructive'}>
+                            {user.isActive ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(user)}
+                              data-testid={`button-edit-${user.id}`}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDelete(user.id)}
+                              data-testid={`button-delete-${user.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={user.isActive ? 'default' : 'destructive'}>
-                          {user.isActive ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Mobile Cards */}
+              <div className="lg:hidden space-y-3">
+                {filteredUsers.map((user) => (
+                  <Card key={user.id} className="border border-gray-200">
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        {/* Header */}
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm truncate">{user.salespersonName}</h3>
+                            <p className="text-xs text-muted-foreground">{user.username || "Sin usuario"}</p>
+                          </div>
+                          <div className="flex items-center space-x-2 ml-2">
+                            <Badge variant={user.isActive ? 'default' : 'destructive'} className="text-xs">
+                              {user.isActive ? 'Activo' : 'Inactivo'}
+                            </Badge>
+                          </div>
+                        </div>
+                        
+                        {/* Details */}
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-muted-foreground">Email:</span>
+                            <p className="font-medium truncate">{user.email || "Sin email"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Rol:</span>
+                            <div className="mt-1">
+                              <Badge variant={user.role === 'admin' || user.role === 'supervisor' ? 'default' : 'secondary'} className="text-xs">
+                                {user.role === 'admin' ? 'Admin' : 
+                                 user.role === 'supervisor' ? 'Supervisor' :
+                                 user.role === 'client' ? 'Cliente' : 'Vendedor'}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Supervisor:</span>
+                            <p className="font-medium text-xs">{getSupervisorName(user.supervisorId)}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Segmento:</span>
+                            <p className={`font-medium text-xs ${!user.assignedSegment ? "text-blue-600" : ""}`}>
+                              {getSegmentSuggestion(user.assignedSegment)}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="flex justify-end space-x-2 pt-2 border-t">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleEdit(user)}
                             data-testid={`button-edit-${user.id}`}
+                            className="text-xs px-2 py-1"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="w-3 h-3 mr-1" />
+                            Editar
                           </Button>
                           <Button
                             variant="destructive"
                             size="sm"
                             onClick={() => handleDelete(user.id)}
                             data-testid={`button-delete-${user.id}`}
+                            className="text-xs px-2 py-1"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            Eliminar
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
