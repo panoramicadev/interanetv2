@@ -1088,12 +1088,48 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(salesTransactions.noruen, segmentName)];
 
     // Apply date filters if period is provided
-    if (period && filterType === 'month') {
-      // Period format: YYYY-MM
-      const [year, month] = period.split('-');
-      conditions.push(
-        sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
-      );
+    if (period) {
+      switch (filterType) {
+        case 'day':
+          // Period format: YYYY-MM-DD
+          conditions.push(
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
+          );
+          break;
+        case 'month':
+          // Period format: YYYY-MM
+          if (period === 'current-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+            );
+          } else if (period === 'last-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+            );
+          } else {
+            const [year, month] = period.split('-');
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+            );
+          }
+          break;
+        case 'range':
+          if (period.includes('_')) {
+            const [startDate, endDate] = period.split('_');
+            conditions.push(
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
+            );
+          } else if (period === 'last-30-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+            );
+          } else if (period === 'last-7-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+            );
+          }
+          break;
+      }
     }
 
     const result = await db
@@ -1130,12 +1166,48 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(salesTransactions.noruen, segmentName)];
 
     // Apply date filters if period is provided
-    if (period && filterType === 'month') {
-      // Period format: YYYY-MM
-      const [year, month] = period.split('-');
-      conditions.push(
-        sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
-      );
+    if (period) {
+      switch (filterType) {
+        case 'day':
+          // Period format: YYYY-MM-DD
+          conditions.push(
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
+          );
+          break;
+        case 'month':
+          // Period format: YYYY-MM
+          if (period === 'current-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+            );
+          } else if (period === 'last-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+            );
+          } else {
+            const [year, month] = period.split('-');
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+            );
+          }
+          break;
+        case 'range':
+          if (period.includes('_')) {
+            const [startDate, endDate] = period.split('_');
+            conditions.push(
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
+            );
+          } else if (period === 'last-30-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+            );
+          } else if (period === 'last-7-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+            );
+          }
+          break;
+      }
     }
 
     const result = await db
@@ -1172,11 +1244,49 @@ export class DatabaseStorage implements IStorage {
   }> {
     const conditions = [eq(salesTransactions.nokofu, salespersonName)];
 
-    if (period && filterType === 'month') {
-      const [year, month] = period.split('-');
-      conditions.push(
-        sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
-      );
+    // Apply date filters if period is provided
+    if (period) {
+      switch (filterType) {
+        case 'day':
+          // Period format: YYYY-MM-DD
+          conditions.push(
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
+          );
+          break;
+        case 'month':
+          // Period format: YYYY-MM
+          if (period === 'current-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+            );
+          } else if (period === 'last-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+            );
+          } else {
+            const [year, month] = period.split('-');
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+            );
+          }
+          break;
+        case 'range':
+          if (period.includes('_')) {
+            const [startDate, endDate] = period.split('_');
+            conditions.push(
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
+            );
+          } else if (period === 'last-30-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+            );
+          } else if (period === 'last-7-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+            );
+          }
+          break;
+      }
     }
 
     const [result] = await db
@@ -1216,11 +1326,49 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [eq(salesTransactions.nokofu, salespersonName)];
 
-    if (period && filterType === 'month') {
-      const [year, month] = period.split('-');
-      conditions.push(
-        sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
-      );
+    // Apply date filters if period is provided
+    if (period) {
+      switch (filterType) {
+        case 'day':
+          // Period format: YYYY-MM-DD
+          conditions.push(
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
+          );
+          break;
+        case 'month':
+          // Period format: YYYY-MM
+          if (period === 'current-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+            );
+          } else if (period === 'last-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+            );
+          } else {
+            const [year, month] = period.split('-');
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+            );
+          }
+          break;
+        case 'range':
+          if (period.includes('_')) {
+            const [startDate, endDate] = period.split('_');
+            conditions.push(
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
+            );
+          } else if (period === 'last-30-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+            );
+          } else if (period === 'last-7-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+            );
+          }
+          break;
+      }
     }
 
     const result = await db
