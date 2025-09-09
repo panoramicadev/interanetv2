@@ -497,13 +497,13 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
                 <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
                   <div className="p-2 sm:p-0">
                     <div className="text-xs text-muted-foreground mb-1">Actual</div>
-                    <div className="text-xs sm:text-sm font-semibold text-foreground break-words">
+                    <div className="text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap overflow-hidden">
                       {formatCurrency(goal.currentSales)}
                     </div>
                   </div>
                   <div className="p-2 sm:p-0">
                     <div className="text-xs text-muted-foreground mb-1">Meta</div>
-                    <div className="text-xs sm:text-sm font-semibold text-foreground break-words">
+                    <div className="text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap overflow-hidden">
                       {formatCurrency(goal.targetAmount)}
                     </div>
                   </div>
@@ -511,7 +511,7 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
                     <div className="text-xs text-muted-foreground mb-1">
                       {goal.isCompleted ? "Excedente" : "Falta"}
                     </div>
-                    <div className={`text-xs sm:text-sm font-semibold break-words ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
+                    <div className={`text-xs sm:text-sm font-semibold whitespace-nowrap overflow-hidden ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
                       {goal.isCompleted ? "✓" : formatCurrency(goal.remaining)}
                     </div>
                   </div>
