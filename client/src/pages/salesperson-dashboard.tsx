@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TransactionsTable from "@/components/dashboard/transactions-table";
+import TopProductsChart from "@/components/dashboard/top-products-chart";
 import NotificationsPanel from "@/components/dashboard/notifications-panel";
 import { 
   TrendingUp, 
@@ -395,13 +396,22 @@ export default function SalespersonDashboard() {
           </Card>
         )}
 
-        {/* Gráfico de Ventas */}
-        <div className="modern-card p-5 lg:p-6 hover-lift">
-          <SalesChart 
-            selectedPeriod={selectedPeriod} 
-            filterType={filterType}
-            salespersonFilter={user?.salespersonName}
-          />
+        {/* Gráfico de Ventas y Top Productos */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <SalesChart 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+              salespersonFilter={user?.salespersonName}
+            />
+          </div>
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <TopProductsChart 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+              salespersonFilter={user?.salespersonName}
+            />
+          </div>
         </div>
 
         {/* Tabla de Transacciones */}
