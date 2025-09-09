@@ -142,6 +142,8 @@ export function registerRoutes(app: Express): Server {
         previousMonthCustomers: previousMetrics.totalTransactions > 0 ? previousMetrics.activeCustomers : undefined,
       };
       
+      console.log(`[DEBUG] Datos enviados al frontend:`, JSON.stringify(metricsWithComparison, null, 2));
+      
       res.json(metricsWithComparison);
     } catch (error) {
       console.error("Error fetching sales metrics:", error);
