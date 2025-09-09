@@ -868,7 +868,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTransactionDetails(transactionId: string) {
-    const [transaction] = await this.db
+    const [transaction] = await db
       .select()
       .from(salesTransactions)
       .where(eq(salesTransactions.id, transactionId));

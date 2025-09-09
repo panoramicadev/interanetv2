@@ -15,7 +15,7 @@ interface TopProductsChartProps {
 
 export default function TopProductsChart({ selectedPeriod, filterType, salespersonFilter }: TopProductsChartProps) {
   const { data: topProducts, isLoading } = useQuery<TopProduct[]>({
-    queryKey: [`/api/sales/top-products?limit=5&period=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
+    queryKey: [`/api/sales/top-products`, `limit=5`, `period=${selectedPeriod}`, `filterType=${filterType}`, salespersonFilter ? `salesperson=${encodeURIComponent(salespersonFilter)}` : null].filter(Boolean),
   });
 
   const formatCurrency = (value: number) => {

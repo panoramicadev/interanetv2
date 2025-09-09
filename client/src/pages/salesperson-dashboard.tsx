@@ -83,19 +83,19 @@ export default function SalespersonDashboard() {
   }, [isAuthenticated, isLoading, toast]);
 
   const { data: salespersonData, isLoading: loadingSalesperson } = useQuery({
-    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/dashboard?period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: !!user && (!!user.salespersonName || !!user.id),
+    queryKey: [`/api/salesperson/${user?.id}/dashboard?period=${selectedPeriod}&filterType=${filterType}`],
+    enabled: !!user?.id,
     staleTime: 300000, // 5 minutos
   });
 
   const { data: clientsData, isLoading: loadingClients } = useQuery({
-    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/clients?period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: !!user && (!!user.salespersonName || !!user.id),
+    queryKey: [`/api/salesperson/${user?.id}/clients?period=${selectedPeriod}&filterType=${filterType}`],
+    enabled: !!user?.id,
   });
 
   const { data: goalsData, isLoading: loadingGoals } = useQuery({
-    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/goals?period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: !!user && (!!user.salespersonName || !!user.id),
+    queryKey: [`/api/salesperson/${user?.id}/goals?period=${selectedPeriod}&filterType=${filterType}`],
+    enabled: !!user?.id,
   });
 
   if (isLoading || loadingSalesperson || loadingClients || loadingGoals) {
