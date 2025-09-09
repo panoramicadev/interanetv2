@@ -254,12 +254,12 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
     );
   }
 
-  // Separate global goals from specific goals
-  const globalGoals = filteredGoals.filter(goal => goal.type === 'global');
-  const specificGoals = filteredGoals.filter(goal => goal.type !== 'global');
-  
   // When we have a specific filter (segment/salesperson), treat all goals as full-width
   const shouldShowFullWidth = globalFilter.type !== "all" && globalFilter.value;
+
+  // Separate global goals from specific goals
+  const globalGoals = filteredGoals?.filter(goal => goal.type === 'global') || [];
+  const specificGoals = filteredGoals?.filter(goal => goal.type !== 'global') || [];
 
   return (
     <div className="space-y-6">
