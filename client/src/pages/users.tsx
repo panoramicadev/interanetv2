@@ -342,35 +342,68 @@ export default function UsersPage() {
                     )}
                   />
                   
-                  {/* Dropdown para Vendedores */}
+                  {/* Campos específicos para vendedores */}
                   {createForm.watch("role") === "salesperson" && (
-                    <FormField
-                      control={createForm.control}
-                      name="salespersonName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Seleccionar Vendedor</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-salesperson-name">
-                                <SelectValue placeholder="Selecciona un vendedor" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {availableSalespeople
-                                .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
-                                .map((salesperson) => (
-                                  <SelectItem key={salesperson} value={salesperson}>
-                                    {salesperson}
+                    <div className="space-y-4 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                        <h4 className="font-medium text-blue-900">Configuración de Vendedor</h4>
+                      </div>
+                      
+                      <FormField
+                        control={createForm.control}
+                        name="salespersonName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Seleccionar Vendedor</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-salesperson-name">
+                                  <SelectValue placeholder="Selecciona un vendedor" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {availableSalespeople
+                                  .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
+                                  .map((salesperson) => (
+                                    <SelectItem key={salesperson} value={salesperson}>
+                                      {salesperson}
+                                    </SelectItem>
+                                  ))
+                                }
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={createForm.control}
+                        name="supervisorId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Supervisor Asignado</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value ?? "none"}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-supervisor">
+                                  <SelectValue placeholder="Selecciona un supervisor" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="none">Sin supervisor</SelectItem>
+                                {availableSupervisors.map((supervisor) => (
+                                  <SelectItem key={supervisor.id} value={supervisor.id}>
+                                    {supervisor.salespersonName}
                                   </SelectItem>
-                                ))
-                              }
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   )}
                   
                   {/* Dropdown para Clientes */}
@@ -450,33 +483,6 @@ export default function UsersPage() {
                       </FormItem>
                     )}
                   />
-                  {createForm.watch("role") === "salesperson" && (
-                    <FormField
-                      control={createForm.control}
-                      name="supervisorId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Supervisor</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value ?? undefined}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-supervisor">
-                                <SelectValue placeholder="Selecciona un supervisor" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="none">Sin supervisor</SelectItem>
-                              {availableSupervisors.map((supervisor) => (
-                                <SelectItem key={supervisor.id} value={supervisor.id}>
-                                  {supervisor.salespersonName}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
                   <FormField
                     control={createForm.control}
                     name="username"

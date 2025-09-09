@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Edit, Plus, Target, TrendingUp, Users, Building } from "lucide-react";
+import { Trash2, Edit, Plus, Target, TrendingUp, Users, Building, ChevronDown, ChevronRight, Calendar } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Goal } from "@shared/schema";
 
 export default function Metas() {
@@ -33,6 +34,43 @@ export default function Metas() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>(
     new Date().toISOString().slice(0, 7) // Default to current month
   );
+
+  // Expanded periods state for collapsible sections
+  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set([
+    new Date().toISOString().slice(0, 7) // Auto-expand current month
+  ]));
+
+  const togglePeriod = (period: string) => {
+    const newExpanded = new Set(expandedPeriods);
+    if (newExpanded.has(period)) {
+      newExpanded.delete(period);
+    } else {
+      newExpanded.add(period);
+    }
+    setExpandedPeriods(newExpanded);
+  };
+
+  // Group goals by period
+  const groupGoalsByPeriod = (goals: Goal[]) => {
+    const grouped = goals.reduce((acc, goal) => {
+      const period = goal.period;
+      if (!acc[period]) {
+        acc[period] = [];
+      }
+      acc[period].push(goal);
+      return acc;
+    }, {} as Record<string, Goal[]>);
+
+    // Sort periods in descending order (newest first)
+    const sortedPeriods = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+    
+    return sortedPeriods.map(period => ({
+      period,
+      goals: grouped[period],
+      totalAmount: grouped[period].reduce((sum, goal) => sum + parseFloat(goal.amount), 0),
+      goalCount: grouped[period].length
+    }));
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -99,6 +137,9 @@ export default function Metas() {
     },
     enabled: !!user, // Only fetch when user is loaded
   });
+
+  // Group goals by period (after all hooks are declared)
+  const groupedGoals = goals ? groupGoalsByPeriod(goals) : [];
   
   // Debug the progress data
   console.log('[DEBUG] Metas page progressData:', progressData);
@@ -472,8 +513,8 @@ export default function Metas() {
             </Card>
           )}
 
-          {/* Goals List */}
-          <div className="grid grid-cols-1 gap-4">
+          {/* Goals List Grouped by Period */}
+          <div className="space-y-4">
             {goalsLoading ? (
               <Card>
                 <CardContent className="p-6">
@@ -483,64 +524,114 @@ export default function Metas() {
                   </div>
                 </CardContent>
               </Card>
-            ) : goals && goals.length > 0 ? (
-              goals.map((goal) => (
-                <Card key={goal.id}>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                          {getTypeIcon(goal.type)}
-                          <Badge variant="secondary">
-                            {getTypeLabel(goal.type)}
-                          </Badge>
-                        </div>
-                        
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <h3 className="font-semibold">
-                              {goal.type === 'global' 
-                                ? 'Meta Global' 
-                                : `${getTypeLabel(goal.type)}: ${goal.target}`
-                              }
-                            </h3>
-                            <span className="text-sm text-muted-foreground">
-                              {goal.period}
-                            </span>
-                          </div>
-                          <p className="text-2xl font-bold text-primary">
-                            {formatCurrency(parseFloat(goal.amount))}
-                          </p>
-                          {goal.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {goal.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+            ) : groupedGoals && groupedGoals.length > 0 ? (
+              groupedGoals.map((periodGroup) => {
+                const isExpanded = expandedPeriods.has(periodGroup.period);
+                const periodDate = new Date(periodGroup.period + '-01');
+                const monthName = periodDate.toLocaleDateString('es-ES', { 
+                  month: 'long', 
+                  year: 'numeric' 
+                });
 
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(goal)}
-                          data-testid={`button-edit-${goal.id}`}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(goal.id)}
-                          data-testid={`button-delete-${goal.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                return (
+                  <Card key={periodGroup.period} className="overflow-hidden">
+                    <Collapsible 
+                      open={isExpanded} 
+                      onOpenChange={() => togglePeriod(periodGroup.period)}
+                    >
+                      <CollapsibleTrigger className="w-full">
+                        <CardHeader className="hover:bg-muted/50 transition-colors cursor-pointer">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2">
+                                <Calendar className="h-5 w-5 text-primary" />
+                                <h3 className="text-xl font-bold capitalize">
+                                  {monthName}
+                                </h3>
+                              </div>
+                              <Badge variant="outline" className="text-sm">
+                                {periodGroup.goalCount} meta{periodGroup.goalCount > 1 ? 's' : ''}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <div className="text-right">
+                                <p className="text-sm text-muted-foreground">Total Meta</p>
+                                <p className="text-xl font-bold text-primary">
+                                  {formatCurrency(periodGroup.totalAmount)}
+                                </p>
+                              </div>
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      
+                      <CollapsibleContent>
+                        <CardContent className="pt-0">
+                          <div className="grid grid-cols-1 gap-3">
+                            {periodGroup.goals.map((goal) => (
+                              <Card key={goal.id} className="border-l-4 border-l-primary">
+                                <CardContent className="p-4">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-4">
+                                      <div className="flex items-center space-x-2">
+                                        {getTypeIcon(goal.type)}
+                                        <Badge variant="secondary" className="text-xs">
+                                          {getTypeLabel(goal.type)}
+                                        </Badge>
+                                      </div>
+                                      
+                                      <div>
+                                        <h4 className="font-semibold">
+                                          {goal.type === 'global' 
+                                            ? 'Meta Global' 
+                                            : `${getTypeLabel(goal.type)}: ${goal.target}`
+                                          }
+                                        </h4>
+                                        <p className="text-lg font-bold text-primary">
+                                          {formatCurrency(parseFloat(goal.amount))}
+                                        </p>
+                                        {goal.description && (
+                                          <p className="text-sm text-muted-foreground mt-1">
+                                            {goal.description}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex space-x-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleEdit(goal)}
+                                        data-testid={`button-edit-${goal.id}`}
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDelete(goal.id)}
+                                        data-testid={`button-delete-${goal.id}`}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </Card>
+                );
+              })
             ) : (
               <Card>
                 <CardContent className="p-6 text-center">
