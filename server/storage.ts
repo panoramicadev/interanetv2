@@ -485,13 +485,13 @@ export class DatabaseStorage implements IStorage {
       const existingIds = await db
         .select({ idmaeedo: salesTransactions.idmaeedo })
         .from(salesTransactions)
-        .where(inArray(salesTransactions.idmaeedo, batchIds));
+        .where(inArray(salesTransactions.idmaeedo, batchIds.map(id => id ? id.toString() : null).filter(Boolean)));
       
       const existingIdSet = new Set(existingIds.map(row => row.idmaeedo?.toString()));
       
       // Filter out transactions with existing IDMAEEDO
       const newTransactions = batch.filter(transaction => 
-        !existingIdSet.has(transaction.idmaeedo?.toString())
+        !existingIdSet.has(transaction.idmaeedo?.toString() || '')
       );
       
       const batchSkipped = batch.length - newTransactions.length;
@@ -2175,7 +2175,7 @@ export class DatabaseStorage implements IStorage {
     let query = db.select({
       id: products.id,
       sku: products.sku,
-      productId: products.productId,
+      kopr: products.kopr,
       name: products.name,
       category: products.category,
       packagingUnit: products.packagingUnit,
@@ -2597,14 +2597,14 @@ export class DatabaseStorage implements IStorage {
         console.log(`📦 Procesando producto: ${row.productId} - ${row.name} - Precio: ${row.pricePerUnit}`);
 
         // Verificar si el producto existe
-        const existingProduct = await this.getProductByProductId(row.productId);
+        const existingProduct = await this.getProduct(row.productId);
         
         if (!existingProduct) {
           console.log(`➕ Creando nuevo producto: ${row.productId}`);
           
           // Crear nuevo producto
           await db.insert(products).values({
-            productId: row.productId,
+            kopr: row.productId,
             sku: row.productId, // Mantener por compatibilidad
             name: row.name,
             description: row.description || '',
@@ -3013,15 +3013,15 @@ export class DatabaseStorage implements IStorage {
 
     const results = await db
       .select({
-        productId: salesTransactions.productId,
-        productName: salesTransactions.productName,
+        productId: salesTransactions.koprct,
+        productName: salesTransactions.nokoprct,
         totalSales: sql<number>`SUM(${salesTransactions.monto})::numeric`,
-        totalQuantity: sql<number>`SUM(${salesTransactions.cantidad})::numeric`,
+        totalQuantity: sql<number>`SUM(${salesTransactions.caprco2})::numeric`,
         salesCount: sql<number>`COUNT(*)`,
       })
       .from(salesTransactions)
-      .where(inArray(salesTransactions.vendedor, salespeopleNames))
-      .groupBy(salesTransactions.productId, salesTransactions.productName)
+      .where(inArray(salesTransactions.nokofu, salespeopleNames))
+      .groupBy(salesTransactions.koprct, salesTransactions.nokoprct)
       .orderBy(desc(sql`SUM(${salesTransactions.monto})`))
       .limit(limit);
 
@@ -3058,17 +3058,17 @@ export class DatabaseStorage implements IStorage {
         totalTransactions: sql<number>`COUNT(*)`,
       })
       .from(salesTransactions)
-      .where(inArray(salesTransactions.vendedor, salespeopleNames));
+      .where(inArray(salesTransactions.nokofu, salespeopleNames));
 
     // Mejor performer (vendedor con más ventas)
     const bestPerformerQuery = await db
       .select({
-        vendedor: salesTransactions.vendedor,
+        vendedor: salesTransactions.nokofu,
         totalSales: sql<number>`SUM(${salesTransactions.monto})::numeric`,
       })
       .from(salesTransactions)
-      .where(inArray(salesTransactions.vendedor, salespeopleNames))
-      .groupBy(salesTransactions.vendedor)
+      .where(inArray(salesTransactions.nokofu, salespeopleNames))
+      .groupBy(salesTransactions.nokofu)
       .orderBy(desc(sql`SUM(${salesTransactions.monto})`))
       .limit(1);
 
@@ -3110,17 +3110,17 @@ export class DatabaseStorage implements IStorage {
   // Segment analysis by unique clients (instead of sales volume)
   async getSegmentAnalysisByUniqueClients(startDate?: string, endDate?: string) {
     const whereConditions = [];
-    if (startDate) whereConditions.push(gte(salesTransactions.fecha, startDate));
-    if (endDate) whereConditions.push(lte(salesTransactions.fecha, endDate));
+    if (startDate) whereConditions.push(gte(salesTransactions.feemdo, startDate));
+    if (endDate) whereConditions.push(lte(salesTransactions.feemdo, endDate));
 
     const query = db
       .select({
-        segment: salesTransactions.segmento,
-        uniqueClients: sql<number>`COUNT(DISTINCT ${salesTransactions.cliente})`,
+        segment: salesTransactions.noruen,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
       })
       .from(salesTransactions)
       .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
-      .groupBy(salesTransactions.segmento);
+      .groupBy(salesTransactions.noruen);
 
     const segments = await query;
     
