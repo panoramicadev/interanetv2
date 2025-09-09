@@ -137,75 +137,75 @@ export default function SegmentDetail() {
         </header>
 
         {/* Main Content */}
-        <main className="p-4 lg:p-6 space-y-4 lg:space-y-6">
+        <main className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Total Ventas</p>
-                  <p className="text-xl lg:text-2xl font-bold text-green-600" data-testid="text-total-sales">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Total Ventas</p>
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-green-600 truncate" data-testid="text-total-sales">
                     {formatCurrency(totalSales)}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center ml-4">
-                  <DollarSign className="w-6 h-6 text-green-600" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-green-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
+                  <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-green-600" />
                 </div>
               </div>
             </div>
 
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Clientes / Vendedores</p>
-                  <p className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="text-total-clients">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Clientes / Vendedores</p>
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-blue-600 truncate" data-testid="text-total-clients">
                     {formatNumber(totalClients)} / {formatNumber(totalSalespeople)}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center ml-4">
-                  <Users className="w-6 h-6 text-blue-600" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-blue-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
+                  <Users className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-blue-600" />
                 </div>
               </div>
             </div>
 
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Transacciones</p>
-                  <p className="text-xl lg:text-2xl font-bold text-purple-600" data-testid="text-total-transactions">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Transacciones</p>
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-purple-600 truncate" data-testid="text-total-transactions">
                     {formatNumber(totalTransactions)}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center ml-4">
-                  <ShoppingCart className="w-6 h-6 text-purple-600" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-purple-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
+                  <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-purple-600" />
                 </div>
               </div>
             </div>
 
-            <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Ticket Promedio</p>
-                  <p className="text-xl lg:text-2xl font-bold text-orange-600" data-testid="text-average-ticket">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Ticket Promedio</p>
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-orange-600 truncate" data-testid="text-average-ticket">
                     {formatCurrency(averageTicket)}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center ml-4">
-                  <TrendingUp className="w-6 h-6 text-orange-600" />
+                <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-orange-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
+                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-orange-600" />
                 </div>
               </div>
             </div>
           </div>
 
           {/* Data Tables */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
             {/* Top Clients Table */}
-            <div className="modern-card p-5 lg:p-6 hover-lift">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Users className="h-5 w-5 text-blue-600" />
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">Top Clientes del Segmento</h2>
+                <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Clientes del Segmento</h2>
               </div>
               
               <div className="space-y-3">
@@ -245,12 +245,12 @@ export default function SegmentDetail() {
             </div>
 
             {/* Top Salespeople Table */}
-            <div className="modern-card p-5 lg:p-6 hover-lift">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <UserCheck className="h-5 w-5 text-blue-600" />
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">Top Vendedores del Segmento</h2>
+                <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Vendedores del Segmento</h2>
               </div>
               
               <div className="space-y-3">
