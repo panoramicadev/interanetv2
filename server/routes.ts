@@ -1383,7 +1383,7 @@ export function registerRoutes(app: Express): Server {
   app.put('/api/products/:sku/price', requireAuth, async (req: any, res) => {
     try {
       const { sku } = req.params;
-      const { price, offerPrice, reason } = req.body;
+      const { price, offerPrice, showInStore, reason } = req.body;
       
       if (!price || isNaN(price)) {
         return res.status(400).json({ message: "Valid price is required" });
@@ -1398,6 +1398,7 @@ export function registerRoutes(app: Express): Server {
         sku, 
         parseFloat(price), 
         offerPrice ? parseFloat(offerPrice) : undefined,
+        showInStore,
         userId, 
         reason
       );

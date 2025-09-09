@@ -2302,6 +2302,7 @@ export class DatabaseStorage implements IStorage {
         sku: product.kopr, // Frontend espera 'sku'
         price: product.priceProduct?.toString() || "0", // Frontend espera 'price'
         offerPrice: product.priceOffer?.toString() || null, // Precio de oferta
+        showInStore: product.showInStore || false, // Mostrar en tienda
         totalStock,
         warehouses
       };
@@ -2336,7 +2337,7 @@ export class DatabaseStorage implements IStorage {
     return updatedProduct;
   }
 
-  async updateProductPrice(kopr: string, newPrice: number, newOfferPrice?: number, changedBy: string, reason?: string): Promise<Product> {
+  async updateProductPrice(kopr: string, newPrice: number, newOfferPrice?: number, showInStore?: boolean, changedBy: string, reason?: string): Promise<Product> {
     // Get current product
     const currentProduct = await this.getProduct(kopr);
     if (!currentProduct) {
@@ -2354,6 +2355,10 @@ export class DatabaseStorage implements IStorage {
     
     if (newOfferPrice !== undefined) {
       updateData.priceOffer = newOfferPrice > 0 ? newOfferPrice.toString() : null;
+    }
+    
+    if (showInStore !== undefined) {
+      updateData.showInStore = showInStore;
     }
 
     const [updatedProduct] = await db
