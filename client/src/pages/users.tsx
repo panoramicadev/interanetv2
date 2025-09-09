@@ -50,6 +50,12 @@ export default function UsersPage() {
     enabled: user?.role === 'admin',
   });
 
+  // Filtrar usuarios según el filtro seleccionado
+  const filteredUsers = salespeopleUsers.filter((userData) => {
+    if (roleFilter === "todos") return true;
+    return userData.role === roleFilter;
+  });
+
   // Query para obtener vendedores disponibles
   const { data: availableSalespeople = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/salespeople"],
@@ -257,18 +263,16 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-card border-b border-border px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Gestión de Usuarios</h1>
-            <p className="text-muted-foreground">
-              Administra las cuentas de acceso de los vendedores al sistema
-            </p>
-          </div>
-          <div>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
+          <p className="text-muted-foreground">
+            Administra las cuentas de acceso de los vendedores al sistema
+          </p>
+        </div>
+        <div>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-create-user">
                 <Plus className="w-4 h-4 mr-2" />
@@ -817,25 +821,105 @@ export default function UsersPage() {
           </Form>
         </DialogContent>
       </Dialog>
-          </div>
         </div>
-        
-        {/* Users Table Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="h-5 w-5" />
-              <span>Lista de Usuarios</span>
-            </CardTitle>
-            <CardDescription>
-              Gestiona los usuarios del sistema y sus permisos
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Add the rest of the users table here */}
-          </CardContent>
-        </Card>
-      </header>
+      </div>
+
+      {/* Filters Section */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filtrar por rol" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los roles</SelectItem>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="supervisor">Supervisor</SelectItem>
+                  <SelectItem value="salesperson">Vendedor</SelectItem>
+                  <SelectItem value="client">Cliente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Users Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Usuarios</CardTitle>
+          <CardDescription>
+            Gestiona los usuarios y sus permisos de acceso
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <span>Cargando usuarios...</span>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Usuario</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Rol</TableHead>
+                    <TableHead>Supervisor</TableHead>
+                    <TableHead>Segmento</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>{user.salespersonName}</TableCell>
+                      <TableCell>{user.username || "Sin usuario"}</TableCell>
+                      <TableCell>{user.email || "Sin email"}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                          {user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{user.supervisorId || "Sin supervisor"}</TableCell>
+                      <TableCell>{user.assignedSegment || "Sin segmento"}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.isActive ? 'default' : 'destructive'}>
+                          {user.isActive ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(user)}
+                            data-testid={`button-edit-${user.id}`}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(user.id)}
+                            data-testid={`button-delete-${user.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

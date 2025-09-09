@@ -90,15 +90,15 @@ export default function Metas() {
   console.log('[DEBUG] Metas page user role:', user?.role);
   console.log('[DEBUG] Metas page isLoading:', progressLoading);
 
-  // Fetch segments and salespeople for form selectors (only for admin)
+  // Fetch segments and salespeople for form selectors (admin and supervisor)
   const { data: segments } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
-    enabled: user?.role === 'admin', // Only load for admin users
+    enabled: user?.role === 'admin' || user?.role === 'supervisor', // Load for admin and supervisor users
   });
 
   const { data: salespeople } = useQuery<string[]>({
     queryKey: ["/api/goals/data/salespeople"],
-    enabled: user?.role === 'admin', // Only load for admin users
+    enabled: user?.role === 'admin' || user?.role === 'supervisor', // Load for admin and supervisor users
   });
 
   // Create goal mutation
@@ -285,8 +285,8 @@ export default function Metas() {
               </p>
             </div>
             
-            {/* Only show create button for admin users */}
-            {user?.role === 'admin' && (
+            {/* Show create button for admin and supervisor users */}
+            {(user?.role === 'admin' || user?.role === 'supervisor') && (
               <Button 
                 onClick={() => {
                   setShowCreateForm(true);
@@ -311,8 +311,8 @@ export default function Metas() {
             goalsData={user?.role !== 'admin' ? progressData : undefined}
             isLoading={user?.role !== 'admin' ? progressLoading : undefined}
           />
-          {/* Create/Edit Form - Only for admin users */}
-          {showCreateForm && user?.role === 'admin' && (
+          {/* Create/Edit Form - For admin and supervisor users */}
+          {showCreateForm && (user?.role === 'admin' || user?.role === 'supervisor') && (
             <Card>
               <CardHeader>
                 <CardTitle>
@@ -511,10 +511,12 @@ export default function Metas() {
                   <p className="text-muted-foreground mb-4">
                     Comienza creando tu primera meta de ventas
                   </p>
-                  <Button onClick={() => setShowCreateForm(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Crear Primera Meta
-                  </Button>
+                  {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                    <Button onClick={() => setShowCreateForm(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Crear Primera Meta
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             )}
