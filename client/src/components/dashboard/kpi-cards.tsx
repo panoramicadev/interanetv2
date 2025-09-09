@@ -12,6 +12,10 @@ interface SalesMetrics {
   totalTransactions: number;
   totalUnits: number;
   activeCustomers: number;
+  previousMonthSales?: number;
+  previousMonthTransactions?: number;
+  previousMonthUnits?: number;
+  previousMonthCustomers?: number;
 }
 
 interface KPICardsProps {
@@ -50,9 +54,11 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
     );
   }
 
-  // Calculate percentage changes vs previous month
-  const calculateChange = (current: number, previous: number) => {
-    if (!previous || previous === 0) return { text: "Sin datos previos", color: "text-gray-500" };
+  // Calculate percentage changes vs previous period
+  const calculateChange = (current: number, previous: number | undefined) => {
+    if (previous === undefined || previous === null || previous === 0) {
+      return { text: "Sin datos previos", color: "text-gray-500" };
+    }
     
     const change = ((current - previous) / previous) * 100;
     const sign = change >= 0 ? "+" : "";
@@ -64,10 +70,10 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
     };
   };
 
-  const salesChange = calculateChange(metrics?.totalSales || 0, metrics?.previousMonthSales || 0);
-  const transactionsChange = calculateChange(metrics?.totalTransactions || 0, metrics?.previousMonthTransactions || 0);
-  const unitsChange = calculateChange(metrics?.totalUnits || 0, metrics?.previousMonthUnits || 0);
-  const customersChange = calculateChange(metrics?.activeCustomers || 0, metrics?.previousMonthCustomers || 0);
+  const salesChange = calculateChange(metrics?.totalSales || 0, metrics?.previousMonthSales);
+  const transactionsChange = calculateChange(metrics?.totalTransactions || 0, metrics?.previousMonthTransactions);
+  const unitsChange = calculateChange(metrics?.totalUnits || 0, metrics?.previousMonthUnits);
+  const customersChange = calculateChange(metrics?.activeCustomers || 0, metrics?.previousMonthCustomers);
 
   const kpis = [
     {
