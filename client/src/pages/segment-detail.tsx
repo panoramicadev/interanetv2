@@ -101,34 +101,36 @@ export default function SegmentDetail() {
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <Sidebar onImportClick={() => setShowImportDialog(true)} />
       <div className="flex-1 lg:ml-64 transition-all duration-300">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
-          <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
-            <div>
-              <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
-                <Link href="/" className="hover:text-blue-600 transition-colors">
+        {/* Header - Optimized for Mobile */}
+        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
+          <div className="flex flex-col space-y-2 sm:space-y-3 lg:space-y-0 lg:flex-row lg:items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <nav className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2">
+                <Link href="/" className="hover:text-blue-600 transition-colors truncate">
                   Dashboard
                 </Link>
-                <span>›</span>
-                <span>Segmento</span>
-                <span>›</span>
-                <span className="font-medium text-gray-900">{segmentName}</span>
+                <span className="text-xs">›</span>
+                <span className="hidden sm:inline">Segmento</span>
+                <span className="hidden sm:inline text-xs">›</span>
+                <span className="font-medium text-gray-900 truncate">{segmentName}</span>
               </nav>
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
-                Análisis de Segmento: {segmentName}
+              <h1 className="text-lg sm:text-xl lg:text-3xl font-bold text-gray-900 truncate">
+                {segmentName}
               </h1>
-              <p className="text-gray-600 text-base lg:text-lg">
+              <p className="text-gray-600 text-xs sm:text-sm lg:text-lg hidden sm:block">
                 Análisis detallado de clientes para el período actual
               </p>
             </div>
-            <Link href="/">
+            <Link href="/" className="self-start lg:self-center">
               <Button 
                 variant="outline" 
-                className="rounded-xl border-gray-200 shadow-sm"
+                size="sm"
+                className="rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
                 data-testid="button-back-dashboard"
               >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver al Dashboard
+                <ArrowLeft className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Volver al Dashboard</span>
+                <span className="sm:hidden">Volver</span>
               </Button>
             </Link>
           </div>
