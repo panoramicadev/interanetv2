@@ -50,12 +50,31 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
     );
   }
 
+  // Calculate percentage changes vs previous month
+  const calculateChange = (current: number, previous: number) => {
+    if (!previous || previous === 0) return { text: "Sin datos previos", color: "text-gray-500" };
+    
+    const change = ((current - previous) / previous) * 100;
+    const sign = change >= 0 ? "+" : "";
+    const color = change >= 0 ? "text-green-600" : "text-red-600";
+    
+    return {
+      text: `${sign}${change.toFixed(1)}% vs mes anterior`,
+      color
+    };
+  };
+
+  const salesChange = calculateChange(metrics?.totalSales || 0, metrics?.previousMonthSales || 0);
+  const transactionsChange = calculateChange(metrics?.totalTransactions || 0, metrics?.previousMonthTransactions || 0);
+  const unitsChange = calculateChange(metrics?.totalUnits || 0, metrics?.previousMonthUnits || 0);
+  const customersChange = calculateChange(metrics?.activeCustomers || 0, metrics?.previousMonthCustomers || 0);
+
   const kpis = [
     {
       title: "Ventas Totales",
       value: formatCurrency(metrics?.totalSales || 0),
-      change: "+12.5% vs mes anterior",
-      changeColor: "text-green-600",
+      change: salesChange.text,
+      changeColor: salesChange.color,
       icon: DollarSign,
       bgColor: "bg-green-100 dark:bg-green-900/20",
       iconColor: "text-green-600",
@@ -64,8 +83,8 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
     {
       title: "Transacciones",
       value: formatNumber(metrics?.totalTransactions || 0),
-      change: "+8.2% vs mes anterior",
-      changeColor: "text-blue-600",
+      change: transactionsChange.text,
+      changeColor: transactionsChange.color,
       icon: ShoppingCart,
       bgColor: "bg-blue-100 dark:bg-blue-900/20",
       iconColor: "text-blue-600",
@@ -74,8 +93,8 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
     {
       title: "Unidades Vendidas",
       value: formatNumber(metrics?.totalUnits || 0),
-      change: "+15.8% vs mes anterior",
-      changeColor: "text-orange-600",
+      change: unitsChange.text,
+      changeColor: unitsChange.color,
       icon: Package,
       bgColor: "bg-orange-100 dark:bg-orange-900/20",
       iconColor: "text-orange-600",
@@ -84,8 +103,8 @@ export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) 
     {
       title: "Clientes Activos",
       value: formatNumber(metrics?.activeCustomers || 0),
-      change: "+5.9% vs mes anterior",
-      changeColor: "text-purple-600",
+      change: customersChange.text,
+      changeColor: customersChange.color,
       icon: Users,
       bgColor: "bg-purple-100 dark:bg-purple-900/20",
       iconColor: "text-purple-600",

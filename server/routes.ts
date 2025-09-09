@@ -82,13 +82,45 @@ export function registerRoutes(app: Express): Server {
       const { startDate, endDate, salesperson, segment, period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
+      const currentStartDate = (startDate as string) || dateRange.startDate;
+      const currentEndDate = (endDate as string) || dateRange.endDate;
+      
+      // Calculate previous month dates
+      const currentStart = new Date(currentStartDate);
+      const currentEnd = new Date(currentEndDate);
+      const previousStart = new Date(currentStart);
+      const previousEnd = new Date(currentEnd);
+      
+      // Set previous month dates
+      previousStart.setMonth(previousStart.getMonth() - 1);
+      previousEnd.setMonth(previousEnd.getMonth() - 1);
+      
+      // Get current period metrics
       const metrics = await storage.getSalesMetrics({
-        startDate: (startDate as string) || dateRange.startDate,
-        endDate: (endDate as string) || dateRange.endDate,
+        startDate: currentStartDate,
+        endDate: currentEndDate,
         salesperson: salesperson as string,
         segment: segment as string,
       });
-      res.json(metrics);
+      
+      // Get previous period metrics for comparison
+      const previousMetrics = await storage.getSalesMetrics({
+        startDate: previousStart.toISOString().split('T')[0],
+        endDate: previousEnd.toISOString().split('T')[0],
+        salesperson: salesperson as string,
+        segment: segment as string,
+      });
+      
+      // Add previous month data for comparison
+      const metricsWithComparison = {
+        ...metrics,
+        previousMonthSales: previousMetrics.totalSales,
+        previousMonthTransactions: previousMetrics.totalTransactions,
+        previousMonthUnits: previousMetrics.totalUnits,
+        previousMonthCustomers: previousMetrics.activeCustomers,
+      };
+      
+      res.json(metricsWithComparison);
     } catch (error) {
       console.error("Error fetching sales metrics:", error);
       res.status(500).json({ message: "Failed to fetch sales metrics" });
