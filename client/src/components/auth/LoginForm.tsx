@@ -16,11 +16,7 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
-interface LoginFormProps {
-  onSwitchToRegister: () => void;
-}
-
-export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
+export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const { loginMutation } = useAuth();
 
@@ -112,18 +108,6 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           </form>
         </Form>
 
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            ¿No tienes cuenta?{" "}
-            <button
-              onClick={onSwitchToRegister}
-              className="text-blue-600 hover:text-blue-800 font-medium"
-              data-testid="link-register"
-            >
-              Crear cuenta
-            </button>
-          </p>
-        </div>
       </CardContent>
     </Card>
   );

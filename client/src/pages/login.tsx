@@ -1,11 +1,8 @@
-import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { RegisterForm } from "@/components/auth/RegisterForm";
 import { Redirect } from "wouter";
 
 export default function Login() {
-  const [isRegistering, setIsRegistering] = useState(false);
   const { user, isLoading } = useAuth();
 
   // Redirect if already logged in
@@ -36,11 +33,7 @@ export default function Login() {
           </p>
         </div>
 
-        {isRegistering ? (
-          <RegisterForm onSwitchToLogin={() => setIsRegistering(false)} />
-        ) : (
-          <LoginForm onSwitchToRegister={() => setIsRegistering(true)} />
-        )}
+        <LoginForm />
 
         <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
           <p>🔒 Sistema seguro con autenticación profesional</p>
