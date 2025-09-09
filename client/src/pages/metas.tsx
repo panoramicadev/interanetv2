@@ -282,13 +282,13 @@ export default function Metas() {
     <div className="min-h-screen bg-background">
       <div>
         {/* Header */}
-        <header className="bg-card border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">
+        <header className="bg-card border-b border-border px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground">
                 {user?.role === 'supervisor' ? 'Mis Metas' : user?.role === 'salesperson' ? 'Mis Metas' : 'Gestión de Metas'}
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground text-xs sm:text-sm">
                 {user?.role === 'supervisor' 
                   ? 'Metas de tu segmento asignado y vendedores bajo tu supervisión'
                   : user?.role === 'salesperson'
@@ -307,8 +307,10 @@ export default function Metas() {
                   resetForm();
                 }}
                 data-testid="button-create-goal"
+                className="text-sm w-full sm:w-auto"
+                size="sm"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                 Nueva Meta
               </Button>
             )}
@@ -316,18 +318,18 @@ export default function Metas() {
         </header>
 
         {/* Main Content */}
-        <main className="p-6 space-y-6">
+        <main className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6">
           {/* Create/Edit Form - For admin and supervisor users */}
           {showCreateForm && (user?.role === 'admin' || user?.role === 'supervisor') && (
             <Card>
-              <CardHeader>
-                <CardTitle>
+              <CardHeader className="p-3 sm:p-4 lg:p-6">
+                <CardTitle className="text-lg sm:text-xl">
                   {editingGoal ? 'Editar Meta' : 'Crear Nueva Meta'}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <CardContent className="p-3 sm:p-4 lg:p-6 pt-0">
+                <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <Label htmlFor="type">Tipo de Meta</Label>
                       <Select 
