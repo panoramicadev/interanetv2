@@ -176,21 +176,8 @@ export default function ProductsPage() {
 
   // Import CSV mutation
   const importMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('csvFile', file);
-      
-      const response = await fetch('/api/products/import-products-csv', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to import CSV');
-      }
-      
-      return response.json();
+    mutationFn: async (csvData: any[]) => {
+      await apiRequest("POST", "/api/products/import-products-csv", { products: csvData });
     },
     onSuccess: (data: { result: ImportResult }) => {
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
