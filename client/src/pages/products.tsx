@@ -179,16 +179,16 @@ export default function ProductsPage() {
     mutationFn: async (csvData: any[]) => {
       await apiRequest("POST", "/api/products/import-products-csv", { products: csvData });
     },
-    onSuccess: (data: { result: ImportResult }) => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       queryClient.invalidateQueries({ queryKey: ['/api/warehouses'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouses/stock-summary'] });
       setShowImportDialog(false);
       setImportFile(null);
       
-      const { result } = data;
       toast({
         title: "Importación completada",
-        description: `Se procesaron ${result.processedProducts} productos. ${result.newProducts} nuevos productos creados.`,
+        description: `Se procesaron ${data.result.processedProducts} productos. ${data.result.newProducts} nuevos productos y ${data.result.newWarehouses} bodegas creadas.`,
       });
     },
     onError: (error) => {

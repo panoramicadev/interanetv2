@@ -2242,12 +2242,12 @@ export class DatabaseStorage implements IStorage {
     warehouseCode?: string;
     limit?: number;
     offset?: number;
-  }): Promise<Array<Product & { totalStock?: number; warehouses?: string[] }>> {
+  }): Promise<Array<Product & { sku?: string; price?: string; totalStock?: number; warehouses?: string[] }>> {
     const conditions = [];
     
     if (filters?.search) {
       conditions.push(
-        sql`(${products.sku} ILIKE ${`%${filters.search}%`} OR ${products.name} ILIKE ${`%${filters.search}%`})`
+        sql`(${products.kopr} ILIKE ${`%${filters.search}%`} OR ${products.name} ILIKE ${`%${filters.search}%`})`
       );
     }
     
@@ -2257,9 +2257,9 @@ export class DatabaseStorage implements IStorage {
     
     if (filters?.hasPrices !== undefined) {
       if (filters.hasPrices) {
-        conditions.push(sql`(${products.manualPrice} IS NOT NULL AND ${products.manualPrice} != '0') OR (${products.pricePerUnit} IS NOT NULL AND ${products.pricePerUnit} != '0')`);
+        conditions.push(sql`${products.priceProduct} IS NOT NULL AND ${products.priceProduct} != '0'`);
       } else {
-        conditions.push(sql`(${products.manualPrice} IS NULL OR ${products.manualPrice} = '0') AND (${products.pricePerUnit} IS NULL OR ${products.pricePerUnit} = '0')`);
+        conditions.push(sql`${products.priceProduct} IS NULL OR ${products.priceProduct} = '0'`);
       }
     }
 
@@ -2287,7 +2287,7 @@ export class DatabaseStorage implements IStorage {
         physicalStock2: productStock.physicalStock2,
         availableStock1: productStock.availableStock1,
         availableStock2: productStock.availableStock2
-      }).from(productStock).where(eq(productStock.productSku, product.sku));
+      }).from(productStock).where(eq(productStock.kopr, product.kopr));
       
       const totalStock = stocks.reduce((sum, stock) => {
         return sum + (Number(stock.availableStock1) || 0) + (Number(stock.availableStock2) || 0);
@@ -2298,9 +2298,9 @@ export class DatabaseStorage implements IStorage {
       
       return {
         ...product,
-        // Asegurar campos compatibles con frontend
-        pricePerUnit: product.manualPrice || product.pricePerUnit,
-        packagingUnitName: product.packagingUnitName,
+        // Mapear campos para compatibilidad con frontend
+        sku: product.kopr, // Frontend espera 'sku'
+        price: product.priceProduct?.toString() || "0", // Frontend espera 'price'
         totalStock,
         warehouses
       };
