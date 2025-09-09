@@ -165,15 +165,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </nav>
           
           {/* Footer */}
-          <div className="p-6 border-t border-slate-700/50">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+          <div className="p-4 lg:p-6 border-t border-slate-700/50">
+            <div className="flex items-center space-x-2 lg:space-x-3 mb-3 lg:mb-4">
+              {/* Hide avatar on mobile, show on desktop */}
+              <div className="hidden lg:flex w-8 h-8 rounded-full bg-slate-700 items-center justify-center">
                 <span className="text-xs font-medium text-white">
                   {getInitials(user?.firstName, user?.lastName)}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
+                <p className="text-xs lg:text-sm font-medium text-white truncate">
                   {getDisplayName(user?.firstName, user?.lastName)}
                 </p>
                 <p className="text-xs text-slate-400">{getRoleTitle(user?.role)}</p>
@@ -182,11 +183,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <Button 
               variant="ghost" 
               size="sm" 
-              className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
+              className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 text-xs lg:text-sm"
               onClick={handleLogout}
               data-testid="logout-button"
             >
-              <LogOut className="w-4 h-4 mr-3" />
+              <LogOut className="w-3 h-3 lg:w-4 lg:h-4 mr-2 lg:mr-3" />
               Cerrar Sesión
             </Button>
           </div>
