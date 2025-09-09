@@ -196,11 +196,11 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-            <span className="text-sm font-medium text-blue-600">📋</span>
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+            <span className="text-xs sm:text-sm font-medium text-blue-600">📋</span>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Ventas Recientes</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Ventas Recientes</h2>
         </div>
         <Button variant="outline" size="sm" className="text-gray-600 border-gray-300 hover:bg-gray-50" data-testid="button-view-all">
           Últimas 24h ▼
@@ -211,11 +211,11 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-gray-100">
-                  <TableHead className="text-sm font-medium text-gray-500 py-4">Cliente</TableHead>
-                  <TableHead className="text-sm font-medium text-gray-500">Vendedor</TableHead>
-                  <TableHead className="text-sm font-medium text-gray-500">ID Cliente</TableHead>
-                  <TableHead className="text-sm font-medium text-gray-500">Tiempo</TableHead>
-                  <TableHead className="text-sm font-medium text-gray-500 text-right">Monto</TableHead>
+                  <TableHead className="text-xs sm:text-sm font-medium text-gray-500 py-3 sm:py-4">Cliente</TableHead>
+                  <TableHead className="text-xs sm:text-sm font-medium text-gray-500 px-2 sm:px-4">Vendedor</TableHead>
+                  <TableHead className="text-xs sm:text-sm font-medium text-gray-500">ID</TableHead>
+                  <TableHead className="text-xs sm:text-sm font-medium text-gray-500">Tiempo</TableHead>
+                  <TableHead className="text-xs sm:text-sm font-medium text-gray-500 text-right">Monto</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -245,35 +245,36 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
                           onClick={() => toggleSaleExpansion(sale.nudo)}
                           title="Haz clic para ver las transacciones de esta venta"
                         >
-                          <TableCell className="py-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
+                          <TableCell className="py-3 sm:py-4">
+                            <div className="flex items-center space-x-2 sm:space-x-3">
+                              {/* Hide avatar on mobile, show on desktop */}
+                              <div className="hidden sm:flex w-10 h-10 bg-gray-600 rounded-full items-center justify-center">
                                 <span className="text-white text-sm font-medium">
                                   {getInitials(sale.customerName)}
                                 </span>
                               </div>
-                              <div>
-                                <div className="font-medium text-gray-900">{sale.customerName}</div>
-                                <div className="text-sm text-gray-500">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-gray-900 text-sm sm:text-base truncate">{sale.customerName}</div>
+                                <div className="text-xs sm:text-sm text-gray-500">
                                   {sale.transactionCount} transacción{sale.transactionCount > 1 ? 'es' : ''}
                                 </div>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${salesperson.color}`}>
-                              {salesperson.name}
+                          <TableCell className="px-2 sm:px-4">
+                            <span className={`inline-flex px-1.5 sm:px-2 py-1 text-xs font-medium rounded-full ${salesperson.color} max-w-full`}>
+                              <span className="truncate">{salesperson.name}</span>
                             </span>
                           </TableCell>
-                          <TableCell className="text-gray-600 font-medium">
-                            #{sale.nudo}
+                          <TableCell className="text-gray-600 font-medium text-xs sm:text-sm">
+                            <span className="hidden sm:inline">#</span>{sale.nudo}
                           </TableCell>
-                          <TableCell className="text-gray-500 text-sm">
+                          <TableCell className="text-gray-500 text-xs sm:text-sm">
                             {timeAgo}
                           </TableCell>
                           <TableCell className="text-right font-semibold text-gray-900">
-                            <div className="flex items-center justify-end gap-2">
-                              <span>
+                            <div className="flex items-center justify-end gap-1 sm:gap-2">
+                              <span className="text-sm sm:text-base">
                                 {formatCurrency(sale.totalAmount)}
                               </span>
                               <span className="text-xs text-blue-600">
