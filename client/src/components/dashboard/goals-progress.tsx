@@ -316,15 +316,15 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
   const specificGoals = filteredGoals?.filter(goal => goal.type !== 'global') || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header with Filter */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <Target className="h-6 w-6 text-primary" />
+      <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center justify-between">
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <Target className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Progreso de Metas</h2>
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground">Progreso de Metas</h2>
             {globalFilter.type !== "all" && globalFilter.value && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Filtrando por {globalFilter.type === "segment" ? "segmento" : "vendedor"}: 
                 <span className="font-medium ml-1">{globalFilter.value}</span>
               </p>
@@ -333,8 +333,8 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
         </div>
         
         {/* Elegant Filter Dropdown */}
-        <div className="flex items-center space-x-3">
-          <Filter className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <Filter className="h-4 w-4 text-muted-foreground hidden sm:block" />
           <Select 
             value={selectedFilter} 
             onValueChange={(value) => {
@@ -346,7 +346,7 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
               }
             }}
           >
-            <SelectTrigger className="w-48 bg-card border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+            <SelectTrigger className="w-full sm:w-48 bg-card border border-border/50 shadow-sm hover:shadow-md transition-shadow text-sm">
               <SelectValue placeholder="Filtrar dashboard" />
             </SelectTrigger>
             <SelectContent className="border border-border/50 shadow-lg">
@@ -388,7 +388,7 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
                 });
               }}
             >
-              <SelectTrigger className="w-56 bg-card border border-border/50 shadow-sm">
+              <SelectTrigger className="w-full sm:w-56 bg-card border border-border/50 shadow-sm text-sm">
                 <SelectValue placeholder={
                   selectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"
                 } />
@@ -441,25 +441,25 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
             
             return (
               <Card key={goal.id} className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-3">
-                    <Target className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground">Meta Global - {goal.period}</h3>
+                <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-2 sm:space-y-0">
+                  <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                    <Target className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base sm:text-lg font-semibold text-foreground truncate">Meta Global - {goal.period}</h3>
                       {goal.description && (
-                        <p className="text-sm text-muted-foreground">{goal.description}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{goal.description}</p>
                       )}
                     </div>
                   </div>
                   {goal.isCompleted ? (
-                    <div className="flex items-center space-x-2 text-green-600">
-                      <CheckCircle className="h-5 w-5" />
-                      <span className="text-sm font-medium">Completada</span>
+                    <div className="flex items-center space-x-2 text-green-600 self-start sm:self-center">
+                      <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <span className="text-xs sm:text-sm font-medium">Completada</span>
                     </div>
                   ) : (
-                    <div className="text-right">
-                      <div className="text-xl font-bold text-foreground">
+                    <div className="text-left sm:text-right">
+                      <div className="text-lg sm:text-xl font-bold text-foreground">
                         {goal.percentage.toFixed(1)}%
                       </div>
                       <div className="text-xs text-muted-foreground">progreso</div>
@@ -468,15 +468,15 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
                 </div>
 
                 {/* Proyección y Mensaje Motivacional */}
-                <div className={`mb-4 p-3 rounded-lg border ${message.bgColor}`}>
-                  <div className="flex items-center space-x-3">
-                    <MessageIcon className={`h-5 w-5 ${message.color}`} />
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${message.color}`}>
+                <div className={`mb-4 p-3 sm:p-4 rounded-lg border ${message.bgColor}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                    <MessageIcon className={`h-4 w-4 sm:h-5 sm:w-5 ${message.color} shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs sm:text-sm font-medium ${message.color} leading-relaxed`}>
                         {message.text}
                       </p>
                       {!goal.isCompleted && (
-                        <div className="text-xs text-muted-foreground mt-1">
+                        <div className="text-xs text-muted-foreground mt-2 leading-relaxed">
                           Tiempo transcurrido: {projection.timeProgress.toFixed(1)}% • Proyección: {formatCurrency(projection.projectedSales)}
                         </div>
                       )}
@@ -485,33 +485,33 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
                 </div>
 
                 {/* Compact Progress Bar */}
-                <div className="space-y-2 mb-3">
+                <div className="space-y-2 mb-4">
                   <Progress 
                     value={goal.percentage} 
-                    className="h-2"
+                    className="h-2 sm:h-3"
                     data-testid={`progress-global-${goal.id}`}
                   />
                 </div>
 
-                {/* Compact Stats */}
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Actual</div>
-                    <div className="text-sm font-semibold text-foreground">
+                {/* Mobile-Optimized Stats */}
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
+                  <div className="p-2 sm:p-0">
+                    <div className="text-xs text-muted-foreground mb-1">Actual</div>
+                    <div className="text-xs sm:text-sm font-semibold text-foreground break-words">
                       {formatCurrency(goal.currentSales)}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Meta</div>
-                    <div className="text-sm font-semibold text-foreground">
+                  <div className="p-2 sm:p-0">
+                    <div className="text-xs text-muted-foreground mb-1">Meta</div>
+                    <div className="text-xs sm:text-sm font-semibold text-foreground break-words">
                       {formatCurrency(goal.targetAmount)}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">
+                  <div className="p-2 sm:p-0">
+                    <div className="text-xs text-muted-foreground mb-1">
                       {goal.isCompleted ? "Excedente" : "Falta"}
                     </div>
-                    <div className={`text-sm font-semibold ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
+                    <div className={`text-xs sm:text-sm font-semibold break-words ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
                       {goal.isCompleted ? "✓" : formatCurrency(goal.remaining)}
                     </div>
                   </div>
