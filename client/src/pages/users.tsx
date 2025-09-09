@@ -63,6 +63,18 @@ export default function UsersPage() {
     return supervisor ? supervisor.salespersonName : 'Sin supervisor';
   };
 
+  // Función para obtener sugerencia de segmento basado en ventas
+  const getSegmentSuggestion = (assignedSegment: string | null) => {
+    if (assignedSegment) return assignedSegment;
+    
+    // Si no tiene segmento asignado, sugerir el de mejores ventas
+    const topSegment = segmentsData[0]; // Ya están ordenados por ventas DESC
+    if (topSegment) {
+      return `💡 ${topSegment.segment}`;
+    }
+    return 'Sin segmento';
+  };
+
   // Query para obtener vendedores disponibles
   const { data: availableSalespeople = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/salespeople"],
@@ -78,6 +90,12 @@ export default function UsersPage() {
   // Query para obtener clientes disponibles
   const { data: availableClients = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/clients"],
+    enabled: user?.role === 'admin',
+  });
+
+  // Query para obtener segmentos ordenados por ventas (para sugerencias)
+  const { data: segmentsData = [] } = useQuery<Array<{segment: string; totalSales: number; percentage: number}>>({
+    queryKey: ["/api/sales/segments?period=2025-09&filterType=month"],
     enabled: user?.role === 'admin',
   });
 
@@ -835,7 +853,16 @@ export default function UsersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>{getSupervisorName(user.supervisorId)}</TableCell>
-                      <TableCell>{user.assignedSegment || "Sin segmento"}</TableCell>
+                      <TableCell>
+                        <span className={!user.assignedSegment ? "text-blue-600 font-medium" : ""}>
+                          {getSegmentSuggestion(user.assignedSegment)}
+                        </span>
+                        {!user.assignedSegment && segmentsData[0] && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Sugerencia: {segmentsData[0].segment} (Top ventas)
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={user.isActive ? 'default' : 'destructive'}>
                           {user.isActive ? 'Activo' : 'Inactivo'}
