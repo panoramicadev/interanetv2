@@ -334,12 +334,12 @@ export default function SalespersonDetail() {
             <div className="bg-gradient-to-br from-orange-50 to-amber-100 border border-orange-200 rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-lg transition-all duration-300">
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-medium text-orange-700 mb-1 sm:mb-2">Frecuencia</p>
+                  <p className="text-xs sm:text-sm font-medium text-orange-700 mb-1 sm:mb-2">Días desde última venta</p>
                   <p className="text-lg sm:text-xl lg:text-2xl font-bold text-orange-800" data-testid="text-sales-frequency">
                     {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.salesFrequency || 0)}
                   </p>
                   <div className="text-xs text-orange-600 font-medium mt-1">
-                    de Ventas
+                    Promedio
                   </div>
                 </div>
                 <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-orange-500 rounded-2xl flex items-center justify-center ml-2 sm:ml-4 shadow-lg flex-shrink-0">
