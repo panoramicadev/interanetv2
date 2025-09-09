@@ -26,11 +26,12 @@ interface GoalsProgressProps {
     value?: string;
   };
   onFilterChange: (filter: { type: "all" | "segment" | "salesperson"; value?: string }) => void;
+  selectedPeriod: string; // Required period for filtering goals
   goalsData?: GoalProgress[]; // Accept external goals data
   isLoading?: boolean; // Accept loading state
 }
 
-export default function GoalsProgress({ globalFilter, onFilterChange, goalsData, isLoading: externalLoading }: GoalsProgressProps) {
+export default function GoalsProgress({ globalFilter, onFilterChange, selectedPeriod, goalsData, isLoading: externalLoading }: GoalsProgressProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   
   // Fetch segments and salespeople for the filter dropdown (only if no external data provided)
@@ -45,7 +46,7 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
   });
   
   const { data: fetchedGoalsProgress, isLoading: fetchedLoading } = useQuery<GoalProgress[]>({
-    queryKey: ["/api/goals/progress"],
+    queryKey: ["/api/goals/progress", selectedPeriod],
     enabled: !goalsData, // Only fetch if no external data provided
   });
 

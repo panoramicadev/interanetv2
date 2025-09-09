@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import KPICards from "@/components/dashboard/kpi-cards";
@@ -17,9 +18,13 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
-  const [selectedPeriod, setSelectedPeriod] = useState("2025-09");
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    // Inicializar con el mes actual por defecto
+    return format(new Date(), "yyyy-MM");
+  });
   const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   
@@ -44,7 +49,11 @@ export default function Dashboard() {
         }
         break;
       case "month":
-        setSelectedPeriod("2025-09");
+        // No forzar período, mantener el seleccionado por el usuario
+        // Solo inicializar si no hay período seleccionado
+        if (!selectedPeriod || selectedPeriod.includes("_") || selectedPeriod === "current-month" || selectedPeriod === "last-month") {
+          setSelectedPeriod(format(new Date(), "yyyy-MM"));
+        }
         break;
       case "range":
         if (startDate && endDate) {
@@ -240,6 +249,7 @@ export default function Dashboard() {
             <GoalsProgress 
               globalFilter={globalFilter}
               onFilterChange={setGlobalFilter}
+              selectedPeriod={selectedPeriod}
             />
           </div>
           
