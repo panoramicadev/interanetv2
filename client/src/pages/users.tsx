@@ -56,6 +56,13 @@ export default function UsersPage() {
     return userData.role === roleFilter;
   });
 
+  // Función para obtener el nombre del supervisor
+  const getSupervisorName = (supervisorId: string | null) => {
+    if (!supervisorId || supervisorId === 'none') return 'Sin supervisor';
+    const supervisor = availableSupervisors.find(s => s.id === supervisorId);
+    return supervisor ? supervisor.salespersonName : 'Sin supervisor';
+  };
+
   // Query para obtener vendedores disponibles
   const { data: availableSalespeople = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/salespeople"],
@@ -263,14 +270,15 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
-          <p className="text-muted-foreground">
-            Administra las cuentas de acceso de los vendedores al sistema
-          </p>
-        </div>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
+            <p className="text-muted-foreground">
+              Administra las cuentas de acceso de los vendedores al sistema
+            </p>
+          </div>
         <div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
@@ -826,7 +834,7 @@ export default function UsersPage() {
                            user.role === 'client' ? 'Cliente' : 'Vendedor'}
                         </Badge>
                       </TableCell>
-                      <TableCell>{user.supervisorId || "Sin supervisor"}</TableCell>
+                      <TableCell>{getSupervisorName(user.supervisorId)}</TableCell>
                       <TableCell>{user.assignedSegment || "Sin segmento"}</TableCell>
                       <TableCell>
                         <Badge variant={user.isActive ? 'default' : 'destructive'}>
@@ -861,6 +869,7 @@ export default function UsersPage() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
