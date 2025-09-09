@@ -262,6 +262,24 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Detalle completo de transacción específica
+  app.get('/api/transactions/:transactionId/details', requireAuth, async (req, res) => {
+    try {
+      const { transactionId } = req.params;
+      
+      const transactionDetail = await storage.getTransactionDetails(transactionId);
+      
+      if (!transactionDetail) {
+        return res.status(404).json({ message: "Transacción no encontrada" });
+      }
+
+      res.json(transactionDetail);
+    } catch (error) {
+      console.error("Error fetching transaction details:", error);
+      res.status(500).json({ message: "Failed to fetch transaction details" });
+    }
+  });
+
   // Sales transactions endpoint
   app.get('/api/sales/transactions', requireAuth, async (req, res) => {
     try {

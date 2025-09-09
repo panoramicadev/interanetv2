@@ -867,6 +867,15 @@ export class DatabaseStorage implements IStorage {
     await db.delete(goals).where(eq(goals.id, id));
   }
 
+  async getTransactionDetails(transactionId: string) {
+    const [transaction] = await this.db
+      .select()
+      .from(salesTransactions)
+      .where(eq(salesTransactions.id, transactionId));
+
+    return transaction;
+  }
+
   // Alerts for salesperson
   async getSalespersonAlerts(salesperson: string): Promise<any[]> {
     const alerts: any[] = [];
