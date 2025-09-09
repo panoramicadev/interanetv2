@@ -4,8 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import GoalsProgress from "@/components/dashboard/goals-progress";
-import type { GoalProgress } from "@/components/dashboard/goals-progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,16 +22,6 @@ export default function Metas() {
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   
-  // Global filter state for goals component
-  const [globalFilter, setGlobalFilter] = useState<{
-    type: "all" | "segment" | "salesperson";
-    value?: string;
-  }>({ type: "all" });
-
-  // Period filter for goals
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(
-    new Date().toISOString().slice(0, 7) // Default to current month
-  );
 
   // Expanded periods state for collapsible sections
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set([
@@ -112,39 +100,8 @@ export default function Metas() {
     enabled: !!user, // Only fetch when user is loaded
   });
 
-  // Get progress data endpoint based on user role
-  const getProgressEndpoint = () => {
-    if (user?.role === 'supervisor') {
-      return `/api/supervisor/${user.id}/goals/progress`;
-    } else if (user?.role === 'salesperson') {
-      return `/api/salesperson/${user.id}/goals/progress`;
-    }
-    // Admin and other roles see all progress
-    return "/api/goals/progress";
-  };
-
-  // Fetch progress data for the GoalsProgress component
-  const { data: progressData, isLoading: progressLoading } = useQuery<GoalProgress[]>({
-    queryKey: [getProgressEndpoint(), selectedPeriod],
-    queryFn: async () => {
-      const endpoint = getProgressEndpoint();
-      const url = selectedPeriod 
-        ? `${endpoint}?selectedPeriod=${selectedPeriod}`
-        : endpoint;
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-    enabled: !!user, // Only fetch when user is loaded
-  });
-
   // Group goals by period (after all hooks are declared)
   const groupedGoals = goals ? groupGoalsByPeriod(goals) : [];
-  
-  // Debug the progress data
-  console.log('[DEBUG] Metas page progressData:', progressData);
-  console.log('[DEBUG] Metas page user role:', user?.role);
-  console.log('[DEBUG] Metas page isLoading:', progressLoading);
 
   // Fetch segments and salespeople for form selectors (admin and supervisor)
   const { data: segments } = useQuery<string[]>({
@@ -360,36 +317,6 @@ export default function Metas() {
 
         {/* Main Content */}
         <main className="p-6 space-y-6">
-          {/* Period Filter */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Filtrar por Período</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center space-x-4">
-                <Label htmlFor="period-filter">Período:</Label>
-                <Input
-                  id="period-filter"
-                  type="month"
-                  value={selectedPeriod}
-                  onChange={(e) => setSelectedPeriod(e.target.value)}
-                  className="w-48"
-                />
-                <Badge variant="outline">
-                  {selectedPeriod ? selectedPeriod : 'Todos los períodos'}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Goals Progress Dashboard */}
-          <GoalsProgress 
-            globalFilter={globalFilter}
-            onFilterChange={setGlobalFilter}
-            selectedPeriod={selectedPeriod}
-            goalsData={user?.role !== 'admin' ? progressData : undefined}
-            isLoading={user?.role !== 'admin' ? progressLoading : undefined}
-          />
           {/* Create/Edit Form - For admin and supervisor users */}
           {showCreateForm && (user?.role === 'admin' || user?.role === 'supervisor') && (
             <Card>

@@ -294,7 +294,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
                           >
                             <TableCell className="py-2 pl-12">
                               <div className="text-sm text-gray-600">
-                                Línea {index + 1}: {transaction.nokoprct || 'Producto no especificado'}
+                                {transaction.nokoprct || 'Producto no especificado'}
                               </div>
                             </TableCell>
                             <TableCell className="text-sm text-gray-500">

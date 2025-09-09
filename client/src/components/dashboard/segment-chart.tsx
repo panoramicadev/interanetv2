@@ -4,7 +4,7 @@ import { Link } from "wouter";
 
 interface SegmentData {
   segment: string;
-  uniqueClients: number;
+  totalSales: number;
   percentage: number;
 }
 
@@ -15,7 +15,7 @@ interface SegmentChartProps {
 
 export default function SegmentChart({ selectedPeriod, filterType }: SegmentChartProps) {
   const { data: segmentData, isLoading } = useQuery<SegmentData[]>({
-    queryKey: [`/api/sales/segments-by-clients?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
   });
 
 
@@ -26,7 +26,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
           <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Clientes por Segmento</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Ventas por Segmento</h2>
         </div>
       </div>
       
@@ -66,7 +66,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
                         {segment.percentage.toFixed(1)}%
                       </span>
                       <span className="text-sm font-semibold text-gray-900">
-                        {segment.uniqueClients} clientes
+                        ${(segment.totalSales / 1000000).toFixed(1)}M
                       </span>
                     </div>
                   </div>
@@ -102,7 +102,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
                     {/* Monto */}
                     <div className="w-20 flex-shrink-0 text-right">
                       <span className="text-sm font-semibold text-gray-900">
-                        {segment.uniqueClients} clientes
+                        ${(segment.totalSales / 1000000).toFixed(1)}M
                       </span>
                     </div>
                   </div>
