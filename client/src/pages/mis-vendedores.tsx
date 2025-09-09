@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, UserCheck, TrendingUp, Target, Award } from "lucide-react";
+import { Users, UserCheck, TrendingUp, Target, Award, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -188,66 +189,106 @@ export default function MisVendedoresPage() {
                     {salespeople.map((salesperson) => {
                       const primaryGoal = salesperson.goals[0]; // Primera meta (principal)
                       return (
-                        <TableRow key={salesperson.id} data-testid={`salesperson-row-${salesperson.id}`}>
+                        <TableRow 
+                          key={salesperson.id} 
+                          data-testid={`salesperson-row-${salesperson.id}`}
+                          className="hover:bg-muted/50 cursor-pointer transition-colors"
+                        >
                           <TableCell className="font-medium">
-                            {salesperson.salespersonName}
+                            <Link 
+                              href={`/salesperson/${encodeURIComponent(salesperson.salespersonName)}`}
+                              className="flex items-center space-x-2 hover:text-primary transition-colors"
+                            >
+                              <span>{salesperson.salespersonName}</span>
+                              <ExternalLink className="h-3 w-3 opacity-50" />
+                            </Link>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {salesperson.email}
+                            <Link 
+                              href={`/salesperson/${encodeURIComponent(salesperson.salespersonName)}`}
+                              className="hover:text-primary transition-colors"
+                            >
+                              {salesperson.email}
+                            </Link>
                           </TableCell>
                           <TableCell>
-                            <span className="font-semibold">
-                              {formatCurrency(salesperson.totalSales)}
-                            </span>
+                            <Link 
+                              href={`/salesperson/${encodeURIComponent(salesperson.salespersonName)}`}
+                              className="hover:text-primary transition-colors"
+                            >
+                              <span className="font-semibold">
+                                {formatCurrency(salesperson.totalSales)}
+                              </span>
+                            </Link>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">
-                              {salesperson.transactionCount}
-                            </Badge>
+                            <Link 
+                              href={`/salesperson/${encodeURIComponent(salesperson.salespersonName)}`}
+                              className="hover:text-primary transition-colors"
+                            >
+                              <Badge variant="secondary">
+                                {salesperson.transactionCount}
+                              </Badge>
+                            </Link>
                           </TableCell>
                           <TableCell>
-                            {salesperson.lastSale ? 
-                              new Date(salesperson.lastSale).toLocaleDateString('es-CL') : 
-                              '-'
-                            }
+                            <Link 
+                              href={`/salesperson/${encodeURIComponent(salesperson.salespersonName)}`}
+                              className="hover:text-primary transition-colors"
+                            >
+                              {salesperson.lastSale ? 
+                                new Date(salesperson.lastSale).toLocaleDateString('es-CL') : 
+                                '-'
+                              }
+                            </Link>
                           </TableCell>
                           <TableCell>
-                            {primaryGoal ? (
-                              <div className="text-sm">
-                                <div className="font-medium">
-                                  {formatCurrency(primaryGoal.targetAmount)}
+                            <Link 
+                              href={`/salesperson/${encodeURIComponent(salesperson.salespersonName)}`}
+                              className="hover:text-primary transition-colors"
+                            >
+                              {primaryGoal ? (
+                                <div className="text-sm">
+                                  <div className="font-medium">
+                                    {formatCurrency(primaryGoal.targetAmount)}
+                                  </div>
+                                  <div className="text-muted-foreground text-xs">
+                                    {primaryGoal.period}
+                                  </div>
                                 </div>
-                                <div className="text-muted-foreground text-xs">
-                                  {primaryGoal.period}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">Sin meta</span>
-                            )}
+                              ) : (
+                                <span className="text-muted-foreground text-sm">Sin meta</span>
+                              )}
+                            </Link>
                           </TableCell>
                           <TableCell>
-                            {primaryGoal ? (
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <Badge 
-                                    variant={primaryGoal.progress >= 75 ? "default" : "secondary"}
-                                  >
-                                    {getProgressLabel(primaryGoal.progress)}
-                                  </Badge>
-                                  <span className="text-sm font-semibold">
-                                    {primaryGoal.progress}%
-                                  </span>
+                            <Link 
+                              href={`/salesperson/${encodeURIComponent(salesperson.salespersonName)}`}
+                              className="hover:text-primary transition-colors block"
+                            >
+                              {primaryGoal ? (
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <Badge 
+                                      variant={primaryGoal.progress >= 75 ? "default" : "secondary"}
+                                    >
+                                      {getProgressLabel(primaryGoal.progress)}
+                                    </Badge>
+                                    <span className="text-sm font-semibold">
+                                      {primaryGoal.progress}%
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-muted rounded-full h-2">
+                                    <div
+                                      className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(primaryGoal.progress)}`}
+                                      style={{ width: `${Math.min(primaryGoal.progress, 100)}%` }}
+                                    ></div>
+                                  </div>
                                 </div>
-                                <div className="w-full bg-muted rounded-full h-2">
-                                  <div
-                                    className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(primaryGoal.progress)}`}
-                                    style={{ width: `${Math.min(primaryGoal.progress, 100)}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
-                            )}
+                              ) : (
+                                <span className="text-muted-foreground text-sm">-</span>
+                              )}
+                            </Link>
                           </TableCell>
                         </TableRow>
                       );
