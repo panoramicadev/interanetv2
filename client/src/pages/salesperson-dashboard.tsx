@@ -39,6 +39,10 @@ export default function SalespersonDashboard() {
   const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   
+  // Date range state for custom range selection
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  
   // Update selected period when filter type changes
   useEffect(() => {
     switch (filterType) {
@@ -53,10 +57,14 @@ export default function SalespersonDashboard() {
         setSelectedPeriod("2025-09");
         break;
       case "range":
-        setSelectedPeriod("last-30-days");
+        if (startDate && endDate) {
+          setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
+        } else {
+          setSelectedPeriod("last-30-days");
+        }
         break;
     }
-  }, [filterType, selectedDate]);
+  }, [filterType, selectedDate, startDate, endDate]);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -74,18 +82,18 @@ export default function SalespersonDashboard() {
   }, [isAuthenticated, isLoading, toast]);
 
   const { data: salespersonData, isLoading: loadingSalesperson } = useQuery({
-    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/dashboard`],
+    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/dashboard?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!user && (!!user.salespersonName || !!user.id),
     staleTime: 300000, // 5 minutos
   });
 
   const { data: clientsData, isLoading: loadingClients } = useQuery({
-    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/clients`],
+    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/clients?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!user && (!!user.salespersonName || !!user.id),
   });
 
   const { data: goalsData, isLoading: loadingGoals } = useQuery({
-    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/goals`],
+    queryKey: [`/api/salesperson/${user?.salespersonName || user?.id}/goals?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!user && (!!user.salespersonName || !!user.id),
   });
 
@@ -159,6 +167,61 @@ export default function SalespersonDashboard() {
                   />
                 </PopoverContent>
               </Popover>
+            )}
+
+            {filterType === "range" && (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full sm:w-[140px] justify-start text-left font-normal rounded-xl">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {startDate ? format(startDate, "dd/MM") : "Inicio"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={setStartDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full sm:w-[140px] justify-start text-left font-normal rounded-xl">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {endDate ? format(endDate, "dd/MM") : "Fin"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={endDate}
+                      onSelect={setEndDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            {filterType === "month" && (
+              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                <SelectTrigger className="w-full sm:w-[200px] rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2025-09">Septiembre 2025</SelectItem>
+                  <SelectItem value="2025-08">Agosto 2025</SelectItem>
+                  <SelectItem value="2025-07">Julio 2025</SelectItem>
+                  <SelectItem value="2025-06">Junio 2025</SelectItem>
+                  <SelectItem value="2025-05">Mayo 2025</SelectItem>
+                  <SelectItem value="current-month">Mes actual</SelectItem>
+                  <SelectItem value="last-month">Mes anterior</SelectItem>
+                </SelectContent>
+              </Select>
             )}
           </div>
         </div>
