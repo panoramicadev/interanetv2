@@ -4,7 +4,6 @@ import { useParams, Link } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import Sidebar from "@/components/dashboard/sidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -27,7 +26,6 @@ interface SalespersonClient {
 
 export default function SalespersonDetail() {
   const { salespersonName } = useParams();
-  const [showImportDialog, setShowImportDialog] = useState(false);
   
   // Get current period (could be enhanced with date filters later)
   const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM format
@@ -44,20 +42,15 @@ export default function SalespersonDetail() {
 
   if (!salespersonName) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-        <Sidebar onImportClick={() => setShowImportDialog(true)} />
-        <div className="flex-1 lg:ml-64">
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="text-center">
-              <h1 className="text-2xl font-bold text-red-600">Vendedor no encontrado</h1>
-              <Link href="/">
-                <Button variant="outline" className="mt-4">
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Volver al Dashboard
-                </Button>
-              </Link>
-            </div>
-          </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600">Vendedor no encontrado</h1>
+          <Link href="/">
+            <Button variant="outline" className="mt-4">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Volver al Dashboard
+            </Button>
+          </Link>
         </div>
       </div>
     );
@@ -94,9 +87,8 @@ export default function SalespersonDetail() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      <Sidebar onImportClick={() => setShowImportDialog(true)} />
-      <div className="flex-1 lg:ml-64 transition-all duration-300">
+    <div className="min-h-screen">
+      <div className="w-full">
         {/* Header - Optimized for Mobile */}
         <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
           <div className="flex flex-col space-y-2 sm:space-y-3 lg:space-y-0 lg:flex-row lg:items-center justify-between">
