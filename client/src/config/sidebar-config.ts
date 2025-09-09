@@ -78,6 +78,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
+      href: "/mis-vendedores",
+      label: "Mis Vendedores",
+      icon: Users,
+    },
+    {
       href: "/metas",
       label: "Gestión de Metas",
       icon: Target,

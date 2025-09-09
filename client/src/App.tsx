@@ -11,6 +11,7 @@ import Shop from "@/pages/shop";
 import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
 import SupervisorDashboard from "@/pages/supervisor-dashboard";
+import MisVendedoresPage from "@/pages/mis-vendedores";
 import ClientsDashboard from "@/pages/clients-dashboard";
 import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
@@ -80,6 +81,7 @@ function Router() {
             <Route path="/presupuestos" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Presupuestos</h1><p>Página en construcción</p></div>} />
             
             {/* Rutas específicas de supervisor */}
+            <Route path="/mis-vendedores" component={MisVendedoresPage} />
             <Route path="/reportes" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Reportes</h1><p>Página en construcción</p></div>} />
             
             {/* Rutas específicas de cliente */}
