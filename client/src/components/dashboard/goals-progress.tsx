@@ -71,20 +71,27 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
   }) || [];
 
   const formatCurrency = (amount: number | string) => {
+    console.log('[DEBUG] formatCurrency called with:', amount, 'type:', typeof amount);
+    
     // Ensure amount is a number
     const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     
+    console.log('[DEBUG] numericAmount after conversion:', numericAmount, 'isNaN:', isNaN(numericAmount));
+    
     // Check if conversion was successful
-    if (isNaN(numericAmount)) {
-      console.error('[DEBUG] Invalid amount for formatCurrency:', amount);
+    if (isNaN(numericAmount) || numericAmount === null || numericAmount === undefined) {
+      console.error('[DEBUG] Invalid amount for formatCurrency:', amount, 'converted to:', numericAmount);
       return '$0';
     }
     
-    return new Intl.NumberFormat('es-CL', {
+    const result = new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP',
       minimumFractionDigits: 0,
     }).format(numericAmount);
+    
+    console.log('[DEBUG] formatCurrency result:', result);
+    return result;
   };
 
   const getTypeIcon = (type: string) => {
