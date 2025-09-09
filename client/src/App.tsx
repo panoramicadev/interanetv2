@@ -71,6 +71,11 @@ function Router() {
             {/* Rutas específicas de admin */}
             <Route path="/usuarios" component={Users} />
             <Route path="/productos" component={Products} />
+            <Route path="/products" component={() => {
+              // Redirect from /products to /productos
+              window.location.replace('/productos');
+              return null;
+            }} />
             <Route path="/metas" component={Metas} />
             <Route path="/segment/:segmentName" component={SegmentDetail} />
             <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
