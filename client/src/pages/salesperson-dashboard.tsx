@@ -396,22 +396,22 @@ export default function SalespersonDashboard() {
           </Card>
         )}
 
-        {/* Gráfico de Ventas y Top Productos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="modern-card p-5 lg:p-6 hover-lift">
-            <SalesChart 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-              salespersonFilter={user?.salespersonName}
-            />
-          </div>
-          <div className="modern-card p-5 lg:p-6 hover-lift">
-            <TopProductsChart 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-              salespersonFilter={user?.salespersonName}
-            />
-          </div>
+        {/* Tendencia de Ventas - Ancho completo */}
+        <div className="modern-card p-5 lg:p-6 hover-lift">
+          <SalesChart 
+            selectedPeriod={selectedPeriod} 
+            filterType={filterType}
+            salespersonFilter={user?.salespersonName}
+          />
+        </div>
+
+        {/* Top Productos */}
+        <div className="modern-card p-5 lg:p-6 hover-lift">
+          <TopProductsChart 
+            selectedPeriod={selectedPeriod} 
+            filterType={filterType}
+            salespersonFilter={user?.salespersonName}
+          />
         </div>
 
         {/* Tabla de Transacciones */}
