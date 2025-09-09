@@ -5,20 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Search, Users, Star, Clock, TrendingUp, Package, ArrowLeft, LayoutDashboard, FileText, CalendarIcon, Building2, LogOut, Menu, X, Calculator, Palette, Wrench } from "lucide-react";
+import { Search, Users, Star, Clock, TrendingUp, Package, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { Link, useLocation } from "wouter";
 
 export default function ClientsDashboard() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [location] = useLocation();
 
   // Obtener análisis completo de clientes del vendedor
   const { data: clientsAnalysis, isLoading } = useQuery({
-    queryKey: [`/api/sales/salesperson/${user?.salespersonName}/clients-analysis`],
-    enabled: !!user?.salespersonName,
+    queryKey: [`/api/salesperson/${user?.id}/clients`],
+    enabled: !!user?.id,
   });
 
   // Type-safe accessors with fallbacks
@@ -35,71 +32,6 @@ export default function ClientsDashboard() {
     ) || [];
   };
 
-  const { logoutMutation } = useAuth();
-  
-  const handleLogout = () => {
-    logoutMutation.mutate();
-  };
-
-  const getInitials = (name?: string) => {
-    if (!name) return "V";
-    const parts = name.split(' ');
-    if (parts.length >= 2) {
-      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
-    }
-    return parts[0].charAt(0).toUpperCase();
-  };
-
-  const getDisplayName = () => {
-    return user?.salespersonName || "Vendedor";
-  };
-
-  const sidebarItems = [
-    {
-      href: "/",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      href: "/mis-clientes",
-      label: "Mis Clientes",
-      icon: Users,
-    },
-    {
-      href: "/presupuestos",
-      label: "Presupuestos",
-      icon: FileText,
-    },
-    {
-      href: "/calendario",
-      label: "Calendario",
-      icon: CalendarIcon,
-    },
-    {
-      href: "#",
-      label: "Crear Presupuesto",
-      icon: Calculator,
-      disabled: true,
-    },
-    {
-      href: "#",
-      label: "Calcular Tintometría",
-      icon: Palette,
-      disabled: true,
-    },
-    {
-      href: "#",
-      label: "Revisión de Stock",
-      icon: Package,
-      disabled: true,
-    },
-    {
-      href: "#",
-      label: "Herramientas de Venta",
-      icon: Wrench,
-      disabled: true,
-    },
-  ];
 
   if (isLoading) {
     return (
@@ -113,99 +45,13 @@ export default function ClientsDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Mobile Menu Button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="fixed top-4 left-4 z-50 lg:hidden glass-card p-2"
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-        data-testid="mobile-menu-toggle"
-      >
-        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </Button>
-
-      {/* Mobile Overlay */}
-      {isMobileOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-          onClick={() => setIsMobileOpen(false)}
-        />
-      )}
-
-      {/* Sidebar negro igual al admin */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-700/50 transition-transform duration-300 lg:translate-x-0 ${
-        isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-      }`}>
-        <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-slate-700/50">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-white">Panel Vendedor</h1>
-                <p className="text-sm text-slate-400">{user?.salespersonName}</p>
-              </div>
-            </div>
-          </div>
-        
-          <nav className="flex-1 p-4 space-y-1">
-            {sidebarItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-              return (
-                <Link key={item.href} href={item.href}>
-                  <Button
-                    variant="ghost"
-                    className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                      isActive ? "bg-slate-800 text-white" : ""
-                    }`}
-                    data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.label}
-                  </Button>
-                </Link>
-              );
-            })}
-          </nav>
-          
-          <div className="p-6 border-t border-slate-700/50">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                <span className="text-xs font-medium text-white">
-                  {getInitials(user?.salespersonName)}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                  {getDisplayName()}
-                </p>
-                <p className="text-xs text-slate-400">Vendedor</p>
-              </div>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
-              onClick={handleLogout}
-              data-testid="logout-button"
-            >
-              <LogOut className="w-4 h-4 mr-3" />
-              Cerrar Sesión
-            </Button>
-          </div>
-        </div>
-      </div>
-      
-      <div className="lg:ml-64 transition-all duration-300">
+    <>
         {/* Header */}
         <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
           <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
-                Mis Clientes - {user?.salespersonName}
+                Mis Clientes - {user?.firstName} {user?.lastName}
               </h1>
               <p className="text-gray-600 text-base lg:text-lg">
                 Análisis detallado y categorización de tu cartera de clientes
@@ -490,7 +336,6 @@ export default function ClientsDashboard() {
             </TabsContent>
           </Tabs>
         </main>
-      </div>
-    </div>
+    </>
   );
 }
