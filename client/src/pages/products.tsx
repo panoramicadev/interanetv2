@@ -480,7 +480,10 @@ export default function ProductsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid="text-total-stock">
-                {warehouseSummary.reduce((sum, w) => sum + w.totalPhysicalStock, 0).toLocaleString()}
+                {warehouseSummary.reduce((sum, w) => {
+                  const stock = Number(w.totalPhysicalStock) || 0;
+                  return sum + stock;
+                }, 0).toLocaleString('es-CL')}
               </div>
             </CardContent>
           </Card>
@@ -647,11 +650,11 @@ export default function ProductsPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Stock Físico:</span>
-                      <span className="font-medium">{warehouse.totalPhysicalStock.toLocaleString()}</span>
+                      <span className="font-medium">{Number(warehouse.totalPhysicalStock || 0).toLocaleString('es-CL')}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span>Stock Disponible:</span>
-                      <span className="font-medium">{warehouse.totalAvailableStock.toLocaleString()}</span>
+                      <span className="font-medium">{Number(warehouse.totalAvailableStock || 0).toLocaleString('es-CL')}</span>
                     </div>
                   </div>
                 </CardContent>
