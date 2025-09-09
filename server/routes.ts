@@ -85,15 +85,29 @@ export function registerRoutes(app: Express): Server {
       const currentStartDate = (startDate as string) || dateRange.startDate;
       const currentEndDate = (endDate as string) || dateRange.endDate;
       
-      // Calculate previous month dates
+      // Calculate previous period dates based on filter type
       const currentStart = new Date(currentStartDate);
       const currentEnd = new Date(currentEndDate);
+      
+      // Calculate the duration of the current period
+      const periodDuration = currentEnd.getTime() - currentStart.getTime();
+      
+      // For previous period, go back the same duration plus move to previous month
       const previousStart = new Date(currentStart);
       const previousEnd = new Date(currentEnd);
       
-      // Set previous month dates
+      // Move to previous month but keep the same day/range
       previousStart.setMonth(previousStart.getMonth() - 1);
       previousEnd.setMonth(previousEnd.getMonth() - 1);
+      
+      // Handle cases where the day doesn't exist in previous month (e.g., Jan 31 -> Feb 28)
+      // If the day changed due to month having fewer days, adjust to last day of month
+      if (previousStart.getDate() !== currentStart.getDate()) {
+        previousStart.setDate(0); // Last day of previous month
+      }
+      if (previousEnd.getDate() !== currentEnd.getDate()) {
+        previousEnd.setDate(0); // Last day of previous month
+      }
       
       // Get current period metrics
       const metrics = await storage.getSalesMetrics({
@@ -103,7 +117,7 @@ export function registerRoutes(app: Express): Server {
         segment: segment as string,
       });
       
-      // Get previous period metrics for comparison
+      // Get previous period metrics for comparison (same period in previous month)
       const previousMetrics = await storage.getSalesMetrics({
         startDate: previousStart.toISOString().split('T')[0],
         endDate: previousEnd.toISOString().split('T')[0],
@@ -111,7 +125,7 @@ export function registerRoutes(app: Express): Server {
         segment: segment as string,
       });
       
-      // Add previous month data for comparison
+      // Add previous period data for comparison
       const metricsWithComparison = {
         ...metrics,
         previousMonthSales: previousMetrics.totalSales,
