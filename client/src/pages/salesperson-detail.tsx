@@ -141,7 +141,7 @@ export default function SalespersonDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm font-medium text-green-700 mb-1 sm:mb-2">Ventas Totales</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-800 truncate" data-testid="text-total-sales">
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-800" data-testid="text-total-sales">
                     {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalSales || 0)}
                   </p>
                 </div>
@@ -156,7 +156,7 @@ export default function SalespersonDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm font-medium text-blue-700 mb-1 sm:mb-2">Clientes</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-800 truncate" data-testid="text-total-clients">
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-800" data-testid="text-total-clients">
                     {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalClients || 0)}
                   </p>
                   <div className="text-xs text-blue-600 font-medium mt-1">
@@ -174,7 +174,7 @@ export default function SalespersonDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm font-medium text-purple-700 mb-1 sm:mb-2">Transacciones</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-800 truncate" data-testid="text-transaction-count">
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-800" data-testid="text-transaction-count">
                     {isLoadingDetails ? 'Cargando...' : formatNumber(details?.transactionCount || 0)}
                   </p>
                   <div className="text-xs text-purple-600 font-medium mt-1">
@@ -192,7 +192,7 @@ export default function SalespersonDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm font-medium text-orange-700 mb-1 sm:mb-2">Frecuencia</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-orange-800 truncate" data-testid="text-sales-frequency">
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-orange-800" data-testid="text-sales-frequency">
                     {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.salesFrequency || 0)}
                   </p>
                   <div className="text-xs text-orange-600 font-medium mt-1">
