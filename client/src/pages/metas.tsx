@@ -29,6 +29,11 @@ export default function Metas() {
     value?: string;
   }>({ type: "all" });
 
+  // Period filter for goals
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(
+    new Date().toISOString().slice(0, 7) // Default to current month
+  );
+
   // Form state
   const [formData, setFormData] = useState({
     type: 'global' as 'global' | 'segment' | 'salesperson',
@@ -82,7 +87,16 @@ export default function Metas() {
 
   // Fetch progress data for the GoalsProgress component
   const { data: progressData, isLoading: progressLoading } = useQuery<GoalProgress[]>({
-    queryKey: [getProgressEndpoint()],
+    queryKey: [getProgressEndpoint(), selectedPeriod],
+    queryFn: async () => {
+      const endpoint = getProgressEndpoint();
+      const url = selectedPeriod 
+        ? `${endpoint}?selectedPeriod=${selectedPeriod}`
+        : endpoint;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
     enabled: !!user, // Only fetch when user is loaded
   });
   
@@ -305,10 +319,33 @@ export default function Metas() {
 
         {/* Main Content */}
         <main className="p-6 space-y-6">
+          {/* Period Filter */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Filtrar por Período</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center space-x-4">
+                <Label htmlFor="period-filter">Período:</Label>
+                <Input
+                  id="period-filter"
+                  type="month"
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className="w-48"
+                />
+                <Badge variant="outline">
+                  {selectedPeriod ? selectedPeriod : 'Todos los períodos'}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Goals Progress Dashboard */}
           <GoalsProgress 
             globalFilter={globalFilter}
             onFilterChange={setGlobalFilter}
+            selectedPeriod={selectedPeriod}
             goalsData={user?.role !== 'admin' ? progressData : undefined}
             isLoading={user?.role !== 'admin' ? progressLoading : undefined}
           />

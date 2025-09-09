@@ -21,6 +21,18 @@ interface Transaction {
   nokofu: string | null;
   caprad2: string | null;
   vanedo: string | null;
+  monto: string | null;
+}
+
+interface GroupedSale {
+  nudo: string;
+  customerName: string;
+  salesperson: string;
+  date: string;
+  totalAmount: number;
+  transactionCount: number;
+  transactions: Transaction[];
+  isExpanded?: boolean;
 }
 
 interface TopSalesperson {
@@ -39,15 +51,57 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
   const [limit] = useState(10);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
 
   const handleTransactionClick = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
     setIsModalOpen(true);
   };
-  
+
+  const toggleSaleExpansion = (nudo: string) => {
+    const newExpanded = new Set(expandedSales);
+    if (newExpanded.has(nudo)) {
+      newExpanded.delete(nudo);
+    } else {
+      newExpanded.add(nudo);
+    }
+    setExpandedSales(newExpanded);
+  };
+
+  // Group transactions by NUDO (sale)
+  const groupTransactionsByNudo = (transactions: Transaction[]): GroupedSale[] => {
+    const grouped = transactions.reduce((acc, transaction) => {
+      const nudo = transaction.nudo;
+      if (!acc[nudo]) {
+        acc[nudo] = {
+          nudo,
+          customerName: transaction.nokoen || 'Cliente Anónimo',
+          salesperson: transaction.nokofu || 'Sin vendedor',
+          date: transaction.feemdo || '',
+          totalAmount: 0,
+          transactionCount: 0,
+          transactions: []
+        };
+      }
+      
+      acc[nudo].transactions.push(transaction);
+      acc[nudo].transactionCount++;
+      
+      // Use monto if available, fallback to vanedo
+      const amount = transaction.monto ? Number(transaction.monto) : (transaction.vanedo ? Number(transaction.vanedo) : 0);
+      acc[nudo].totalAmount += amount;
+      
+      return acc;
+    }, {} as Record<string, GroupedSale>);
+    
+    return Object.values(grouped).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
+
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: [`/api/sales/transactions?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
   });
+
+  const groupedSales = transactions ? groupTransactionsByNudo(transactions) : [];
 
   // Removed artificial salesperson assignment - now using real data from transactions
 
@@ -145,7 +199,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <span className="text-sm font-medium text-blue-600">📋</span>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">Transacciones Recientes</h2>
+          <h2 className="text-xl font-bold text-gray-900">Ventas Recientes</h2>
         </div>
         <Button variant="outline" size="sm" className="text-gray-600 border-gray-300 hover:bg-gray-50" data-testid="button-view-all">
           Últimas 24h ▼
@@ -175,54 +229,89 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
                     </TableRow>
                   ))
                 ) : (
-                  transactions?.map((transaction) => {
-                    const customerName = transaction.nokoen || 'Cliente Anónimo';
-                    const salesperson = getSalespersonDisplay(transaction.nokofu);
-                    const timeAgo = getTimeAgo(transaction.feemdo);
+                  groupedSales.map((sale) => {
+                    const salesperson = getSalespersonDisplay(sale.salesperson);
+                    const timeAgo = getTimeAgo(sale.date);
+                    const isExpanded = expandedSales.has(sale.nudo);
                     
                     return (
-                      <TableRow 
-                        key={transaction.id}
-                        className="border-b border-gray-50 hover:bg-blue-50/50 cursor-pointer transition-colors"
-                        data-testid={`transaction-${transaction.id}`}
-                        onClick={() => handleTransactionClick(transaction)}
-                        title="Haz clic para ver los detalles completos"
-                      >
-                        <TableCell className="py-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
-                              <span className="text-white text-sm font-medium">
-                                {getInitials(customerName)}
+                      <>
+                        {/* Sale Summary Row */}
+                        <TableRow 
+                          key={sale.nudo}
+                          className="border-b border-gray-50 hover:bg-blue-50/50 cursor-pointer transition-colors"
+                          data-testid={`sale-${sale.nudo}`}
+                          onClick={() => toggleSaleExpansion(sale.nudo)}
+                          title="Haz clic para ver las transacciones de esta venta"
+                        >
+                          <TableCell className="py-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
+                                <span className="text-white text-sm font-medium">
+                                  {getInitials(sale.customerName)}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-900">{sale.customerName}</div>
+                                <div className="text-sm text-gray-500">
+                                  {sale.transactionCount} transacción{sale.transactionCount > 1 ? 'es' : ''}
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${salesperson.color}`}>
+                              {salesperson.name}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-gray-600 font-medium">
+                            #{sale.nudo}
+                          </TableCell>
+                          <TableCell className="text-gray-500 text-sm">
+                            {timeAgo}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-gray-900">
+                            <div className="flex items-center justify-end gap-2">
+                              <span>
+                                {formatCurrency(sale.totalAmount)}
+                              </span>
+                              <span className="text-xs text-blue-600">
+                                {isExpanded ? '▲' : '▼'}
                               </span>
                             </div>
-                            <div>
-                              <div className="font-medium text-gray-900">{customerName}</div>
-                              <div className="text-sm text-gray-500">{getClientContact(customerName)}</div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${salesperson.color}`}>
-                            {salesperson.name}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-gray-600 font-medium">
-                          #{transaction.nudo}
-                        </TableCell>
-                        <TableCell className="text-gray-500 text-sm">
-                          {timeAgo}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-gray-900">
-                          <div className="flex items-center justify-end gap-2">
-                            <span>
-                              {transaction.vanedo ? formatCurrency(Number(transaction.vanedo)) : '$0'}
-                            </span>
-                            <span className="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                              Ver detalles →
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {/* Expanded Transaction Details */}
+                        {isExpanded && sale.transactions.map((transaction, index) => (
+                          <TableRow 
+                            key={`${sale.nudo}-${transaction.id}`}
+                            className="bg-gray-50 border-b border-gray-100 hover:bg-gray-100 cursor-pointer transition-colors"
+                            data-testid={`transaction-${transaction.id}`}
+                            onClick={() => handleTransactionClick(transaction)}
+                            title="Haz clic para ver los detalles completos de esta transacción"
+                          >
+                            <TableCell className="py-2 pl-12">
+                              <div className="text-sm text-gray-600">
+                                Línea {index + 1}: {transaction.nokoprct || 'Producto no especificado'}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-500">
+                              ID: {transaction.id.slice(0, 8)}...
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-500">
+                              {transaction.caprad2 || 'Sin código'}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-500">
+                              {getTimeAgo(transaction.feemdo)}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-medium text-gray-700">
+                              {transaction.monto ? formatCurrency(Number(transaction.monto)) : 
+                               transaction.vanedo ? formatCurrency(Number(transaction.vanedo)) : '$0'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </>
                     );
                   })
                 )}
