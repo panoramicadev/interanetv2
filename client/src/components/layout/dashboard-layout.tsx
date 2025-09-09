@@ -5,7 +5,8 @@ import {
   LogOut,
   Building2,
   Menu,
-  X
+  X,
+  ChevronRight
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
@@ -66,7 +67,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile Menu Button */}
+      {/* Mobile Menu Button - Top */}
       <Button
         variant="ghost"
         size="sm"
@@ -75,6 +76,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         data-testid="mobile-menu-toggle"
       >
         {isMobileOpen ? <X className="h-5 w-5 text-gray-700" /> : <Menu className="h-5 w-5 text-gray-700" />}
+      </Button>
+
+      {/* Mobile Menu Button - Floating Bottom Left */}
+      <Button
+        variant="default"
+        size="lg"
+        className="fixed bottom-6 left-6 z-50 lg:hidden bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-2xl rounded-full p-4 transition-all duration-300 hover:scale-110 hover:shadow-blue-500/25"
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        data-testid="mobile-menu-toggle-floating"
+      >
+        <ChevronRight className={`h-6 w-6 text-white transition-transform duration-300 ${
+          isMobileOpen ? 'rotate-180' : ''
+        }`} />
       </Button>
 
       {/* Mobile Overlay */}
