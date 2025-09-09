@@ -85,26 +85,33 @@ export function registerRoutes(app: Express): Server {
       const currentStartDate = (startDate as string) || dateRange.startDate;
       const currentEndDate = (endDate as string) || dateRange.endDate;
       
-      // Calculate previous period dates based on filter type  
+      // Calculate previous period dates - exactly same period but one month before
       const currentStart = new Date(currentStartDate!);
       const currentEnd = new Date(currentEndDate!);
       
-      // For previous period, go back exactly one month keeping the same day/range
+      // Clone the dates and move them back by exactly one month
       const previousStart = new Date(currentStart);
       const previousEnd = new Date(currentEnd);
       
-      // Move to previous month but keep the same day/range
+      // Move to previous month keeping the exact same day pattern
       previousStart.setMonth(previousStart.getMonth() - 1);
       previousEnd.setMonth(previousEnd.getMonth() - 1);
       
-      // Handle cases where the day doesn't exist in previous month (e.g., Jan 31 -> Feb 28)
-      // If the day changed due to month having fewer days, adjust to last day of month
-      if (previousStart.getDate() !== currentStart.getDate()) {
-        previousStart.setDate(0); // Last day of previous month
+      // Handle edge cases where the day doesn't exist in previous month
+      if (previousStart.getMonth() === currentStart.getMonth()) {
+        // Day doesn't exist (e.g., Jan 31 -> Feb), go to last day of target month
+        previousStart.setDate(0);
       }
-      if (previousEnd.getDate() !== currentEnd.getDate()) {
-        previousEnd.setDate(0); // Last day of previous month
+      if (previousEnd.getMonth() === currentEnd.getMonth()) {
+        // Day doesn't exist (e.g., Jan 31 -> Feb), go to last day of target month  
+        previousEnd.setDate(0);
       }
+      
+      const previousStartFormatted = previousStart.toISOString().split('T')[0];
+      const previousEndFormatted = previousEnd.toISOString().split('T')[0];
+      
+      console.log(`[DEBUG] Periodo actual: ${currentStartDate} a ${currentEndDate}`);
+      console.log(`[DEBUG] Periodo anterior: ${previousStartFormatted} a ${previousEndFormatted}`);
       
       // Get current period metrics
       const metrics = await storage.getSalesMetrics({
@@ -116,11 +123,14 @@ export function registerRoutes(app: Express): Server {
       
       // Get previous period metrics for comparison (same period in previous month)
       const previousMetrics = await storage.getSalesMetrics({
-        startDate: previousStart.toISOString().split('T')[0],
-        endDate: previousEnd.toISOString().split('T')[0],
+        startDate: previousStartFormatted,
+        endDate: previousEndFormatted,
         salesperson: salesperson as string,
         segment: segment as string,
       });
+      
+      console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);
+      console.log(`[DEBUG] Métricas anteriores: Ventas=${previousMetrics.totalSales}, Transacciones=${previousMetrics.totalTransactions}`);
       
       // Add previous period data for comparison - only include if there's actual transaction data
       // This ensures we show "Sin datos previos" when there were no transactions in the previous period
