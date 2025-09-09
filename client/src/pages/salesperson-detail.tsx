@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,16 +31,47 @@ interface SalespersonClient {
 export default function SalespersonDetail() {
   const { salespersonName } = useParams();
   
-  // Get current period (could be enhanced with date filters later)
-  const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM format
+  // Date filter states
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    return format(new Date(), "yyyy-MM");
+  });
+  const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+
+  // Update selected period when filter type changes
+  useEffect(() => {
+    switch (filterType) {
+      case "day":
+        if (selectedDate) {
+          setSelectedPeriod(format(selectedDate, "yyyy-MM-dd"));
+        } else {
+          setSelectedPeriod(format(new Date(), "yyyy-MM-dd"));
+        }
+        break;
+      case "month":
+        if (!selectedPeriod || selectedPeriod.includes("_") || selectedPeriod === "current-month" || selectedPeriod === "last-month") {
+          setSelectedPeriod(format(new Date(), "yyyy-MM"));
+        }
+        break;
+      case "range":
+        if (startDate && endDate) {
+          setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
+        } else {
+          setSelectedPeriod("last-30-days");
+        }
+        break;
+    }
+  }, [filterType, selectedDate, startDate, endDate]);
   
   const { data: details, isLoading: isLoadingDetails } = useQuery<SalespersonDetails>({
-    queryKey: [`/api/sales/salesperson/${salespersonName}/details?period=${currentPeriod}&filterType=month`],
+    queryKey: [`/api/sales/salesperson/${salespersonName}/details?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!salespersonName,
   });
 
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SalespersonClient[]>({
-    queryKey: [`/api/sales/salesperson/${salespersonName}/clients?period=${currentPeriod}&filterType=month`],
+    queryKey: [`/api/sales/salesperson/${salespersonName}/clients?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!salespersonName,
   });
 
@@ -106,21 +141,136 @@ export default function SalespersonDetail() {
                 {decodeURIComponent(salespersonName)}
               </h1>
               <p className="text-gray-500 text-xs sm:text-sm hidden sm:block">
-                Período: {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long' })}
+                {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
               </p>
             </div>
-            <Link href="/" className="self-start lg:self-center">
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
-                data-testid="button-back-dashboard"
-              >
-                <ArrowLeft className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Volver al Dashboard</span>
-                <span className="sm:hidden">Volver</span>
-              </Button>
-            </Link>
+            
+            {/* Filter Controls */}
+            <div className="flex flex-col space-y-2 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4 w-full lg:w-auto">
+              {/* Filter Type Selector */}
+              <div className="flex items-center space-x-2 flex-none">
+                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Filtrar:
+                </label>
+                <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
+                  <SelectTrigger className="w-20 sm:w-32 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-gray-200">
+                    <SelectItem value="day">Día</SelectItem>
+                    <SelectItem value="month">Mes</SelectItem>
+                    <SelectItem value="range">Rango</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Period Selector */}
+              <div className="flex items-center space-x-2 flex-1 lg:flex-none min-w-0">
+                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Período:
+                </label>
+                {filterType === "day" ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="flex-1 lg:w-52 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0"
+                      >
+                        <CalendarIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                        <span className="truncate">
+                          {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar fecha"}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={setSelectedDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                ) : filterType === "range" ? (
+                  <div className="flex items-center space-x-1 sm:space-x-2 flex-1 min-w-0">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="flex-1 min-w-0 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
+                        >
+                          <CalendarIcon className="mr-1 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                          <span className="truncate">
+                            {startDate ? format(startDate, "dd/MM") : "Inicio"}
+                          </span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={startDate}
+                          onSelect={setStartDate}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    
+                    <span className="text-gray-500 text-xs sm:text-sm shrink-0">-</span>
+                    
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="flex-1 min-w-0 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
+                        >
+                          <CalendarIcon className="mr-1 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                          <span className="truncate">
+                            {endDate ? format(endDate, "dd/MM") : "Final"}
+                          </span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={endDate}
+                          onSelect={setEndDate}
+                          initialFocus
+                          disabled={(date) => startDate ? date < startDate : false}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                ) : (
+                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                    <SelectTrigger className="flex-1 lg:w-52 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-gray-200">
+                      <SelectItem value="2025-09">Septiembre 2025</SelectItem>
+                      <SelectItem value="2025-08">Agosto 2025</SelectItem>
+                      <SelectItem value="2025-07">Julio 2025</SelectItem>
+                      <SelectItem value="2025-06">Junio 2025</SelectItem>
+                      <SelectItem value="2025-05">Mayo 2025</SelectItem>
+                      <SelectItem value="current-month">Mes actual</SelectItem>
+                      <SelectItem value="last-month">Mes anterior</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              
+              <Link href="/" className="self-start lg:self-center">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
+                  data-testid="button-back-dashboard"
+                >
+                  <ArrowLeft className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Volver al Dashboard</span>
+                  <span className="sm:hidden">Volver</span>
+                </Button>
+              </Link>
+            </div>
           </div>
         </header>
 
