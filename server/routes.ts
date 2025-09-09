@@ -61,8 +61,8 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   }
 
   return {
-    startDate: startDate?.toISOString().split('T')[0],
-    endDate: endDate?.toISOString().split('T')[0]
+    startDate: startDate && !isNaN(startDate.getTime()) ? startDate.toISOString().split('T')[0] : undefined,
+    endDate: endDate && !isNaN(endDate.getTime()) ? endDate.toISOString().split('T')[0] : undefined
   };
 }
 
@@ -212,13 +212,14 @@ export function registerRoutes(app: Express): Server {
   // Top products endpoint
   app.get('/api/sales/top-products', requireAuth, async (req, res) => {
     try {
-      const { limit, period, filterType } = req.query;
+      const { limit, period, filterType, salesperson } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const topProducts = await storage.getTopProducts(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
-        dateRange.endDate
+        dateRange.endDate,
+        salesperson as string // Filtrar por vendedor específico
       );
       res.json(topProducts);
     } catch (error) {
@@ -282,7 +283,7 @@ export function registerRoutes(app: Express): Server {
   // Sales chart data endpoint
   app.get('/api/sales/chart-data', requireAuth, async (req, res) => {
     try {
-      const { period = 'monthly', selectedPeriod, filterType } = req.query;
+      const { period = 'monthly', selectedPeriod, filterType, salesperson } = req.query;
       
       // Si tenemos selectedPeriod y filterType, usamos esos para el filtro de fecha
       const dateRange = selectedPeriod && filterType 
@@ -292,7 +293,8 @@ export function registerRoutes(app: Express): Server {
       const chartData = await storage.getSalesChartData(
         period as 'weekly' | 'monthly' | 'daily',
         dateRange.startDate,
-        dateRange.endDate
+        dateRange.endDate,
+        salesperson as string // Filtrar por vendedor específico
       );
       res.json(chartData);
     } catch (error) {
