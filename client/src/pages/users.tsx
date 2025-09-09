@@ -822,27 +822,70 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
-        {/* Filters Section */}
-        <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filtrar por rol" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos los roles</SelectItem>
-                  <SelectItem value="admin">Administrador</SelectItem>
-                  <SelectItem value="supervisor">Supervisor</SelectItem>
-                  <SelectItem value="salesperson">Vendedor</SelectItem>
-                  <SelectItem value="client">Cliente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Filters and Summary Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Users className="w-5 h-5 mr-2" />
+                  Filtros de Usuario
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <label className="text-sm font-medium mb-2 block">Filtrar por rol</label>
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un rol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos los roles ({salespeopleUsers.length})</SelectItem>
+                        <SelectItem value="admin">
+                          Administradores ({salespeopleUsers.filter(u => u.role === 'admin').length})
+                        </SelectItem>
+                        <SelectItem value="supervisor">
+                          Supervisores ({salespeopleUsers.filter(u => u.role === 'supervisor').length})
+                        </SelectItem>
+                        <SelectItem value="salesperson">
+                          Vendedores ({salespeopleUsers.filter(u => u.role === 'salesperson').length})
+                        </SelectItem>
+                        <SelectItem value="client">
+                          Clientes ({salespeopleUsers.filter(u => u.role === 'client').length})
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+          
+          <div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Resumen</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Total usuarios:</span>
+                    <Badge variant="outline">{salespeopleUsers.length}</Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Usuarios activos:</span>
+                    <Badge variant="default">{salespeopleUsers.filter(u => u.isActive).length}</Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Usuarios inactivos:</span>
+                    <Badge variant="destructive">{salespeopleUsers.filter(u => !u.isActive).length}</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
       {/* Users Table */}
       <Card>
@@ -855,7 +898,10 @@ export default function UsersPage() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
-              <span>Cargando usuarios...</span>
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                <span className="text-muted-foreground">Cargando usuarios...</span>
+              </div>
             </div>
           ) : (
             <div className="rounded-md border">
@@ -879,8 +925,10 @@ export default function UsersPage() {
                       <TableCell>{user.username || "Sin usuario"}</TableCell>
                       <TableCell>{user.email || "Sin email"}</TableCell>
                       <TableCell>
-                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                          {user.role}
+                        <Badge variant={user.role === 'admin' || user.role === 'supervisor' ? 'default' : 'secondary'}>
+                          {user.role === 'admin' ? 'Administrador' : 
+                           user.role === 'supervisor' ? 'Supervisor' :
+                           user.role === 'client' ? 'Cliente' : 'Vendedor'}
                         </Badge>
                       </TableCell>
                       <TableCell>{user.supervisorId || "Sin supervisor"}</TableCell>
