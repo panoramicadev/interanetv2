@@ -54,9 +54,9 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
   const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
 
   // Debug logging (remove after fixing)
-  console.log('[DEBUG] GoalsProgress - goalsData:', goalsData);
-  console.log('[DEBUG] GoalsProgress - fetchedGoalsProgress:', fetchedGoalsProgress);
-  console.log('[DEBUG] GoalsProgress - final goalsProgress:', goalsProgress);
+  // console.log('[DEBUG] GoalsProgress - goalsData:', goalsData);
+  // console.log('[DEBUG] GoalsProgress - fetchedGoalsProgress:', fetchedGoalsProgress);
+  // console.log('[DEBUG] GoalsProgress - final goalsProgress:', goalsProgress);
 
   // Filter goals based on selected filter and global filter
   const filteredGoals = goalsProgress?.filter(goal => {
@@ -70,28 +70,34 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
     return goal.type === selectedFilter;
   }) || [];
 
-  const formatCurrency = (amount: number | string) => {
-    console.log('[DEBUG] formatCurrency called with:', amount, 'type:', typeof amount);
-    
-    // Ensure amount is a number
-    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    
-    console.log('[DEBUG] numericAmount after conversion:', numericAmount, 'isNaN:', isNaN(numericAmount));
-    
-    // Check if conversion was successful
-    if (isNaN(numericAmount) || numericAmount === null || numericAmount === undefined) {
-      console.error('[DEBUG] Invalid amount for formatCurrency:', amount, 'converted to:', numericAmount);
+  const formatCurrency = (amount: number | string | null | undefined) => {
+    // Handle null/undefined cases first
+    if (amount === null || amount === undefined) {
       return '$0';
     }
     
-    const result = new Intl.NumberFormat('es-CL', {
+    // Convert to number safely
+    let numericAmount: number;
+    if (typeof amount === 'string') {
+      // Remove any non-numeric characters except decimal point and minus sign
+      const cleanString = amount.replace(/[^-\d.]/g, '');
+      numericAmount = parseFloat(cleanString);
+    } else if (typeof amount === 'number') {
+      numericAmount = amount;
+    } else {
+      return '$0';
+    }
+    
+    // Check if conversion was successful
+    if (isNaN(numericAmount) || !isFinite(numericAmount)) {
+      return '$0';
+    }
+    
+    return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP',
       minimumFractionDigits: 0,
     }).format(numericAmount);
-    
-    console.log('[DEBUG] formatCurrency result:', result);
-    return result;
   };
 
   const getTypeIcon = (type: string) => {
