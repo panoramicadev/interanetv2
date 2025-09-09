@@ -822,7 +822,6 @@ export default function UsersPage() {
           </Form>
         </DialogContent>
       </Dialog>
-          </div>
         </div>
 
         {/* Filters Section */}

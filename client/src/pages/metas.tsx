@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import GoalsProgress from "@/components/dashboard/goals-progress";
+import type { GoalProgress } from "@/components/dashboard/goals-progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,7 +81,7 @@ export default function Metas() {
   };
 
   // Fetch progress data for the GoalsProgress component
-  const { data: progressData, isLoading: progressLoading } = useQuery({
+  const { data: progressData, isLoading: progressLoading } = useQuery<GoalProgress[]>({
     queryKey: [getProgressEndpoint()],
     enabled: !!user, // Only fetch when user is loaded
   });

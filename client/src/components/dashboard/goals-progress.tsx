@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Target, TrendingUp, Users, Building, CheckCircle, AlertCircle, Filter, TrendingDown, Clock, AlertTriangle } from "lucide-react";
 
-interface GoalProgress {
+export interface GoalProgress {
   id: string;
   type: string;
   target: string | null;
