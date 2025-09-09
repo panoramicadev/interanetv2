@@ -47,6 +47,14 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
   
   const { data: fetchedGoalsProgress, isLoading: fetchedLoading } = useQuery<GoalProgress[]>({
     queryKey: ["/api/goals/progress", selectedPeriod],
+    queryFn: async () => {
+      const url = selectedPeriod 
+        ? `/api/goals/progress?selectedPeriod=${selectedPeriod}`
+        : '/api/goals/progress';
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
     enabled: !goalsData, // Only fetch if no external data provided
   });
 
