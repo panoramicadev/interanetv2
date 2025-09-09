@@ -43,9 +43,7 @@ export default function SalesChart({ selectedPeriod, filterType, salespersonFilt
   const chartPeriod = filterType === 'day' ? 'daily' : period;
   
   const { data: chartData, isLoading } = useQuery<ChartDataPoint[]>({
-    queryKey: salespersonFilter 
-      ? [`/api/sales/chart-data/salesperson/${salespersonFilter}?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}`]
-      : [`/api/sales/chart-data?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/chart-data?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
   });
 
   const formatCurrency = (value: number) => {

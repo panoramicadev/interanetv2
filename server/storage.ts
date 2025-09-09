@@ -621,7 +621,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTopProducts(limit = 10, startDate?: string, endDate?: string): Promise<Array<{
+  async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
     productName: string;
     totalSales: number;
     totalUnits: number;
@@ -633,6 +633,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (endDate) {
       conditions.push(lte(salesTransactions.feemdo, endDate));
+    }
+    if (salesperson) {
+      conditions.push(eq(salesTransactions.nokofu, salesperson));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
