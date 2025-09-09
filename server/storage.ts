@@ -2833,18 +2833,17 @@ export class DatabaseStorage implements IStorage {
 
   // Segment analysis by unique clients (instead of sales volume)
   async getSegmentAnalysisByUniqueClients(startDate?: string, endDate?: string) {
-    let query = db
+    const whereConditions = [];
+    if (startDate) whereConditions.push(gte(salesTransactions.fecha, startDate));
+    if (endDate) whereConditions.push(lte(salesTransactions.fecha, endDate));
+
+    const query = db
       .select({
         segment: salesTransactions.segmento,
         uniqueClients: sql<number>`COUNT(DISTINCT ${salesTransactions.cliente})`,
       })
       .from(salesTransactions)
-      .where(
-        and(
-          startDate ? gte(salesTransactions.fecha, startDate) : undefined,
-          endDate ? lte(salesTransactions.fecha, endDate) : undefined
-        )
-      )
+      .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
       .groupBy(salesTransactions.segmento);
 
     const segments = await query;
