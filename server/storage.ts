@@ -274,7 +274,17 @@ export interface IStorage {
   upsertProductStock(stock: InsertProductStock): Promise<ProductStock>;
   
   // CSV import for new KOPR-based format
-  importProductStockFromKOPRCSV(csvData: CsvProductStockImport[]): Promise<{
+  importProductStockFromKOPRCSV(csvData: Array<{
+    KOPR: string;
+    NOKOPR: string;
+    UD01PR?: string;
+    UD02PR?: string;
+    KOSU: string;
+    KOBO: string;
+    DATOSUBIC?: string;
+    STFI1?: string;
+    STFI2?: string;
+  }>): Promise<{
     processedProducts: number;
     newProducts: number;
     updatedStock: number;
@@ -3105,6 +3115,141 @@ export class DatabaseStorage implements IStorage {
       console.error('[ERROR] Failed to invalidate user sessions:', error);
       throw error;
     }
+  }
+
+  // Nueva función de importación CSV basada en KOPR
+  async importProductStockFromKOPRCSV(csvData: Array<{
+    KOPR: string;
+    NOKOPR: string;
+    UD01PR?: string;
+    UD02PR?: string;
+    KOSU: string;
+    KOBO: string;
+    DATOSUBIC?: string;
+    STFI1?: string;
+    STFI2?: string;
+  }>): Promise<{
+    processedProducts: number;
+    newProducts: number;
+    updatedStock: number;
+    newWarehouses: number;
+    errors: string[];
+  }> {
+    console.log(`🚀 Iniciando importación KOPR de ${csvData.length} registros`);
+    
+    const errors: string[] = [];
+    let processedProducts = 0;
+    let newProducts = 0;
+    let updatedStock = 0;
+    let newWarehouses = 0;
+    
+    // Mapa para rastrear productos ya procesados (un producto por KOPR)
+    const processedKOPRs = new Set<string>();
+
+    for (const row of csvData) {
+      try {
+        // Validación de datos críticos
+        if (!row.KOPR || row.KOPR.trim().length === 0) {
+          errors.push(`KOPR vacío o inválido`);
+          continue;
+        }
+
+        if (!row.NOKOPR || row.NOKOPR.trim().length === 0) {
+          errors.push(`NOKOPR (nombre) vacío para KOPR ${row.KOPR}`);
+          continue;
+        }
+
+        if (!row.KOSU || !row.KOBO) {
+          errors.push(`KOSU (${row.KOSU}) o KOBO (${row.KOBO}) inválidos para KOPR ${row.KOPR}`);
+          continue;
+        }
+
+        console.log(`📦 Procesando KOPR: ${row.KOPR} (${row.NOKOPR}) - Sucursal: ${row.KOSU}, Bodega: ${row.KOBO}`);
+
+        // 1. Crear producto único por KOPR (solo la primera vez que aparece)
+        if (!processedKOPRs.has(row.KOPR)) {
+          const existingProduct = await this.getProduct(row.KOPR);
+          
+          if (!existingProduct) {
+            console.log(`➕ Creando nuevo producto: ${row.KOPR} - ${row.NOKOPR}`);
+            
+            await this.createProduct({
+              kopr: row.KOPR,
+              sku: row.KOPR, // Mantener compatibilidad
+              name: row.NOKOPR,
+              nokopr: row.NOKOPR,
+              ud01pr: row.UD01PR || '',
+              ud02pr: row.UD02PR || '', // Unidad secundaria para presentación
+              description: `Producto ${row.KOPR}`,
+              category: '',
+              active: true
+            });
+            
+            newProducts++;
+          }
+          
+          processedKOPRs.add(row.KOPR);
+        }
+
+        // 2. Crear warehouse si no existe
+        const existingWarehouse = await this.getWarehouse(row.KOBO, row.KOSU);
+        if (!existingWarehouse) {
+          console.log(`➕ Creando nueva bodega: ${row.KOBO} - Sucursal: ${row.KOSU}`);
+          
+          await this.createWarehouse({
+            kobo: row.KOBO,
+            kosu: row.KOSU,
+            name: `Bodega ${row.KOBO}`,
+            branchName: `Sucursal ${row.KOSU}`,
+            location: row.DATOSUBIC || '',
+            active: true
+          });
+          
+          newWarehouses++;
+        }
+
+        // 3. Crear/actualizar stock por KOPR+KOBO
+        const physicalStock2 = row.STFI2 ? parseFloat(row.STFI2.replace(',', '.')) : 0;
+        const physicalStock1 = row.STFI1 ? parseFloat(row.STFI1.replace(',', '.')) : 0;
+
+        await this.upsertProductStock({
+          kopr: row.KOPR,
+          productSku: row.KOPR, // Compatibilidad
+          kosu: row.KOSU,
+          kobo: row.KOBO,
+          branchCode: row.KOSU, // Compatibilidad
+          warehouseCode: row.KOBO, // Compatibilidad
+          warehouseLocation: row.DATOSUBIC || '',
+          datosubic: row.DATOSUBIC || '',
+          physicalStock1: physicalStock1,
+          physicalStock2: physicalStock2, // STFI2 - Stock en unidad secundaria
+          availableStock1: physicalStock1,
+          availableStock2: physicalStock2,
+        });
+
+        updatedStock++;
+        processedProducts++;
+        
+        if (processedProducts % 100 === 0) {
+          console.log(`📈 Progreso: ${processedProducts} registros procesados`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ Error procesando KOPR ${row.KOPR}:`, error);
+        errors.push(`KOPR ${row.KOPR}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    const summary = {
+      processedProducts,
+      newProducts,
+      updatedStock,
+      newWarehouses,
+      errors
+    };
+
+    console.log(`🎉 Importación KOPR completada:`, summary);
+    return summary;
   }
 
   // Segment analysis by unique clients (instead of sales volume)
