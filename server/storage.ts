@@ -7,6 +7,7 @@ import {
   products,
   productStock,
   productPriceHistory,
+  warehouses,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -22,6 +23,9 @@ import {
   type InsertProductStock,
   type ProductPriceHistory,
   type InsertProductPriceHistory,
+  type Warehouse,
+  type InsertWarehouse,
+  type CsvProductStockImport,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
@@ -240,7 +244,13 @@ export interface IStorage {
     teamGrowth: number;
   }>;
   
-  // Product operations
+  // Warehouse operations
+  getWarehouses(): Promise<Warehouse[]>;
+  getWarehouse(kobo: string, kosu: string): Promise<Warehouse | undefined>;
+  createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse>;
+  updateWarehouse(kobo: string, kosu: string, warehouse: Partial<InsertWarehouse>): Promise<Warehouse>;
+  
+  // Product operations (KOPR-based)
   getProducts(filters?: {
     search?: string;
     active?: boolean;
@@ -252,15 +262,27 @@ export interface IStorage {
     totalStock?: number;
     warehouses?: string[];
   }>>;
-  getProduct(sku: string): Promise<Product | undefined>;
+  getProduct(kopr: string): Promise<Product | undefined>;
+  getProductBySku(sku: string): Promise<Product | undefined>; // Compatibility
   createProduct(product: InsertProduct): Promise<Product>;
-  updateProduct(sku: string, product: Partial<InsertProduct>): Promise<Product>;
-  updateProductPrice(sku: string, newPrice: number, changedBy: string, reason?: string): Promise<Product>;
+  updateProduct(kopr: string, product: Partial<InsertProduct>): Promise<Product>;
+  updateProductPrice(kopr: string, newPrice: number, changedBy: string, reason?: string): Promise<Product>;
   
-  // Product stock operations
-  getProductStock(sku: string): Promise<ProductStock[]>;
-  getProductStockByWarehouse(sku: string, warehouseCode: string, branchCode?: string): Promise<ProductStock[]>;
+  // Product stock operations (KOPR-based)
+  getProductStock(kopr: string): Promise<ProductStock[]>;
+  getProductStockByWarehouse(kopr: string, kobo: string, kosu?: string): Promise<ProductStock[]>;
   upsertProductStock(stock: InsertProductStock): Promise<ProductStock>;
+  
+  // CSV import for new KOPR-based format
+  importProductStockFromKOPRCSV(csvData: CsvProductStockImport[]): Promise<{
+    processedProducts: number;
+    newProducts: number;
+    updatedStock: number;
+    newWarehouses: number;
+    errors: string[];
+  }>;
+  
+  // Legacy import for compatibility
   importProductStockFromCSV(csvData: Array<{
     sku: string;
     name: string;
@@ -2277,7 +2299,14 @@ export class DatabaseStorage implements IStorage {
     return enrichedProducts;
   }
 
-  async getProduct(sku: string): Promise<Product | undefined> {
+  // New KOPR-based function
+  async getProduct(kopr: string): Promise<Product | undefined> {
+    const [product] = await db.select().from(products).where(eq(products.kopr, kopr));
+    return product;
+  }
+
+  // Compatibility function for existing SKU-based calls
+  async getProductBySku(sku: string): Promise<Product | undefined> {
     const [product] = await db.select().from(products).where(eq(products.sku, sku));
     return product;
   }
@@ -2415,15 +2444,19 @@ export class DatabaseStorage implements IStorage {
         console.log(`📦 Procesando SKU: ${row.sku} (${row.name}) - Sucursal: ${row.branchCode}, Bodega: ${row.warehouseCode}`);
 
         // Verificar si el producto existe
-        let product = await this.getProduct(row.sku);
+        let product = await this.getProductBySku(row.sku);
         
         if (!product) {
           console.log(`➕ Creando nuevo producto: ${row.sku}`);
           // Crear nuevo producto (sin precio, se establece manualmente)
           product = await this.createProduct({
+            kopr: row.sku, // Use SKU as KOPR for legacy compatibility
             productId: row.sku, // Agregar productId requerido
             sku: row.sku,
+            nokopr: row.name, // Required field
             name: row.name,
+            ud01pr: row.unit1 || 'UN', // New field structure
+            ud02pr: row.unit2 || 'UN', // New field structure
             packagingUnitName: row.unit1 || 'UN', // Mantener compatibilidad
             packagingUnit: row.unit2 || 'UN', // Mantener compatibilidad
             active: true
@@ -2432,11 +2465,13 @@ export class DatabaseStorage implements IStorage {
         } else {
           console.log(`🔄 Actualizando producto existente: ${row.sku}`);
           // Actualizar información del producto (preservando precio)
-          await this.updateProduct(row.sku, {
+          await this.updateProduct(product.kopr, {
+            nokopr: row.name, // Update required field
             name: row.name,
+            ud01pr: row.unit1 || 'UN', // New field structure
+            ud02pr: row.unit2 || 'UN', // New field structure
             packagingUnitName: row.unit1 || 'UN', // Mantener compatibilidad
             packagingUnit: row.unit2 || 'UN', // Mantener compatibilidad
-            // unitRatio removed from schema
           });
         }
 
@@ -2444,10 +2479,14 @@ export class DatabaseStorage implements IStorage {
         console.log(`📊 Actualizando stock para ${row.sku}: Stock Físico 1: ${row.physicalStock1}, Disponible 1: ${row.availableStock1}`);
         
         const stockData = {
-          productSku: row.sku,
-          branchCode: row.branchCode,
-          warehouseCode: row.warehouseCode,
-          warehouseLocation: row.warehouseLocation || '',
+          kopr: product.kopr, // Use KOPR from product
+          productSku: row.sku, // Compatibility field
+          kosu: row.branchCode, // New field structure
+          kobo: row.warehouseCode, // New field structure
+          branchCode: row.branchCode, // Compatibility field
+          warehouseCode: row.warehouseCode, // Compatibility field
+          datosubic: row.warehouseLocation || '', // New field name
+          warehouseLocation: row.warehouseLocation || '', // Compatibility field
           physicalStock1: row.physicalStock1?.toString() || '0',
           physicalStock2: row.physicalStock2?.toString() || '0',
           availableStock1: row.availableStock1?.toString() || '0',
@@ -2458,7 +2497,8 @@ export class DatabaseStorage implements IStorage {
           pfpr: row.pfpr || '',
           hfpr: row.hfpr || '',
           rupr: row.rupr || '',
-          mrpr: row.mrpr || ''
+          mrpr: row.mrpr || '',
+          rlud: row.unitRatio?.toString() || '1'
         };
 
         await this.upsertProductStock(stockData);
