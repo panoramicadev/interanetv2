@@ -263,7 +263,6 @@ export default function UsersPage() {
   }
 
   return (
-    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -822,7 +821,6 @@ export default function UsersPage() {
           </Form>
         </DialogContent>
       </Dialog>
-        </div>
 
         {/* Filters Section */}
         <Card>
@@ -921,6 +919,5 @@ export default function UsersPage() {
         </CardContent>
       </Card>
     </div>
-    </>
   );
 }
