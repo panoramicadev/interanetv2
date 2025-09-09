@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +27,8 @@ interface Product {
   price?: string;
   pricePerUnit?: string;
   packagingUnitName?: string;
+  offerPrice?: string;
+  showInStore?: boolean;
   active: boolean;
   totalStock?: number;
   warehouses?: string[];
@@ -68,6 +71,7 @@ export default function ProductsPage() {
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
   const [newPrice, setNewPrice] = useState("");
   const [newOfferPrice, setNewOfferPrice] = useState("");
+  const [showInStore, setShowInStore] = useState(false);
   const [priceReason, setPriceReason] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -208,6 +212,7 @@ export default function ProductsPage() {
       sku: selectedProduct.sku,
       price: parseFloat(newPrice),
       offerPrice: newOfferPrice ? parseFloat(newOfferPrice) : undefined,
+      showInStore: showInStore,
       reason: priceReason
     });
   };
@@ -650,6 +655,7 @@ export default function ProductsPage() {
                       setSelectedProduct(product);
                       setNewPrice(product.price || "");
                       setNewOfferPrice(""); // Reset offer price
+                      setShowInStore(product.showInStore || false);
                       setShowPriceDialog(true);
                     }}
                     data-testid={`card-product-${product.sku}`}
@@ -662,9 +668,16 @@ export default function ProductsPage() {
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm">{formatPrice(product.price)}</span>
-                          <Badge variant={product.active ? "default" : "secondary"} className="text-xs">
-                            {product.active ? "Activo" : "Inactivo"}
-                          </Badge>
+                          <div className="flex gap-1">
+                            <Badge variant={product.active ? "default" : "secondary"} className="text-xs">
+                              {product.active ? "Activo" : "Inactivo"}
+                            </Badge>
+                            {product.showInStore && (
+                              <Badge variant="outline" className="text-xs">
+                                En tienda
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -709,6 +722,15 @@ export default function ProductsPage() {
                 placeholder="0.00"
                 data-testid="input-offer-price"
               />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="show-in-store"
+                checked={showInStore}
+                onCheckedChange={setShowInStore}
+                data-testid="switch-show-in-store"
+              />
+              <Label htmlFor="show-in-store">Mostrar en tienda</Label>
             </div>
             <div>
               <Label htmlFor="reason">Motivo del cambio (opcional)</Label>

@@ -237,6 +237,7 @@ export const products = pgTable("products", {
   ud02pr: varchar("ud02pr"), // UD02PR - Secondary unit presentation (Galón/Balde/Litro)
   priceProduct: numeric("price_product", { precision: 15, scale: 2 }), // Precio normal
   priceOffer: numeric("price_offer", { precision: 15, scale: 2 }), // Precio de oferta
+  showInStore: boolean("show_in_store").default(false), // Mostrar en tienda
   
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
