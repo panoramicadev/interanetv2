@@ -454,7 +454,9 @@ export default function Metas() {
             ) : groupedGoals && groupedGoals.length > 0 ? (
               groupedGoals.map((periodGroup) => {
                 const isExpanded = expandedPeriods.has(periodGroup.period);
-                const periodDate = new Date(periodGroup.period + '-01');
+                // Fix date parsing to ensure correct month display
+                const [year, month] = periodGroup.period.split('-');
+                const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
                 const monthName = periodDate.toLocaleDateString('es-ES', { 
                   month: 'long', 
                   year: 'numeric' 
