@@ -93,6 +93,12 @@ export default function UsersPage() {
     enabled: user?.role === 'admin',
   });
 
+  // Query para obtener segmentos únicos (para asignación de usuarios)
+  const { data: availableSegments = [] } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/segments"],
+    enabled: user?.role === 'admin',
+  });
+
   // Query para obtener segmentos ordenados por ventas (para sugerencias)
   const { data: segmentsData = [] } = useQuery<Array<{segment: string; totalSales: number; percentage: number}>>({
     queryKey: ["/api/sales/segments?period=2025-09&filterType=month"],
@@ -234,9 +240,7 @@ export default function UsersPage() {
     if (watchedEditRole !== "salesperson") {
       editForm.setValue("supervisorId", null);
     }
-    if (watchedEditRole !== "supervisor") {
-      editForm.setValue("assignedSegment", null);
-    }
+    // Removed segment clearing - all roles can have segments now
   }, [watchedEditRole, editForm]);
 
   const handleCreateSubmit = (data: InsertSalespersonUserInput) => {
@@ -244,7 +248,7 @@ export default function UsersPage() {
     const cleanedData = {
       ...data,
       supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null,
-      assignedSegment: data.role === "supervisor" && data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
+      assignedSegment: data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
     };
     console.log("Enviando datos:", cleanedData);
     createUserMutation.mutate(cleanedData);
@@ -256,7 +260,7 @@ export default function UsersPage() {
     const cleanedData = {
       ...data,
       supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null,
-      assignedSegment: data.role === "supervisor" && data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
+      assignedSegment: data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
     };
     console.log("Editando datos:", cleanedData);
     updateUserMutation.mutate({ id: editingUser.id, userData: cleanedData });
@@ -421,33 +425,31 @@ export default function UsersPage() {
                     />
                   )}
 
-                  {createForm.watch("role") === "supervisor" && (
-                    <FormField
-                      control={createForm.control}
-                      name="assignedSegment"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Segmento Asignado</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value ?? "none"}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-assigned-segment">
-                                <SelectValue placeholder="Selecciona un segmento" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="none">Sin segmento</SelectItem>
-                              <SelectItem value="CONSTRUCCION">CONSTRUCCION</SelectItem>
-                              <SelectItem value="DIGITAL">DIGITAL</SelectItem>
-                              <SelectItem value="FERRETERIAS">FERRETERIAS</SelectItem>
-                              <SelectItem value="MCT">MCT</SelectItem>
-                              <SelectItem value="PANORAMICA STORE">PANORAMICA STORE</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
+                  <FormField
+                    control={createForm.control}
+                    name="assignedSegment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Segmento Asignado</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? "none"}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-assigned-segment">
+                              <SelectValue placeholder="Selecciona un segmento" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">Sin segmento</SelectItem>
+                            {availableSegments.map((segment) => (
+                              <SelectItem key={segment} value={segment}>
+                                {segment}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   {createForm.watch("role") === "salesperson" && (
                     <FormField
                       control={createForm.control}
@@ -685,33 +687,31 @@ export default function UsersPage() {
                 />
               )}
 
-              {editForm.watch("role") === "supervisor" && (
-                <FormField
-                  control={editForm.control}
-                  name="assignedSegment"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Segmento Asignado</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? "none"}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-edit-assigned-segment">
-                            <SelectValue placeholder="Selecciona un segmento" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">Sin segmento</SelectItem>
-                          <SelectItem value="CONSTRUCCION">CONSTRUCCION</SelectItem>
-                          <SelectItem value="DIGITAL">DIGITAL</SelectItem>
-                          <SelectItem value="FERRETERIAS">FERRETERIAS</SelectItem>
-                          <SelectItem value="MCT">MCT</SelectItem>
-                          <SelectItem value="PANORAMICA STORE">PANORAMICA STORE</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+              <FormField
+                control={editForm.control}
+                name="assignedSegment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Segmento Asignado</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value ?? "none"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-assigned-segment">
+                          <SelectValue placeholder="Selecciona un segmento" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">Sin segmento</SelectItem>
+                        {availableSegments.map((segment) => (
+                          <SelectItem key={segment} value={segment}>
+                            {segment}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={editForm.control}
                 name="isActive"
