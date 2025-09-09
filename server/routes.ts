@@ -759,9 +759,24 @@ export function registerRoutes(app: Express): Server {
   // Goals progress endpoint
   app.get('/api/goals/progress', requireAuth, async (req, res) => {
     try {
-      const goals = await storage.getGoals();
+      const { selectedPeriod } = req.query;
+      const filterPeriod = selectedPeriod as string;
+      
+      const allGoals = await storage.getGoals();
+      
+      // Filter goals by selected period - only show goals for the specific period
+      const filteredGoals = filterPeriod 
+        ? allGoals.filter(goal => goal.period === filterPeriod)
+        : allGoals;
+      
+      // If no goals found for the period, return empty array (this will hide the section)
+      if (filteredGoals.length === 0) {
+        res.json([]);
+        return;
+      }
+      
       const goalsWithProgress = await Promise.all(
-        goals.map(async (goal) => {
+        filteredGoals.map(async (goal) => {
           let currentSales = 0;
           
           switch (goal.type) {
