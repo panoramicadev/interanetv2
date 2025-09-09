@@ -1504,109 +1504,35 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Products-only CSV Import endpoint - Nueva funcionalidad separada  
-  app.post('/api/products/import-products-csv', requireAuth, upload.single('csvFile'), async (req: any, res) => {
+  // Products-only CSV Import endpoint - Recibe datos parseados con separación universal
+  app.post('/api/products/import-products-csv', requireAuth, async (req: any, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ message: "No CSV file provided" });
+      const { products } = req.body;
+      
+      if (!products || !Array.isArray(products)) {
+        return res.status(400).json({ message: "No products data provided" });
       }
 
-      const csvContent = req.file.buffer.toString('utf-8');
-      
-      console.log(`📊 CSV de productos parseado: iniciando procesamiento`);
-      
-      // Parse CSV using Papa Parse
-      const parseResult = Papa.parse(csvContent, {
-        header: true,
-        delimiter: ';', // CSV uses semicolon as delimiter
-        skipEmptyLines: true,
-        transformHeader: (header: string) => header.trim()
-      });
-
-      if (parseResult.errors.length > 0) {
-        return res.status(400).json({ 
-          message: "CSV parsing errors", 
-          errors: parseResult.errors 
-        });
-      }
-
-      console.log(`📊 CSV parseado: ${parseResult.data.length} productos encontrados`);
+      console.log(`📊 Productos parseados: iniciando procesamiento de ${products.length} productos`);
       
       // Debug: Log first few rows to see structure
-      console.log(`🔍 Primeras 3 filas del CSV:`, JSON.stringify(parseResult.data.slice(0, 3), null, 2));
-      console.log(`🔍 Columnas disponibles:`, Object.keys(parseResult.data[0] || {}));
+      console.log(`🔍 Primeros 3 productos:`, JSON.stringify(products.slice(0, 3), null, 2));
+      console.log(`🔍 Columnas disponibles:`, Object.keys(products[0] || {}));
       
-      // Transform CSV data to match our new products schema using real CSV column names
-      const csvData = parseResult.data.map((row: any, index: number) => {
-        const transformedRow = {
-          productId: row.KOPR?.toString()?.trim(), // SKU del producto
-          name: row.NOKOPR?.toString()?.trim(), // Nombre del producto
-          description: '', // No hay descripción en el CSV
-          category: row.group_name?.toString()?.trim() || '', // Categoría/Grupo
-          pricePerUnit: row.pricePerUnit?.toString()?.trim() || '0',
-          taxCode: '', // No hay datos de impuestos en el CSV
-          taxName: '',
-          taxRate: '0',
-          weight: '0', // No hay datos de dimensiones en el CSV
-          weightUnit: '',
-          length: '0',
-          lengthUnit: '',
-          width: '0',
-          widthUnit: '',
-          height: '0',
-          heightUnit: '',
-          volume: '0',
-          volumeUnit: '',
-          minUnit: '0',
-          stepSize: '1',
-          packagingUnit: row.packaging_unit?.toString()?.trim() || '',
-          packagingUnitName: row.packaging_unitName?.toString()?.trim() || '', // Presentación del producto
-          packagingPackageName: row.packaging_packageName?.toString()?.trim() || '',
-          packagingPackageUnit: row.packaging_packageUnit?.toString()?.trim() || '',
-          packagingAmountPerPackage: row.packaging_amountPerPackage?.toString()?.trim() || '0',
-          packagingBoxName: row.packaging_boxName?.toString()?.trim() || '',
-          packagingBoxUnit: row.packaging_boxUnit?.toString()?.trim() || '',
-          packagingAmountPerBox: row.packaging_amountPerBox?.toString()?.trim() || '0',
-          packagingPalletName: row.packaging_palletName?.toString()?.trim() || '',
-          packagingPalletUnit: row.packaging_palletUnit?.toString()?.trim() || '',
-          packagingAmountPerPallet: row.packaging_amountPerPallet?.toString()?.trim() || '0',
-          // Datos de variantes del CSV
-          variantFeaturesKey: row.variant_features_0_key?.toString()?.trim() || '',
-          variantFeaturesValue: row.variant_features_0_value?.toString()?.trim() || '',
-          variantParentSku: row.variant_parentSku?.toString()?.trim() || '',
-          variantGenericDisplayName: row.variant_genericDisplayName?.toString()?.trim() || '',
-          variantIndex: row.variant_index?.toString()?.trim() || '0',
-          originalRowIndex: index + 1
-        };
-        
-        // Debug: Log first few transformed rows
-        if (index < 3) {
-          console.log(`🔍 Fila ${index + 1} transformada:`, JSON.stringify(transformedRow, null, 2));
-        }
-        
-        return transformedRow;
-      }).filter((row: any) => {
-        // Validación para importación de productos (no stock)
-        const hasProductId = row.productId && row.productId.trim().length > 0;
-        const hasName = row.name && row.name.trim().length > 0;
-        
-        if (!hasProductId) {
-          console.log(`❌ Fila ${row.originalRowIndex} excluida: Sin KOPR (productId) - valor: "${row.productId}"`);
-          return false;
-        }
-        
-        if (!hasName) {
-          console.log(`❌ Fila ${row.originalRowIndex} excluida: Sin NOKOPR (nombre) - valor: "${row.name}"`);
-          return false;
-        }
-        
-        console.log(`✅ Fila ${row.originalRowIndex} válida: ${row.productId} - ${row.name}`);
-        return true;
-      });
+      // Transform to KOPR format for storage function
+      const koprData = products.map((row: any) => ({
+        KOPR: row.KOPR?.toString()?.trim(),
+        NOKOPR: row.NOKOPR?.toString()?.trim(),
+        UD02PR: row.UD02PR?.toString()?.trim(),
+        KOSU: row.KOSU?.toString()?.trim(),
+        KOBO: row.KOBO?.toString()?.trim(),
+        DATOSUBIC: row.DATOSUBIC?.toString()?.trim(),
+        STFI2: row.STFI2?.toString()?.trim()
+      })).filter((item: any) => item.KOPR && item.NOKOPR);
+      
+      console.log(`✅ Productos válidos para procesar: ${koprData.length}`);
 
-      console.log(`✅ Productos válidos para procesar: ${csvData.length}`);
-
-      const result = await storage.importProductsFromCSV(csvData);
+      const result = await storage.importProductStockFromKOPRCSV(koprData);
       
       console.log(`📈 Resultado de importación de productos:`, result);
       
@@ -1614,9 +1540,9 @@ export function registerRoutes(app: Express): Server {
         message: "Products CSV import completed",
         result: {
           ...result,
-          totalRowsInCSV: parseResult.data.length,
-          validRowsProcessed: csvData.length,
-          filteredOutRows: parseResult.data.length - csvData.length
+          totalRowsInCSV: products.length,
+          validRowsProcessed: koprData.length,
+          filteredOutRows: products.length - koprData.length
         }
       });
     } catch (error) {
