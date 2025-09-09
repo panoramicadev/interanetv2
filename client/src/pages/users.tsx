@@ -263,6 +263,7 @@ export default function UsersPage() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -821,11 +822,11 @@ export default function UsersPage() {
           </Form>
         </DialogContent>
       </Dialog>
+          </div>
         </div>
-      </div>
 
-      {/* Filters Section */}
-      <Card>
+        {/* Filters Section */}
+        <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
@@ -921,5 +922,6 @@ export default function UsersPage() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }
