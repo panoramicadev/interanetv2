@@ -1,8 +1,13 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock } from "lucide-react";
+import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Clock, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 
 interface ClientDetails {
@@ -26,16 +31,47 @@ export default function ClientDetail() {
   const { clientName } = useParams();
   const { user } = useAuth();
   
-  // Get current period (could be enhanced with date filters later)
-  const currentPeriod = new Date().toISOString().slice(0, 7); // YYYY-MM format
+  // Date filter states
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    return format(new Date(), "yyyy-MM");
+  });
+  const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+
+  // Update selected period when filter type changes
+  useEffect(() => {
+    switch (filterType) {
+      case "day":
+        if (selectedDate) {
+          setSelectedPeriod(format(selectedDate, "yyyy-MM-dd"));
+        } else {
+          setSelectedPeriod(format(new Date(), "yyyy-MM-dd"));
+        }
+        break;
+      case "month":
+        if (!selectedPeriod || selectedPeriod.includes("_") || selectedPeriod === "current-month" || selectedPeriod === "last-month") {
+          setSelectedPeriod(format(new Date(), "yyyy-MM"));
+        }
+        break;
+      case "range":
+        if (startDate && endDate) {
+          setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
+        } else {
+          setSelectedPeriod("last-30-days");
+        }
+        break;
+    }
+  }, [filterType, selectedDate, startDate, endDate]);
   
   const { data: details, isLoading: isLoadingDetails } = useQuery<ClientDetails>({
-    queryKey: [`/api/sales/client/${clientName}/details?period=${currentPeriod}&filterType=month`],
+    queryKey: [`/api/sales/client/${clientName}/details?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!clientName,
   });
 
   const { data: products = [], isLoading: isLoadingProducts } = useQuery<ClientProduct[]>({
-    queryKey: [`/api/sales/client/${clientName}/products?period=${currentPeriod}&filterType=month`],
+    queryKey: [`/api/sales/client/${clientName}/products?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!clientName,
   });
 
@@ -88,39 +124,157 @@ export default function ClientDetail() {
   return (
     <div className="min-h-screen bg-background">
       <div>
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
-          <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
-            <div>
-              <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+        {/* Header - Compact Layout */}
+        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 m-3 sm:m-4 rounded-2xl shadow-sm">
+          {/* Title Section */}
+          <div className="flex items-start justify-between mb-4">
+            <div className="min-w-0 flex-1">
+              <nav className="flex items-center space-x-1 text-xs text-gray-600 mb-1">
                 <Link href="/" className="hover:text-blue-600 transition-colors">
                   Dashboard
                 </Link>
                 <span>›</span>
-                <span>Cliente</span>
-                <span>›</span>
-                <span className="font-medium text-gray-900">{decodeURIComponent(clientName)}</span>
+                <span className="hidden sm:inline">Cliente</span>
+                <span className="hidden sm:inline">›</span>
+                <span className="font-medium text-gray-900 truncate">{decodeURIComponent(clientName)}</span>
               </nav>
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                 Análisis de Cliente
               </h1>
-              <p className="text-gray-600 text-base lg:text-lg font-semibold">
+              <p className="text-gray-600 text-sm font-semibold truncate">
                 {decodeURIComponent(clientName)}
               </p>
-              <p className="text-gray-500 text-sm">
-                Período: {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long' })}
+              <p className="text-gray-600 text-sm">
+                {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
               </p>
             </div>
+            
             <Link href="/">
               <Button 
                 variant="outline" 
-                className="rounded-xl border-gray-200 shadow-sm"
+                size="sm"
+                className="rounded-xl border-gray-200 shadow-sm ml-4"
                 data-testid="button-back-dashboard"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver al Dashboard
+                <span className="hidden sm:inline">Volver al Dashboard</span>
+                <span className="sm:hidden">Volver</span>
               </Button>
             </Link>
+          </div>
+
+          {/* Filter Controls - Horizontal Layout */}
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Filter Type */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                Filtrar:
+              </label>
+              <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
+                <SelectTrigger className="w-24 rounded-xl border-gray-200 shadow-sm text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-gray-200">
+                  <SelectItem value="day">Día</SelectItem>
+                  <SelectItem value="month">Mes</SelectItem>
+                  <SelectItem value="range">Rango</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Period Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                Período:
+              </label>
+              {filterType === "day" ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      <span>
+                        {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar"}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : filterType === "range" ? (
+                <div className="flex items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
+                      >
+                        <CalendarIcon className="mr-1 h-3 w-3" />
+                        <span>
+                          {startDate ? format(startDate, "dd/MM") : "Inicio"}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={startDate}
+                        onSelect={setStartDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  
+                  <span className="text-gray-500">-</span>
+                  
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
+                      >
+                        <CalendarIcon className="mr-1 h-3 w-3" />
+                        <span>
+                          {endDate ? format(endDate, "dd/MM") : "Final"}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        initialFocus
+                        disabled={(date) => startDate ? date < startDate : false}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              ) : (
+                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                  <SelectTrigger className="w-44 rounded-xl border-gray-200 shadow-sm text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-gray-200">
+                    <SelectItem value="2025-09">Septiembre 2025</SelectItem>
+                    <SelectItem value="2025-08">Agosto 2025</SelectItem>
+                    <SelectItem value="2025-07">Julio 2025</SelectItem>
+                    <SelectItem value="2025-06">Junio 2025</SelectItem>
+                    <SelectItem value="2025-05">Mayo 2025</SelectItem>
+                    <SelectItem value="current-month">Mes actual</SelectItem>
+                    <SelectItem value="last-month">Mes anterior</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
         </header>
 
