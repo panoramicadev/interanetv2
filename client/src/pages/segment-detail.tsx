@@ -144,7 +144,7 @@ export default function SegmentDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Total Ventas</p>
-                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-green-600 truncate" data-testid="text-total-sales">
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-green-600" data-testid="text-total-sales">
                     {formatCurrency(totalSales)}
                   </p>
                 </div>
@@ -158,7 +158,7 @@ export default function SegmentDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Clientes / Vendedores</p>
-                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-blue-600 truncate" data-testid="text-total-clients">
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-blue-600" data-testid="text-total-clients">
                     {formatNumber(totalClients)} / {formatNumber(totalSalespeople)}
                   </p>
                 </div>
@@ -172,7 +172,7 @@ export default function SegmentDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Transacciones</p>
-                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-purple-600 truncate" data-testid="text-total-transactions">
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-purple-600" data-testid="text-total-transactions">
                     {formatNumber(totalTransactions)}
                   </p>
                 </div>
@@ -186,7 +186,7 @@ export default function SegmentDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">Ticket Promedio</p>
-                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-orange-600 truncate" data-testid="text-average-ticket">
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold text-orange-600" data-testid="text-average-ticket">
                     {formatCurrency(averageTicket)}
                   </p>
                 </div>
