@@ -3133,16 +3133,14 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Nueva función de importación CSV basada en KOPR
+  // Nueva función de importación CSV basada en KOPR - Esquema simplificado
   async importProductStockFromKOPRCSV(csvData: Array<{
     KOPR: string;
     NOKOPR: string;
-    UD01PR?: string;
     UD02PR?: string;
     KOSU: string;
     KOBO: string;
     DATOSUBIC?: string;
-    STFI1?: string;
     STFI2?: string;
   }>): Promise<{
     processedProducts: number;
@@ -3184,21 +3182,20 @@ export class DatabaseStorage implements IStorage {
 
         // 1. Crear producto único por KOPR (solo la primera vez que aparece)
         if (!processedKOPRs.has(row.KOPR)) {
-          const existingProduct = await this.getProduct(row.KOPR);
+          const [existingProduct] = await db
+            .select()
+            .from(products)
+            .where(eq(products.kopr, row.KOPR))
+            .limit(1);
           
           if (!existingProduct) {
             console.log(`➕ Creando nuevo producto: ${row.KOPR} - ${row.NOKOPR}`);
             
-            await this.createProduct({
+            await db.insert(products).values({
               kopr: row.KOPR,
-              productId: row.KOPR, // Campo requerido - usar KOPR como productId
-              sku: row.KOPR, // Mantener compatibilidad
               name: row.NOKOPR,
-              nokopr: row.NOKOPR,
-              ud01pr: row.UD01PR || '',
-              ud02pr: row.UD02PR || '', // Unidad secundaria para presentación
-              description: `Producto ${row.KOPR}`,
-              category: '',
+              ud02pr: row.UD02PR || null, // Unidad secundaria para presentación
+              priceProduct: null, // Precio se puede agregar después
               active: true
             });
             
@@ -3225,9 +3222,8 @@ export class DatabaseStorage implements IStorage {
           newWarehouses++;
         }
 
-        // 3. Crear/actualizar stock por KOPR+KOBO
-        const physicalStock2 = row.STFI2 ? parseFloat(row.STFI2.replace(',', '.')) : 0;
-        const physicalStock1 = row.STFI1 ? parseFloat(row.STFI1.replace(',', '.')) : 0;
+        // 3. Crear/actualizar stock por KOPR+KOBO (usando STFI2 únicamente)
+        const physicalStock2 = row.STFI2 ? parseFloat(row.STFI2.replace(/,/g, '.')) : 0;
 
         await this.upsertProductStock({
           kopr: row.KOPR,
@@ -3238,9 +3234,7 @@ export class DatabaseStorage implements IStorage {
           warehouseCode: row.KOBO, // Compatibilidad
           warehouseLocation: row.DATOSUBIC || '',
           datosubic: row.DATOSUBIC || '',
-          physicalStock1: physicalStock1,
-          physicalStock2: physicalStock2, // STFI2 - Stock en unidad secundaria
-          availableStock1: physicalStock1,
+          physicalStock2: physicalStock2, // STFI2 - Stock en unidad secundaria únicamente
           availableStock2: physicalStock2,
         });
 
