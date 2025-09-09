@@ -229,73 +229,13 @@ export type UpsertUser = typeof users.$inferInsert;
 export type InsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
-// Products table - Complete product information from CSV using KOPR as primary key
+// Products table - Simplified KOPR-based structure with only necessary fields
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
-  // Core product identification - KOPR based
-  kopr: varchar("kopr").notNull().unique(), // KOPR from CSV (Product Code)
-  productId: varchar("product_id").notNull().unique(), // productId from CSV (SKU) - compatibility
-  sku: varchar("sku").notNull().unique(), // Mantener por compatibilidad, será igual a kopr
-  nokopr: text("nokopr").notNull(), // NOKOPR from CSV (Product Name)
-  name: text("name").notNull(), // name from CSV - compatibility
-  description: text("description"), // description from CSV
-  category: varchar("category"), // category from CSV
-  
-  // Unit information from CSV
-  ud01pr: varchar("ud01pr"), // UD01PR - Unit 1 from CSV
-  ud02pr: varchar("ud02pr"), // UD02PR - Unit 2 from CSV
-  rlud: numeric("rlud", { precision: 10, scale: 2 }), // RLUD - Unit Relation from CSV
-  
-  // Pricing information
-  pricePerUnit: numeric("price_per_unit", { precision: 15, scale: 2 }), // pricePerUnit from CSV
-  manualPrice: numeric("manual_price", { precision: 15, scale: 2 }), // Precio establecido manualmente (sobrescribe el del CSV)
-  
-  // Tax information
-  taxCode: varchar("tax_code"), // taxes_0_taxCode
-  taxName: varchar("tax_name"), // taxes_0_taxName  
-  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }), // taxes_0_taxRate
-  
-  // Dimensions
-  weight: numeric("weight", { precision: 10, scale: 3 }), // dimensions_weight
-  weightUnit: varchar("weight_unit"), // dimensions_weightUnit
-  length: numeric("length", { precision: 10, scale: 2 }), // dimensions_length
-  lengthUnit: varchar("length_unit"), // dimensions_lengthUnit
-  width: numeric("width", { precision: 10, scale: 2 }), // dimensions_width
-  widthUnit: varchar("width_unit"), // dimensions_widthUnit
-  height: numeric("height", { precision: 10, scale: 2 }), // dimensions_height
-  heightUnit: varchar("height_unit"), // dimensions_heightUnit
-  volume: numeric("volume", { precision: 10, scale: 3 }), // dimensions_volume
-  volumeUnit: varchar("volume_unit"), // dimensions_volumeUnit
-  
-  // Constraints
-  minUnit: numeric("min_unit", { precision: 10, scale: 2 }), // constraints_minUnit
-  stepSize: numeric("step_size", { precision: 10, scale: 2 }), // constraints_stepSize
-  
-  // Packaging information (lo que mencionas como presentación)
-  packagingUnit: varchar("packaging_unit"), // packaging_unit
-  packagingUnitName: varchar("packaging_unit_name"), // packaging_unitName (presentación del producto)
-  packagingPackageName: varchar("packaging_package_name"), // packaging_packageName
-  packagingPackageUnit: varchar("packaging_package_unit"), // packaging_packageUnit
-  packagingAmountPerPackage: numeric("packaging_amount_per_package", { precision: 10, scale: 2 }), // packaging_amountPerPackage
-  packagingBoxName: varchar("packaging_box_name"), // packaging_boxName
-  packagingBoxUnit: varchar("packaging_box_unit"), // packaging_boxUnit
-  packagingAmountPerBox: numeric("packaging_amount_per_box", { precision: 10, scale: 2 }), // packaging_amountPerBox
-  packagingPalletName: varchar("packaging_pallet_name"), // packaging_palletName
-  packagingPalletUnit: varchar("packaging_pallet_unit"), // packaging_palletUnit
-  packagingAmountPerPallet: numeric("packaging_amount_per_pallet", { precision: 10, scale: 2 }), // packaging_amountPerPallet
-  
-  // Variant information
-  variantFeaturesKey: varchar("variant_features_key").default(''), // variant_features_0_key
-  variantFeaturesValue: varchar("variant_features_value").default(''), // variant_features_0_value  
-  variantParentSku: varchar("variant_parent_sku").default(''), // variant_parentSku
-  variantGenericDisplayName: varchar("variant_generic_display_name").default(''), // variant_genericDisplayName
-  variantIndex: integer("variant_index"), // variant_index
-  
-  // Additional fields for future use - all remaining CSV columns
-  customField1: text("custom_field1"), // Para campos adicionales del CSV
-  customField2: text("custom_field2"), // Para campos adicionales del CSV
-  customField3: text("custom_field3"), // Para campos adicionales del CSV
+  kopr: varchar("kopr").notNull().unique(), // KOPR - Product Code (Primary Key)
+  name: text("name").notNull(), // NOKOPR - Product Name
+  ud02pr: varchar("ud02pr"), // UD02PR - Secondary unit presentation (Galón/Balde/Litro)
+  priceProduct: numeric("price_product", { precision: 15, scale: 2 }), // Price field separate from CSV
   
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
