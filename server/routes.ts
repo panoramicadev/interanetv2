@@ -85,9 +85,9 @@ export function registerRoutes(app: Express): Server {
       const currentStartDate = (startDate as string) || dateRange.startDate;
       const currentEndDate = (endDate as string) || dateRange.endDate;
       
-      // Calculate previous period dates based on filter type
-      const currentStart = new Date(currentStartDate);
-      const currentEnd = new Date(currentEndDate);
+      // Calculate previous period dates based on filter type  
+      const currentStart = new Date(currentStartDate!);
+      const currentEnd = new Date(currentEndDate!);
       
       // For previous period, go back exactly one month keeping the same day/range
       const previousStart = new Date(currentStart);
@@ -106,9 +106,6 @@ export function registerRoutes(app: Express): Server {
         previousEnd.setDate(0); // Last day of previous month
       }
       
-      console.log(`Current period: ${currentStartDate} to ${currentEndDate}`);
-      console.log(`Previous period: ${previousStart.toISOString().split('T')[0]} to ${previousEnd.toISOString().split('T')[0]}`);
-      
       // Get current period metrics
       const metrics = await storage.getSalesMetrics({
         startDate: currentStartDate,
@@ -125,16 +122,14 @@ export function registerRoutes(app: Express): Server {
         segment: segment as string,
       });
       
-      console.log(`Current metrics: Sales=${metrics.totalSales}, Transactions=${metrics.totalTransactions}`);
-      console.log(`Previous metrics: Sales=${previousMetrics.totalSales}, Transactions=${previousMetrics.totalTransactions}`);
-      
-      // Add previous period data for comparison - only if there's actual data
+      // Add previous period data for comparison - only include if there's actual transaction data
+      // This ensures we show "Sin datos previos" when there were no transactions in the previous period
       const metricsWithComparison = {
         ...metrics,
-        previousMonthSales: previousMetrics.totalSales > 0 ? previousMetrics.totalSales : undefined,
+        previousMonthSales: previousMetrics.totalTransactions > 0 ? previousMetrics.totalSales : undefined,
         previousMonthTransactions: previousMetrics.totalTransactions > 0 ? previousMetrics.totalTransactions : undefined,
-        previousMonthUnits: previousMetrics.totalUnits > 0 ? previousMetrics.totalUnits : undefined,
-        previousMonthCustomers: previousMetrics.activeCustomers > 0 ? previousMetrics.activeCustomers : undefined,
+        previousMonthUnits: previousMetrics.totalTransactions > 0 ? previousMetrics.totalUnits : undefined,
+        previousMonthCustomers: previousMetrics.totalTransactions > 0 ? previousMetrics.activeCustomers : undefined,
       };
       
       res.json(metricsWithComparison);
@@ -255,7 +250,7 @@ export function registerRoutes(app: Express): Server {
       const dashboardData = {
         totalSales: metrics.totalSales || 0,
         transactions: metrics.totalTransactions || 0, 
-        avgTicket: metrics.averageTicket || 0,
+        avgTicket: (metrics.totalSales / (metrics.totalTransactions || 1)) || 0,
         topProducts: [], // Se obtiene por separado
         recentSales: transactions || [],
         clientCount: 0 // Se calculará dinámicamente si es necesario
