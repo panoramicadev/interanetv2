@@ -1472,7 +1472,20 @@ export function registerRoutes(app: Express): Server {
 
       console.log(`✅ Filas válidas para procesar: ${csvData.length}`)
 
-      const result = await storage.importProductStockFromCSV(csvData);
+      // Transform to KOPR format for new import function
+      const koprData = csvData.map((row: any) => ({
+        KOPR: row.sku,
+        NOKOPR: row.name,
+        UD01PR: row.unit1,
+        UD02PR: row.unit2,
+        KOSU: row.branchCode,
+        KOBO: row.warehouseCode,
+        DATOSUBIC: row.warehouseLocation,
+        STFI1: row.physicalStock1?.toString(),
+        STFI2: row.physicalStock2?.toString()
+      }));
+
+      const result = await storage.importProductStockFromKOPRCSV(koprData);
       
       console.log(`📈 Resultado de importación:`, result);
       

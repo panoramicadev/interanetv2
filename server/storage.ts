@@ -2844,6 +2844,22 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  async getWarehouse(kobo: string, kosu: string): Promise<Warehouse | undefined> {
+    const [warehouse] = await db
+      .select()
+      .from(warehouses)
+      .where(and(eq(warehouses.kobo, kobo), eq(warehouses.kosu, kosu)));
+    return warehouse;
+  }
+
+  async createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse> {
+    const [result] = await db
+      .insert(warehouses)
+      .values(warehouse)
+      .returning();
+    return result;
+  }
+
   async getBranches(): Promise<Array<{
     code: string;
     name: string;
@@ -3175,6 +3191,7 @@ export class DatabaseStorage implements IStorage {
             
             await this.createProduct({
               kopr: row.KOPR,
+              productId: row.KOPR, // Campo requerido - usar KOPR como productId
               sku: row.KOPR, // Mantener compatibilidad
               name: row.NOKOPR,
               nokopr: row.NOKOPR,
