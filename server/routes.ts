@@ -759,12 +759,29 @@ export function registerRoutes(app: Express): Server {
       const { id } = req.params;
       const validatedUser = insertSalespersonUserSchema.partial().parse(req.body);
       
+      // Verificar si se está cambiando información crítica (email o password)
+      const isCriticalUpdate = validatedUser.email || validatedUser.password;
+      
       // Hash de la contraseña si se proporciona
       if (validatedUser.password) {
         validatedUser.password = await bcrypt.hash(validatedUser.password, 12);
       }
 
       const updatedUser = await storage.updateSalespersonUser(id, validatedUser);
+      
+      // Si se cambió email o password, invalidar sesiones activas del usuario
+      if (isCriticalUpdate) {
+        console.log('[DEBUG] Critical update detected (email/password), invalidating sessions for user:', id);
+        // Obtener todas las sesiones activas y eliminar las de este usuario
+        try {
+          await storage.invalidateUserSessions(id);
+          console.log('[DEBUG] User sessions invalidated successfully');
+        } catch (sessionError) {
+          console.warn('[WARN] Failed to invalidate user sessions:', sessionError);
+          // No fallar la actualización del usuario por esto
+        }
+      }
+      
       res.json(updatedUser);
     } catch (error: any) {
       console.error("Error updating salesperson user:", error);

@@ -79,7 +79,13 @@ export function setupAuth(app: Express) {
             return done(null, false, { message: "Contraseña incorrecta" });
           }
 
-          return done(null, user);
+          return done(null, {
+            ...user,
+            firstName: user.firstName || undefined,
+            lastName: user.lastName || undefined,
+            profileImageUrl: user.profileImageUrl || undefined,
+            role: user.role || 'user'
+          });
         } catch (error) {
           return done(error);
         }
@@ -94,7 +100,13 @@ export function setupAuth(app: Express) {
       if (!user) {
         return done(null, false);
       }
-      done(null, user);
+      done(null, {
+        ...user,
+        firstName: user.firstName || undefined,
+        lastName: user.lastName || undefined,
+        profileImageUrl: user.profileImageUrl || undefined,
+        role: user.role || 'user'
+      });
     } catch (error) {
       console.error("Deserialize error:", error);
       done(null, false);
@@ -129,14 +141,22 @@ export function setupAuth(app: Express) {
       const user = await storage.createUser(userData);
 
       // Log in user
-      req.login(user, (err) => {
+      const userForLogin = {
+        ...user,
+        firstName: user.firstName || undefined,
+        lastName: user.lastName || undefined,
+        profileImageUrl: user.profileImageUrl || undefined,
+        role: user.role || 'user'
+      };
+
+      req.login(userForLogin, (err) => {
         if (err) return next(err);
         res.status(201).json({
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
+          id: userForLogin.id,
+          email: userForLogin.email,
+          firstName: userForLogin.firstName,
+          lastName: userForLogin.lastName,
+          role: userForLogin.role,
         });
       });
     } catch (error) {
@@ -164,14 +184,22 @@ export function setupAuth(app: Express) {
           });
         }
 
-        req.login(user, (err) => {
+        const userForLogin = {
+          ...user,
+          firstName: user.firstName || undefined,
+          lastName: user.lastName || undefined,
+          profileImageUrl: user.profileImageUrl || undefined,
+          role: user.role || 'user'
+        };
+
+        req.login(userForLogin, (err) => {
           if (err) return next(err);
           res.json({
-            id: user.id,
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            role: user.role,
+            id: userForLogin.id,
+            email: userForLogin.email,
+            firstName: userForLogin.firstName,
+            lastName: userForLogin.lastName,
+            role: userForLogin.role,
           });
         });
       })(req, res, next);
