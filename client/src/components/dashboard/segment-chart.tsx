@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -34,6 +34,7 @@ ChartJS.register(
 );
 
 export default function SegmentChart({ selectedPeriod, filterType }: SegmentChartProps) {
+  const [, setLocation] = useLocation();
   const { data: segmentData, isLoading } = useQuery<SegmentData[]>({
     queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
   });
@@ -124,6 +125,15 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
     elements: {
       bar: {
         borderRadius: 8,
+      }
+    },
+    onClick: (event: any, activeElements: any[]) => {
+      if (activeElements.length > 0) {
+        const index = activeElements[0].index;
+        const segmentName = segmentData?.[index]?.segment;
+        if (segmentName) {
+          setLocation(`/segment/${encodeURIComponent(segmentName)}`);
+        }
       }
     }
   };
