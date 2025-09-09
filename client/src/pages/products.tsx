@@ -144,14 +144,14 @@ export default function ProductsPage() {
 
   // Update price mutation
   const updatePriceMutation = useMutation({
-    mutationFn: async ({ sku, price, reason }: { sku: string; price: number; reason?: string }) => {
+    mutationFn: async ({ sku, price, offerPrice, showInStore, reason }: { sku: string; price: number; offerPrice?: number; showInStore?: boolean; reason?: string }) => {
       const response = await fetch(`/api/products/${sku}/price`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ price, reason })
+        body: JSON.stringify({ price, offerPrice, showInStore, reason })
       });
       
       if (!response.ok) {
@@ -165,6 +165,8 @@ export default function ProductsPage() {
       setShowPriceDialog(false);
       setSelectedProduct(null);
       setNewPrice("");
+      setNewOfferPrice("");
+      setShowInStore(false);
       setPriceReason("");
       toast({
         title: "Precio actualizado",
@@ -204,6 +206,33 @@ export default function ProductsPage() {
         variant: "destructive",
       });
     }
+  });
+
+  // Filter products based on search and filters
+  const filteredProducts = products.filter(product => {
+    // Search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      if (!product.sku.toLowerCase().includes(searchLower) && 
+          !product.name.toLowerCase().includes(searchLower)) {
+        return false;
+      }
+    }
+    
+    // Active filter
+    if (filterActive !== 'all') {
+      if (filterActive === 'true' && !product.active) return false;
+      if (filterActive === 'false' && product.active) return false;
+    }
+    
+    // Price filter
+    if (filterPrices !== 'all') {
+      const hasPrice = product.price && parseFloat(product.price) > 0;
+      if (filterPrices === 'true' && !hasPrice) return false;
+      if (filterPrices === 'false' && hasPrice) return false;
+    }
+    
+    return true;
   });
 
   const handlePriceUpdate = () => {
