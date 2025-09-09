@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TransactionsTable from "@/components/dashboard/transactions-table";
+import NotificationsPanel from "@/components/dashboard/notifications-panel";
 import { 
   TrendingUp, 
   Users, 
@@ -137,8 +138,16 @@ export default function SalespersonDashboard() {
             </p>
           </div>
 
-          {/* Controles de Período */}
+          {/* Controles de Período y Notificaciones */}
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
+            {/* Panel de Notificaciones */}
+            {user?.salespersonName && (
+              <NotificationsPanel 
+                salespersonName={user.salespersonName} 
+                salespersonId={user.id}
+              />
+            )}
+            
             <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
               <SelectTrigger className="w-full sm:w-[140px] rounded-xl">
                 <SelectValue placeholder="Período" />
@@ -240,18 +249,18 @@ export default function SalespersonDashboard() {
                     <span className="text-sm font-semibold text-gray-700">Meta de Ventas</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    {goals[0].progress >= 100 ? (
+                    {(goals[0]?.progress || 0) >= 100 ? (
                       <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : goals[0].progress >= 70 ? (
+                    ) : (goals[0]?.progress || 0) >= 70 ? (
                       <TrendingUp className="h-4 w-4 text-yellow-600" />
                     ) : (
                       <AlertCircle className="h-4 w-4 text-red-600" />
                     )}
                     <span className={`text-xs font-medium ${
-                      goals[0].progress >= 100 ? 'text-green-600' : 
-                      goals[0].progress >= 70 ? 'text-yellow-600' : 'text-red-600'
+                      (goals[0]?.progress || 0) >= 100 ? 'text-green-600' : 
+                      (goals[0]?.progress || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'
                     }`}>
-                      {goals[0].progress.toFixed(1)}%
+                      {(goals[0]?.progress || 0).toFixed(1)}%
                     </span>
                   </div>
                 </div>
@@ -259,16 +268,16 @@ export default function SalespersonDashboard() {
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div
                     className={`h-3 rounded-full transition-all duration-500 ${
-                      goals[0].progress >= 100 ? 'bg-green-500' : 
-                      goals[0].progress >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                      (goals[0]?.progress || 0) >= 100 ? 'bg-green-500' : 
+                      (goals[0]?.progress || 0) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
                     }`}
-                    style={{ width: `${Math.min(goals[0].progress, 100)}%` }}
+                    style={{ width: `${Math.min(goals[0]?.progress || 0, 100)}%` }}
                   ></div>
                 </div>
                 
                 <div className="flex justify-between text-xs text-gray-600">
-                  <span>Actual: <strong>${goals[0].currentSales.toLocaleString()}</strong></span>
-                  <span>Meta: <strong>${goals[0].targetAmount.toLocaleString()}</strong></span>
+                  <span>Actual: <strong>${(goals[0]?.currentSales || 0).toLocaleString()}</strong></span>
+                  <span>Meta: <strong>${(goals[0]?.targetAmount || 0).toLocaleString()}</strong></span>
                 </div>
               </div>
             </CardContent>
@@ -294,12 +303,12 @@ export default function SalespersonDashboard() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-blue-600">vs Meta:</span>
                     <span className={`font-medium ${
-                      goals[0].progress >= 100 ? 'text-green-600' : 
-                      goals[0].progress >= 70 ? 'text-yellow-600' : 'text-red-600'
+                      (goals[0]?.progress || 0) >= 100 ? 'text-green-600' : 
+                      (goals[0]?.progress || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'
                     }`}>
-                      {goals[0].remaining <= 0 ? 
-                        `+$${(goals[0].currentSales - goals[0].targetAmount).toLocaleString()}` : 
-                        `-$${goals[0].remaining.toLocaleString()}`
+                      {(goals[0]?.remaining || 0) <= 0 ? 
+                        `+$${((goals[0]?.currentSales || 0) - (goals[0]?.targetAmount || 0)).toLocaleString()}` : 
+                        `-$${(goals[0]?.remaining || 0).toLocaleString()}`
                       }
                     </span>
                   </div>
@@ -364,20 +373,20 @@ export default function SalespersonDashboard() {
                 {goals.map((goal: any, index: number) => (
                   <div key={index} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{goal.description}</span>
+                      <span className="text-sm font-medium">{goal?.description || 'Meta'}</span>
                       <span className="text-sm text-muted-foreground">
-                        {goal.progress.toFixed(1)}%
+                        {(goal?.progress || 0).toFixed(1)}%
                       </span>
                     </div>
                     <div className="w-full bg-secondary rounded-full h-2">
                       <div
                         className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(goal.progress, 100)}%` }}
+                        style={{ width: `${Math.min(goal?.progress || 0, 100)}%` }}
                       ></div>
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>${goal.currentSales.toLocaleString()}</span>
-                      <span>${goal.targetAmount.toLocaleString()}</span>
+                      <span>${(goal?.currentSales || 0).toLocaleString()}</span>
+                      <span>${(goal?.targetAmount || 0).toLocaleString()}</span>
                     </div>
                   </div>
                 ))}
