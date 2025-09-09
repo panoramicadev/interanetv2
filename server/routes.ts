@@ -170,6 +170,47 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Dashboard específico del vendedor
+  app.get('/api/salesperson/:salespersonId/dashboard', requireAuth, async (req, res) => {
+    try {
+      const { salespersonId } = req.params;
+      
+      // Obtener el nombre del vendedor por su ID
+      const user = await storage.getSalespersonUser(salespersonId);
+      const salespersonName = user?.salespersonName;
+      
+      if (!salespersonName) {
+        return res.status(404).json({ message: "Vendedor no encontrado" });
+      }
+
+      // Obtener métricas específicas del vendedor
+      const metrics = await storage.getSalesMetrics({
+        salesperson: salespersonName,
+      });
+
+      // Obtener transacciones recientes del vendedor
+      const transactions = await storage.getSalesTransactions({
+        salesperson: salespersonName,
+        limit: 10,
+      });
+
+      // Datos específicos del vendedor
+      const dashboardData = {
+        totalSales: metrics.totalSales || 0,
+        transactions: metrics.totalTransactions || 0, 
+        avgTicket: metrics.averageTicket || 0,
+        topProducts: [], // Se obtiene por separado
+        recentSales: transactions || [],
+        clientCount: 0 // Se calculará dinámicamente si es necesario
+      };
+
+      res.json(dashboardData);
+    } catch (error) {
+      console.error("Error fetching salesperson dashboard:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson dashboard" });
+    }
+  });
+
   // Sales transactions endpoint
   app.get('/api/sales/transactions', requireAuth, async (req, res) => {
     try {

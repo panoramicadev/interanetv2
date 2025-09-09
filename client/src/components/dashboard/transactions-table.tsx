@@ -31,13 +31,14 @@ interface TopSalesperson {
 interface TransactionsTableProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "range";
+  salespersonFilter?: string;
 }
 
-export default function TransactionsTable({ selectedPeriod, filterType }: TransactionsTableProps) {
+export default function TransactionsTable({ selectedPeriod, filterType, salespersonFilter }: TransactionsTableProps) {
   const [limit] = useState(10);
   
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/sales/transactions?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/transactions?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
   });
 
   // Removed artificial salesperson assignment - now using real data from transactions
