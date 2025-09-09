@@ -97,116 +97,110 @@ export default function SalespersonDetail() {
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <Sidebar onImportClick={() => setShowImportDialog(true)} />
       <div className="flex-1 lg:ml-64 transition-all duration-300">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
-          <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
-            <div>
-              <nav className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
-                <Link href="/" className="hover:text-blue-600 transition-colors">
+        {/* Header - Optimized for Mobile */}
+        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
+          <div className="flex flex-col space-y-2 sm:space-y-3 lg:space-y-0 lg:flex-row lg:items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <nav className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2">
+                <Link href="/" className="hover:text-blue-600 transition-colors truncate">
                   Dashboard
                 </Link>
-                <span>›</span>
-                <span>Vendedor</span>
-                <span>›</span>
-                <span className="font-medium text-gray-900">{decodeURIComponent(salespersonName)}</span>
+                <span className="text-xs">›</span>
+                <span className="hidden sm:inline">Vendedor</span>
+                <span className="hidden sm:inline text-xs">›</span>
+                <span className="font-medium text-gray-900 truncate">{decodeURIComponent(salespersonName)}</span>
               </nav>
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
-                Análisis de Vendedor
-              </h1>
-              <p className="text-gray-600 text-base lg:text-lg font-semibold">
+              <h1 className="text-lg sm:text-xl lg:text-3xl font-bold text-gray-900 truncate">
                 {decodeURIComponent(salespersonName)}
-              </p>
-              <p className="text-gray-500 text-sm">
+              </h1>
+              <p className="text-gray-500 text-xs sm:text-sm hidden sm:block">
                 Período: {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long' })}
               </p>
             </div>
-            <Link href="/">
+            <Link href="/" className="self-start lg:self-center">
               <Button 
                 variant="outline" 
-                className="rounded-xl border-gray-200 shadow-sm"
+                size="sm"
+                className="rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
                 data-testid="button-back-dashboard"
               >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver al Dashboard
+                <ArrowLeft className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Volver al Dashboard</span>
+                <span className="sm:hidden">Volver</span>
               </Button>
             </Link>
           </div>
         </header>
 
         {/* Main Content */}
-        <main className="p-4 lg:p-6 space-y-4 lg:space-y-6">
+        <main className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             {/* Sales Total Card */}
-            <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-2xl p-6 hover:shadow-lg transition-all duration-300">
+            <div className="bg-gradient-to-br from-green-50 to-emerald-100 border border-green-200 rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-lg transition-all duration-300">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-green-700 mb-2">Ventas Totales</p>
-                  <p className="text-2xl font-bold text-green-800" data-testid="text-total-sales">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-green-700 mb-1 sm:mb-2">Ventas Totales</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-green-800 truncate" data-testid="text-total-sales">
                     {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalSales || 0)}
                   </p>
-                  <div className="flex items-center mt-2">
-                    <div className="text-xs text-green-600 font-medium">
-                      Meta: {details?.currentGoal ? formatCurrency(details.currentGoal) : 'No definida'}
-                    </div>
-                  </div>
                 </div>
-                <div className="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center ml-4 shadow-lg">
-                  <DollarSign className="w-7 h-7 text-white" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-green-500 rounded-2xl flex items-center justify-center ml-2 sm:ml-4 shadow-lg flex-shrink-0">
+                  <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 text-white" />
                 </div>
               </div>
             </div>
 
             {/* Clients Card */}
-            <div className="bg-gradient-to-br from-blue-50 to-sky-100 border border-blue-200 rounded-2xl p-6 hover:shadow-lg transition-all duration-300">
+            <div className="bg-gradient-to-br from-blue-50 to-sky-100 border border-blue-200 rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-lg transition-all duration-300">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-blue-700 mb-2">Clientes</p>
-                  <p className="text-2xl font-bold text-blue-800" data-testid="text-total-clients">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-blue-700 mb-1 sm:mb-2">Clientes</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-800 truncate" data-testid="text-total-clients">
                     {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalClients || 0)}
                   </p>
-                  <div className="text-xs text-blue-600 font-medium mt-2">
+                  <div className="text-xs text-blue-600 font-medium mt-1">
                     Atendidos
                   </div>
                 </div>
-                <div className="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center ml-4 shadow-lg">
-                  <Users className="w-7 h-7 text-white" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-blue-500 rounded-2xl flex items-center justify-center ml-2 sm:ml-4 shadow-lg flex-shrink-0">
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 text-white" />
                 </div>
               </div>
             </div>
 
             {/* Transactions Card */}
-            <div className="bg-gradient-to-br from-purple-50 to-violet-100 border border-purple-200 rounded-2xl p-6 hover:shadow-lg transition-all duration-300">
+            <div className="bg-gradient-to-br from-purple-50 to-violet-100 border border-purple-200 rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-lg transition-all duration-300">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-purple-700 mb-2">Transacciones</p>
-                  <p className="text-2xl font-bold text-purple-800" data-testid="text-transaction-count">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-purple-700 mb-1 sm:mb-2">Transacciones</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-800 truncate" data-testid="text-transaction-count">
                     {isLoadingDetails ? 'Cargando...' : formatNumber(details?.transactionCount || 0)}
                   </p>
-                  <div className="text-xs text-purple-600 font-medium mt-2">
+                  <div className="text-xs text-purple-600 font-medium mt-1">
                     Realizadas
                   </div>
                 </div>
-                <div className="w-14 h-14 bg-purple-500 rounded-2xl flex items-center justify-center ml-4 shadow-lg">
-                  <ShoppingCart className="w-7 h-7 text-white" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-purple-500 rounded-2xl flex items-center justify-center ml-2 sm:ml-4 shadow-lg flex-shrink-0">
+                  <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 text-white" />
                 </div>
               </div>
             </div>
 
             {/* Frequency Card */}
-            <div className="bg-gradient-to-br from-orange-50 to-amber-100 border border-orange-200 rounded-2xl p-6 hover:shadow-lg transition-all duration-300">
+            <div className="bg-gradient-to-br from-orange-50 to-amber-100 border border-orange-200 rounded-2xl p-3 sm:p-4 lg:p-6 hover:shadow-lg transition-all duration-300">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-orange-700 mb-2">Frecuencia</p>
-                  <p className="text-2xl font-bold text-orange-800" data-testid="text-sales-frequency">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-orange-700 mb-1 sm:mb-2">Frecuencia</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-orange-800 truncate" data-testid="text-sales-frequency">
                     {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.salesFrequency || 0)}
                   </p>
-                  <div className="text-xs text-orange-600 font-medium mt-2">
+                  <div className="text-xs text-orange-600 font-medium mt-1">
                     de Ventas
                   </div>
                 </div>
-                <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center ml-4 shadow-lg">
-                  <Clock className="w-7 h-7 text-white" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 lg:w-14 lg:h-14 bg-orange-500 rounded-2xl flex items-center justify-center ml-2 sm:ml-4 shadow-lg flex-shrink-0">
+                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 text-white" />
                 </div>
               </div>
             </div>
