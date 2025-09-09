@@ -1,5 +1,6 @@
 import {
   users,
+  sessions,
   salesTransactions,
   goals,
   salespeopleUsers,
@@ -186,6 +187,9 @@ export interface IStorage {
   deleteSalespersonUser(id: string): Promise<void>;
   getSalespersonUser(id: string): Promise<SalespersonUser | undefined>;
   getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined>;
+  
+  // Session management
+  invalidateUserSessions(userId: string): Promise<void>;
   
   // Supervisor specific methods
   getSalespeopleUnderSupervisor(supervisorId: string): Promise<Array<{
@@ -2805,6 +2809,21 @@ export class DatabaseStorage implements IStorage {
       bestPerformer,
       teamGrowth
     };
+  }
+
+  // Session management - invalidate all active sessions for a user
+  async invalidateUserSessions(userId: string): Promise<void> {
+    try {
+      // Delete all sessions where the user ID matches in the passport data
+      await db
+        .delete(sessions)
+        .where(sql`sess::jsonb -> 'passport' ->> 'user' = ${userId}`);
+      
+      console.log('[DEBUG] Successfully invalidated sessions for user:', userId);
+    } catch (error) {
+      console.error('[ERROR] Failed to invalidate user sessions:', error);
+      throw error;
+    }
   }
 
 }
