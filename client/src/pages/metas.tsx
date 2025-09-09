@@ -4,8 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import Sidebar from "@/components/dashboard/sidebar";
-import ImportModal from "@/components/dashboard/import-modal";
 import GoalsProgress from "@/components/dashboard/goals-progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +18,6 @@ import type { Goal } from "@shared/schema";
 export default function Metas() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
-  const [showImportModal, setShowImportModal] = useState(false);
   const [, setLocation] = useLocation();
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -265,9 +262,7 @@ export default function Metas() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar onImportClick={() => setShowImportModal(true)} />
-      
-      <div className="ml-64">
+      <div>
         {/* Header */}
         <header className="bg-card border-b border-border px-6 py-4">
           <div className="flex items-center justify-between">
@@ -522,10 +517,6 @@ export default function Metas() {
         </main>
       </div>
 
-      <ImportModal 
-        open={showImportModal} 
-        onOpenChange={setShowImportModal}
-      />
     </div>
   );
 }
