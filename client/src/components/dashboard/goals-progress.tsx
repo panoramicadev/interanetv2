@@ -52,14 +52,6 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
   // Use external data if provided, otherwise use fetched data
   const goalsProgress = goalsData || fetchedGoalsProgress;
   const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
-  
-  // Debug logging
-  console.log('[DEBUG] GoalsProgress component data:', {
-    goalsData: goalsData?.length || 0,
-    fetchedGoalsProgress: fetchedGoalsProgress?.length || 0,
-    finalGoalsProgress: goalsProgress?.length || 0,
-    sampleGoal: goalsProgress?.[0]
-  });
 
   // Filter goals based on selected filter and global filter
   const filteredGoals = goalsProgress?.filter(goal => {
@@ -74,12 +66,8 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
   }) || [];
 
   const formatCurrency = (amount: number | string | null | undefined) => {
-    // Debug logging
-    console.log('[DEBUG] formatCurrency called with:', { amount, type: typeof amount });
-    
     // Handle null/undefined cases first
     if (amount === null || amount === undefined) {
-      console.log('[DEBUG] formatCurrency returning $0 for null/undefined');
       return '$0';
     }
     
@@ -89,29 +77,22 @@ export default function GoalsProgress({ globalFilter, onFilterChange, goalsData,
       // Remove any non-numeric characters except decimal point and minus sign
       const cleanString = amount.replace(/[^-\d.]/g, '');
       numericAmount = parseFloat(cleanString);
-      console.log('[DEBUG] formatCurrency string conversion:', { original: amount, clean: cleanString, parsed: numericAmount });
     } else if (typeof amount === 'number') {
       numericAmount = amount;
-      console.log('[DEBUG] formatCurrency number input:', numericAmount);
     } else {
-      console.log('[DEBUG] formatCurrency unknown type, returning $0');
       return '$0';
     }
     
     // Check if conversion was successful
     if (isNaN(numericAmount) || !isFinite(numericAmount)) {
-      console.log('[DEBUG] formatCurrency NaN or infinite, returning $0:', { numericAmount, isNaN: isNaN(numericAmount), isFinite: isFinite(numericAmount) });
       return '$0';
     }
     
-    const formatted = new Intl.NumberFormat('es-CL', {
+    return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP',
       minimumFractionDigits: 0,
     }).format(numericAmount);
-    
-    console.log('[DEBUG] formatCurrency final result:', formatted);
-    return formatted;
   };
 
   const getTypeIcon = (type: string) => {

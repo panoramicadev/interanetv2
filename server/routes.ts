@@ -68,6 +68,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
 
 import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema } from "@shared/schema";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 
 export function registerRoutes(app: Express): Server {
   // Setup email/password auth system (primary)
@@ -760,7 +761,7 @@ export function registerRoutes(app: Express): Server {
       
       // Hash de la contraseña si se proporciona
       if (validatedUser.password) {
-        console.warn("ADVERTENCIA: La contraseña no está hasheada. Esto es solo para desarrollo.");
+        validatedUser.password = await bcrypt.hash(validatedUser.password, 12);
       }
 
       const updatedUser = await storage.updateSalespersonUser(id, validatedUser);
