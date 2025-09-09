@@ -255,13 +255,15 @@ export default function Dashboard() {
             </div>
           )}
           
-          {/* Primary Analytics - Sales Chart Full Width */}
-          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            <SalesChart 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
-          </div>
+          {/* Primary Analytics - Sales Chart Full Width - Solo mostrar para meses y rangos */}
+          {filterType !== "day" && (
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <SalesChart 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
+          )}
 
           {/* Ventas por Segmento - Full Width Chart */}
           <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
