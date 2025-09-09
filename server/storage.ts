@@ -2301,6 +2301,7 @@ export class DatabaseStorage implements IStorage {
         // Mapear campos para compatibilidad con frontend
         sku: product.kopr, // Frontend espera 'sku'
         price: product.priceProduct?.toString() || "0", // Frontend espera 'price'
+        offerPrice: product.priceOffer?.toString() || null, // Precio de oferta
         totalStock,
         warehouses
       };
@@ -2335,25 +2336,39 @@ export class DatabaseStorage implements IStorage {
     return updatedProduct;
   }
 
-  async updateProductPrice(sku: string, newPrice: number, changedBy: string, reason?: string): Promise<Product> {
-    // Get current price
-    const currentProduct = await this.getProduct(sku);
-    const oldPrice = currentProduct?.manualPrice ? Number(currentProduct.manualPrice) : (currentProduct?.pricePerUnit ? Number(currentProduct.pricePerUnit) : null);
+  async updateProductPrice(kopr: string, newPrice: number, newOfferPrice?: number, changedBy: string, reason?: string): Promise<Product> {
+    // Get current product
+    const currentProduct = await this.getProduct(kopr);
+    if (!currentProduct) {
+      throw new Error(`Product with KOPR ${kopr} not found`);
+    }
+    
+    const oldPrice = currentProduct.priceProduct ? Number(currentProduct.priceProduct) : null;
+    const oldOfferPrice = currentProduct.priceOffer ? Number(currentProduct.priceOffer) : null;
 
-    // Update product price
+    // Update product prices
+    const updateData: any = { 
+      priceProduct: newPrice.toString(), 
+      updatedAt: new Date() 
+    };
+    
+    if (newOfferPrice !== undefined) {
+      updateData.priceOffer = newOfferPrice > 0 ? newOfferPrice.toString() : null;
+    }
+
     const [updatedProduct] = await db
       .update(products)
-      .set({ manualPrice: newPrice.toString(), updatedAt: new Date() })
-      .where(eq(products.sku, sku))
+      .set(updateData)
+      .where(eq(products.kopr, kopr))
       .returning();
 
-    // Record price history
+    // Record price history - creating entry for regular price change
     await db.insert(productPriceHistory).values({
-      productSku: sku,
+      productSku: kopr, // Using KOPR as productSku for compatibility
       oldPrice: oldPrice?.toString() || null,
       newPrice: newPrice.toString(),
       changedBy,
-      changeReason: reason
+      changeReason: reason || `Precio actualizado${newOfferPrice ? ' con precio de oferta' : ''}`
     });
 
     return updatedProduct;

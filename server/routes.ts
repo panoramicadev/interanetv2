@@ -1383,7 +1383,7 @@ export function registerRoutes(app: Express): Server {
   app.put('/api/products/:sku/price', requireAuth, async (req: any, res) => {
     try {
       const { sku } = req.params;
-      const { price, reason } = req.body;
+      const { price, offerPrice, reason } = req.body;
       
       if (!price || isNaN(price)) {
         return res.status(400).json({ message: "Valid price is required" });
@@ -1394,7 +1394,13 @@ export function registerRoutes(app: Express): Server {
         return res.status(401).json({ message: "User not authenticated" });
       }
 
-      const product = await storage.updateProductPrice(sku, parseFloat(price), userId, reason);
+      const product = await storage.updateProductPrice(
+        sku, 
+        parseFloat(price), 
+        offerPrice ? parseFloat(offerPrice) : undefined,
+        userId, 
+        reason
+      );
       res.json(product);
     } catch (error) {
       console.error("Error updating product price:", error);

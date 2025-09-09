@@ -67,6 +67,7 @@ export default function ProductsPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
   const [newPrice, setNewPrice] = useState("");
+  const [newOfferPrice, setNewOfferPrice] = useState("");
   const [priceReason, setPriceReason] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -206,6 +207,7 @@ export default function ProductsPage() {
     updatePriceMutation.mutate({
       sku: selectedProduct.sku,
       price: parseFloat(newPrice),
+      offerPrice: newOfferPrice ? parseFloat(newOfferPrice) : undefined,
       reason: priceReason
     });
   };
@@ -641,7 +643,17 @@ export default function ProductsPage() {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {products.map((product) => (
-                  <Card key={product.sku}>
+                  <Card 
+                    key={product.sku}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                    onClick={() => {
+                      setSelectedProduct(product);
+                      setNewPrice(product.price || "");
+                      setNewOfferPrice(""); // Reset offer price
+                      setShowPriceDialog(true);
+                    }}
+                    data-testid={`card-product-${product.sku}`}
+                  >
                     <CardContent className="pt-4">
                       <div className="space-y-2">
                         <div className="font-mono text-sm font-medium">{product.sku}</div>
@@ -668,14 +680,14 @@ export default function ProductsPage() {
       <Dialog open={showPriceDialog} onOpenChange={setShowPriceDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Precio</DialogTitle>
+            <DialogTitle>Editar Precios</DialogTitle>
             <DialogDescription>
-              Actualizar el precio para {selectedProduct?.sku} - {selectedProduct?.name}
+              Actualizar precios para {selectedProduct?.sku} - {selectedProduct?.name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="price">Nuevo Precio</Label>
+              <Label htmlFor="price">Precio Normal</Label>
               <Input
                 id="price"
                 type="number"
@@ -684,6 +696,18 @@ export default function ProductsPage() {
                 onChange={(e) => setNewPrice(e.target.value)}
                 placeholder="0.00"
                 data-testid="input-new-price"
+              />
+            </div>
+            <div>
+              <Label htmlFor="offer-price">Precio de Oferta (opcional)</Label>
+              <Input
+                id="offer-price"
+                type="number"
+                step="0.01"
+                value={newOfferPrice}
+                onChange={(e) => setNewOfferPrice(e.target.value)}
+                placeholder="0.00"
+                data-testid="input-offer-price"
               />
             </div>
             <div>
@@ -705,7 +729,7 @@ export default function ProductsPage() {
                 disabled={!newPrice || updatePriceMutation.isPending}
                 data-testid="button-update-price"
               >
-                {updatePriceMutation.isPending ? "Actualizando..." : "Actualizar Precio"}
+                {updatePriceMutation.isPending ? "Actualizando..." : "Actualizar Precios"}
               </Button>
             </div>
           </div>
