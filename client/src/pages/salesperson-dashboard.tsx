@@ -229,6 +229,52 @@ export default function SalespersonDashboard() {
 
       {/* Contenido Principal */}
       <main className="px-4 lg:px-6 pb-6 space-y-6">
+        {/* Progreso de Meta Principal - Solo si hay metas */}
+        {goals && goals.length > 0 && goals[0] && (
+          <Card className="rounded-2xl shadow-sm border-green-100 bg-gradient-to-r from-green-50 to-blue-50">
+            <CardContent className="pt-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-green-600" />
+                    <span className="text-sm font-semibold text-gray-700">Meta de Ventas</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {goals[0].progress >= 100 ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : goals[0].progress >= 70 ? (
+                      <TrendingUp className="h-4 w-4 text-yellow-600" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-red-600" />
+                    )}
+                    <span className={`text-xs font-medium ${
+                      goals[0].progress >= 100 ? 'text-green-600' : 
+                      goals[0].progress >= 70 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {goals[0].progress.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className={`h-3 rounded-full transition-all duration-500 ${
+                      goals[0].progress >= 100 ? 'bg-green-500' : 
+                      goals[0].progress >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${Math.min(goals[0].progress, 100)}%` }}
+                  ></div>
+                </div>
+                
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Actual: <strong>${goals[0].currentSales.toLocaleString()}</strong></span>
+                  <span>Meta: <strong>${goals[0].targetAmount.toLocaleString()}</strong></span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* KPIs del Vendedor */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="rounded-2xl shadow-sm border-blue-200/60">
@@ -243,6 +289,22 @@ export default function SalespersonDashboard() {
               <p className="text-xs text-blue-700">
                 Este período
               </p>
+              {goals && goals.length > 0 && goals[0] && (
+                <div className="mt-2 pt-2 border-t border-blue-100">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-blue-600">vs Meta:</span>
+                    <span className={`font-medium ${
+                      goals[0].progress >= 100 ? 'text-green-600' : 
+                      goals[0].progress >= 70 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {goals[0].remaining <= 0 ? 
+                        `+$${(goals[0].currentSales - goals[0].targetAmount).toLocaleString()}` : 
+                        `-$${goals[0].remaining.toLocaleString()}`
+                      }
+                    </span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
