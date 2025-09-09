@@ -469,23 +469,23 @@ export default function Metas() {
                       onOpenChange={() => togglePeriod(periodGroup.period)}
                     >
                       <CollapsibleTrigger className="w-full">
-                        <CardHeader className="hover:bg-muted/50 transition-colors cursor-pointer">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-4">
+                        <CardHeader className="hover:bg-muted/50 transition-colors cursor-pointer p-3 sm:p-4 lg:p-6">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
+                            <div className="flex items-center space-x-2 sm:space-x-4">
                               <div className="flex items-center space-x-2">
-                                <Calendar className="h-5 w-5 text-primary" />
-                                <h3 className="text-xl font-bold capitalize">
+                                <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                                <h3 className="text-lg sm:text-xl font-bold capitalize">
                                   {monthName}
                                 </h3>
                               </div>
-                              <Badge variant="outline" className="text-sm">
+                              <Badge variant="outline" className="text-xs sm:text-sm">
                                 {periodGroup.goalCount} meta{periodGroup.goalCount > 1 ? 's' : ''}
                               </Badge>
                             </div>
-                            <div className="flex items-center space-x-4">
-                              <div className="text-right">
-                                <p className="text-sm text-muted-foreground">Total Meta</p>
-                                <p className="text-xl font-bold text-primary">
+                            <div className="flex items-center justify-between sm:justify-end space-x-3 sm:space-x-4">
+                              <div className="text-left sm:text-right">
+                                <p className="text-xs sm:text-sm text-muted-foreground">Total Meta</p>
+                                <p className="text-lg sm:text-xl font-bold text-primary">
                                   {formatCurrency(periodGroup.totalAmount)}
                                 </p>
                               </div>
@@ -500,13 +500,13 @@ export default function Metas() {
                       </CollapsibleTrigger>
                       
                       <CollapsibleContent>
-                        <CardContent className="pt-0">
+                        <CardContent className="pt-0 p-3 sm:p-4 lg:p-6">
                           <div className="grid grid-cols-1 gap-3">
                             {periodGroup.goals.map((goal) => (
                               <Card key={goal.id} className="border-l-4 border-l-primary">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-4">
+                                <CardContent className="p-3 sm:p-4">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
+                                    <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 min-w-0 flex-1">
                                       <div className="flex items-center space-x-2">
                                         {getTypeIcon(goal.type)}
                                         <Badge variant="secondary" className="text-xs">
@@ -514,25 +514,25 @@ export default function Metas() {
                                         </Badge>
                                       </div>
                                       
-                                      <div>
-                                        <h4 className="font-semibold">
+                                      <div className="min-w-0 flex-1">
+                                        <h4 className="font-semibold text-sm sm:text-base truncate">
                                           {goal.type === 'global' 
                                             ? 'Meta Global' 
                                             : `${getTypeLabel(goal.type)}: ${goal.target}`
                                           }
                                         </h4>
-                                        <p className="text-lg font-bold text-primary">
+                                        <p className="text-base sm:text-lg font-bold text-primary">
                                           {formatCurrency(parseFloat(goal.amount))}
                                         </p>
                                         {goal.description && (
-                                          <p className="text-sm text-muted-foreground mt-1">
+                                          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                                             {goal.description}
                                           </p>
                                         )}
                                       </div>
                                     </div>
 
-                                    <div className="flex space-x-2">
+                                    <div className="flex space-x-2 self-end sm:self-center">
                                       <Button
                                         variant="outline"
                                         size="sm"
