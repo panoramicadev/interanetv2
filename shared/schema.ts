@@ -229,16 +229,23 @@ export type UpsertUser = typeof users.$inferInsert;
 export type InsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
-// Products table - Complete product information from CSV
+// Products table - Complete product information from CSV using KOPR as primary key
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   
-  // Core product identification
-  productId: varchar("product_id").notNull().unique(), // productId from CSV (SKU)
-  sku: varchar("sku").notNull().unique(), // Mantener por compatibilidad, será igual a productId
-  name: text("name").notNull(), // name from CSV
+  // Core product identification - KOPR based
+  kopr: varchar("kopr").notNull().unique(), // KOPR from CSV (Product Code)
+  productId: varchar("product_id").notNull().unique(), // productId from CSV (SKU) - compatibility
+  sku: varchar("sku").notNull().unique(), // Mantener por compatibilidad, será igual a kopr
+  nokopr: text("nokopr").notNull(), // NOKOPR from CSV (Product Name)
+  name: text("name").notNull(), // name from CSV - compatibility
   description: text("description"), // description from CSV
   category: varchar("category"), // category from CSV
+  
+  // Unit information from CSV
+  ud01pr: varchar("ud01pr"), // UD01PR - Unit 1 from CSV
+  ud02pr: varchar("ud02pr"), // UD02PR - Unit 2 from CSV
+  rlud: numeric("rlud", { precision: 10, scale: 2 }), // RLUD - Unit Relation from CSV
   
   // Pricing information
   pricePerUnit: numeric("price_per_unit", { precision: 15, scale: 2 }), // pricePerUnit from CSV
@@ -295,13 +302,32 @@ export const products = pgTable("products", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Product stock table - Stock by warehouse and branch
+// Warehouses table - Master data for warehouses
+export const warehouses = pgTable("warehouses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  kobo: varchar("kobo").notNull().unique(), // KOBO - Warehouse Code
+  kosu: varchar("kosu").notNull(), // KOSU - Branch Code
+  name: varchar("name").notNull(), // Warehouse Name
+  branchName: varchar("branch_name"), // Branch Name
+  location: text("location"), // Physical location
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueWarehouseBranch: unique("unique_warehouse_branch").on(table.kobo, table.kosu),
+}));
+
+// Product stock table - Stock by warehouse and branch based on CSV structure
 export const productStock = pgTable("product_stock", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  productSku: varchar("product_sku").notNull(), // FK to products.sku
-  branchCode: varchar("branch_code").notNull(), // KOSU from CSV
-  warehouseCode: varchar("warehouse_code").notNull(), // KOBO from CSV
-  warehouseLocation: text("warehouse_location"), // DATOSUBIC from CSV
+  kopr: varchar("kopr").notNull(), // FK to products.kopr
+  productSku: varchar("product_sku").notNull(), // FK to products.sku (compatibility)
+  kosu: varchar("kosu").notNull(), // KOSU - Branch Code from CSV
+  kobo: varchar("kobo").notNull(), // KOBO - Warehouse Code from CSV
+  datosubic: text("datosubic"), // DATOSUBIC - Warehouse Location from CSV
+  branchCode: varchar("branch_code").notNull(), // KOSU from CSV (compatibility)
+  warehouseCode: varchar("warehouse_code").notNull(), // KOBO from CSV (compatibility)
+  warehouseLocation: text("warehouse_location"), // DATOSUBIC from CSV (compatibility)
   
   // Physical stock
   physicalStock1: numeric("physical_stock1", { precision: 15, scale: 4 }), // STFI1
@@ -329,18 +355,23 @@ export const productStock = pgTable("product_stock", {
   dispatchNoInvoice1: numeric("dispatch_no_invoice1", { precision: 15, scale: 4 }), // DESPNOFAC1
   dispatchNoInvoice2: numeric("dispatch_no_invoice2", { precision: 15, scale: 4 }), // DESPNOFAC2
   
-  // Additional CSV fields
-  fmpr: varchar("fmpr"), // Family code
-  pfpr: varchar("pfpr"), // Price list code
-  hfpr: varchar("hfpr"), // Price list hierarchy
-  rupr: varchar("rupr"), // Route code
-  mrpr: varchar("mrpr"), // Brand code
+  // Additional CSV fields from stock CSV
+  fmpr: varchar("fmpr"), // FMPR - Family code
+  pfpr: varchar("pfpr"), // PFPR - Price list code
+  hfpr: varchar("hfpr"), // HFPR - Price list hierarchy
+  rupr: varchar("rupr"), // RUPR - Route code
+  mrpr: varchar("mrpr"), // MRPR - Brand code
+  
+  // RLUD - Unit Relation from CSV (varies by location)
+  rlud: numeric("rlud", { precision: 10, scale: 2 }), // RLUD - Unit Relation from CSV
   
   lastUpdated: timestamp("last_updated").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
-  // Constraint único compuesto para upsert operations
-  uniqueProductStockLocation: unique("unique_product_stock_location").on(table.productSku, table.branchCode, table.warehouseCode),
+  // Constraint único compuesto para upsert operations using KOPR
+  uniqueProductStockLocation: unique("unique_product_stock_location").on(table.kopr, table.kosu, table.kobo),
+  // Compatibility constraint for existing systems
+  uniqueProductStockLocationCompat: unique("unique_product_stock_location_compat").on(table.productSku, table.branchCode, table.warehouseCode),
 }));
 
 // Product price history table - Track price changes
@@ -356,6 +387,10 @@ export const productPriceHistory = pgTable("product_price_history", {
 });
 
 // Relations
+export const warehousesRelations = relations(warehouses, ({ many }) => ({
+  stock: many(productStock),
+}));
+
 export const productsRelations = relations(products, ({ many }) => ({
   stock: many(productStock),
   priceHistory: many(productPriceHistory),
@@ -363,19 +398,25 @@ export const productsRelations = relations(products, ({ many }) => ({
 
 export const productStockRelations = relations(productStock, ({ one }) => ({
   product: one(products, {
-    fields: [productStock.productSku],
-    references: [products.productId],
+    fields: [productStock.kopr],
+    references: [products.kopr],
+  }),
+  warehouse: one(warehouses, {
+    fields: [productStock.kobo, productStock.kosu],
+    references: [warehouses.kobo, warehouses.kosu],
   }),
 }));
 
 export const productPriceHistoryRelations = relations(productPriceHistory, ({ one }) => ({
   product: one(products, {
     fields: [productPriceHistory.productSku],
-    references: [products.productId],
+    references: [products.kopr],
   }),
 }));
 
 // Product types
+export type Warehouse = typeof warehouses.$inferSelect;
+export type InsertWarehouse = typeof warehouses.$inferInsert;
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
 export type ProductStock = typeof productStock.$inferSelect;
@@ -390,7 +431,46 @@ export const insertProductSchema = createInsertSchema(products).omit({
   updatedAt: true,
 });
 
-// CSV import schema for products
+// CSV import schema for products and stock (KOPR-based)
+export const csvProductStockImportSchema = z.object({
+  // Product identification from CSV
+  KOPR: z.string(), // Product Code (Primary)
+  NOKOPR: z.string(), // Product Name
+  UD01PR: z.string().optional(), // Unit 1
+  UD02PR: z.string().optional(), // Unit 2
+  
+  // Location identification from CSV
+  KOSU: z.string(), // Branch Code
+  KOBO: z.string(), // Warehouse Code
+  DATOSUBIC: z.string().optional(), // Warehouse Location
+  
+  // Stock fields from CSV (all as strings for parsing)
+  STFI1: z.string().optional(), // Physical Stock 1
+  STDV1: z.string().optional(), // Available Stock 1
+  STOCNV1: z.string().optional(), // Committed Stock 1
+  STDV1C: z.string().optional(), // Committed Stock 1 Alt
+  STOCNV1C: z.string().optional(), // Committed Stock Alt 1
+  RECENOFAC1: z.string().optional(), // Receipt No Invoice 1
+  DESPNOFAC1: z.string().optional(), // Dispatch No Invoice 1
+  
+  STFI2: z.string().optional(), // Physical Stock 2
+  STDV2: z.string().optional(), // Available Stock 2
+  STOCNV2: z.string().optional(), // Committed Stock 2
+  STDV2C: z.string().optional(), // Committed Stock 2 Alt
+  STOCNV2C: z.string().optional(), // Committed Stock Alt 2
+  RECENOFAC2: z.string().optional(), // Receipt No Invoice 2
+  DESPNOFAC2: z.string().optional(), // Dispatch No Invoice 2
+  
+  // Additional fields from CSV
+  RLUD: z.string().optional(), // Unit Relation
+  FMPR: z.string().optional(), // Family code
+  PFPR: z.string().optional(), // Price list code
+  HFPR: z.string().optional(), // Price list hierarchy
+  RUPR: z.string().optional(), // Route code
+  MRPR: z.string().optional(), // Brand code
+});
+
+// Legacy CSV import schema for products (compatibility)
 export const csvProductImportSchema = z.object({
   productId: z.string(),
   name: z.string(),
@@ -425,8 +505,29 @@ export const csvProductImportSchema = z.object({
   packagingAmountPerPallet: z.string().optional(),
 });
 
-export const insertProductStockSchema = createInsertSchema(productStock);
-export const insertProductPriceHistorySchema = createInsertSchema(productPriceHistory);
+export const insertWarehouseSchema = createInsertSchema(warehouses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProductStockSchema = createInsertSchema(productStock).omit({
+  id: true,
+  createdAt: true,
+  lastUpdated: true,
+});
+
+export const insertProductPriceHistorySchema = createInsertSchema(productPriceHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Type exports for CSV import
+export type CsvProductStockImport = z.infer<typeof csvProductStockImportSchema>;
+export type CsvProductImport = z.infer<typeof csvProductImportSchema>;
+export type InsertWarehouseInput = z.infer<typeof insertWarehouseSchema>;
+export type InsertProductStockInput = z.infer<typeof insertProductStockSchema>;
+export type InsertProductPriceHistoryInput = z.infer<typeof insertProductPriceHistorySchema>;
 
 // Sistema de usuarios vendedores
 export const salespeopleUsers = pgTable("salespeople_users", {
