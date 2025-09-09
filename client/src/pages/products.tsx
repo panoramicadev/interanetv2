@@ -68,6 +68,7 @@ export default function ProductsPage() {
   const [filterActive, setFilterActive] = useState<string>("all");
   const [filterPrices, setFilterPrices] = useState<string>("all");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
   const [newPrice, setNewPrice] = useState("");
   const [newOfferPrice, setNewOfferPrice] = useState("");
@@ -646,44 +647,159 @@ export default function ProductsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {products.map((product) => (
-                  <Card 
-                    key={product.sku}
-                    className="cursor-pointer hover:shadow-lg transition-shadow"
-                    onClick={() => {
-                      setSelectedProduct(product);
-                      setNewPrice(product.price || "");
-                      setNewOfferPrice(""); // Reset offer price
-                      setShowInStore(product.showInStore || false);
-                      setShowPriceDialog(true);
-                    }}
-                    data-testid={`card-product-${product.sku}`}
-                  >
-                    <CardContent className="pt-4">
-                      <div className="space-y-2">
-                        <div className="font-mono text-sm font-medium">{product.sku}</div>
-                        <div className="text-sm text-muted-foreground truncate">
-                          {product.name}
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">{formatPrice(product.price)}</span>
-                          <div className="flex gap-1">
-                            <Badge variant={product.active ? "default" : "secondary"} className="text-xs">
-                              {product.active ? "Activo" : "Inactivo"}
-                            </Badge>
-                            {product.showInStore && (
-                              <Badge variant="outline" className="text-xs">
-                                En tienda
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              {/* Filtros para SKUs */}
+              <div className="flex flex-col gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por SKU o nombre de producto..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-8"
+                        data-testid="input-search-skus"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Select value={filterActive} onValueChange={setFilterActive}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="true">Activos</SelectItem>
+                        <SelectItem value="false">Inactivos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterPrices} onValueChange={setFilterPrices}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Precios" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="true">Con precio</SelectItem>
+                        <SelectItem value="false">Sin precio</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                {/* Acciones de selección múltiple */}
+                {selectedProducts.length > 0 && (
+                  <div className="flex items-center gap-4 p-3 bg-muted rounded-lg">
+                    <span className="text-sm font-medium">
+                      {selectedProducts.length} producto(s) seleccionado(s)
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedProducts([])}
+                    >
+                      Deseleccionar todo
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Aquí se podría agregar funcionalidad de edición masiva
+                        toast({ title: "Funcionalidad de edición masiva próximamente" });
+                      }}
+                    >
+                      Editar seleccionados
+                    </Button>
+                  </div>
+                )}
               </div>
+
+              {/* Tabla de SKUs */}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedProducts(filteredProducts.map(p => p.sku));
+                          } else {
+                            setSelectedProducts([]);
+                          }
+                        }}
+                        className="rounded"
+                      />
+                    </TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Precio</TableHead>
+                    <TableHead>Precio Oferta</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Stock Total</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.map((product) => (
+                    <TableRow key={product.sku} className="cursor-pointer hover:bg-muted/50">
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selectedProducts.includes(product.sku)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedProducts([...selectedProducts, product.sku]);
+                            } else {
+                              setSelectedProducts(selectedProducts.filter(id => id !== product.sku));
+                            }
+                          }}
+                          className="rounded"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono text-sm font-medium">{product.sku}</TableCell>
+                      <TableCell>
+                        <div className="max-w-60 truncate">{product.name}</div>
+                      </TableCell>
+                      <TableCell>{formatPrice(product.price)}</TableCell>
+                      <TableCell>
+                        {product.offerPrice ? formatPrice(product.offerPrice) : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Badge variant={product.active ? "default" : "secondary"} className="text-xs">
+                            {product.active ? "Activo" : "Inactivo"}
+                          </Badge>
+                          {product.showInStore && (
+                            <Badge variant="outline" className="text-xs">
+                              En tienda
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>{product.totalStock?.toLocaleString() || 0}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedProduct(product);
+                            setNewPrice(product.price || "");
+                            setNewOfferPrice(product.offerPrice || "");
+                            setShowInStore(product.showInStore || false);
+                            setShowPriceDialog(true);
+                          }}
+                          data-testid={`button-edit-sku-${product.sku}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>
