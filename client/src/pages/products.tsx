@@ -230,9 +230,109 @@ export default function ProductsPage() {
     }
   };
 
-  const handleImport = () => {
-    if (importFile) {
-      importMutation.mutate(importFile);
+  // Funciones de separación universal de CSV (copiadas de import-modal.tsx)
+  const detectSeparator = (csvText: string): string => {
+    // Analyze the first line to detect separator
+    const firstLine = csvText.split('\n')[0];
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    
+    const separator = semicolonCount > commaCount ? ';' : ',';
+    console.log(`🔍 Separador detectado: "${separator}" (comas: ${commaCount}, punto y coma: ${semicolonCount})`);
+    return separator;
+  };
+
+  const parseCSVLine = (line: string, separator: string = ','): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === separator && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    result.push(current.trim());
+    return result;
+  };
+
+  const parseProductCSV = (csvText: string) => {
+    const lines = csvText.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+      throw new Error('CSV debe tener al menos una fila de encabezados y una fila de datos');
+    }
+
+    // Auto-detect separator
+    const separator = detectSeparator(csvText);
+    
+    const headers = parseCSVLine(lines[0], separator);
+    console.log('🔍 Headers detectados:', headers);
+    console.log('🔍 Total filas de datos:', lines.length - 1);
+    
+    const products = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseCSVLine(lines[i], separator);
+      
+      if (values.length !== headers.length) {
+        console.warn(`⚠️ Fila ${i + 1}: ${values.length} valores vs ${headers.length} headers. Saltando.`);
+        continue;
+      }
+
+      const product: any = {};
+      headers.forEach((header, index) => {
+        product[header.trim()] = values[index]?.trim() || '';
+      });
+
+      // Validación básica - KOPR y NOKOPR son requeridos
+      if (product.KOPR && product.NOKOPR) {
+        products.push(product);
+      }
+    }
+
+    console.log(`✅ CSV parseado: ${products.length} productos válidos`);
+    return products;
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      toast({
+        title: "Error",
+        description: "Por favor selecciona un archivo CSV",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const csvText = await importFile.text();
+      const parsedData = parseProductCSV(csvText);
+      
+      if (parsedData.length === 0) {
+        toast({
+          title: "Error",
+          description: "El archivo CSV está vacío o no tiene datos válidos",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Enviar datos parseados al backend
+      importMutation.mutate(parsedData);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al procesar el archivo CSV",
+        variant: "destructive",
+      });
     }
   };
 
