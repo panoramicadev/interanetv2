@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import React from "react";
 import { Link } from "wouter";
@@ -53,6 +54,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
+  const [timeFilter, setTimeFilter] = useState<string>("24h");
 
   const handleTransactionClick = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
@@ -98,11 +100,46 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
     return Object.values(grouped).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
-  const { data: transactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/sales/transactions?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
+  // Filter transactions based on time filter
+  const getTimeFilteredTransactions = (transactions: Transaction[]) => {
+    if (!transactions || timeFilter === 'all') return transactions;
+    
+    const now = new Date();
+    let cutoffDate = new Date();
+    
+    switch (timeFilter) {
+      case '24h':
+        cutoffDate.setHours(now.getHours() - 24);
+        break;
+      case '48h':
+        cutoffDate.setHours(now.getHours() - 48);
+        break;
+      case '3d':
+        cutoffDate.setDate(now.getDate() - 3);
+        break;
+      case '7d':
+        cutoffDate.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        cutoffDate.setDate(now.getDate() - 30);
+        break;
+      default:
+        return transactions;
+    }
+    
+    return transactions.filter(transaction => {
+      if (!transaction.feemdo) return false;
+      const transactionDate = new Date(transaction.feemdo);
+      return transactionDate >= cutoffDate;
+    });
+  };
+
+  const { data: allTransactions, isLoading } = useQuery<Transaction[]>({
+    queryKey: [`/api/sales/transactions?limit=100&period=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
   });
 
-  const groupedSales = transactions ? groupTransactionsByNudo(transactions) : [];
+  const filteredTransactions = allTransactions ? getTimeFilteredTransactions(allTransactions) : [];
+  const groupedSales = filteredTransactions ? groupTransactionsByNudo(filteredTransactions).slice(0, limit) : [];
 
   // Removed artificial salesperson assignment - now using real data from transactions
 
@@ -202,9 +239,19 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Ventas Recientes</h2>
         </div>
-        <Button variant="outline" size="sm" className="text-gray-600 border-gray-300 hover:bg-gray-50" data-testid="button-view-all">
-          Últimas 24h ▼
-        </Button>
+        <Select value={timeFilter} onValueChange={setTimeFilter}>
+          <SelectTrigger className="w-32 rounded-xl border-gray-300 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl border-gray-200">
+            <SelectItem value="24h">Últimas 24h</SelectItem>
+            <SelectItem value="48h">Últimas 48h</SelectItem>
+            <SelectItem value="3d">Últimos 3 días</SelectItem>
+            <SelectItem value="7d">Última semana</SelectItem>
+            <SelectItem value="30d">Último mes</SelectItem>
+            <SelectItem value="all">Todas</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">

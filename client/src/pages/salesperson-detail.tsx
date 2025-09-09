@@ -109,10 +109,10 @@ export default function SalespersonDetail() {
   };
 
   const getFrequencyDescription = (days: number) => {
-    if (days < 1) return 'Diario';
-    if (days < 7) return `Cada ${Math.round(days)} días`;
-    if (days < 30) return `Cada ${Math.round(days / 7)} semanas`;
-    return `Cada ${Math.round(days / 30)} meses`;
+    const roundedDays = Math.round(days);
+    if (roundedDays <= 0) return '0 días';
+    if (roundedDays === 1) return '1 día';
+    return `${roundedDays} días`;
   };
 
   const getDaysColor = (days: number) => {
