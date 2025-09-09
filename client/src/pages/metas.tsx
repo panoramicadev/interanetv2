@@ -84,6 +84,11 @@ export default function Metas() {
     queryKey: [getProgressEndpoint()],
     enabled: !!user, // Only fetch when user is loaded
   });
+  
+  // Debug the progress data
+  console.log('[DEBUG] Metas page progressData:', progressData);
+  console.log('[DEBUG] Metas page user role:', user?.role);
+  console.log('[DEBUG] Metas page isLoading:', progressLoading);
 
   // Fetch segments and salespeople for form selectors (only for admin)
   const { data: segments } = useQuery<string[]>({
