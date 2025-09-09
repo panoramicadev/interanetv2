@@ -134,11 +134,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Users,
     },
     {
-      href: "/presupuestos",
-      label: "Presupuestos",
-      icon: FileText,
-    },
-    {
       href: "#presupuesto",
       label: "Crear Presupuesto",
       icon: Calculator,
