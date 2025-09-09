@@ -4,7 +4,7 @@ import { Link } from "wouter";
 
 interface SegmentData {
   segment: string;
-  totalSales: number;
+  uniqueClients: number;
   percentage: number;
 }
 
@@ -15,16 +15,9 @@ interface SegmentChartProps {
 
 export default function SegmentChart({ selectedPeriod, filterType }: SegmentChartProps) {
   const { data: segmentData, isLoading } = useQuery<SegmentData[]>({
-    queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/segments-by-clients?period=${selectedPeriod}&filterType=${filterType}`],
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
 
   return (
     <div className="space-y-4">
@@ -33,7 +26,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
           <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Ventas por Segmento</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Clientes por Segmento</h2>
         </div>
       </div>
       
@@ -73,7 +66,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
                         {segment.percentage.toFixed(1)}%
                       </span>
                       <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(segment.totalSales)}
+                        {segment.uniqueClients} clientes
                       </span>
                     </div>
                   </div>
@@ -109,7 +102,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
                     {/* Monto */}
                     <div className="w-20 flex-shrink-0 text-right">
                       <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(segment.totalSales)}
+                        {segment.uniqueClients} clientes
                       </span>
                     </div>
                   </div>

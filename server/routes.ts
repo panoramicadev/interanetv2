@@ -262,6 +262,23 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Segment analysis by unique clients endpoint
+  app.get('/api/sales/segments-by-clients', requireAuth, async (req, res) => {
+    try {
+      const { period, filterType } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
+      const segmentAnalysis = await storage.getSegmentAnalysisByUniqueClients(
+        dateRange.startDate,
+        dateRange.endDate
+      );
+      res.json(segmentAnalysis);
+    } catch (error) {
+      console.error("Error fetching segment analysis by clients:", error);
+      res.status(500).json({ message: "Failed to fetch segment analysis by clients" });
+    }
+  });
+
   // Sales chart data endpoint
   app.get('/api/sales/chart-data', requireAuth, async (req, res) => {
     try {
