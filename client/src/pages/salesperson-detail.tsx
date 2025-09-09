@@ -124,152 +124,153 @@ export default function SalespersonDetail() {
   return (
     <div className="min-h-screen">
       <div className="w-full">
-        {/* Header - Optimized for Mobile */}
-        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
-          <div className="flex flex-col space-y-2 sm:space-y-3 lg:space-y-0 lg:flex-row lg:items-center justify-between">
+        {/* Header - Compact Layout */}
+        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 m-3 sm:m-4 rounded-2xl shadow-sm">
+          {/* Title Section */}
+          <div className="flex items-start justify-between mb-4">
             <div className="min-w-0 flex-1">
-              <nav className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2">
-                <Link href="/" className="hover:text-blue-600 transition-colors truncate">
+              <nav className="flex items-center space-x-1 text-xs text-gray-600 mb-1">
+                <Link href="/" className="hover:text-blue-600 transition-colors">
                   Dashboard
                 </Link>
-                <span className="text-xs">›</span>
+                <span>›</span>
                 <span className="hidden sm:inline">Vendedor</span>
-                <span className="hidden sm:inline text-xs">›</span>
+                <span className="hidden sm:inline">›</span>
                 <span className="font-medium text-gray-900 truncate">{decodeURIComponent(salespersonName)}</span>
               </nav>
-              <h1 className="text-lg sm:text-xl lg:text-3xl font-bold text-gray-900 truncate">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                 {decodeURIComponent(salespersonName)}
               </h1>
-              <p className="text-gray-500 text-xs sm:text-sm hidden sm:block">
+              <p className="text-gray-600 text-sm">
                 {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
               </p>
             </div>
             
-            {/* Filter Controls */}
-            <div className="flex flex-col space-y-2 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4 w-full lg:w-auto">
-              {/* Filter Type Selector */}
-              <div className="flex items-center space-x-2 flex-none">
-                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Filtrar:
-                </label>
-                <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="w-20 sm:w-32 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200">
-                    <SelectItem value="day">Día</SelectItem>
-                    <SelectItem value="month">Mes</SelectItem>
-                    <SelectItem value="range">Rango</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <Link href="/">
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="rounded-xl border-gray-200 shadow-sm ml-4"
+                data-testid="button-back-dashboard"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Volver al Dashboard</span>
+                <span className="sm:hidden">Volver</span>
+              </Button>
+            </Link>
+          </div>
 
-              {/* Period Selector */}
-              <div className="flex items-center space-x-2 flex-1 lg:flex-none min-w-0">
-                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Período:
-                </label>
-                {filterType === "day" ? (
+          {/* Filter Controls - Horizontal Layout */}
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Filter Type */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                Filtrar:
+              </label>
+              <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
+                <SelectTrigger className="w-24 rounded-xl border-gray-200 shadow-sm text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-gray-200">
+                  <SelectItem value="day">Día</SelectItem>
+                  <SelectItem value="month">Mes</SelectItem>
+                  <SelectItem value="range">Rango</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Period Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                Período:
+              </label>
+              {filterType === "day" ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      <span>
+                        {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar"}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : filterType === "range" ? (
+                <div className="flex items-center gap-2">
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="flex-1 lg:w-52 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0"
+                        className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
                       >
-                        <CalendarIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-                        <span className="truncate">
-                          {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar fecha"}
+                        <CalendarIcon className="mr-1 h-3 w-3" />
+                        <span>
+                          {startDate ? format(startDate, "dd/MM") : "Inicio"}
                         </span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
                       <Calendar
                         mode="single"
-                        selected={selectedDate}
-                        onSelect={setSelectedDate}
+                        selected={startDate}
+                        onSelect={setStartDate}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
-                ) : filterType === "range" ? (
-                  <div className="flex items-center space-x-1 sm:space-x-2 flex-1 min-w-0">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="flex-1 min-w-0 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
-                        >
-                          <CalendarIcon className="mr-1 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-                          <span className="truncate">
-                            {startDate ? format(startDate, "dd/MM") : "Inicio"}
-                          </span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={startDate}
-                          onSelect={setStartDate}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    
-                    <span className="text-gray-500 text-xs sm:text-sm shrink-0">-</span>
-                    
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="flex-1 min-w-0 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
-                        >
-                          <CalendarIcon className="mr-1 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-                          <span className="truncate">
-                            {endDate ? format(endDate, "dd/MM") : "Final"}
-                          </span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={endDate}
-                          onSelect={setEndDate}
-                          initialFocus
-                          disabled={(date) => startDate ? date < startDate : false}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                ) : (
-                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger className="flex-1 lg:w-52 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200">
-                      <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                      <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                      <SelectItem value="2025-07">Julio 2025</SelectItem>
-                      <SelectItem value="2025-06">Junio 2025</SelectItem>
-                      <SelectItem value="2025-05">Mayo 2025</SelectItem>
-                      <SelectItem value="current-month">Mes actual</SelectItem>
-                      <SelectItem value="last-month">Mes anterior</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              
-              <Link href="/" className="self-start lg:self-center">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
-                  data-testid="button-back-dashboard"
-                >
-                  <ArrowLeft className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Volver al Dashboard</span>
-                  <span className="sm:hidden">Volver</span>
-                </Button>
-              </Link>
+                  
+                  <span className="text-gray-500">-</span>
+                  
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
+                      >
+                        <CalendarIcon className="mr-1 h-3 w-3" />
+                        <span>
+                          {endDate ? format(endDate, "dd/MM") : "Final"}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        initialFocus
+                        disabled={(date) => startDate ? date < startDate : false}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              ) : (
+                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                  <SelectTrigger className="w-44 rounded-xl border-gray-200 shadow-sm text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-gray-200">
+                    <SelectItem value="2025-09">Septiembre 2025</SelectItem>
+                    <SelectItem value="2025-08">Agosto 2025</SelectItem>
+                    <SelectItem value="2025-07">Julio 2025</SelectItem>
+                    <SelectItem value="2025-06">Junio 2025</SelectItem>
+                    <SelectItem value="2025-05">Mayo 2025</SelectItem>
+                    <SelectItem value="current-month">Mes actual</SelectItem>
+                    <SelectItem value="last-month">Mes anterior</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
         </header>
