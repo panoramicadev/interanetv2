@@ -145,18 +145,12 @@ export default function ProductsPage() {
   // Update price mutation
   const updatePriceMutation = useMutation({
     mutationFn: async ({ sku, price, offerPrice, showInStore, reason }: { sku: string; price: number; offerPrice?: number; showInStore?: boolean; reason?: string }) => {
-      const response = await fetch(`/api/products/${sku}/price`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ price, offerPrice, showInStore, reason })
+      const response = await apiRequest('PUT', `/api/products/${sku}/price`, { 
+        price, 
+        offerPrice, 
+        showInStore, 
+        reason 
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update price');
-      }
       
       return response.json();
     },
