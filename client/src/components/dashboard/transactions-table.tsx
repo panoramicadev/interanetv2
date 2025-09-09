@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useState } from "react";
+import React from "react";
 import { Link } from "wouter";
 import TransactionDetailModal from "./transaction-detail-modal";
 
@@ -235,7 +236,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
                     const isExpanded = expandedSales.has(sale.nudo);
                     
                     return (
-                      <>
+                      <React.Fragment key={sale.nudo}>
                         {/* Sale Summary Row */}
                         <TableRow 
                           key={sale.nudo}
@@ -311,7 +312,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
                             </TableCell>
                           </TableRow>
                         ))}
-                      </>
+                      </React.Fragment>
                     );
                   })
                 )}
