@@ -89,10 +89,7 @@ export function registerRoutes(app: Express): Server {
       const currentStart = new Date(currentStartDate);
       const currentEnd = new Date(currentEndDate);
       
-      // Calculate the duration of the current period
-      const periodDuration = currentEnd.getTime() - currentStart.getTime();
-      
-      // For previous period, go back the same duration plus move to previous month
+      // For previous period, go back exactly one month keeping the same day/range
       const previousStart = new Date(currentStart);
       const previousEnd = new Date(currentEnd);
       
@@ -108,6 +105,9 @@ export function registerRoutes(app: Express): Server {
       if (previousEnd.getDate() !== currentEnd.getDate()) {
         previousEnd.setDate(0); // Last day of previous month
       }
+      
+      console.log(`Current period: ${currentStartDate} to ${currentEndDate}`);
+      console.log(`Previous period: ${previousStart.toISOString().split('T')[0]} to ${previousEnd.toISOString().split('T')[0]}`);
       
       // Get current period metrics
       const metrics = await storage.getSalesMetrics({
@@ -125,13 +125,16 @@ export function registerRoutes(app: Express): Server {
         segment: segment as string,
       });
       
-      // Add previous period data for comparison
+      console.log(`Current metrics: Sales=${metrics.totalSales}, Transactions=${metrics.totalTransactions}`);
+      console.log(`Previous metrics: Sales=${previousMetrics.totalSales}, Transactions=${previousMetrics.totalTransactions}`);
+      
+      // Add previous period data for comparison - only if there's actual data
       const metricsWithComparison = {
         ...metrics,
-        previousMonthSales: previousMetrics.totalSales,
-        previousMonthTransactions: previousMetrics.totalTransactions,
-        previousMonthUnits: previousMetrics.totalUnits,
-        previousMonthCustomers: previousMetrics.activeCustomers,
+        previousMonthSales: previousMetrics.totalSales > 0 ? previousMetrics.totalSales : undefined,
+        previousMonthTransactions: previousMetrics.totalTransactions > 0 ? previousMetrics.totalTransactions : undefined,
+        previousMonthUnits: previousMetrics.totalUnits > 0 ? previousMetrics.totalUnits : undefined,
+        previousMonthCustomers: previousMetrics.activeCustomers > 0 ? previousMetrics.activeCustomers : undefined,
       };
       
       res.json(metricsWithComparison);
