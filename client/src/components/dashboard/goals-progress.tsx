@@ -140,10 +140,13 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
     // Último día del mes de la meta
     const endOfMonth = new Date(parseInt(year), parseInt(month), 0);
     
+    // Verificar si el mes ya terminó
+    const isMonthClosed = currentDate > endOfMonth;
+    
     // Días totales del mes
     const totalDays = endOfMonth.getDate();
     // Días transcurridos desde el inicio del mes
-    const currentDay = Math.min(currentDate.getDate(), totalDays);
+    const currentDay = isMonthClosed ? totalDays : Math.min(currentDate.getDate(), totalDays);
     // Porcentaje del tiempo transcurrido
     const timeProgress = currentDay / totalDays;
     
@@ -157,6 +160,8 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
       timeProgress: timeProgress * 100,
       daysRemaining: totalDays - currentDay,
       isOnTrack: projectedPercentage >= 100,
+      isMonthClosed,
+      actualPercentage: goal.percentage, // Porcentaje real alcanzado
       pace: projectedPercentage >= 95 ? 'excellent' : 
             projectedPercentage >= 85 ? 'good' : 
             projectedPercentage >= 70 ? 'warning' : 'danger'
@@ -165,6 +170,37 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
 
   // Generar mensaje motivacional o de advertencia
   const getProjectionMessage = (goal: GoalProgress, projection: ReturnType<typeof calculateProjection>) => {
+    const { isMonthClosed, actualPercentage, pace, projectedPercentage, daysRemaining } = projection;
+    
+    // Si el mes ya cerró, mostrar resultado final
+    if (isMonthClosed) {
+      const monthName = getMonthName(goal.period);
+      
+      if (actualPercentage >= 100) {
+        return {
+          text: `${monthName} cerrado - Meta alcanzada: ${actualPercentage.toFixed(1)}%`,
+          icon: CheckCircle,
+          color: "text-green-600",
+          bgColor: "bg-green-50 border-green-200"
+        };
+      } else if (actualPercentage >= 90) {
+        return {
+          text: `${monthName} cerrado - Muy cerca: ${actualPercentage.toFixed(1)}% de la meta`,
+          icon: Target,
+          color: "text-blue-600",
+          bgColor: "bg-blue-50 border-blue-200"
+        };
+      } else {
+        return {
+          text: `${monthName} cerrado - Meta no alcanzada: ${actualPercentage.toFixed(1)}%`,
+          icon: AlertCircle,
+          color: "text-red-600",
+          bgColor: "bg-red-50 border-red-200"
+        };
+      }
+    }
+    
+    // Si está completada durante el mes actual
     if (goal.isCompleted) {
       return {
         text: "¡Felicitaciones! Meta completada exitosamente.",
@@ -174,8 +210,7 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
       };
     }
 
-    const { pace, projectedPercentage, daysRemaining } = projection;
-    
+    // Mensajes de proyección para meses en curso
     switch (pace) {
       case 'excellent':
         return {
@@ -222,6 +257,16 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
       case "salesperson": return "Metas por Vendedor";
       default: return "Todas las Metas";
     }
+  };
+
+  // Función para obtener el nombre del mes en español
+  const getMonthName = (period: string) => {
+    const [year, month] = period.split('-');
+    const monthNames = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    return `${monthNames[parseInt(month) - 1]} ${year}`;
   };
 
   if (isLoading) {
