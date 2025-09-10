@@ -254,8 +254,8 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
             <div className="text-xs text-muted-foreground">
               <p className="font-medium">Formato esperado:</p>
               <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>IDMAEEDO: Identificador de transacción</li>
-                <li>NUDO: Número de transacción</li>
+                <li>IDMAEEDO: Identificador de producto en orden</li>
+                <li>NUDO: Número de orden</li>
                 <li>FEEMDO: Fecha de emisión</li>
                 <li>TIDO: Tipo de documento (FCV/FVL/NCV)</li>
                 <li>KOPRCT: SKU del producto</li>
@@ -318,7 +318,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
                       <span className="font-medium">Nuevos datos</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {formatNumber(previewData.totalTransactions)} transacciones
+                      {formatNumber(previewData.totalTransactions)} productos en órdenes
                     </p>
                   </div>
                 </div>
@@ -329,7 +329,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
                     <span className="font-medium text-red-700 dark:text-red-300">Datos que serán eliminados</span>
                   </div>
                   <p className="text-sm text-red-600 dark:text-red-400">
-                    {formatNumber(previewData.existingTransactions)} transacciones existentes en el período
+                    {formatNumber(previewData.existingTransactions)} productos en órdenes existentes en el período
                   </p>
                 </div>
                 
@@ -339,7 +339,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
                     <span className="font-medium text-green-700 dark:text-green-300">Resultado final</span>
                   </div>
                   <p className="text-sm text-green-600 dark:text-green-400">
-                    Se eliminarán {formatNumber(previewData.wouldDelete)} y se insertarán {formatNumber(previewData.wouldInsert)} transacciones
+                    Se eliminarán {formatNumber(previewData.wouldDelete)} y se insertarán {formatNumber(previewData.wouldInsert)} productos en órdenes
                   </p>
                 </div>
               </div>
