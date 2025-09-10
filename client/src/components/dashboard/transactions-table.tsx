@@ -55,7 +55,8 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
-  const [timeFilter, setTimeFilter] = useState<string>("24h");
+  const [timeFilter, setTimeFilter] = useState<string>("all");
+  const [showMore, setShowMore] = useState(false);
 
   const handleTransactionClick = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
@@ -140,7 +141,10 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
   });
 
   const filteredTransactions = allTransactions ? getTimeFilteredTransactions(allTransactions) : [];
-  const groupedSales = filteredTransactions ? groupTransactionsByNudo(filteredTransactions).slice(0, limit) : [];
+  const allGroupedSales = filteredTransactions ? groupTransactionsByNudo(filteredTransactions) : [];
+  const displayLimit = showMore ? 50 : limit;
+  const groupedSales = allGroupedSales.slice(0, displayLimit);
+  const hasMoreSales = allGroupedSales.length > limit;
 
   // Removed artificial salesperson assignment - now using real data from transactions
 
@@ -240,19 +244,32 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Órdenes Recientes</h2>
         </div>
-        <Select value={timeFilter} onValueChange={setTimeFilter}>
-          <SelectTrigger className="w-32 rounded-xl border-gray-300 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="rounded-xl border-gray-200">
-            <SelectItem value="24h">Últimas 24h</SelectItem>
-            <SelectItem value="48h">Últimas 48h</SelectItem>
-            <SelectItem value="3d">Últimos 3 días</SelectItem>
-            <SelectItem value="7d">Última semana</SelectItem>
-            <SelectItem value="30d">Último mes</SelectItem>
-            <SelectItem value="all">Todas</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          {hasMoreSales && !showMore && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMore(true)}
+              className="text-xs px-3 py-1"
+              data-testid="button-see-more-orders"
+            >
+              Ver más ({allGroupedSales.length - limit}+)
+            </Button>
+          )}
+          <Select value={timeFilter} onValueChange={setTimeFilter}>
+            <SelectTrigger className="w-32 rounded-xl border-gray-300 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-gray-200">
+              <SelectItem value="all">Todas del período</SelectItem>
+              <SelectItem value="24h">Últimas 24h</SelectItem>
+              <SelectItem value="48h">Últimas 48h</SelectItem>
+              <SelectItem value="3d">Últimos 3 días</SelectItem>
+              <SelectItem value="7d">Última semana</SelectItem>
+              <SelectItem value="30d">Último mes</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 interface TopClient {
   clientName: string;
@@ -16,8 +18,11 @@ interface TopClientsPanelProps {
 }
 
 export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson }: TopClientsPanelProps) {
+  const [showMore, setShowMore] = useState(false);
+  const displayLimit = showMore ? 50 : 10;
+  
   const { data: topClients, isLoading } = useQuery<TopClient[]>({
-    queryKey: [`/api/sales/top-clients?limit=8&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/top-clients?limit=${displayLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const formatCurrency = (amount: number) => {
@@ -43,6 +48,29 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
             <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Top Clientes</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {topClients && topClients.length >= 10 && !showMore && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMore(true)}
+              className="text-xs px-3 py-1"
+              data-testid="button-see-more-clients"
+            >
+              Ver más
+            </Button>
+          )}
+          <Link href="/clientes">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs px-3 py-1"
+              data-testid="button-view-all-clients"
+            >
+              Ver todos
+            </Button>
+          </Link>
         </div>
       </div>
       
