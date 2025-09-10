@@ -35,9 +35,11 @@ interface SalesChartProps {
   filterType: "day" | "month" | "year" | "range";
   segment?: string;
   salesperson?: string;
+  client?: string;
+  supplier?: string;
 }
 
-export default function SalesChart({ selectedPeriod, filterType, segment, salesperson }: SalesChartProps) {
+export default function SalesChart({ selectedPeriod, filterType, segment, salesperson, client, supplier }: SalesChartProps) {
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('daily');
   
   // Ajustar período por defecto cuando cambia filterType
@@ -51,7 +53,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
   const chartPeriod = filterType === 'day' ? 'daily' : period;
   
   const { data: chartData, isLoading } = useQuery<ChartDataPoint[]>({
-    queryKey: [`/api/sales/chart-data?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/chart-data?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${client ? `&client=${encodeURIComponent(client)}` : ''}${supplier ? `&supplier=${encodeURIComponent(supplier)}` : ''}`],
   });
 
   const formatCurrency = (value: number) => {

@@ -93,7 +93,7 @@ export function registerRoutes(app: Express): Server {
   // Sales metrics endpoint
   app.get('/api/sales/metrics', requireAuth, async (req, res) => {
     try {
-      const { startDate, endDate, salesperson, segment, period, filterType } = req.query;
+      const { startDate, endDate, salesperson, segment, client, supplier, period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const currentStartDate = (startDate as string) || dateRange.startDate;
@@ -133,6 +133,8 @@ export function registerRoutes(app: Express): Server {
         endDate: currentEndDate,
         salesperson: salesperson as string,
         segment: segment as string,
+        client: client as string,
+        supplier: supplier as string,
       });
       
       // Get previous period metrics for comparison (same period in previous month)
@@ -141,6 +143,8 @@ export function registerRoutes(app: Express): Server {
         endDate: previousEndFormatted,
         salesperson: salesperson as string,
         segment: segment as string,
+        client: client as string,
+        supplier: supplier as string,
       });
       
       console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);
@@ -1078,6 +1082,16 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching clients:", error);
       res.status(500).json({ message: "Failed to fetch clients" });
+    }
+  });
+
+  app.get('/api/goals/data/suppliers', requireAuth, async (req, res) => {
+    try {
+      const suppliers = await storage.getUniqueSuppliers();
+      res.json(suppliers);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+      res.status(500).json({ message: "Failed to fetch suppliers" });
     }
   });
 
