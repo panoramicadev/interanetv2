@@ -56,6 +56,7 @@ export interface IStorage {
   }): Promise<{
     totalSales: number;
     totalTransactions: number;
+    totalOrders: number;
     totalUnits: number;
     activeCustomers: number;
   }>;
@@ -633,6 +634,7 @@ export class DatabaseStorage implements IStorage {
   } = {}): Promise<{
     totalSales: number;
     totalTransactions: number;
+    totalOrders: number;
     totalUnits: number;
     activeCustomers: number;
   }> {
@@ -658,7 +660,8 @@ export class DatabaseStorage implements IStorage {
     const [metrics] = await db
       .select({
         totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
-        totalTransactions: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+        totalTransactions: sql<number>`COUNT(*)`,
+        totalOrders: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
       })
@@ -668,6 +671,7 @@ export class DatabaseStorage implements IStorage {
     return {
       totalSales: Number(metrics.totalSales),
       totalTransactions: Number(metrics.totalTransactions),
+      totalOrders: Number(metrics.totalOrders),
       totalUnits: Number(metrics.totalUnits),
       activeCustomers: Number(metrics.activeCustomers),
     };
