@@ -238,7 +238,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
           <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <span className="text-xs sm:text-sm font-medium text-blue-600">📋</span>
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Ventas Recientes</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Órdenes Recientes</h2>
         </div>
         <Select value={timeFilter} onValueChange={setTimeFilter}>
           <SelectTrigger className="w-32 rounded-xl border-gray-300 text-sm">
@@ -291,7 +291,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
                           className="border-b border-gray-50 hover:bg-blue-50/50 cursor-pointer transition-colors"
                           data-testid={`sale-${sale.nudo}`}
                           onClick={() => toggleSaleExpansion(sale.nudo)}
-                          title="Haz clic para ver las transacciones de esta venta"
+                          title="Haz clic para ver los productos en esta orden"
                         >
                           <TableCell className="py-3 sm:py-4">
                             <div className="flex items-center space-x-2 sm:space-x-3">
@@ -304,7 +304,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
                               <div className="min-w-0 flex-1">
                                 <div className="font-medium text-gray-900 text-sm sm:text-base truncate">{sale.customerName}</div>
                                 <div className="text-xs sm:text-sm text-gray-500">
-                                  {sale.transactionCount} transacción{sale.transactionCount > 1 ? 'es' : ''}
+                                  {sale.transactionCount} producto{sale.transactionCount > 1 ? 's' : ''}
                                 </div>
                               </div>
                             </div>
@@ -339,7 +339,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
                             className="bg-gray-50 border-b border-gray-100 hover:bg-gray-100 cursor-pointer transition-colors"
                             data-testid={`transaction-${transaction.id}`}
                             onClick={() => handleTransactionClick(transaction)}
-                            title="Haz clic para ver los detalles completos de esta transacción"
+                            title="Haz clic para ver los detalles completos de este producto en orden"
                           >
                             <TableCell className="py-2 pl-12">
                               <div className="text-sm text-gray-600">

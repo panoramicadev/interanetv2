@@ -89,7 +89,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       testId: "kpi-total-sales"
     },
     {
-      title: "Transacciones",
+      title: "Productos en Órdenes",
       value: formatNumber(metrics?.totalTransactions || 0),
       change: transactionsChange.text,
       changeColor: transactionsChange.color,
