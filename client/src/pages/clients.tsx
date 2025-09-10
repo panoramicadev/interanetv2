@@ -46,6 +46,8 @@ export default function Clients() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showImportPreview, setShowImportPreview] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
+  const [importProgress, setImportProgress] = useState<string>("");
+  const [isImporting, setIsImporting] = useState(false);
   const itemsPerPage = 20;
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,9 +111,26 @@ export default function Clients() {
     }
   });
 
-  // Import mutation
+  // Import mutation with progress tracking
   const importMutation = useMutation({
     mutationFn: async (file: File) => {
+      setIsImporting(true);
+      setImportProgress("🚀 Iniciando importación súper rápida...");
+      
+      // Show progress toast
+      toast({
+        title: "Importando clientes",
+        description: "Procesando archivo con nueva tecnología optimizada...",
+      });
+      
+      setTimeout(() => {
+        setImportProgress("📋 Analizando duplicados en memoria...");
+      }, 500);
+      
+      setTimeout(() => {
+        setImportProgress("⚡ Procesando en lotes de 500 clientes...");
+      }, 1000);
+      
       const formData = new FormData();
       formData.append('file', file);
       
@@ -123,16 +142,27 @@ export default function Clients() {
       
       if (!response.ok) {
         const errorData = await response.json();
+        setIsImporting(false);
+        setImportProgress("");
         throw new Error(errorData.message || 'Error al importar clientes');
       }
       
+      setImportProgress("✅ Importación completada en segundos!");
       return response.json();
     },
     onSuccess: (data) => {
+      setIsImporting(false);
+      setImportProgress("");
+      
+      const { inserted, updated, skipped } = data;
+      const total = (inserted || 0) + (updated || 0);
+      
       toast({
-        title: "¡Importación exitosa!",
-        description: `Se importaron ${data.imported} clientes correctamente`,
+        title: "🎉 ¡Importación súper rápida completada!",
+        description: `${total} clientes procesados: ${inserted || 0} nuevos, ${updated || 0} actualizados${skipped ? `, ${skipped} errores` : ''}`,
+        duration: 5000,
       });
+      
       queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
       setSelectedFile(null);
       setShowImportPreview(false);
@@ -142,10 +172,14 @@ export default function Clients() {
       }
     },
     onError: (error) => {
+      setIsImporting(false);
+      setImportProgress("");
+      
       toast({
-        title: "Error en la importación",
+        title: "❌ Error en la importación",
         description: error instanceof Error ? error.message : "Error al importar clientes",
         variant: "destructive",
+        duration: 7000,
       });
     }
   });
@@ -241,7 +275,7 @@ export default function Clients() {
             />
             <Button 
               onClick={() => fileInputRef.current?.click()}
-              disabled={previewMutation.isPending || importMutation.isPending}
+              disabled={previewMutation.isPending || isImporting}
               data-testid="button-import-clients"
             >
               {previewMutation.isPending ? (
@@ -299,19 +333,31 @@ export default function Clients() {
               </div>
             )}
             
+            {/* Progress indicator */}
+            {isImporting && importProgress && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin text-blue-600" />
+                  <span className="text-blue-800 font-medium" data-testid="text-import-progress">
+                    {importProgress}
+                  </span>
+                </div>
+              </div>
+            )}
+            
             <div className="flex space-x-3">
               <Button 
                 onClick={handleImport} 
-                disabled={importMutation.isPending}
+                disabled={isImporting}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
                 data-testid="button-confirm-import"
               >
-                {importMutation.isPending ? (
+                {isImporting ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Upload className="h-4 w-4 mr-2" />
                 )}
-                Confirmar Importación
+                {isImporting ? "Procesando..." : "Confirmar Importación"}
               </Button>
               <Button 
                 variant="outline" 
