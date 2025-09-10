@@ -10,10 +10,12 @@ import {
 interface SalesMetrics {
   totalSales: number;
   totalTransactions: number;
+  totalOrders: number;
   totalUnits: number;
   activeCustomers: number;
   previousMonthSales?: number;
   previousMonthTransactions?: number;
+  previousMonthOrders?: number;
   previousMonthUnits?: number;
   previousMonthCustomers?: number;
 }
@@ -73,7 +75,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   };
 
   const salesChange = calculateChange(metrics?.totalSales || 0, metrics?.previousMonthSales);
-  const transactionsChange = calculateChange(metrics?.totalTransactions || 0, metrics?.previousMonthTransactions);
+  const ordersChange = calculateChange(metrics?.totalOrders || 0, metrics?.previousMonthOrders);
   const unitsChange = calculateChange(metrics?.totalUnits || 0, metrics?.previousMonthUnits);
   const customersChange = calculateChange(metrics?.activeCustomers || 0, metrics?.previousMonthCustomers);
 
@@ -89,14 +91,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       testId: "kpi-total-sales"
     },
     {
-      title: "Productos en Órdenes",
-      value: formatNumber(metrics?.totalTransactions || 0),
-      change: transactionsChange.text,
-      changeColor: transactionsChange.color,
+      title: "Órdenes",
+      value: formatNumber(metrics?.totalOrders || 0),
+      change: ordersChange.text,
+      changeColor: ordersChange.color,
       icon: ShoppingCart,
       bgColor: "bg-blue-100 dark:bg-blue-900/20",
       iconColor: "text-blue-600",
-      testId: "kpi-transactions"
+      testId: "kpi-orders"
     },
     {
       title: "Unidades Vendidas",
