@@ -259,6 +259,8 @@ export default function Dashboard() {
             <KPICards 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
             />
           </div>
           
@@ -279,23 +281,29 @@ export default function Dashboard() {
               <SalesChart 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
               />
             </div>
           )}
 
-          {/* Ventas por Segmento - Full Width Chart */}
-          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            <SegmentChart 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-            />
-          </div>
+          {/* Ventas por Segmento - Full Width Chart - Ocultar cuando hay filtro activo */}
+          {globalFilter.type === "all" && (
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <SegmentChart 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
+          )}
 
           {/* Products Chart */}
           <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
             <TopProductsChart 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
             />
           </div>
 
@@ -305,12 +313,16 @@ export default function Dashboard() {
               <TopClientsPanel 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
               />
             </div>
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <TopSalespeoplePanel 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
               />
             </div>
           </div>
@@ -320,6 +332,8 @@ export default function Dashboard() {
             <TransactionsTable 
               selectedPeriod={selectedPeriod} 
               filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
             />
           </div>
         </main>
