@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { UserCheck } from "lucide-react";
 import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 interface TopSalesperson {
   salesperson: string;
@@ -16,8 +18,11 @@ interface TopSalespeoplePanelProps {
 }
 
 export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson }: TopSalespeoplePanelProps) {
+  const [showMore, setShowMore] = useState(false);
+  const displayLimit = showMore ? 50 : 10;
+  
   const { data: topSalespeople, isLoading } = useQuery<TopSalesperson[]>({
-    queryKey: [`/api/sales/top-salespeople?limit=8&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/top-salespeople?limit=${displayLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const formatCurrency = (amount: number) => {
@@ -43,6 +48,19 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
             <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Top Vendedores</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {topSalespeople && topSalespeople.length >= 10 && !showMore && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMore(true)}
+              className="text-xs px-3 py-1"
+              data-testid="button-see-more-salespeople"
+            >
+              Ver más
+            </Button>
+          )}
         </div>
       </div>
       
