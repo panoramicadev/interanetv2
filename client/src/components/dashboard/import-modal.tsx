@@ -138,12 +138,16 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-CL', {
+    // Handle YYYY-MM-DD format from backend
+    console.log('🗓️ Formatting date:', dateStr);
+    const date = new Date(dateStr + 'T00:00:00'); // Add time to avoid timezone issues
+    const formatted = date.toLocaleDateString('es-CL', {
       year: 'numeric',
-      month: 'long',
+      month: 'long', 
       day: 'numeric'
     });
+    console.log('📅 Formatted result:', formatted);
+    return formatted;
   };
 
   const formatNumber = (num: number) => {
