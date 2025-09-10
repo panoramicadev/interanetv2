@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar } from "lucide-react";
+import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar, Filter, RotateCcw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Client {
   id: string;
@@ -54,6 +55,13 @@ export default function Clients() {
   const [isImporting, setIsImporting] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  
+  // Filter states
+  const [selectedSegment, setSelectedSegment] = useState<string>("");
+  const [selectedSalesperson, setSelectedSalesperson] = useState<string>("");
+  const [selectedCreditStatus, setSelectedCreditStatus] = useState<string>("");
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string>("");
+  
   const itemsPerPage = 20;
 
   // Debounce search input - wait 600ms after user stops typing
@@ -71,10 +79,14 @@ export default function Clients() {
   const queryClient = useQueryClient();
 
   const { data: clients, isLoading, error } = useQuery({
-    queryKey: ['/api/clients', debouncedSearch, currentPage],
+    queryKey: ['/api/clients', debouncedSearch, currentPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set('search', debouncedSearch);
+      if (selectedSegment) params.set('segment', selectedSegment);
+      if (selectedSalesperson) params.set('salesperson', selectedSalesperson);
+      if (selectedCreditStatus) params.set('creditStatus', selectedCreditStatus);
+      if (selectedBusinessType) params.set('businessType', selectedBusinessType);
       params.set('limit', itemsPerPage.toString());
       params.set('offset', ((currentPage - 1) * itemsPerPage).toString());
       
@@ -86,6 +98,19 @@ export default function Clients() {
     },
   });
 
+  // Fetch filter data
+  const { data: segments } = useQuery<string[]>({
+    queryKey: ['/api/goals/data/segments'],
+  });
+
+  const { data: salespeople } = useQuery<string[]>({
+    queryKey: ['/api/goals/data/salespeople'],
+  });
+
+  const { data: businessTypes } = useQuery<string[]>({
+    queryKey: ['/api/clients/business-types'],
+  });
+
   const handleSearch = useCallback((value: string) => {
     setSearch(value);
   }, []);
@@ -94,6 +119,16 @@ export default function Clients() {
     setSelectedClient(client);
     setIsClientModalOpen(true);
   }, []);
+
+  const clearFilters = useCallback(() => {
+    setSelectedSegment("");
+    setSelectedSalesperson("");
+    setSelectedCreditStatus("");
+    setSelectedBusinessType("");
+    setCurrentPage(1);
+  }, []);
+
+  const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType;
 
   // Preview mutation
   const previewMutation = useMutation({
@@ -400,9 +435,10 @@ export default function Clients() {
         </Card>
       )}
 
-      {/* Search */}
+      {/* Search and Filters */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 space-y-4">
+          {/* Search Bar */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
@@ -421,6 +457,105 @@ export default function Clients() {
               </div>
             )}
           </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtros:</span>
+            </div>
+
+            <Select value={selectedSegment} onValueChange={(value) => {
+              setSelectedSegment(value === "all" ? "" : value);
+              setCurrentPage(1);
+            }}>
+              <SelectTrigger className="w-48" data-testid="select-segment">
+                <SelectValue placeholder="Todos los segmentos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los segmentos</SelectItem>
+                {segments?.map((segment) => (
+                  <SelectItem key={segment} value={segment}>
+                    {segment}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedSalesperson} onValueChange={(value) => {
+              setSelectedSalesperson(value === "all" ? "" : value);
+              setCurrentPage(1);
+            }}>
+              <SelectTrigger className="w-48" data-testid="select-salesperson">
+                <SelectValue placeholder="Todos los vendedores" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los vendedores</SelectItem>
+                {salespeople?.map((salesperson) => (
+                  <SelectItem key={salesperson} value={salesperson}>
+                    {salesperson}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedCreditStatus} onValueChange={(value) => {
+              setSelectedCreditStatus(value === "all" ? "" : value);
+              setCurrentPage(1);
+            }}>
+              <SelectTrigger className="w-48" data-testid="select-credit-status">
+                <SelectValue placeholder="Estado de crédito" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="excellent">Excelente</SelectItem>
+                <SelectItem value="good">Bueno</SelectItem>
+                <SelectItem value="limited">Limitado</SelectItem>
+                <SelectItem value="blocked">Bloqueado</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedBusinessType} onValueChange={(value) => {
+              setSelectedBusinessType(value === "all" ? "" : value);
+              setCurrentPage(1);
+            }}>
+              <SelectTrigger className="w-48" data-testid="select-business-type">
+                <SelectValue placeholder="Tipo de negocio" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tipos</SelectItem>
+                {businessTypes?.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="flex items-center gap-2"
+                data-testid="button-clear-filters"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
+
+          {hasActiveFilters && (
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Filtros activos: {[
+                selectedSegment && `Segmento: ${selectedSegment}`,
+                selectedSalesperson && `Vendedor: ${selectedSalesperson}`,
+                selectedCreditStatus && `Crédito: ${selectedCreditStatus}`,
+                selectedBusinessType && `Negocio: ${selectedBusinessType}`
+              ].filter(Boolean).join(" • ")}
+            </div>
+          )}
         </CardContent>
       </Card>
 

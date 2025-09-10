@@ -358,18 +358,40 @@ export function registerRoutes(app: Express): Server {
   // Clients API
   app.get('/api/clients', requireAuth, async (req, res) => {
     try {
-      const { search, limit, offset } = req.query;
+      const { search, segment, salesperson, creditStatus, businessType, limit, offset } = req.query;
       
       const filters = {
         search: search as string,
+        segment: segment as string,
+        salesperson: salesperson as string,
+        creditStatus: creditStatus as string,
+        businessType: businessType as string,
         limit: limit ? parseInt(limit as string) : 50,
         offset: offset ? parseInt(offset as string) : 0,
       };
+      
+      console.log('GET /api/clients - Filtros:', filters);
       
       const clients = await storage.getClients(filters);
       res.json(clients);
     } catch (error) {
       console.error('Error fetching clients:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // Get unique business types for client filtering
+  app.get('/api/clients/business-types', requireAuth, async (req, res) => {
+    try {
+      console.log('GET /api/clients/business-types');
+      
+      const businessTypes = await storage.getUniqueBusinessTypes();
+      
+      console.log(`GET /api/clients/business-types - Devolviendo ${businessTypes.length} tipos de negocio`);
+      
+      res.json(businessTypes);
+    } catch (error) {
+      console.error('Error al obtener tipos de negocio:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
   });
