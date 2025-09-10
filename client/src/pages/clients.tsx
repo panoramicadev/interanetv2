@@ -1,10 +1,11 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown } from "lucide-react";
 
 interface Client {
   id: string;
@@ -42,7 +43,14 @@ const formatDate = (date: string | null) => {
 export default function Clients() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showImportPreview, setShowImportPreview] = useState(false);
+  const [previewData, setPreviewData] = useState<any>(null);
   const itemsPerPage = 20;
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: clients, isLoading, error } = useQuery({
     queryKey: ['/api/clients', search, currentPage],
@@ -63,6 +71,112 @@ export default function Clients() {
   const handleSearch = (value: string) => {
     setSearch(value);
     setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Preview mutation
+  const previewMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/clients/preview', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al procesar el archivo');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setPreviewData(data.preview);
+      setShowImportPreview(true);
+      toast({
+        title: "Archivo procesado",
+        description: `${data.preview.totalClients} clientes listos para importar`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al procesar el archivo",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Import mutation
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/clients/import', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al importar clientes');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "¡Importación exitosa!",
+        description: `Se importaron ${data.imported} clientes correctamente`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
+      setSelectedFile(null);
+      setShowImportPreview(false);
+      setPreviewData(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Error en la importación",
+        description: error instanceof Error ? error.message : "Error al importar clientes",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      previewMutation.mutate(file);
+    }
+  };
+
+  const handleImport = () => {
+    if (selectedFile) {
+      importMutation.mutate(selectedFile);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const csvContent = `KOEN;NOKOEN;RTEN;EMAIL;CRLT;CREN;CRSD;SIEN;GIEN;DIEN;FOEN;COMUNA;PROVINCIA
+45;DISTRIBUIDORA PORTLAND S.A.;87.690.900-6;dteprod@pjportland.cl;0;0;0;Dist. Prod. Químicos y materias Primas;Distribuidor;Miraflores 222 Piso 15;+56912345678;SANTIAGO;METROPOLITANA`;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'plantilla_clientes.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const getCreditStatus = (available: string | null, limit: string | null, debt: string | null) => {
@@ -108,10 +222,113 @@ export default function Clients() {
           <Users className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Clientes</h1>
         </div>
-        <Badge variant="outline" className="text-sm">
-          {clients?.length || 0} clientes
-        </Badge>
+        <div className="flex items-center space-x-3">
+          <Badge variant="outline" className="text-sm">
+            {clients?.length || 0} clientes
+          </Badge>
+          <Button variant="outline" onClick={downloadTemplate} data-testid="button-download-template">
+            <FileDown className="h-4 w-4 mr-2" />
+            Plantilla CSV
+          </Button>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              className="hidden"
+              data-testid="input-file-clients"
+            />
+            <Button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={previewMutation.isPending || importMutation.isPending}
+              data-testid="button-import-clients"
+            >
+              {previewMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              Importar CSV
+            </Button>
+          </div>
+        </div>
       </div>
+
+      {/* Import Preview */}
+      {showImportPreview && previewData && (
+        <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
+          <CardHeader>
+            <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center">
+              <Upload className="h-5 w-5 mr-2" />
+              Vista Previa de Importación
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{previewData.totalClients}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Clientes en CSV</div>
+              </div>
+              <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{previewData.wouldInsert}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Nuevos</div>
+              </div>
+              <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">{previewData.wouldUpdate}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Actualizaciones</div>
+              </div>
+              <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-lg">
+                <div className="text-2xl font-bold text-gray-600">{previewData.existingClients}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Existentes</div>
+              </div>
+            </div>
+            
+            {previewData.sampleData && previewData.sampleData.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Muestra de datos:</h4>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {previewData.sampleData.map((client: any, index: number) => (
+                    <div key={index} className="text-sm bg-white dark:bg-gray-800 p-2 rounded">
+                      <span className="font-medium">{client.nokoen}</span>
+                      {client.rten && <span className="text-gray-600 ml-2">({client.rten})</span>}
+                      {client.email && <span className="text-gray-600 ml-2">{client.email}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div className="flex space-x-3">
+              <Button 
+                onClick={handleImport} 
+                disabled={importMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                data-testid="button-confirm-import"
+              >
+                {importMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                Confirmar Importación
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowImportPreview(false);
+                  setSelectedFile(null);
+                  setPreviewData(null);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                data-testid="button-cancel-import"
+              >
+                Cancelar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search */}
       <Card>

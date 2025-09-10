@@ -288,7 +288,7 @@ export interface IStorage {
   }>>;
   getClientByKoen(koen: string): Promise<Client | undefined>;
   insertClient(client: InsertClient): Promise<Client>;
-  insertMultipleClients(clients: InsertClient[]): Promise<void>;
+  insertMultipleClients(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number } | undefined>;
   updateClient(koen: string, client: Partial<InsertClient>): Promise<Client>;
   deleteClient(koen: string): Promise<void>;
 
@@ -3409,13 +3409,47 @@ export class DatabaseStorage implements IStorage {
   }
 
   async insertMultipleClients(clientsData: InsertClient[]) {
-    if (clientsData.length === 0) return;
+    if (clientsData.length === 0) return undefined;
     
-    const chunkSize = 1000;
-    for (let i = 0; i < clientsData.length; i += chunkSize) {
-      const chunk = clientsData.slice(i, i + chunkSize);
-      await db.insert(clients).values(chunk);
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    
+    console.log(`📊 Starting import of ${clientsData.length} clients`);
+    
+    for (const client of clientsData) {
+      try {
+        // Check if client exists by KOEN (primary identifier) or NOKOEN (name)
+        const existingByKoen = client.koen 
+          ? await db.select().from(clients).where(eq(clients.koen, client.koen)).limit(1)
+          : [];
+        
+        const existingByName = !existingByKoen.length && client.nokoen
+          ? await db.select().from(clients).where(eq(clients.nokoen, client.nokoen)).limit(1)
+          : [];
+        
+        const existing = existingByKoen[0] || existingByName[0];
+        
+        if (existing) {
+          // Update existing client
+          await db
+            .update(clients)
+            .set({ ...client, updatedAt: new Date() })
+            .where(eq(clients.id, existing.id));
+          updated++;
+        } else {
+          // Insert new client
+          await db.insert(clients).values(client);
+          inserted++;
+        }
+      } catch (error) {
+        console.error(`❌ Error processing client ${client.nokoen}:`, error);
+        skipped++;
+      }
     }
+    
+    console.log(`🎉 Import completed: ${inserted} inserted, ${updated} updated, ${skipped} skipped`);
+    return { inserted, updated, skipped };
   }
 
   async updateClient(koen: string, client: Partial<InsertClient>) {
