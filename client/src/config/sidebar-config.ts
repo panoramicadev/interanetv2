@@ -1,6 +1,7 @@
 import { 
   LayoutDashboard, 
   Users, 
+  User,
   Target, 
   Package, 
   FileText,
@@ -34,12 +35,17 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     {
       href: "/usuarios",
       label: "Gestión de Usuarios",
-      icon: Settings,
+      icon: User,
     },
     {
       href: "/productos",
       label: "Gestión de Productos",
       icon: Package,
+    },
+    {
+      href: "/clientes",
+      label: "Gestión de Clientes",
+      icon: Users,
     },
     {
       href: "#presupuesto",
