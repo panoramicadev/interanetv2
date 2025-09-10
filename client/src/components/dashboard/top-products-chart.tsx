@@ -9,7 +9,7 @@ interface TopProduct {
 
 interface TopProductsChartProps {
   selectedPeriod: string;
-  filterType: "day" | "month" | "range";
+  filterType: "day" | "month" | "year" | "range";
   salespersonFilter?: string;
 }
 

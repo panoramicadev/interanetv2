@@ -41,8 +41,9 @@ export default function SegmentDetail() {
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
     return format(new Date(), "yyyy-MM");
   });
-  const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
+  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">("month");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
 
@@ -61,6 +62,9 @@ export default function SegmentDetail() {
           setSelectedPeriod(format(new Date(), "yyyy-MM"));
         }
         break;
+      case "year":
+        setSelectedPeriod(selectedYear.toString());
+        break;
       case "range":
         if (startDate && endDate) {
           setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
@@ -69,7 +73,7 @@ export default function SegmentDetail() {
         }
         break;
     }
-  }, [filterType, selectedDate, startDate, endDate]);
+  }, [filterType, selectedDate, selectedYear, startDate, endDate]);
   
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SegmentClient[]>({
     queryKey: [`/api/sales/segment/${segmentName}/clients?period=${selectedPeriod}&filterType=${filterType}`],
@@ -146,7 +150,7 @@ export default function SegmentDetail() {
                 {segmentName}
               </h1>
               <p className="text-gray-600 text-sm">
-                {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
+                {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
               </p>
             </div>
             
@@ -171,13 +175,14 @@ export default function SegmentDetail() {
               <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                 Filtrar:
               </label>
-              <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
+              <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
                 <SelectTrigger className="w-24 rounded-xl border-gray-200 shadow-sm text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-gray-200">
                   <SelectItem value="day">Día</SelectItem>
                   <SelectItem value="month">Mes</SelectItem>
+                  <SelectItem value="year">Año</SelectItem>
                   <SelectItem value="range">Rango</SelectItem>
                 </SelectContent>
               </Select>
@@ -259,6 +264,19 @@ export default function SegmentDetail() {
                     </PopoverContent>
                   </Popover>
                 </div>
+              ) : filterType === "year" ? (
+                <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                  <SelectTrigger className="w-40 rounded-xl border-gray-200 shadow-sm text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-gray-200">
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2023">2023</SelectItem>
+                    <SelectItem value="2022">2022</SelectItem>
+                    <SelectItem value="2021">2021</SelectItem>
+                  </SelectContent>
+                </Select>
               ) : (
                 <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                   <SelectTrigger className="w-44 rounded-xl border-gray-200 shadow-sm text-sm">

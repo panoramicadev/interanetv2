@@ -10,7 +10,7 @@ interface TopClient {
 
 interface TopClientsPanelProps {
   selectedPeriod: string;
-  filterType: "day" | "month" | "range";
+  filterType: "day" | "month" | "year" | "range";
 }
 
 export default function TopClientsPanel({ selectedPeriod, filterType }: TopClientsPanelProps) {

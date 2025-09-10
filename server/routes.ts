@@ -29,6 +29,14 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
         endDate = new Date(parseInt(year), parseInt(month), 0);
       }
       break;
+    case 'year':
+      // period format: "2025"
+      const year = parseInt(period);
+      if (!isNaN(year)) {
+        startDate = new Date(year, 0, 1); // January 1st
+        endDate = new Date(year, 11, 31); // December 31st
+      }
+      break;
     case 'range':
       // Check if it's a custom date range (format: "2025-09-01_2025-09-30")
       if (period.includes('_')) {
@@ -1713,7 +1721,7 @@ export function registerRoutes(app: Express): Server {
       });
 
       // Group by month for better visualization
-      const monthsAffected = [...new Set(dates.map(date => date.substring(0, 7)))]; // YYYY-MM
+      const monthsAffected = Array.from(new Set(dates.map(date => date.substring(0, 7)))); // YYYY-MM
 
       console.log(`📊 Preview analysis: ${transactions.length} transactions, period ${startDate} to ${endDate}`);
 

@@ -45,7 +45,7 @@ interface TopSalesperson {
 
 interface TransactionsTableProps {
   selectedPeriod: string;
-  filterType: "day" | "month" | "range";
+  filterType: "day" | "month" | "year" | "range";
   salespersonFilter?: string;
 }
 
