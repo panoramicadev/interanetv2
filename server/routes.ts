@@ -84,6 +84,12 @@ export function registerRoutes(app: Express): Server {
 
   // Note: Replit OIDC auth disabled to avoid conflicts - using email/password auth only
 
+  // Configure multer for file uploads
+  const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+  });
+
   // Sales metrics endpoint
   app.get('/api/sales/metrics', requireAuth, async (req, res) => {
     try {
@@ -377,6 +383,196 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Error fetching client:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // Clients import preview endpoint
+  app.post('/api/clients/preview', requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No se ha subido ningún archivo" });
+      }
+
+      const csvContent = req.file.buffer.toString('utf-8');
+      
+      // Parse CSV content
+      const parsed = Papa.parse(csvContent, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: ';', // Use semicolon for Chilean format
+      });
+
+      if (parsed.errors.length > 0) {
+        return res.status(400).json({ 
+          message: "Error parsing CSV", 
+          errors: parsed.errors 
+        });
+      }
+
+      const csvData = parsed.data as Array<any>;
+      
+      if (csvData.length === 0) {
+        return res.status(400).json({ message: "El archivo CSV está vacío" });
+      }
+
+      // Get existing clients to check for duplicates
+      const existingClients = await storage.getClients({ limit: 10000 });
+      const existingKoens = new Set(existingClients.map(c => c.koen).filter(Boolean));
+      const existingNokoens = new Set(existingClients.map(c => c.nokoen).filter(Boolean));
+
+      let wouldInsert = 0;
+      let wouldUpdate = 0;
+      
+      for (const row of csvData) {
+        const koen = row.KOEN;
+        const nokoen = row.NOKOEN;
+        
+        if (koen && existingKoens.has(koen)) {
+          wouldUpdate++;
+        } else if (nokoen && existingNokoens.has(nokoen)) {
+          wouldUpdate++;
+        } else {
+          wouldInsert++;
+        }
+      }
+
+      res.json({
+        success: true,
+        preview: {
+          totalClients: csvData.length,
+          existingClients: existingClients.length,
+          wouldInsert,
+          wouldUpdate,
+          sampleData: csvData.slice(0, 3).map(row => ({
+            koen: row.KOEN,
+            nokoen: row.NOKOEN,
+            rten: row.RTEN,
+            email: row.EMAIL,
+            crlt: row.CRLT,
+            cren: row.CREN
+          }))
+        }
+      });
+    } catch (error) {
+      console.error('Error previewing clients CSV:', error);
+      res.status(500).json({ 
+        message: 'Error interno del servidor', 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Clients import endpoint  
+  app.post('/api/clients/import', requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No se ha subido ningún archivo" });
+      }
+
+      const csvContent = req.file.buffer.toString('utf-8');
+      
+      // Parse CSV content
+      const parsed = Papa.parse(csvContent, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: ';', // Use semicolon for Chilean format
+      });
+
+      if (parsed.errors.length > 0) {
+        return res.status(400).json({ 
+          message: "Error parsing CSV", 
+          errors: parsed.errors 
+        });
+      }
+
+      const csvData = parsed.data as Array<any>;
+      
+      if (csvData.length === 0) {
+        return res.status(400).json({ message: "El archivo CSV está vacío" });
+      }
+
+      // Convert CSV data to client objects
+      const clientsToInsert = [];
+      const errors = [];
+
+      for (let index = 0; index < csvData.length; index++) {
+        const row = csvData[index];
+        try {
+          // Convert string numbers to proper types
+          const client = {
+            koen: row.KOEN || null,
+            nokoen: row.NOKOEN || `Cliente ${index + 1}`,
+            rten: row.RTEN || null,
+            idmaeen: row.IDMAEEN ? row.IDMAEEN.toString() : null,
+            tien: row.TIEN || null,
+            suen: row.SUEN || null,
+            tiposuc: row.TIPOSUC || null,
+            sien: row.SIEN || null,
+            gien: row.GIEN || null,
+            paen: row.PAEN || null,
+            cien: row.CIEN || null,
+            cmen: row.CMEN || null,
+            dien: row.DIEN || null,
+            zoen: row.ZOEN || null,
+            foen: row.FOEN || null,
+            faen: row.FAEN || null,
+            email: row.EMAIL || null,
+            
+            // Credit fields - keep as strings for numeric database fields
+            crlt: row.CRLT ? row.CRLT.toString() : null,
+            cren: row.CREN ? row.CREN.toString() : null,
+            crsd: row.CRSD ? row.CRSD.toString() : null,
+            crch: row.CRCH ? row.CRCH.toString() : null,
+            crpa: row.CRPA ? row.CRPA.toString() : null,
+            crto: row.CRTO ? row.CRTO.toString() : null,
+            
+            // Add other important fields
+            cnen: row.CNEN || null,
+            kofuen: row.KOFUEN || null,
+            lcen: row.LCEN || null,
+            lven: row.LVEN || null,
+            fevecren: row.FEVECREN || null,
+            feultr: row.FEULTR || null,
+            
+            // Location fields
+            comuna: row.COMUNA || null,
+            provincia: row.PROVINCIA || null,
+            cpostal: row.CPOSTAL || null,
+            
+            // Status fields - keep as strings for integer database fields
+            actien: row.ACTIEN ? row.ACTIEN.toString() : null,
+            bloqueado: row.BLOQUEADO ? row.BLOQUEADO.toString() : null,
+          };
+
+          clientsToInsert.push(client);
+        } catch (error) {
+          errors.push(`Row ${index + 1}: ${error instanceof Error ? error.message : 'Invalid data'}`);
+        }
+      }
+
+      if (errors.length > 0) {
+        return res.status(400).json({ 
+          message: "Errores en el procesamiento de datos", 
+          errors 
+        });
+      }
+
+      // Import clients using upsert logic
+      await storage.insertMultipleClients(clientsToInsert);
+
+      res.json({
+        success: true,
+        message: `Successfully imported ${clientsToInsert.length} clients`,
+        imported: clientsToInsert.length,
+        errors: []
+      });
+
+    } catch (error) {
+      console.error('Error importing clients:', error);
+      res.status(500).json({ 
+        message: 'Error interno del servidor', 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
@@ -1353,13 +1549,6 @@ export function registerRoutes(app: Express): Server {
       console.error("Error updating goal:", error);
       res.status(500).json({ message: "Failed to update goal" });
     }
-  });
-
-
-  // Configure multer for file uploads
-  const upload = multer({ 
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
   });
 
   // CSV parsing function for sales transactions
