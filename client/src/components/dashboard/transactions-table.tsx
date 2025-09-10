@@ -256,6 +256,16 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
               Ver más ({allGroupedSales.length - limit}+)
             </Button>
           )}
+          <Link href="/ordenes">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs px-3 py-1"
+              data-testid="button-view-all-orders"
+            >
+              Ver todas
+            </Button>
+          </Link>
           <Select value={timeFilter} onValueChange={setTimeFilter}>
             <SelectTrigger className="w-32 rounded-xl border-gray-300 text-sm">
               <SelectValue />

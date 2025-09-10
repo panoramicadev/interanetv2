@@ -18,6 +18,7 @@ import Metas from "@/pages/metas";
 import Users from "@/pages/users";
 import Products from "@/pages/products";
 import Clients from "@/pages/clients";
+import OrdenesPage from "@/pages/ordenes";
 import SegmentDetail from "@/pages/segment-detail";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
@@ -73,6 +74,7 @@ function Router() {
             <Route path="/usuarios" component={Users} />
             <Route path="/productos" component={Products} />
             <Route path="/clientes" component={Clients} />
+            <Route path="/ordenes" component={OrdenesPage} />
             <Route path="/products" component={() => {
               // Redirect from /products to /productos
               window.location.replace('/productos');

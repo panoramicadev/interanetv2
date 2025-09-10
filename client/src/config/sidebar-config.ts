@@ -34,6 +34,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Target,
     },
     {
+      href: "/ordenes",
+      label: "Gestión de Órdenes",
+      icon: FileText,
+    },
+    {
       href: "/usuarios",
       label: "Gestión de Usuarios",
       icon: User,
