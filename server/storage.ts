@@ -689,7 +689,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`feemdo <= ${endDate}`);
     }
     if (segment) {
-      conditions.push(sql`caprad2 = ${segment}`);
+      conditions.push(sql`noruen = ${segment}`);
     }
     
     const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
@@ -738,7 +738,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(salesTransactions.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(salesTransactions.caprad2, segment));
+      conditions.push(eq(salesTransactions.noruen, segment));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -782,7 +782,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`nokofu = ${salesperson}`);
     }
     if (segment) {
-      conditions.push(sql`caprad2 = ${segment}`);
+      conditions.push(sql`noruen = ${segment}`);
     }
     
     const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
@@ -880,7 +880,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(salesTransactions.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(salesTransactions.caprad2, segment));
+      conditions.push(eq(salesTransactions.noruen, segment));
     }
     
     let query: any;
