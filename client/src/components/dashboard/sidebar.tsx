@@ -19,6 +19,7 @@ import {
 import { Link, useLocation } from "wouter";
 import type { User, SalespersonUser } from "@shared/schema";
 import { useState } from "react";
+import logoPath from "@assets/logo_1757523053833.png";
 
 interface SidebarProps {
   onImportClick: () => void;
@@ -89,7 +90,7 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 flex items-center justify-center">
                 <img 
-                  src="@assets/logo_1757523053833.png" 
+                  src={logoPath} 
                   alt="PANORAMICA Logo" 
                   className="w-10 h-10 object-contain"
                 />
