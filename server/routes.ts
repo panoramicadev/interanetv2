@@ -464,12 +464,36 @@ export function registerRoutes(app: Express): Server {
         ? getDateRange(selectedPeriod as string, filterType as string)
         : { startDate: undefined, endDate: undefined };
       
-      const chartData = await storage.getSalesChartData(
+      let chartData = await storage.getSalesChartData(
         period as 'weekly' | 'monthly' | 'daily',
         dateRange.startDate,
         dateRange.endDate,
         salesperson as string // Filtrar por vendedor específico
       );
+
+      // Transformar etiquetas a nombres de meses en español para vista anual mensual
+      if (filterType === 'year' && period === 'monthly') {
+        const monthNames: { [key: string]: string } = {
+          '01': 'Enero',
+          '02': 'Febrero', 
+          '03': 'Marzo',
+          '04': 'Abril',
+          '05': 'Mayo',
+          '06': 'Junio',
+          '07': 'Julio',
+          '08': 'Agosto',
+          '09': 'Septiembre',
+          '10': 'Octubre',
+          '11': 'Noviembre',
+          '12': 'Diciembre'
+        };
+
+        chartData = chartData.map(item => ({
+          ...item,
+          period: monthNames[item.period.split('-')[1]] || item.period
+        }));
+      }
+      
       res.json(chartData);
     } catch (error) {
       console.error("Error fetching chart data:", error);
