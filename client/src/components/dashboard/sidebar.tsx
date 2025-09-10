@@ -87,11 +87,15 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-slate-700/50">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
-                <Building2 className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 flex items-center justify-center">
+                <img 
+                  src="@assets/logo_1757523053833.png" 
+                  alt="PANORAMICA Logo" 
+                  className="w-10 h-10 object-contain"
+                />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">SalesAnalytics</h1>
+                <h1 className="text-xl font-bold text-white">PANORAMICA</h1>
                 <p className="text-sm text-slate-400">Panel Profesional</p>
               </div>
             </div>
