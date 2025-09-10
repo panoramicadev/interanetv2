@@ -368,13 +368,14 @@ export function registerRoutes(app: Express): Server {
   // Top salespeople endpoint
   app.get('/api/sales/top-salespeople', requireAuth, async (req, res) => {
     try {
-      const { limit, period, filterType } = req.query;
+      const { limit, period, filterType, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const topSalespeople = await storage.getTopSalespeople(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
-        dateRange.endDate
+        dateRange.endDate,
+        segment as string // Filtrar por segmento específico
       );
       res.json(topSalespeople);
     } catch (error) {
@@ -386,14 +387,15 @@ export function registerRoutes(app: Express): Server {
   // Top products endpoint
   app.get('/api/sales/top-products', requireAuth, async (req, res) => {
     try {
-      const { limit, period, filterType, salesperson } = req.query;
+      const { limit, period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const topProducts = await storage.getTopProducts(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
         dateRange.endDate,
-        salesperson as string // Filtrar por vendedor específico
+        salesperson as string, // Filtrar por vendedor específico
+        segment as string // Filtrar por segmento específico
       );
       res.json(topProducts);
     } catch (error) {
@@ -405,13 +407,15 @@ export function registerRoutes(app: Express): Server {
   // Top clients endpoint
   app.get('/api/sales/top-clients', requireAuth, async (req, res) => {
     try {
-      const { limit, period, filterType } = req.query;
+      const { limit, period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const topClients = await storage.getTopClients(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
-        dateRange.endDate
+        dateRange.endDate,
+        salesperson as string, // Filtrar por vendedor específico
+        segment as string // Filtrar por segmento específico
       );
       res.json(topClients);
     } catch (error) {
@@ -457,7 +461,7 @@ export function registerRoutes(app: Express): Server {
   // Sales chart data endpoint
   app.get('/api/sales/chart-data', requireAuth, async (req, res) => {
     try {
-      const { period = 'monthly', selectedPeriod, filterType, salesperson } = req.query;
+      const { period = 'monthly', selectedPeriod, filterType, salesperson, segment } = req.query;
       
       // Si tenemos selectedPeriod y filterType, usamos esos para el filtro de fecha
       const dateRange = selectedPeriod && filterType 
@@ -468,7 +472,8 @@ export function registerRoutes(app: Express): Server {
         period as 'weekly' | 'monthly' | 'daily',
         dateRange.startDate,
         dateRange.endDate,
-        salesperson as string // Filtrar por vendedor específico
+        salesperson as string, // Filtrar por vendedor específico
+        segment as string // Filtrar por segmento específico
       );
 
       // Transformar etiquetas a nombres de meses en español para vista anual mensual

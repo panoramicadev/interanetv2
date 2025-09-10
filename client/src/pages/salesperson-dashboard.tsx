@@ -401,7 +401,7 @@ export default function SalespersonDashboard() {
           <SalesChart 
             selectedPeriod={selectedPeriod} 
             filterType={filterType}
-            salespersonFilter={user?.salespersonName}
+            salesperson={user?.salespersonName}
           />
         </div>
 
@@ -410,7 +410,7 @@ export default function SalespersonDashboard() {
           <TopProductsChart 
             selectedPeriod={selectedPeriod} 
             filterType={filterType}
-            salespersonFilter={user?.salespersonName}
+            salesperson={user?.salespersonName}
           />
         </div>
 
@@ -419,7 +419,7 @@ export default function SalespersonDashboard() {
           <TransactionsTable 
             selectedPeriod={selectedPeriod} 
             filterType={filterType}
-            salespersonFilter={user?.salespersonName}
+            salesperson={user?.salespersonName}
           />
         </div>
       </main>
