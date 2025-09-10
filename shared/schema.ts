@@ -328,6 +328,214 @@ export const productPriceHistory = pgTable("product_price_history", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Clients table - Complete structure from CSV import
+export const clients = pgTable("clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  
+  // Core identification fields
+  idmaeen: numeric("idmaeen", { precision: 15, scale: 5 }), // ID Master Entity
+  koen: varchar("koen").unique(), // Client code (unique identifier)
+  nokoen: text("nokoen").notNull(), // Client name (relates to sales_transactions)
+  rten: varchar("rten"), // RUT/Tax ID
+  
+  // Entity and branch information
+  tien: varchar("tien"), // Entity type
+  suen: varchar("suen"), // Branch code
+  tiposuc: varchar("tiposuc"), // Branch type
+  
+  // Business and industry information
+  sien: text("sien"), // Industry sector
+  gien: text("gien"), // Business type/description
+  
+  // Location information
+  paen: varchar("paen"), // Country
+  cien: varchar("cien"), // City code
+  cmen: varchar("cmen"), // City name
+  dien: text("dien"), // Address
+  zoen: varchar("zoen"), // Zone
+  comuna: varchar("comuna"), // Comuna
+  provincia: varchar("provincia"), // Province
+  departame: varchar("departame"), // Department
+  distrito: varchar("distrito"), // District
+  codubigeo: varchar("codubigeo"), // Ubigeo code
+  urbaniz: varchar("urbaniz"), // Urbanization
+  cpostal: varchar("cpostal"), // Postal code
+  
+  // Contact information
+  foen: varchar("foen"), // Phone
+  faen: varchar("faen"), // Fax
+  email: text("email"), // Email
+  emailcomer: text("emailcomer"), // Commercial email
+  cnen: varchar("cnen"), // Contact number
+  cnen2: varchar("cnen2"), // Contact number 2
+  
+  // Credit management (key business fields)
+  crsd: numeric("crsd", { precision: 15, scale: 2 }), // Credit balance/debt
+  crch: numeric("crch", { precision: 15, scale: 2 }), // Credit checks
+  crlt: numeric("crlt", { precision: 15, scale: 2 }), // Credit limit total
+  crpa: numeric("crpa", { precision: 15, scale: 2 }), // Credit paid
+  crto: numeric("crto", { precision: 15, scale: 2 }), // Credit total
+  cren: numeric("cren", { precision: 15, scale: 2 }), // Available credit
+  fevecren: varchar("fevecren"), // Credit expiry date
+  feultr: varchar("feultr"), // Last transaction date
+  nuvecr: numeric("nuvecr", { precision: 15, scale: 2 }), // Credit times
+  dccr: numeric("dccr", { precision: 15, scale: 2 }), // Credit days
+  incr: numeric("incr", { precision: 15, scale: 2 }), // Credit interest
+  popicr: numeric("popicr", { precision: 15, scale: 2 }), // Credit percentage
+  koplcr: varchar("koplcr"), // Credit place
+  
+  // Sales and pricing
+  kofuen: varchar("kofuen"), // Sales rep code
+  lcen: varchar("lcen"), // Price list
+  lven: varchar("lven"), // Sale list
+  prefen: varchar("prefen"), // Preference
+  porprefen: numeric("porprefen", { precision: 15, scale: 2 }), // Preference percentage
+  
+  // Accounting information
+  contab: varchar("contab"), // Accounting account
+  subauxi: varchar("subauxi"), // Sub auxiliary
+  contabvta: varchar("contabvta"), // Sales account
+  subauxivta: varchar("subauxivta"), // Sales sub auxiliary
+  codcc: varchar("codcc"), // Cost center
+  nutransmi: varchar("nutransmi"), // Transmission number
+  
+  // Route and collection
+  ruen: varchar("ruen"), // Route
+  cpen: numeric("cpen", { precision: 15, scale: 2 }), // Collection percentage
+  cobrador: varchar("cobrador"), // Collector
+  diacobra: numeric("diacobra", { precision: 15, scale: 2 }), // Collection day
+  
+  // Route days (delivery schedule)
+  rutalun: integer("rutalun"), // Monday route
+  rutamar: integer("rutamar"), // Tuesday route
+  rutamie: integer("rutamie"), // Wednesday route
+  rutajue: integer("rutajue"), // Thursday route
+  rutavie: integer("rutavie"), // Friday route
+  rutasab: integer("rutasab"), // Saturday route
+  rutadom: integer("rutadom"), // Sunday route
+  
+  // Status and configuration fields
+  bloqueado: integer("bloqueado"), // Blocked flag
+  actien: integer("actien"), // Active entity
+  habilita: varchar("habilita"), // Enable flag
+  bloqencom: integer("bloqencom"), // Commerce block
+  blovenex: integer("blovenex"), // External sale block
+  
+  // Business configuration
+  dimoper: numeric("dimoper", { precision: 15, scale: 2 }), // Operation day
+  tipoen: varchar("tipoen"), // Entity type
+  tamaen: varchar("tamaen"), // Entity size
+  claveen: varchar("claveen"), // Entity key
+  acteco: varchar("acteco"), // Economic activity
+  cattrib: varchar("cattrib"), // Attribute category
+  
+  // Tax and legal information
+  agretiva: integer("agretiva"), // IVA retention agent
+  agretiibb: integer("agretiibb"), // IIBB retention agent
+  agretgan: integer("agretgan"), // Earnings retention agent
+  agperiva: integer("agperiva"), // IVA perception agent
+  agperiibb: integer("agperiibb"), // IIBB perception agent
+  catlegret: varchar("catlegret"), // Legal retention category
+  catlegmer: varchar("catlegmer"), // Commercial legal category
+  imptoret: numeric("imptoret", { precision: 15, scale: 2 }), // Retention tax
+  tiporuc: varchar("tiporuc"), // RUC type
+  podetrac: integer("podetrac"), // DETRAC percentage
+  
+  // Protests and financial risk
+  proteacum: numeric("proteacum", { precision: 15, scale: 2 }), // Accumulated protest
+  protevige: numeric("protevige", { precision: 15, scale: 2 }), // Current protest
+  diasvenci: numeric("diasvenci", { precision: 15, scale: 2 }), // Expiry days
+  
+  // Special features and validation
+  nvvpidepie: integer("nvvpidepie"), // Request foot note
+  recepelect: integer("recepelect"), // Electronic reception
+  nvvobli: integer("nvvobli"), // Mandatory NVV
+  occobli: integer("occobli"), // Mandatory OCC
+  extenxml: varchar("extenxml"), // XML extension
+  
+  // Additional business fields
+  codconve: varchar("codconve"), // Agreement code
+  notraedeud: varchar("notraedeud"), // No debt transfer
+  nokoenamp: text("nokoenamp"), // Extended client name
+  transpoen: varchar("transpoen"), // Transport
+  oben: text("oben"), // Observations
+  diprve: numeric("diprve", { precision: 15, scale: 2 }), // Previous day
+  valivenpag: numeric("valivenpag", { precision: 15, scale: 2 }), // Valid sale payment
+  tipocontr: varchar("tipocontr"), // Contract type
+  ferefauto: varchar("ferefauto"), // Auto reference date
+  cuentabco: varchar("cuentabco"), // Bank account
+  
+  // Pending and alternative clients
+  koendpen: varchar("koendpen"), // Pending client
+  suendpen: varchar("suendpen"), // Pending branch
+  koenal: varchar("koenal"), // Alternative client
+  kofuweb: varchar("kofuweb"), // Web sales rep
+  
+  // Sequence and control
+  secuecom: integer("secuecom"), // Commercial sequence
+  secueven: integer("secueven"), // Sales sequence
+  avisadpven: integer("avisadpven"), // Sales advice
+  
+  // Linked entities
+  entiliga: varchar("entiliga"), // Linked entity
+  porceliga: numeric("porceliga", { precision: 15, scale: 2 }), // Link percentage
+  
+  // GPS and location
+  gpslat: numeric("gpslat", { precision: 15, scale: 8 }), // GPS latitude
+  gpslon: numeric("gpslon", { precision: 15, scale: 8 }), // GPS longitude
+  
+  // Dates
+  fecreen: varchar("fecreen"), // Creation date
+  femoen: varchar("femoen"), // Movement date
+  feemdo: varchar("feemdo"), // Document date
+  
+  // Document and signature
+  firma: varchar("firma"), // Signature
+  nodocum: varchar("nodocum"), // Document number
+  
+  // Account and currency
+  moctaen: varchar("moctaen"), // Account currency
+  ctasdelaen: varchar("ctasdelaen"), // Entity accounts
+  
+  // Personal information (for individuals)
+  nacionen: varchar("nacionen"), // Nationality
+  dirparen: text("dirparen"), // Parent address
+  fecnacen: varchar("fecnacen"), // Birth date
+  estciven: varchar("estciven"), // Civil status
+  profecen: varchar("profecen"), // Profession
+  conyugen: varchar("conyugen"), // Spouse
+  rutconen: varchar("rutconen"), // Contact RUT
+  rutsocen: varchar("rutsocen"), // Partner RUT
+  sexoen: varchar("sexoen"), // Gender
+  relacien: varchar("relacien"), // Relationship
+  
+  // Annexes and additional data
+  anexen1: varchar("anexen1"), // Annex 1
+  anexen2: varchar("anexen2"), // Annex 2
+  anexen3: varchar("anexen3"), // Annex 3
+  anexen4: varchar("anexen4"), // Annex 4
+  
+  // Time fields
+  dten: varchar("dten"), // Entity day
+  uren: varchar("uren"), // Entity hour
+  
+  // Collection economic activity
+  actecobco: varchar("actecobco"), // Collection economic activity
+  
+  // Outstanding balances
+  deudaven: numeric("deudaven", { precision: 15, scale: 2 }), // Due debt
+  chvnocan: numeric("chvnocan", { precision: 15, scale: 2 }), // Uncanceled checks
+  ltvnocan: numeric("ltvnocan", { precision: 15, scale: 2 }), // Uncanceled letters
+  pagnocan: numeric("pagnocan", { precision: 15, scale: 2 }), // Uncanceled payments
+  anticipos: numeric("anticipos", { precision: 15, scale: 2 }), // Advances
+}, (table) => ({
+  // Indexes for performance
+  clientCodeIdx: index("IDX_clients_koen").on(table.koen),
+  clientNameIdx: index("IDX_clients_nokoen").on(table.nokoen),
+}));
+
 // Relations
 export const warehousesRelations = relations(warehouses, ({ many }) => ({
   stock: many(productStock),
@@ -353,6 +561,18 @@ export const productPriceHistoryRelations = relations(productPriceHistory, ({ on
   product: one(products, {
     fields: [productPriceHistory.productSku],
     references: [products.kopr],
+  }),
+}));
+
+// Client relations - Connect clients with sales transactions
+export const clientsRelations = relations(clients, ({ many }) => ({
+  transactionsByName: many(salesTransactions),
+}));
+
+export const salesTransactionsClientRelations = relations(salesTransactions, ({ one }) => ({
+  clientByName: one(clients, {
+    fields: [salesTransactions.nokoen],
+    references: [clients.nokoen],
   }),
 }));
 
@@ -470,6 +690,163 @@ export type CsvProductImport = z.infer<typeof csvProductImportSchema>;
 export type InsertWarehouseInput = z.infer<typeof insertWarehouseSchema>;
 export type InsertProductStockInput = z.infer<typeof insertProductStockSchema>;
 export type InsertProductPriceHistoryInput = z.infer<typeof insertProductPriceHistorySchema>;
+
+// Client types and schemas
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = typeof clients.$inferInsert;
+
+// Client schemas for validation
+export const insertClientSchema = createInsertSchema(clients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// CSV import schema for clients (all fields as optional strings for flexible parsing)
+export const csvClientImportSchema = z.object({
+  // Core CSV headers from client import file
+  IDMAEEN: z.string().optional(),
+  KOEN: z.string().optional(),
+  TIEN: z.string().optional(),
+  RTEN: z.string().optional(),
+  SUEN: z.string().optional(),
+  TIPOSUC: z.string().optional(),
+  NOKOEN: z.string().optional(),
+  SIEN: z.string().optional(),
+  GIEN: z.string().optional(),
+  PAEN: z.string().optional(),
+  CIEN: z.string().optional(),
+  CMEN: z.string().optional(),
+  DIEN: z.string().optional(),
+  ZOEN: z.string().optional(),
+  FOEN: z.string().optional(),
+  FAEN: z.string().optional(),
+  CNEN: z.string().optional(),
+  KOFUEN: z.string().optional(),
+  LCEN: z.string().optional(),
+  LVEN: z.string().optional(),
+  CRSD: z.string().optional(), // Credit balance
+  CRCH: z.string().optional(), // Credit checks
+  CRLT: z.string().optional(), // Credit limit
+  CRPA: z.string().optional(), // Credit paid
+  CRTO: z.string().optional(), // Credit total
+  CREN: z.string().optional(), // Available credit
+  FEVECREN: z.string().optional(), // Credit expiry
+  FEULTR: z.string().optional(), // Last transaction
+  NUVECR: z.string().optional(),
+  DCCR: z.string().optional(),
+  INCR: z.string().optional(),
+  POPICR: z.string().optional(),
+  KOPLCR: z.string().optional(),
+  CONTAB: z.string().optional(),
+  SUBAUXI: z.string().optional(),
+  CONTABVTA: z.string().optional(),
+  SUBAUXIVTA: z.string().optional(),
+  CODCC: z.string().optional(),
+  NUTRANSMI: z.string().optional(),
+  RUEN: z.string().optional(),
+  CPEN: z.string().optional(),
+  OBEN: z.string().optional(),
+  DIPRVE: z.string().optional(),
+  EMAIL: z.string().optional(),
+  CNEN2: z.string().optional(),
+  COBRADOR: z.string().optional(),
+  PROTEACUM: z.string().optional(),
+  PROTEVIGE: z.string().optional(),
+  CPOSTAL: z.string().optional(),
+  HABILITA: z.string().optional(),
+  CODCONVE: z.string().optional(),
+  NOTRAEDEUD: z.string().optional(),
+  NOKOENAMP: z.string().optional(),
+  BLOQUEADO: z.string().optional(),
+  DIMOPER: z.string().optional(),
+  PREFEN: z.string().optional(),
+  BLOQENCOM: z.string().optional(),
+  TIPOEN: z.string().optional(),
+  ACTIEN: z.string().optional(),
+  TAMAEN: z.string().optional(),
+  PORPREFEN: z.string().optional(),
+  CLAVEEN: z.string().optional(),
+  NVVPIDEPIE: z.string().optional(),
+  RECEPELECT: z.string().optional(),
+  ACTECO: z.string().optional(),
+  DIASVENCI: z.string().optional(),
+  CATTRIB: z.string().optional(),
+  AGRETIVA: z.string().optional(),
+  AGRETIIBB: z.string().optional(),
+  AGRETGAN: z.string().optional(),
+  AGPERIVA: z.string().optional(),
+  AGPERIIBB: z.string().optional(),
+  TRANSPOEN: z.string().optional(),
+  FECREEN: z.string().optional(),
+  FIRMA: z.string().optional(),
+  MOCTAEN: z.string().optional(),
+  CTASDELAEN: z.string().optional(),
+  NACIONEN: z.string().optional(),
+  DIRPAREN: z.string().optional(),
+  FECNACEN: z.string().optional(),
+  ESTCIVEN: z.string().optional(),
+  PROFECEN: z.string().optional(),
+  CONYUGEN: z.string().optional(),
+  RUTCONEN: z.string().optional(),
+  RUTSOCEN: z.string().optional(),
+  SEXOEN: z.string().optional(),
+  RELACIEN: z.string().optional(),
+  ANEXEN1: z.string().optional(),
+  ANEXEN2: z.string().optional(),
+  ANEXEN3: z.string().optional(),
+  ANEXEN4: z.string().optional(),
+  OCCOBLI: z.string().optional(),
+  VALIVENPAG: z.string().optional(),
+  EMAILCOMER: z.string().optional(),
+  TIPOCONTR: z.string().optional(),
+  FEREFAUTO: z.string().optional(),
+  DIACOBRA: z.string().optional(),
+  CUENTABCO: z.string().optional(),
+  KOENDPEN: z.string().optional(),
+  SUENDPEN: z.string().optional(),
+  RUTALUN: z.string().optional(),
+  RUTAMAR: z.string().optional(),
+  RUTAMIE: z.string().optional(),
+  RUTAJUE: z.string().optional(),
+  RUTAVIE: z.string().optional(),
+  RUTASAB: z.string().optional(),
+  RUTADOM: z.string().optional(),
+  CATLEGRET: z.string().optional(),
+  IMPTORET: z.string().optional(),
+  ENTILIGA: z.string().optional(),
+  PORCELIGA: z.string().optional(),
+  ACTECOBCO: z.string().optional(),
+  NVVOBLI: z.string().optional(),
+  SECUECOM: z.string().optional(),
+  SECUEVEN: z.string().optional(),
+  AVISADPVEN: z.string().optional(),
+  EXTENXML: z.string().optional(),
+  KOENAL: z.string().optional(),
+  KOFUWEB: z.string().optional(),
+  CATLEGMER: z.string().optional(),
+  GPSLAT: z.string().optional(),
+  GPSLON: z.string().optional(),
+  URBANIZ: z.string().optional(),
+  PROVINCIA: z.string().optional(),
+  DEPARTAME: z.string().optional(),
+  DISTRITO: z.string().optional(),
+  CODUBIGEO: z.string().optional(),
+  TIPORUC: z.string().optional(),
+  PODETRAC: z.string().optional(),
+  DTEN: z.string().optional(),
+  UREN: z.string().optional(),
+  BLOVENEX: z.string().optional(),
+  FEMOEN: z.string().optional(),
+  FEEMDO: z.string().optional(),
+  COMUNA: z.string().optional(),
+  NODOCUM: z.string().optional(),
+  DEUDAVEN: z.string().optional(),
+  CHVNOCAN: z.string().optional(),
+  LTVNOCAN: z.string().optional(),
+  PAGNOCAN: z.string().optional(),
+  ANTICIPOS: z.string().optional(),
+});
 
 // Sistema de usuarios vendedores
 export const salespeopleUsers = pgTable("salespeople_users", {

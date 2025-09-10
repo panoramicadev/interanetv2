@@ -8,6 +8,7 @@ import {
   productStock,
   productPriceHistory,
   warehouses,
+  clients,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -25,6 +26,8 @@ import {
   type InsertProductPriceHistory,
   type Warehouse,
   type InsertWarehouse,
+  type Client,
+  type InsertClient,
   type CsvProductStockImport,
 } from "@shared/schema";
 import { db } from "./db";
@@ -245,8 +248,7 @@ export interface IStorage {
     teamGrowth: number;
   }>;
   
-  // Warehouse operations
-  getWarehouses(): Promise<Warehouse[]>;
+  // Warehouse operations  
   getWarehouse(kobo: string, kosu: string): Promise<Warehouse | undefined>;
   createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse>;
   updateWarehouse(kobo: string, kosu: string, warehouse: Partial<InsertWarehouse>): Promise<Warehouse>;
@@ -2251,12 +2253,8 @@ export class DatabaseStorage implements IStorage {
     
     if (filters?.search) {
       conditions.push(
-        sql`(${products.sku} ILIKE ${`%${filters.search}%`} OR ${products.name} ILIKE ${`%${filters.search}%`})`
+        sql`(${products.kopr} ILIKE ${`%${filters.search}%`} OR ${products.name} ILIKE ${`%${filters.search}%`})`
       );
-    }
-    
-    if (filters?.category) {
-      conditions.push(eq(products.category, filters.category));
     }
     
     if (filters?.active !== undefined) {
@@ -2265,16 +2263,9 @@ export class DatabaseStorage implements IStorage {
 
     let query = db.select({
       id: products.id,
-      sku: products.sku,
       kopr: products.kopr,
       name: products.name,
-      category: products.category,
-      packagingUnit: products.packagingUnit,
-      packagingUnitName: products.packagingUnitName,
-      variantFeaturesKey: products.variantFeaturesKey,
-      variantFeaturesValue: products.variantFeaturesValue,
-      variantParentSku: products.variantParentSku,
-      variantGenericDisplayName: products.variantGenericDisplayName,
+      ud02pr: products.ud02pr,
       active: products.active,
       createdAt: products.createdAt,
       updatedAt: products.updatedAt
@@ -2294,22 +2285,28 @@ export class DatabaseStorage implements IStorage {
     }
 
     const publicProducts = await query.orderBy(products.name);
-    return publicProducts;
+    // Map to include missing fields for Product type compatibility
+    return publicProducts.map(p => ({
+      ...p,
+      priceProduct: null,
+      priceOffer: null,
+      showInStore: null
+    }));
   }
 
   // Get all product prices (only for authenticated users)
   async getAllProductPrices(): Promise<Record<string, string>> {
     const productPrices = await db.select({
-      sku: products.sku,
-      pricePerUnit: products.pricePerUnit,
-      manualPrice: products.manualPrice
+      kopr: products.kopr,
+      priceProduct: products.priceProduct,
+      priceOffer: products.priceOffer
     }).from(products).where(eq(products.active, true));
 
     const pricesMap: Record<string, string> = {};
     productPrices.forEach(product => {
-      const price = product.manualPrice || product.pricePerUnit;
-      if (price) {
-        pricesMap[product.sku] = price.toString();
+      const price = product.priceOffer || product.priceProduct;
+      if (price && price !== '0') {
+        pricesMap[product.kopr] = price.toString();
       }
     });
 
@@ -2400,7 +2397,7 @@ export class DatabaseStorage implements IStorage {
 
   // Compatibility function for existing SKU-based calls
   async getProductBySku(sku: string): Promise<Product | undefined> {
-    const [product] = await db.select().from(products).where(eq(products.sku, sku));
+    const [product] = await db.select().from(products).where(eq(products.kopr, sku));
     return product;
   }
 
@@ -2409,16 +2406,16 @@ export class DatabaseStorage implements IStorage {
     return newProduct;
   }
 
-  async updateProduct(sku: string, productData: Partial<InsertProduct>): Promise<Product> {
+  async updateProduct(kopr: string, productData: Partial<InsertProduct>): Promise<Product> {
     const [updatedProduct] = await db
       .update(products)
       .set({ ...productData, updatedAt: new Date() })
-      .where(eq(products.sku, sku))
+      .where(eq(products.kopr, kopr))
       .returning();
     return updatedProduct;
   }
 
-  async updateProductPrice(kopr: string, newPrice: number, newOfferPrice?: number, showInStore?: boolean, changedBy: string, reason?: string): Promise<Product> {
+  async updateProductPrice(kopr: string, newPrice: number, changedBy: string, reason?: string): Promise<Product> {
     // Get current product
     const currentProduct = await this.getProduct(kopr);
     if (!currentProduct) {
@@ -2433,14 +2430,6 @@ export class DatabaseStorage implements IStorage {
       priceProduct: newPrice.toString(), 
       updatedAt: new Date() 
     };
-    
-    if (newOfferPrice !== undefined) {
-      updateData.priceOffer = newOfferPrice > 0 ? newOfferPrice.toString() : null;
-    }
-    
-    if (showInStore !== undefined) {
-      updateData.showInStore = showInStore;
-    }
 
     const [updatedProduct] = await db
       .update(products)
@@ -2454,7 +2443,7 @@ export class DatabaseStorage implements IStorage {
       oldPrice: oldPrice?.toString() || null,
       newPrice: newPrice.toString(),
       changedBy,
-      changeReason: reason || `Precio actualizado${newOfferPrice ? ' con precio de oferta' : ''}`
+      changeReason: reason || 'Precio actualizado'
     });
 
     return updatedProduct;
@@ -2562,14 +2551,8 @@ export class DatabaseStorage implements IStorage {
           // Crear nuevo producto (sin precio, se establece manualmente)
           product = await this.createProduct({
             kopr: row.sku, // Use SKU as KOPR for legacy compatibility
-            productId: row.sku, // Agregar productId requerido
-            sku: row.sku,
-            nokopr: row.name, // Required field
             name: row.name,
-            ud01pr: row.unit1 || 'UN', // New field structure
-            ud02pr: row.unit2 || 'UN', // New field structure
-            packagingUnitName: row.unit1 || 'UN', // Mantener compatibilidad
-            packagingUnit: row.unit2 || 'UN', // Mantener compatibilidad
+            ud02pr: row.unit2 || 'UN', // Secondary unit
             active: true
           });
           newProducts++;
@@ -2577,12 +2560,8 @@ export class DatabaseStorage implements IStorage {
           console.log(`🔄 Actualizando producto existente: ${row.sku}`);
           // Actualizar información del producto (preservando precio)
           await this.updateProduct(product.kopr, {
-            nokopr: row.name, // Update required field
             name: row.name,
-            ud01pr: row.unit1 || 'UN', // New field structure
-            ud02pr: row.unit2 || 'UN', // New field structure
-            packagingUnitName: row.unit1 || 'UN', // Mantener compatibilidad
-            packagingUnit: row.unit2 || 'UN', // Mantener compatibilidad
+            ud02pr: row.unit2 || 'UN' // Secondary unit
           });
         }
 
@@ -2716,43 +2695,9 @@ export class DatabaseStorage implements IStorage {
           // Crear nuevo producto
           await db.insert(products).values({
             kopr: row.productId,
-            sku: row.productId, // Mantener por compatibilidad
             name: row.name,
-            description: row.description || '',
-            category: row.category || '',
-            pricePerUnit: row.pricePerUnit ? parseFloat(row.pricePerUnit.replace(',', '.')) : 0,
-            taxCode: row.taxCode || '',
-            taxName: row.taxName || '',
-            taxRate: row.taxRate ? parseFloat(row.taxRate.replace(',', '.')) : 0,
-            weight: row.weight ? parseFloat(row.weight.replace(',', '.')) : 0,
-            weightUnit: row.weightUnit || '',
-            length: row.length ? parseFloat(row.length.replace(',', '.')) : 0,
-            lengthUnit: row.lengthUnit || '',
-            width: row.width ? parseFloat(row.width.replace(',', '.')) : 0,
-            widthUnit: row.widthUnit || '',
-            height: row.height ? parseFloat(row.height.replace(',', '.')) : 0,
-            heightUnit: row.heightUnit || '',
-            volume: row.volume ? parseFloat(row.volume.replace(',', '.')) : 0,
-            volumeUnit: row.volumeUnit || '',
-            minUnit: row.minUnit ? parseFloat(row.minUnit.replace(',', '.')) : 0,
-            stepSize: row.stepSize ? parseFloat(row.stepSize.replace(',', '.')) : 0,
-            packagingUnit: row.packagingUnit || '',
-            packagingUnitName: row.packagingUnitName || '', // Presentación del producto
-            packagingPackageName: row.packagingPackageName || '',
-            packagingPackageUnit: row.packagingPackageUnit || '',
-            packagingAmountPerPackage: row.packagingAmountPerPackage ? parseFloat(row.packagingAmountPerPackage.replace(',', '.')) : 0,
-            packagingBoxName: row.packagingBoxName || '',
-            packagingBoxUnit: row.packagingBoxUnit || '',
-            packagingAmountPerBox: row.packagingAmountPerBox ? parseFloat(row.packagingAmountPerBox.replace(',', '.')) : 0,
-            packagingPalletName: row.packagingPalletName || '',
-            packagingPalletUnit: row.packagingPalletUnit || '',
-            packagingAmountPerPallet: row.packagingAmountPerPallet ? parseFloat(row.packagingAmountPerPallet.replace(',', '.')) : 0,
-            // Campos básicos de variantes por ahora
-            variantFeaturesKey: '',
-            variantFeaturesValue: '', 
-            variantParentSku: '',
-            variantGenericDisplayName: '',
-            variantIndex: 0,
+            ud02pr: row.packagingUnitName || 'UN', // Use packaging unit name as secondary unit
+            priceProduct: row.pricePerUnit ? parseFloat(row.pricePerUnit.replace(',', '.')).toString() : null,
             active: true
           });
           
@@ -2760,48 +2705,21 @@ export class DatabaseStorage implements IStorage {
         } else {
           console.log(`🔄 Actualizando producto existente: ${row.productId}`);
           
-          // Actualizar producto existente (preservando precio manual si existe)
+          // Actualizar producto existente (preservando precios existentes)
           const updateData: any = {
             name: row.name,
-            description: row.description || '',
-            category: row.category || '',
-            taxCode: row.taxCode || '',
-            taxName: row.taxName || '',
-            taxRate: row.taxRate ? parseFloat(row.taxRate.replace(',', '.')) : 0,
-            weight: row.weight ? parseFloat(row.weight.replace(',', '.')) : 0,
-            weightUnit: row.weightUnit || '',
-            length: row.length ? parseFloat(row.length.replace(',', '.')) : 0,
-            lengthUnit: row.lengthUnit || '',
-            width: row.width ? parseFloat(row.width.replace(',', '.')) : 0,
-            widthUnit: row.widthUnit || '',
-            height: row.height ? parseFloat(row.height.replace(',', '.')) : 0,
-            heightUnit: row.heightUnit || '',
-            volume: row.volume ? parseFloat(row.volume.replace(',', '.')) : 0,
-            volumeUnit: row.volumeUnit || '',
-            minUnit: row.minUnit ? parseFloat(row.minUnit.replace(',', '.')) : 0,
-            stepSize: row.stepSize ? parseFloat(row.stepSize.replace(',', '.')) : 0,
-            packagingUnit: row.packagingUnit || '',
-            packagingUnitName: row.packagingUnitName || '', // Presentación del producto
-            packagingPackageName: row.packagingPackageName || '',
-            packagingPackageUnit: row.packagingPackageUnit || '',
-            packagingAmountPerPackage: row.packagingAmountPerPackage ? parseFloat(row.packagingAmountPerPackage.replace(',', '.')) : 0,
-            packagingBoxName: row.packagingBoxName || '',
-            packagingBoxUnit: row.packagingBoxUnit || '',
-            packagingAmountPerBox: row.packagingAmountPerBox ? parseFloat(row.packagingAmountPerBox.replace(',', '.')) : 0,
-            packagingPalletName: row.packagingPalletName || '',
-            packagingPalletUnit: row.packagingPalletUnit || '',
-            packagingAmountPerPallet: row.packagingAmountPerPallet ? parseFloat(row.packagingAmountPerPallet.replace(',', '.')) : 0,
+            ud02pr: row.packagingUnitName || 'UN' // Use packaging unit name as secondary unit
           };
 
-          // Solo actualizar el precio del CSV si no hay un precio manual establecido
-          if (!existingProduct.manualPrice && row.pricePerUnit) {
-            updateData.pricePerUnit = parseFloat(row.pricePerUnit.replace(',', '.'));
+          // Solo actualizar el precio del CSV si no hay precio establecido
+          if (!existingProduct.priceProduct && row.pricePerUnit) {
+            updateData.priceProduct = parseFloat(row.pricePerUnit.replace(',', '.')).toString();
           }
 
           await db
             .update(products)
             .set(updateData)
-            .where(eq(products.productId, row.productId));
+            .where(eq(products.kopr, row.productId));
           
           updatedProducts++;
         }
@@ -2832,12 +2750,12 @@ export class DatabaseStorage implements IStorage {
     return summary;
   }
 
-  // Función auxiliar para obtener producto por productId
+  // Función auxiliar para obtener producto por productId (usando kopr)
   async getProductByProductId(productId: string): Promise<Product | undefined> {
     const [product] = await db
       .select()
       .from(products)
-      .where(eq(products.productId, productId));
+      .where(eq(products.kopr, productId));
     return product;
   }
 
@@ -2928,7 +2846,7 @@ export class DatabaseStorage implements IStorage {
     location?: string;
     productCount: number;
   }>> {
-    const warehouses = await db
+    const warehouseData = await db
       .select({
         code: productStock.warehouseCode,
         location: productStock.warehouseLocation,
@@ -2937,11 +2855,11 @@ export class DatabaseStorage implements IStorage {
       .from(productStock)
       .groupBy(productStock.warehouseCode, productStock.warehouseLocation);
 
-    return warehouses.map(w => ({
+    return warehouseData.map(w => ({
       code: w.code,
-      name: w.code, // Using code as name since we don't have warehouse names in CSV
+      name: w.code, // Using code as name since we don't have warehouse names from stock data
       location: w.location || undefined,
-      productCount: w.productCount
+      productCount: Number(w.productCount)
     }));
   }
 
@@ -2957,6 +2875,15 @@ export class DatabaseStorage implements IStorage {
     const [result] = await db
       .insert(warehouses)
       .values(warehouse)
+      .returning();
+    return result;
+  }
+
+  async updateWarehouse(kobo: string, kosu: string, warehouse: Partial<InsertWarehouse>): Promise<Warehouse> {
+    const [result] = await db
+      .update(warehouses)
+      .set({ ...warehouse, updatedAt: new Date() })
+      .where(and(eq(warehouses.kobo, kobo), eq(warehouses.kosu, kosu)))
       .returning();
     return result;
   }
@@ -3034,11 +2961,11 @@ export class DatabaseStorage implements IStorage {
         physicalStock2: productStock.physicalStock2,
         availableStock1: productStock.availableStock1,
         availableStock2: productStock.availableStock2,
-        unit1: products.packagingUnitName, // Mantener compatibilidad
-        unit2: products.packagingUnit // Mantener compatibilidad
+        unit1: products.ud02pr, // Secondary unit
+        unit2: products.ud02pr // Secondary unit
       })
       .from(productStock)
-      .leftJoin(products, eq(productStock.productSku, products.sku))
+      .leftJoin(products, eq(productStock.productSku, products.kopr))
       .where(and(...conditions))
       .orderBy(productStock.productSku);
 
@@ -3153,8 +3080,8 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
 
     return results.map(r => ({
-      productId: r.productId,
-      productName: r.productName,
+      productId: r.productId || '',
+      productName: r.productName || '',
       totalSales: Number(r.totalSales) || 0,
       totalQuantity: Number(r.totalQuantity) || 0,
       salesCount: Number(r.salesCount) || 0,
@@ -3200,7 +3127,7 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     const bestPerformer = bestPerformerQuery.length > 0 
-      ? { name: bestPerformerQuery[0].vendedor, sales: Number(bestPerformerQuery[0].totalSales) }
+      ? { name: bestPerformerQuery[0].vendedor || '', sales: Number(bestPerformerQuery[0].totalSales) }
       : null;
 
     const totalSales = Number(totalMetrics?.totalSales) || 0;
@@ -3335,8 +3262,8 @@ export class DatabaseStorage implements IStorage {
           warehouseCode: row.KOBO, // Compatibilidad
           warehouseLocation: row.DATOSUBIC || '',
           datosubic: row.DATOSUBIC || '',
-          physicalStock2: physicalStock2, // STFI2 - Stock en unidad secundaria únicamente
-          availableStock2: physicalStock2,
+          physicalStock2: physicalStock2.toString(), // STFI2 - Stock en unidad secundaria como string
+          availableStock2: physicalStock2.toString(),
         });
 
         updatedStock++;
@@ -3385,7 +3312,7 @@ export class DatabaseStorage implements IStorage {
     const totalUniqueClients = segments.reduce((sum, segment) => sum + Number(segment.uniqueClients), 0);
     
     return segments.map(segment => ({
-      segment: segment.segment,
+      segment: segment.segment || '',
       uniqueClients: Number(segment.uniqueClients),
       percentage: totalUniqueClients > 0 ? (Number(segment.uniqueClients) / totalUniqueClients) * 100 : 0
     })).sort((a, b) => b.uniqueClients - a.uniqueClients);
