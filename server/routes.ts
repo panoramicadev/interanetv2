@@ -345,6 +345,41 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Clients API
+  app.get('/api/clients', requireAuth, async (req, res) => {
+    try {
+      const { search, limit, offset } = req.query;
+      
+      const filters = {
+        search: search as string,
+        limit: limit ? parseInt(limit as string) : 50,
+        offset: offset ? parseInt(offset as string) : 0,
+      };
+      
+      const clients = await storage.getClients(filters);
+      res.json(clients);
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  app.get('/api/clients/:koen', requireAuth, async (req, res) => {
+    try {
+      const { koen } = req.params;
+      const client = await storage.getClientByKoen(koen);
+      
+      if (!client) {
+        return res.status(404).json({ error: 'Cliente no encontrado' });
+      }
+      
+      res.json(client);
+    } catch (error) {
+      console.error('Error fetching client:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
   // Sales transactions endpoint
   app.get('/api/sales/transactions', requireAuth, async (req, res) => {
     try {
@@ -1701,8 +1736,6 @@ export function registerRoutes(app: Express): Server {
       const product = await storage.updateProductPrice(
         sku, 
         parseFloat(price), 
-        offerPrice ? parseFloat(offerPrice) : undefined,
-        showInStore,
         userId, 
         reason
       );

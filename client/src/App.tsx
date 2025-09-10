@@ -17,6 +17,7 @@ import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
 import Users from "@/pages/users";
 import Products from "@/pages/products";
+import Clients from "@/pages/clients";
 import SegmentDetail from "@/pages/segment-detail";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
@@ -71,6 +72,7 @@ function Router() {
             {/* Rutas específicas de admin */}
             <Route path="/usuarios" component={Users} />
             <Route path="/productos" component={Products} />
+            <Route path="/clientes" component={Clients} />
             <Route path="/products" component={() => {
               // Redirect from /products to /productos
               window.location.replace('/productos');

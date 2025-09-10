@@ -276,6 +276,22 @@ export interface IStorage {
   getProductStockByWarehouse(kopr: string, kobo: string, kosu?: string): Promise<ProductStock[]>;
   upsertProductStock(stock: InsertProductStock): Promise<ProductStock>;
   
+  // Client operations
+  getClients(filters?: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Array<Client & {
+    totalTransactions?: number;
+    totalSales?: number;
+    lastTransactionDate?: string;
+  }>>;
+  getClientByKoen(koen: string): Promise<Client | undefined>;
+  insertClient(client: InsertClient): Promise<Client>;
+  insertMultipleClients(clients: InsertClient[]): Promise<void>;
+  updateClient(koen: string, client: Partial<InsertClient>): Promise<Client>;
+  deleteClient(koen: string): Promise<void>;
+
   // CSV import for new KOPR-based format
   importProductStockFromKOPRCSV(csvData: Array<{
     KOPR: string;
@@ -3316,6 +3332,106 @@ export class DatabaseStorage implements IStorage {
       uniqueClients: Number(segment.uniqueClients),
       percentage: totalUniqueClients > 0 ? (Number(segment.uniqueClients) / totalUniqueClients) * 100 : 0
     })).sort((a, b) => b.uniqueClients - a.uniqueClients);
+  }
+
+  // Client operations implementation
+  async getClients(filters?: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Array<Client & {
+    totalTransactions?: number;
+    totalSales?: number;
+    lastTransactionDate?: string;
+  }>> {
+    const conditions = [];
+    
+    if (filters?.search) {
+      conditions.push(
+        sql`(${clients.nokoen} ILIKE ${`%${filters.search}%`} OR ${clients.rten} ILIKE ${`%${filters.search}%`} OR ${clients.koen} ILIKE ${`%${filters.search}%`})`
+      );
+    }
+
+    // First get all clients with basic info
+    const clientsData = await db
+      .select()
+      .from(clients)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(clients.updatedAt))
+      .limit(filters?.limit || 50)
+      .offset(filters?.offset || 0);
+
+    // Then add computed fields for each client
+    const clientsWithMetrics = await Promise.all(
+      clientsData.map(async (client) => {
+        const [transactionCount] = await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(salesTransactions)
+          .where(eq(salesTransactions.nokoen, client.nokoen));
+
+        const [salesData] = await db
+          .select({ 
+            totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vabrdo}), 0)`,
+            lastTransactionDate: sql<string>`MAX(${salesTransactions.feemdo})::text`
+          })
+          .from(salesTransactions)
+          .where(eq(salesTransactions.nokoen, client.nokoen));
+
+        return {
+          ...client,
+          totalTransactions: Number(transactionCount?.count || 0),
+          totalSales: Number(salesData?.totalSales || 0),
+          lastTransactionDate: salesData?.lastTransactionDate || undefined
+        };
+      })
+    );
+
+    return clientsWithMetrics;
+  }
+
+  async getClientByKoen(koen: string) {
+    const result = await db
+      .select()
+      .from(clients)
+      .where(eq(clients.koen, koen))
+      .limit(1);
+    
+    return result[0];
+  }
+
+  async insertClient(client: InsertClient) {
+    const result = await db
+      .insert(clients)
+      .values(client)
+      .returning();
+    
+    return result[0];
+  }
+
+  async insertMultipleClients(clientsData: InsertClient[]) {
+    if (clientsData.length === 0) return;
+    
+    const chunkSize = 1000;
+    for (let i = 0; i < clientsData.length; i += chunkSize) {
+      const chunk = clientsData.slice(i, i + chunkSize);
+      await db.insert(clients).values(chunk);
+    }
+  }
+
+  async updateClient(koen: string, client: Partial<InsertClient>) {
+    const result = await db
+      .update(clients)
+      .set({ ...client, updatedAt: new Date() })
+      .where(eq(clients.koen, koen))
+      .returning();
+    
+    return result[0];
+  }
+
+  async deleteClient(koen: string) {
+    await db
+      .delete(clients)
+      .where(eq(clients.koen, koen));
   }
 
 }
