@@ -1,11 +1,12 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown } from "lucide-react";
+import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface Client {
   id: string;
@@ -42,6 +43,7 @@ const formatDate = (date: string | null) => {
 
 export default function Clients() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showImportPreview, setShowImportPreview] = useState(false);
@@ -49,16 +51,26 @@ export default function Clients() {
   const [importProgress, setImportProgress] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
   const itemsPerPage = 20;
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setCurrentPage(1); // Reset to first page when searching
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: clients, isLoading, error } = useQuery({
-    queryKey: ['/api/clients', search, currentPage],
+    queryKey: ['/api/clients', debouncedSearch, currentPage],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (search) params.set('search', search);
+      if (debouncedSearch) params.set('search', debouncedSearch);
       params.set('limit', itemsPerPage.toString());
       params.set('offset', ((currentPage - 1) * itemsPerPage).toString());
       
@@ -70,10 +82,9 @@ export default function Clients() {
     },
   });
 
-  const handleSearch = (value: string) => {
+  const handleSearch = useCallback((value: string) => {
     setSearch(value);
-    setCurrentPage(1); // Reset to first page when searching
-  };
+  }, []);
 
   // Preview mutation
   const previewMutation = useMutation({
@@ -249,42 +260,46 @@ export default function Clients() {
   }
 
   return (
-    <div className="space-y-6" data-testid="clients-page">
+    <div className="m-3 sm:m-4 space-y-6" data-testid="clients-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <Users className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Clientes</h1>
-        </div>
-        <div className="flex items-center space-x-3">
-          <Badge variant="outline" className="text-sm">
-            {clients?.length || 0} clientes
-          </Badge>
-          <Button variant="outline" onClick={downloadTemplate} data-testid="button-download-template">
-            <FileDown className="h-4 w-4 mr-2" />
-            Plantilla CSV
-          </Button>
-          <div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
-              className="hidden"
-              data-testid="input-file-clients"
-            />
-            <Button 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={previewMutation.isPending || isImporting}
-              data-testid="button-import-clients"
-            >
-              {previewMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4 mr-2" />
-              )}
-              Importar CSV
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 rounded-2xl shadow-sm">
+        <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Users className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Gestión de Clientes</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                {clients?.length || 0} clientes registrados
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-3">
+            <Button variant="outline" onClick={downloadTemplate} data-testid="button-download-template">
+              <FileDown className="h-4 w-4 mr-2" />
+              Plantilla CSV
             </Button>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileChange}
+                className="hidden"
+                data-testid="input-file-clients"
+              />
+              <Button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={previewMutation.isPending || isImporting}
+                data-testid="button-import-clients"
+              >
+                {previewMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                Importar CSV
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -389,138 +404,133 @@ export default function Clients() {
               onChange={(e) => handleSearch(e.target.value)}
               data-testid="input-search-clients"
             />
+            {search && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="text-xs text-gray-400">
+                  {search !== debouncedSearch ? "Escribiendo..." : ""}
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Clients Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {clients?.map((client) => {
-          const creditStatus = getCreditStatus(client.cren, client.crlt, client.crsd);
-          
-          return (
-            <Card key={client.id} className="hover:shadow-lg transition-shadow" data-testid={`card-client-${client.id}`}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {client.nokoen}
-                  </CardTitle>
-                  <Badge className={`${creditStatus.color} text-white text-xs`}>
-                    {creditStatus.text}
-                  </Badge>
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Código: {client.koen || "N/A"}
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-3">
-                {/* Basic Info */}
-                <div className="space-y-2">
-                  {client.rten && (
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      RUT: {client.rten}
-                    </div>
-                  )}
+      {/* Clients List */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-semibold">Cliente</TableHead>
+                  <TableHead className="font-semibold">RUT</TableHead>
+                  <TableHead className="font-semibold">Contacto</TableHead>
+                  <TableHead className="font-semibold">Crédito</TableHead>
+                  <TableHead className="font-semibold">Ventas</TableHead>
+                  <TableHead className="font-semibold">Estado</TableHead>
+                  <TableHead className="font-semibold w-20">Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clients?.map((client) => {
+                  const creditStatus = getCreditStatus(client.cren, client.crlt, client.crsd);
                   
-                  {client.gien && (
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      {client.gien}
-                    </div>
-                  )}
-                  
-                  {client.dien && (
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                      <MapPin className="h-4 w-4 mr-2" />
-                      {client.dien.length > 40 ? client.dien.substring(0, 40) + "..." : client.dien}
-                    </div>
-                  )}
-                </div>
-
-                {/* Contact Info */}
-                <div className="space-y-1">
-                  {client.email && (
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                      <Mail className="h-4 w-4 mr-2" />
-                      {client.email}
-                    </div>
-                  )}
-                  
-                  {client.foen && (
-                    <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
-                      <Phone className="h-4 w-4 mr-2" />
-                      {client.foen}
-                    </div>
-                  )}
-                </div>
-
-                {/* Credit Info */}
-                <div className="border-t pt-3 space-y-2">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-gray-500">Límite de crédito:</span>
-                      <div className="font-semibold text-green-600">
-                        {formatCurrency(client.crlt)}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Crédito disponible:</span>
-                      <div className="font-semibold text-blue-600">
-                        {formatCurrency(client.cren)}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {client.crsd && parseFloat(client.crsd) > 0 && (
-                    <div className="text-sm">
-                      <span className="text-gray-500">Deuda:</span>
-                      <div className="font-semibold text-red-600">
-                        {formatCurrency(client.crsd)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Transaction Stats */}
-                <div className="border-t pt-3 space-y-1">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-gray-500">Total ventas:</span>
-                      <div className="font-semibold text-indigo-600">
-                        {formatCurrency(client.totalSales || 0)}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Transacciones:</span>
-                      <div className="font-semibold">
-                        {client.totalTransactions || 0}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {client.lastTransactionDate && (
-                    <div className="text-sm">
-                      <span className="text-gray-500">Última compra:</span>
-                      <div className="font-medium">
-                        {formatDate(client.lastTransactionDate)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="border-t pt-3">
-                  <Button variant="outline" size="sm" className="w-full" data-testid={`button-view-client-${client.id}`}>
-                    Ver detalles
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                  return (
+                    <TableRow key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50" data-testid={`row-client-${client.id}`}>
+                      <TableCell className="font-medium">
+                        <div>
+                          <div className="font-semibold text-gray-900 dark:text-white">
+                            {client.nokoen}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Código: {client.koen || "N/A"}
+                          </div>
+                          {client.gien && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              {client.gien}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="text-sm">
+                          {client.rten || "N/A"}
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="space-y-1">
+                          {client.email && (
+                            <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                              <Mail className="h-3 w-3 mr-1" />
+                              <span className="truncate max-w-[150px]">{client.email}</span>
+                            </div>
+                          )}
+                          {client.foen && (
+                            <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                              <Phone className="h-3 w-3 mr-1" />
+                              {client.foen}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="space-y-1 text-sm">
+                          <div>
+                            <span className="text-gray-500">Límite:</span>
+                            <div className="font-semibold text-green-600">
+                              {formatCurrency(client.crlt)}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Disponible:</span>
+                            <div className="font-semibold text-blue-600">
+                              {formatCurrency(client.cren)}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <div className="space-y-1 text-sm">
+                          <div>
+                            <span className="text-gray-500">Total:</span>
+                            <div className="font-semibold text-indigo-600">
+                              {formatCurrency(client.totalSales || 0)}
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {client.totalTransactions || 0} transacciones
+                          </div>
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <Badge className={`${creditStatus.color} text-white text-xs`}>
+                          {creditStatus.text}
+                        </Badge>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          data-testid={`button-view-client-${client.id}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Empty State */}
       {clients?.length === 0 && (
