@@ -1289,6 +1289,216 @@ export function registerRoutes(app: Express): Server {
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
   });
 
+  // CSV parsing function for sales transactions
+  function parseCSV(csvContent: string) {
+    // Parse CSV using Papa Parse with auto-detection of delimiter
+    const firstLine = csvContent.split('\n')[0];
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const delimiter = semicolonCount > commaCount ? ';' : ',';
+    
+    console.log(`🔍 CSV delimiter detected: "${delimiter}"`);
+    
+    const parseResult = Papa.parse(csvContent, {
+      header: true,
+      delimiter,
+      skipEmptyLines: true,
+      transformHeader: (header: string) => header.trim()
+    });
+
+    if (parseResult.errors.length > 0) {
+      console.warn('CSV parsing errors:', parseResult.errors);
+    }
+
+    const transactions = [];
+    const rawData = parseResult.data as any[];
+    
+    console.log(`📊 Processing ${rawData.length} CSV rows`);
+
+    for (let i = 0; i < rawData.length; i++) {
+      const row = rawData[i];
+      const transaction: any = {};
+      
+      // Helper functions
+      const cleanValue = (value: any): string => {
+        if (!value) return '';
+        return value.toString().replace(/^"|"$/g, '').trim();
+      };
+      
+      const parseNumber = (value: any): string | null => {
+        if (!value || value.toString().trim() === '') return null;
+        let cleanValue = value.toString();
+        // Handle Spanish number format (1.234,56)
+        if (cleanValue.includes('.') && cleanValue.includes(',')) {
+          cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+        } else if (cleanValue.includes(',') && !cleanValue.includes('.')) {
+          const parts = cleanValue.split(',');
+          if (parts.length === 2 && parts[1].length <= 3) {
+            cleanValue = cleanValue.replace(',', '.');
+          }
+        }
+        const parsed = parseFloat(cleanValue);
+        return isNaN(parsed) ? null : cleanValue;
+      };
+      
+      const parseDate = (value: any): string | null => {
+        if (!value || value.toString().trim() === '') return null;
+        try {
+          const dateStr = value.toString();
+          let parts: string[];
+          
+          if (dateStr.includes('-')) {
+            parts = dateStr.split('-');
+          } else if (dateStr.includes('/')) {
+            parts = dateStr.split('/');
+          } else {
+            return null;
+          }
+          
+          if (parts.length === 3) {
+            const day = parseInt(parts[0]);
+            const month = parseInt(parts[1]);
+            const year = parseInt(parts[2]);
+            
+            if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900) {
+              const formattedMonth = month.toString().padStart(2, '0');
+              const formattedDay = day.toString().padStart(2, '0');
+              return `${year}-${formattedMonth}-${formattedDay}`;
+            }
+          }
+        } catch (e) {
+          console.warn('Invalid date format:', value);
+        }
+        return null;
+      };
+
+      // Map CSV columns to transaction fields
+      Object.keys(row).forEach(header => {
+        const cleanHeader = header.toLowerCase().trim().replace(/\s+/g, '');
+        const rawValue = row[header];
+        const value = cleanValue(rawValue);
+        
+        switch (cleanHeader) {
+          // Required fields
+          case 'nudo':
+            if (value) transaction.nudo = value;
+            break;
+          case 'feemdo':
+            if (value) transaction.feemdo = parseDate(value);
+            break;
+          case 'tido':
+            transaction.tido = value || '';
+            break;
+            
+          // String fields
+          case 'koprct':
+          case 'nokoen':
+          case 'noruen':
+          case 'nokoprct':
+          case 'nokofu':
+          case 'endo':
+          case 'suendo':
+          case 'sudo':
+          case 'kofudo':
+          case 'modo':
+          case 'timodo':
+          case 'lilg':
+          case 'nulido':
+          case 'sulido':
+          case 'bosulido':
+          case 'kofulido':
+          case 'prct':
+          case 'tict':
+          case 'tipr':
+          case 'nusepr':
+          case 'ud01pr':
+          case 'ud02pr':
+          case 'eslido':
+          case 'fmpr':
+          case 'mrpr':
+          case 'zona':
+          case 'ruen':
+          case 'pfpr':
+          case 'hfpr':
+          case 'ocdo':
+          case 'nofmpr':
+          case 'nopfpr':
+          case 'nohfpr':
+          case 'listacost':
+          case 'nokozo':
+          case 'nosudo':
+          case 'nokofudo':
+          case 'nobosuli':
+          case 'nomrpr':
+            if (value) transaction[cleanHeader] = value;
+            break;
+            
+          // Date fields
+          case 'feulvedo':
+          case 'feemli':
+          case 'feerli':
+            if (value) transaction[cleanHeader] = parseDate(value);
+            break;
+            
+          // Integer field
+          case 'luvtlido':
+            if (value) {
+              const intVal = parseInt(value);
+              transaction.luvtlido = isNaN(intVal) ? null : intVal;
+            }
+            break;
+            
+          // Numeric fields
+          case 'idmaeedo':
+          case 'tamodo':
+          case 'caprad':
+          case 'caprex':
+          case 'vanedo':
+          case 'vaivdo':
+          case 'vabrdo':
+          case 'udtrpr':
+          case 'rludpr':
+          case 'caprco1':
+          case 'caprad1':
+          case 'caprex1':
+          case 'caprnc1':
+          case 'caprco2':
+          case 'caprad2':
+          case 'caprex2':
+          case 'caprnc2':
+          case 'ppprne':
+          case 'ppprbr':
+          case 'vaneli':
+          case 'vabrli':
+          case 'ppprpm':
+          case 'ppprpmifrs':
+          case 'logistica':
+          case 'ppprnere1':
+          case 'ppprnere2':
+          case 'idmaeddo':
+          case 'recaprre':
+          case 'monto':
+          case 'devol1':
+          case 'devol2':
+          case 'stockfis':
+          case 'liscosmod':
+            if (value) transaction[cleanHeader] = parseNumber(value);
+            break;
+        }
+      });
+      
+      // Only add transaction if it has required fields
+      if (transaction.nudo || transaction.feemdo || transaction.idmaeedo) {
+        transactions.push(transaction);
+      } else if (i < 5) {
+        console.warn(`❌ Row ${i + 1} without required fields:`, transaction);
+      }
+    }
+    
+    console.log(`✅ Processed ${transactions.length} valid transactions from CSV`);
+    return transactions;
+  }
+
   // Public product routes (for shop)
   app.get('/api/public/products', async (req: any, res) => {
     try {
