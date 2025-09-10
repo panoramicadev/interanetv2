@@ -21,11 +21,13 @@ interface SalesMetrics {
 interface KPICardsProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
+  segment?: string;
+  salesperson?: string;
 }
 
-export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) {
+export default function KPICards({ selectedPeriod, filterType, segment, salesperson }: KPICardsProps) {
   const { data: metrics, isLoading } = useQuery<SalesMetrics>({
-    queryKey: [`/api/sales/metrics?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const formatCurrency = (amount: number) => {

@@ -46,10 +46,11 @@ interface TopSalesperson {
 interface TransactionsTableProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
-  salespersonFilter?: string;
+  segment?: string;
+  salesperson?: string;
 }
 
-export default function TransactionsTable({ selectedPeriod, filterType, salespersonFilter }: TransactionsTableProps) {
+export default function TransactionsTable({ selectedPeriod, filterType, segment, salesperson }: TransactionsTableProps) {
   const [limit] = useState(10);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -135,7 +136,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, salesper
   };
 
   const { data: allTransactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/sales/transactions?limit=100&period=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
+    queryKey: [`/api/sales/transactions?limit=100&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const filteredTransactions = allTransactions ? getTimeFilteredTransactions(allTransactions) : [];

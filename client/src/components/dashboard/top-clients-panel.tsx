@@ -11,11 +11,13 @@ interface TopClient {
 interface TopClientsPanelProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
+  segment?: string;
+  salesperson?: string;
 }
 
-export default function TopClientsPanel({ selectedPeriod, filterType }: TopClientsPanelProps) {
+export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson }: TopClientsPanelProps) {
   const { data: topClients, isLoading } = useQuery<TopClient[]>({
-    queryKey: [`/api/sales/top-clients?limit=8&period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/top-clients?limit=8&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const formatCurrency = (amount: number) => {

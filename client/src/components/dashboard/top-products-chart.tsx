@@ -10,12 +10,13 @@ interface TopProduct {
 interface TopProductsChartProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
-  salespersonFilter?: string;
+  segment?: string;
+  salesperson?: string;
 }
 
-export default function TopProductsChart({ selectedPeriod, filterType, salespersonFilter }: TopProductsChartProps) {
+export default function TopProductsChart({ selectedPeriod, filterType, segment, salesperson }: TopProductsChartProps) {
   const { data: topProducts, isLoading } = useQuery<TopProduct[]>({
-    queryKey: [`/api/sales/top-products?limit=5&period=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
+    queryKey: [`/api/sales/top-products?limit=5&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const formatCurrency = (value: number) => {
