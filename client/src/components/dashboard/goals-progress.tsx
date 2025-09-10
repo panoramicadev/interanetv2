@@ -22,10 +22,10 @@ export interface GoalProgress {
 
 interface GoalsProgressProps {
   globalFilter: {
-    type: "all" | "segment" | "salesperson" | "client" | "supplier";
+    type: "all" | "segment" | "salesperson";
     value?: string;
   };
-  onFilterChange: (filter: { type: "all" | "segment" | "salesperson" | "client" | "supplier"; value?: string }) => void;
+  onFilterChange: (filter: { type: "all" | "segment" | "salesperson"; value?: string }) => void;
   selectedPeriod: string; // Required period for filtering goals
   goalsData?: GoalProgress[]; // Accept external goals data
   isLoading?: boolean; // Accept loading state
@@ -34,7 +34,7 @@ interface GoalsProgressProps {
 export default function GoalsProgress({ globalFilter, onFilterChange, selectedPeriod, goalsData, isLoading: externalLoading }: GoalsProgressProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   
-  // Fetch segments, salespeople, clients and suppliers for the filter dropdown (only if no external data provided)
+  // Fetch segments and salespeople for the filter dropdown (only if no external data provided)
   const { data: segments } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
     enabled: !goalsData, // Only fetch if no external data
@@ -42,16 +42,6 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
 
   const { data: salespeople } = useQuery<string[]>({
     queryKey: ["/api/goals/data/salespeople"],
-    enabled: !goalsData, // Only fetch if no external data
-  });
-
-  const { data: clients } = useQuery<string[]>({
-    queryKey: ["/api/goals/data/clients"],
-    enabled: !goalsData, // Only fetch if no external data
-  });
-
-  const { data: suppliers } = useQuery<string[]>({
-    queryKey: ["/api/goals/data/suppliers"],
     enabled: !goalsData, // Only fetch if no external data
   });
   
@@ -384,38 +374,23 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
                   <span>Por vendedor</span>
                 </div>
               </SelectItem>
-              <SelectItem value="client" className="hover:bg-muted/50">
-                <div className="flex items-center space-x-2">
-                  <Users className="h-4 w-4 text-indigo-500" />
-                  <span>Por cliente</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="supplier" className="hover:bg-muted/50">
-                <div className="flex items-center space-x-2">
-                  <Building className="h-4 w-4 text-orange-500" />
-                  <span>Por proveedor</span>
-                </div>
-              </SelectItem>
             </SelectContent>
           </Select>
           
-          {/* Secondary selector for specific segment/salesperson/client/supplier */}
-          {(selectedFilter === "segment" || selectedFilter === "salesperson" || selectedFilter === "client" || selectedFilter === "supplier") && (
+          {/* Secondary selector for specific segment/salesperson */}
+          {(selectedFilter === "segment" || selectedFilter === "salesperson") && (
             <Select 
               value={globalFilter.value || ""} 
               onValueChange={(value) => {
                 onFilterChange({ 
-                  type: selectedFilter as "segment" | "salesperson" | "client" | "supplier", 
+                  type: selectedFilter as "segment" | "salesperson", 
                   value 
                 });
               }}
             >
               <SelectTrigger className="w-full sm:w-56 bg-card border border-border/50 shadow-sm text-sm">
                 <SelectValue placeholder={
-                  selectedFilter === "segment" ? "Selecciona segmento" : 
-                  selectedFilter === "salesperson" ? "Selecciona vendedor" :
-                  selectedFilter === "client" ? "Selecciona cliente" :
-                  "Selecciona proveedor"
+                  selectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"
                 } />
               </SelectTrigger>
               <SelectContent className="border border-border/50 shadow-lg max-h-60 overflow-y-auto">
@@ -425,22 +400,10 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
                       {segment}
                     </SelectItem>
                   ))
-                ) : selectedFilter === "salesperson" ? (
+                ) : (
                   salespeople?.map((salesperson) => (
                     <SelectItem key={salesperson} value={salesperson} className="hover:bg-muted/50">
                       {salesperson}
-                    </SelectItem>
-                  ))
-                ) : selectedFilter === "client" ? (
-                  clients?.map((client) => (
-                    <SelectItem key={client} value={client} className="hover:bg-muted/50">
-                      {client}
-                    </SelectItem>
-                  ))
-                ) : (
-                  suppliers?.map((supplier) => (
-                    <SelectItem key={supplier} value={supplier} className="hover:bg-muted/50">
-                      {supplier}
                     </SelectItem>
                   ))
                 )}

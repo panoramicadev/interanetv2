@@ -102,11 +102,12 @@ export interface IStorage {
   updateGoal(id: string, goal: Partial<InsertGoal>): Promise<Goal>;
   deleteGoal(id: string): Promise<void>;
   
-  // Data for goals form
+  // Data for goals form and filtering
   getUniqueSegments(): Promise<string[]>;
   getUniqueSalespeople(): Promise<string[]>;
   getUniqueClients(): Promise<string[]>;
   getUniqueSuppliers(): Promise<string[]>;
+  getUniqueBusinessTypes(): Promise<string[]>;
   
   // Client categorization for salespeople
   getSalespersonClientsAnalysis(salesperson: string): Promise<{
@@ -280,6 +281,10 @@ export interface IStorage {
   // Client operations
   getClients(filters?: {
     search?: string;
+    segment?: string;
+    salesperson?: string;
+    creditStatus?: string;
+    businessType?: string;
     limit?: number;
     offset?: number;
   }): Promise<Array<Client & {
@@ -1176,6 +1181,16 @@ export class DatabaseStorage implements IStorage {
     // For now, return empty array since we don't have supplier data in the schema
     // When suppliers are implemented, replace this with actual query
     return [];
+  }
+
+  async getUniqueBusinessTypes(): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ gien: clients.gien })
+      .from(clients)
+      .where(sql`${clients.gien} IS NOT NULL AND ${clients.gien} != ''`)
+      .orderBy(clients.gien);
+    
+    return result.map(row => row.gien).filter(Boolean) as string[];
   }
 
   // Sales data for goals comparison
@@ -3353,6 +3368,10 @@ export class DatabaseStorage implements IStorage {
   // Client operations implementation
   async getClients(filters?: {
     search?: string;
+    segment?: string;
+    salesperson?: string;
+    creditStatus?: string;
+    businessType?: string;
     limit?: number;
     offset?: number;
   }): Promise<Array<Client & {
@@ -3368,11 +3387,67 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
+    if (filters?.segment) {
+      conditions.push(eq(clients.noruen, filters.segment));
+    }
+
+    if (filters?.businessType) {
+      conditions.push(sql`${clients.gien} ILIKE ${`%${filters.businessType}%`}`);
+    }
+
+    if (filters?.creditStatus) {
+      // Map credit status strings to actual credit logic
+      switch (filters.creditStatus) {
+        case 'excellent':
+          conditions.push(sql`${clients.cren} > ${clients.crlt} * 0.8`);
+          break;
+        case 'good':
+          conditions.push(sql`${clients.cren} BETWEEN ${clients.crlt} * 0.5 AND ${clients.crlt} * 0.8`);
+          break;
+        case 'limited':
+          conditions.push(sql`${clients.cren} BETWEEN ${clients.crlt} * 0.1 AND ${clients.crlt} * 0.5`);
+          break;
+        case 'blocked':
+          conditions.push(sql`${clients.cren} >= ${clients.crlt} OR ${clients.crsd} = 'S'`);
+          break;
+      }
+    }
+
     // First get all clients with basic info
-    const clientsData = await db
-      .select()
-      .from(clients)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+    let query = db.select().from(clients);
+
+    // If filtering by salesperson, we need to join with sales transactions
+    if (filters?.salesperson) {
+      query = db
+        .selectDistinct({
+          id: clients.id,
+          koen: clients.koen,
+          nokoen: clients.nokoen,
+          rten: clients.rten,
+          dien: clients.dien,
+          gien: clients.gien,
+          cien: clients.cien,
+          foen: clients.foen,
+          emalmc: clients.emalmc,
+          cren: clients.cren,
+          crlt: clients.crlt,
+          crsd: clients.crsd,
+          noruen: clients.noruen,
+          createdAt: clients.createdAt,
+          updatedAt: clients.updatedAt
+        })
+        .from(clients)
+        .innerJoin(salesTransactions, eq(clients.nokoen, salesTransactions.nokoen))
+        .where(
+          conditions.length > 0 
+            ? and(...conditions, eq(salesTransactions.nokofu, filters.salesperson))
+            : eq(salesTransactions.nokofu, filters.salesperson)
+        );
+    } else {
+      query = query.where(conditions.length > 0 ? and(...conditions) : undefined);
+    }
+
+    const clientsData = await query
       .orderBy(desc(clients.updatedAt))
       .limit(filters?.limit || 50)
       .offset(filters?.offset || 0);

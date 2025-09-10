@@ -33,9 +33,9 @@ export default function Dashboard() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   
-  // Global filter state for goals/segments/salespeople/clients/suppliers
+  // Global filter state for goals/segments/salespeople
   const [globalFilter, setGlobalFilter] = useState<{
-    type: "all" | "segment" | "salesperson" | "client" | "supplier";
+    type: "all" | "segment" | "salesperson";
     value?: string;
   }>({ type: "all" });
 
@@ -261,8 +261,6 @@ export default function Dashboard() {
               filterType={filterType}
               segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
               salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-              client={globalFilter.type === "client" ? globalFilter.value : undefined}
-              supplier={globalFilter.type === "supplier" ? globalFilter.value : undefined}
             />
           </div>
           
@@ -285,8 +283,6 @@ export default function Dashboard() {
                 filterType={filterType}
                 segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                 salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                client={globalFilter.type === "client" ? globalFilter.value : undefined}
-                supplier={globalFilter.type === "supplier" ? globalFilter.value : undefined}
               />
             </div>
           )}
