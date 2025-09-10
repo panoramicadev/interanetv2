@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useLocation } from "wouter";
 import {
@@ -11,38 +10,62 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Upload, X, Download } from "lucide-react";
+import { Upload, X, Download, AlertTriangle, Calendar, Database, FileText } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+interface PreviewData {
+  totalTransactions: number;
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  monthsAffected: string[];
+  existingTransactions: number;
+  wouldDelete: number;
+  wouldInsert: number;
+}
+
 export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
-  const importMutation = useMutation({
-    mutationFn: async (csvData: any[]) => {
-      await apiRequest("POST", "/api/sales/import", { transactions: csvData });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Éxito",
-        description: "Datos importados correctamente",
+  // Preview mutation - analyzes CSV without importing
+  const previewMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/sales/preview', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
       });
-      onOpenChange(false);
-      setSelectedFile(null);
-      // Invalidate all sales queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to preview CSV');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setPreviewData(data.preview);
+      setShowPreview(true);
     },
     onError: (error) => {
-      if (isUnauthorizedError(error)) {
+      if (error.message.includes('401')) {
         toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
+          title: "No autorizado",
+          description: "Tu sesión ha expirado. Iniciando sesión...",
           variant: "destructive",
         });
         setTimeout(() => {
@@ -51,291 +74,80 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
         return;
       }
       toast({
-        title: "Error",
-        description: "Error al importar los datos",
+        title: "Error de análisis",
+        description: error instanceof Error ? error.message : "Error al analizar el archivo CSV",
         variant: "destructive",
       });
     },
   });
 
-  const detectSeparator = (csvText: string): string => {
-    // Analyze the first line to detect separator
-    const firstLine = csvText.split('\n')[0];
-    const commaCount = (firstLine.match(/,/g) || []).length;
-    const semicolonCount = (firstLine.match(/;/g) || []).length;
-    
-    const separator = semicolonCount > commaCount ? ';' : ',';
-    console.log(`🔍 Separador detectado: "${separator}" (comas: ${commaCount}, punto y coma: ${semicolonCount})`);
-    return separator;
-  };
-
-  const parseCSVLine = (line: string, separator: string = ','): string[] => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
+  // Replace import mutation - performs atomic delete + insert
+  const replaceMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('confirmed', 'true');
       
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === separator && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    
-    result.push(current.trim());
-    return result;
-  };
-
-  const parseNumber = (value: string): string | null => {
-    if (!value || value.trim() === '') return null;
-    
-    // Handle different number formats
-    // Spanish: 1.234,56 (dot for thousands, comma for decimals)
-    // English: 1,234.56 (comma for thousands, dot for decimals)
-    let cleanValue = value.toString();
-    
-    // If it contains both dot and comma, assume Spanish format
-    if (cleanValue.includes('.') && cleanValue.includes(',')) {
-      // Spanish format: remove dots (thousands) and replace comma with dot (decimal)
-      cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
-    } 
-    // If it only contains comma, could be decimal separator
-    else if (cleanValue.includes(',') && !cleanValue.includes('.')) {
-      // Check if comma is likely decimal separator (2 digits after comma)
-      const parts = cleanValue.split(',');
-      if (parts.length === 2 && parts[1].length <= 3) {
-        cleanValue = cleanValue.replace(',', '.');
-      }
-    }
-    
-    const parsed = parseFloat(cleanValue);
-    return isNaN(parsed) ? null : cleanValue;
-  };
-
-  // Universal function to clean values from CSV (remove quotes, trim whitespace)
-  const cleanValue = (value: string): string => {
-    if (!value) return '';
-    return value.toString().replace(/^"|"$/g, '').trim();
-  };
-
-  const parseDate = (value: string): string | null => {
-    if (!value || value.trim() === '') return null;
-    try {
-      // Try multiple date formats
-      let parts: string[];
+      const response = await fetch('/api/sales/import-replace', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
       
-      // Format DD-MM-YYYY or DD/MM/YYYY
-      if (value.includes('-')) {
-        parts = value.split('-');
-      } else if (value.includes('/')) {
-        parts = value.split('/');
-      } else {
-        return null;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to import CSV');
       }
       
-      if (parts.length === 3) {
-        const day = parseInt(parts[0]);
-        const month = parseInt(parts[1]);
-        const year = parseInt(parts[2]);
-        
-        if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900) {
-          // Convert to YYYY-MM-DD format for database
-          const formattedMonth = month.toString().padStart(2, '0');
-          const formattedDay = day.toString().padStart(2, '0');
-          return `${year}-${formattedMonth}-${formattedDay}`;
-        }
-      }
-    } catch (e) {
-      console.warn('Invalid date format:', value);
-    }
-    return null;
-  };
-
-  const parseCSV = (csvText: string) => {
-    const lines = csvText.split('\n').filter(line => line.trim());
-    if (lines.length < 2) {
-      throw new Error('CSV debe tener al menos una fila de encabezados y una fila de datos');
-    }
-
-    // Auto-detect separator
-    const separator = detectSeparator(csvText);
-    
-    const headers = parseCSVLine(lines[0], separator);
-    console.log('🔍 Headers detectados:', headers);
-    console.log('🔍 Total filas de datos:', lines.length - 1);
-    
-    const transactions = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i], separator);
-      if (values.length === headers.length) {
-        const transaction: any = {};
-        
-        headers.forEach((header, index) => {
-          const rawValue = values[index];
-          const value = cleanValue(rawValue); // Clean quotes and whitespace
-          const cleanHeader = header.toLowerCase().trim().replace(/\s+/g, '');
-          
-          // Debug logging for first few rows
-          if (i <= 3) {
-            console.log(`📋 Fila ${i} - Header: "${header}" -> Clean: "${cleanHeader}" -> Value: "${value}"`);
-            // Extra TIDO debug
-            if (cleanHeader === 'tido' || header.toUpperCase() === 'TIDO') {
-              console.log(`🎯 TIDO FOUND! Header: "${header}" -> Clean: "${cleanHeader}" -> Value: "${value}"`);
-            }
-          }
-          
-          // Map CSV headers to database fields - EXACT type conversion per schema
-          switch (cleanHeader) {
-            // Required string fields - always process
-            case 'nudo':
-              if (value) {
-                transaction.nudo = value;
-              }
-              break;
-            
-            // Required date fields  
-            case 'feemdo':
-              if (value) {
-                transaction.feemdo = parseDate(value);
-              }
-              break;
-              
-            // TIDO - CRITICAL: Always process, even if empty, for NCV logic
-            case 'tido':
-              transaction.tido = value || '';
-              if (i <= 3) {
-                console.log(`🔥 TIDO DEBUG - Raw: "${rawValue}" -> Cleaned: "${value}" -> Final: "${transaction.tido}"`);
-              }
-              break;
-              
-            // Optional string fields (varchar/text)
-            case 'koprct':
-            case 'nokoen':
-            case 'noruen':
-            case 'nokoprct':
-            case 'nokofu':
-            case 'endo':
-            case 'suendo':
-            case 'sudo':
-            case 'kofudo':
-            case 'modo':
-            case 'timodo':
-            case 'lilg':
-            case 'nulido':
-            case 'sulido':
-            case 'bosulido':
-            case 'kofulido':
-            case 'prct':
-            case 'tict':
-            case 'tipr':
-            case 'nusepr':
-            case 'ud01pr':
-            case 'ud02pr':
-            case 'eslido':
-            case 'fmpr':
-            case 'mrpr':
-            case 'zona':
-            case 'ruen':
-            case 'pfpr':
-            case 'hfpr':
-            case 'ocdo':
-            case 'nofmpr':
-            case 'nopfpr':
-            case 'nohfpr':
-            case 'listacost':
-            case 'nokozo': // Zone name
-            case 'nosudo': // Document branch name  
-            case 'nokofudo': // Document employee name
-            case 'nobosuli': // Warehouse branch name
-            case 'nomrpr': // Name field
-              if (value) {
-                transaction[cleanHeader] = value;
-              }
-              break;
-                
-            // Optional date fields
-            case 'feulvedo':
-            case 'feemli':
-            case 'feerli':
-              if (value) {
-                transaction[cleanHeader] = parseDate(value);
-              }
-              break;
-                
-            // Integer field
-            case 'luvtlido':
-              if (value) {
-                const intVal = parseInt(value);
-                transaction.luvtlido = isNaN(intVal) ? null : intVal;
-              }
-              break;
-                
-            // Numeric fields (all others)
-            case 'idmaeedo':
-            case 'tamodo':
-            case 'caprad':
-            case 'caprex':
-            case 'vanedo':
-            case 'vaivdo':
-            case 'vabrdo':
-            case 'udtrpr':
-            case 'rludpr':
-            case 'caprco1':
-            case 'caprad1':
-            case 'caprex1':
-            case 'caprnc1':
-            case 'caprco2':
-            case 'caprad2':
-            case 'caprex2':
-            case 'caprnc2':
-            case 'ppprne':
-            case 'ppprbr':
-            case 'vaneli':
-            case 'vabrli':
-            case 'ppprpm':
-            case 'ppprpmifrs':
-            case 'logistica':
-            case 'ppprnere1':
-            case 'ppprnere2':
-            case 'idmaeddo':
-            case 'recaprre':
-            case 'monto':
-            case 'devol1':
-            case 'devol2':
-            case 'stockfis':
-            case 'liscosmod':
-              if (value) {
-                transaction[cleanHeader] = parseNumber(value);
-              }
-              break;
-              
-            default:
-              // Skip unknown fields
-              break;
-          }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "¡Importación exitosa!",
+        description: `Se eliminaron ${data.deleted} registros y se importaron ${data.inserted} nuevos`,
+      });
+      onOpenChange(false);
+      resetState();
+      // Invalidate all sales queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["/api/sales"] });
+    },
+    onError: (error) => {
+      if (error.message.includes('401')) {
+        toast({
+          title: "No autorizado",
+          description: "Tu sesión ha expirado. Iniciando sesión...",
+          variant: "destructive",
         });
-        
-        // Only add transaction if it has required fields
-        if (transaction.nudo || transaction.feemdo || transaction.idmaeedo) {
-          transactions.push(transaction);
-        } else if (i <= 5) {
-          console.warn(`❌ Fila ${i} sin campos requeridos:`, transaction);
-        }
-      } else {
-        console.warn(`⚠️  Fila ${i}: Longitud diferente. Headers: ${headers.length}, Values: ${values.length}`);
-        console.warn('Headers:', headers);
-        console.warn('Values:', values);
+        setTimeout(() => {
+          setLocation("/login");
+        }, 500);
+        return;
       }
-    }
+      toast({
+        title: "Error de importación",
+        description: error instanceof Error ? error.message : "Error al importar los datos",
+        variant: "destructive",
+      });
+    },
+  });
 
-    console.log('✅ Transacciones válidas procesadas:', transactions.length);
-    return transactions;
+  const resetState = () => {
+    setSelectedFile(null);
+    setPreviewData(null);
+    setShowPreview(false);
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('es-CL', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('es-CL').format(num);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -345,7 +157,7 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
     }
   };
 
-  const handleImport = async () => {
+  const handleAnalyze = () => {
     if (!selectedFile) {
       toast({
         title: "Error",
@@ -355,27 +167,17 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
       return;
     }
 
-    try {
-      const csvText = await selectedFile.text();
-      const parsedData = parseCSV(csvText);
-      
-      if (parsedData.length === 0) {
-        toast({
-          title: "Error",
-          description: "El archivo CSV está vacío o no tiene datos válidos",
-          variant: "destructive",
-        });
-        return;
-      }
+    previewMutation.mutate(selectedFile);
+  };
 
-      importMutation.mutate(parsedData);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Error al procesar el archivo CSV",
-        variant: "destructive",
-      });
-    }
+  const handleConfirmImport = () => {
+    if (!selectedFile) return;
+    replaceMutation.mutate(selectedFile);
+  };
+
+  const handleBackToSelection = () => {
+    setShowPreview(false);
+    setPreviewData(null);
   };
 
   const handleDownloadTemplate = () => {
@@ -390,11 +192,16 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      if (!newOpen) {
+        resetState();
+      }
+      onOpenChange(newOpen);
+    }}>
+      <DialogContent className={showPreview ? "sm:max-w-2xl" : "sm:max-w-md"}>
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            Importar Datos CSV
+            {showPreview ? "Confirmar Importación" : "Importar Datos CSV"}
             <Button
               variant="ghost"
               size="icon"
@@ -406,73 +213,155 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4">
-          <div className="flex justify-center">
-            <Button
-              variant="outline"
-              onClick={handleDownloadTemplate}
-              className="flex items-center gap-2"
-              data-testid="button-download-template"
-            >
-              <Download className="w-4 h-4" />
-              Descargar Ejemplo CSV
-            </Button>
-          </div>
-          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-            <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-sm text-muted-foreground mb-2">
-              {selectedFile ? selectedFile.name : "Selecciona tu archivo CSV"}
-            </p>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
-              className="hidden"
-              id="csvFile"
-              data-testid="input-csv-file"
-            />
-            <label htmlFor="csvFile">
-              <Button variant="outline" className="cursor-pointer" asChild>
-                <span>Seleccionar archivo</span>
+        {!showPreview ? (
+          // File Selection Screen
+          <div className="space-y-4">
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                onClick={handleDownloadTemplate}
+                className="flex items-center gap-2"
+                data-testid="button-download-template"
+              >
+                <Download className="w-4 h-4" />
+                Descargar Ejemplo CSV
               </Button>
-            </label>
+            </div>
+            <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+              <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground mb-2">
+                {selectedFile ? selectedFile.name : "Selecciona tu archivo CSV"}
+              </p>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileChange}
+                className="hidden"
+                id="csvFile"
+                data-testid="input-csv-file"
+              />
+              <label htmlFor="csvFile">
+                <Button variant="outline" className="cursor-pointer" asChild>
+                  <span>Seleccionar archivo</span>
+                </Button>
+              </label>
+            </div>
+            
+            <div className="text-xs text-muted-foreground">
+              <p className="font-medium">Formato esperado:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>IDMAEEDO: Identificador de transacción</li>
+                <li>NUDO: Número de transacción</li>
+                <li>FEEMDO: Fecha de emisión</li>
+                <li>TIDO: Tipo de documento (FCV/FVL/NCV)</li>
+                <li>KOPRCT: SKU del producto</li>
+                <li>NOKOEN: Nombre del cliente</li>
+                <li>NORUEN: Segmento</li>
+                <li>NOKOPRCT: Nombre del producto</li>
+                <li>NOKOFU: Vendedor</li>
+                <li>CAPRCO2: Unidades vendidas</li>
+              </ul>
+            </div>
+            
+            <div className="flex space-x-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => onOpenChange(false)}
+                data-testid="button-cancel-import"
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleAnalyze}
+                disabled={!selectedFile || previewMutation.isPending}
+                data-testid="button-analyze-csv"
+              >
+                {previewMutation.isPending ? "Analizando..." : "Analizar"}
+              </Button>
+            </div>
           </div>
-          
-          <div className="text-xs text-muted-foreground">
-            <p className="font-medium">Formato esperado:</p>
-            <ul className="list-disc list-inside mt-1 space-y-1">
-              <li>IDMAEEDO: Identificador de transacción</li>
-              <li>NUDO: Número de transacción</li>
-              <li>FEEMDO: Fecha de emisión</li>
-              <li>TIDO: Tipo de documento (FCV/FVL/NCV)</li>
-              <li>KOPRCT: SKU del producto</li>
-              <li>NOKOEN: Nombre del cliente</li>
-              <li>NORUEN: Segmento</li>
-              <li>NOKOPRCT: Nombre del producto</li>
-              <li>NOKOFU: Vendedor</li>
-              <li>CAPRCO2: Unidades vendidas</li>
-            </ul>
+        ) : (
+          // Preview Confirmation Screen  
+          <div className="space-y-6">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Operación de reemplazo:</strong> Se eliminarán los datos existentes en el rango de fechas detectado y se importarán los nuevos datos.
+              </AlertDescription>
+            </Alert>
+            
+            {previewData && (
+              <div className="grid gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="h-4 w-4 text-blue-500" />
+                      <span className="font-medium">Período detectado</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {formatDate(previewData.dateRange.start)} - {formatDate(previewData.dateRange.end)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Meses: {previewData.monthsAffected.join(', ')}
+                    </p>
+                  </div>
+                  
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="h-4 w-4 text-green-500" />
+                      <span className="font-medium">Nuevos datos</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {formatNumber(previewData.totalTransactions)} transacciones
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="bg-red-50 dark:bg-red-950/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Database className="h-4 w-4 text-red-500" />
+                    <span className="font-medium text-red-700 dark:text-red-300">Datos que serán eliminados</span>
+                  </div>
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {formatNumber(previewData.existingTransactions)} transacciones existentes en el período
+                  </p>
+                </div>
+                
+                <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Upload className="h-4 w-4 text-green-500" />
+                    <span className="font-medium text-green-700 dark:text-green-300">Resultado final</span>
+                  </div>
+                  <p className="text-sm text-green-600 dark:text-green-400">
+                    Se eliminarán {formatNumber(previewData.wouldDelete)} y se insertarán {formatNumber(previewData.wouldInsert)} transacciones
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex space-x-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handleBackToSelection}
+                disabled={replaceMutation.isPending}
+                data-testid="button-back-selection"
+              >
+                Volver
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleConfirmImport}
+                disabled={replaceMutation.isPending}
+                data-testid="button-confirm-import"
+              >
+                {replaceMutation.isPending ? "Importando..." : "Confirmar Importación"}
+              </Button>
+            </div>
           </div>
-          
-          <div className="flex space-x-3">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => onOpenChange(false)}
-              data-testid="button-cancel-import"
-            >
-              Cancelar
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={handleImport}
-              disabled={!selectedFile || importMutation.isPending}
-              data-testid="button-import-csv"
-            >
-              {importMutation.isPending ? "Importando..." : "Importar"}
-            </Button>
-          </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
