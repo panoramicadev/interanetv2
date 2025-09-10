@@ -61,6 +61,8 @@ export default function Clients() {
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("");
   const [selectedCreditStatus, setSelectedCreditStatus] = useState<string>("");
   const [selectedBusinessType, setSelectedBusinessType] = useState<string>("");
+  const [selectedDebtStatus, setSelectedDebtStatus] = useState<string>("");
+  const [selectedEntityType, setSelectedEntityType] = useState<string>("");
   
   const itemsPerPage = 20;
 
@@ -79,7 +81,7 @@ export default function Clients() {
   const queryClient = useQueryClient();
 
   const { data: clients, isLoading, error } = useQuery({
-    queryKey: ['/api/clients', debouncedSearch, currentPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType],
+    queryKey: ['/api/clients', debouncedSearch, currentPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set('search', debouncedSearch);
@@ -87,6 +89,8 @@ export default function Clients() {
       if (selectedSalesperson) params.set('salesperson', selectedSalesperson);
       if (selectedCreditStatus) params.set('creditStatus', selectedCreditStatus);
       if (selectedBusinessType) params.set('businessType', selectedBusinessType);
+      if (selectedDebtStatus) params.set('debtStatus', selectedDebtStatus);
+      if (selectedEntityType) params.set('entityType', selectedEntityType);
       params.set('limit', itemsPerPage.toString());
       params.set('offset', ((currentPage - 1) * itemsPerPage).toString());
       
@@ -112,6 +116,11 @@ export default function Clients() {
     staleTime: 10 * 60 * 1000, // Cache for 10 minutes since business types don't change often
   });
 
+  const { data: entityTypes } = useQuery<string[]>({
+    queryKey: ['/api/clients/entity-types'],
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes since entity types don't change often
+  });
+
   const handleSearch = useCallback((value: string) => {
     setSearch(value);
   }, []);
@@ -126,10 +135,12 @@ export default function Clients() {
     setSelectedSalesperson("");
     setSelectedCreditStatus("");
     setSelectedBusinessType("");
+    setSelectedDebtStatus("");
+    setSelectedEntityType("");
     setCurrentPage(1);
   }, []);
 
-  const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType;
+  const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType || selectedDebtStatus || selectedEntityType;
 
   // Preview mutation
   const previewMutation = useMutation({
@@ -533,6 +544,37 @@ export default function Clients() {
               </SelectContent>
             </Select>
 
+            <Select value={selectedDebtStatus} onValueChange={(value) => {
+              setSelectedDebtStatus(value === "all" ? "" : value);
+              setCurrentPage(1);
+            }} data-testid="select-debt-status-filter">
+              <SelectTrigger className="w-48" data-testid="select-debt-status">
+                <SelectValue placeholder="Estado de deuda" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="con_deuda">Con Deuda</SelectItem>
+                <SelectItem value="sin_deuda">Sin Deuda</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedEntityType} onValueChange={(value) => {
+              setSelectedEntityType(value === "all" ? "" : value);
+              setCurrentPage(1);
+            }} data-testid="select-entity-type-filter">
+              <SelectTrigger className="w-48" data-testid="select-entity-type">
+                <SelectValue placeholder="Tipo de entidad" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tipos</SelectItem>
+                {entityTypes?.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             {hasActiveFilters && (
               <Button
                 variant="outline"
@@ -553,7 +595,9 @@ export default function Clients() {
                 selectedSegment && `Segmento: ${selectedSegment}`,
                 selectedSalesperson && `Vendedor: ${selectedSalesperson}`,
                 selectedCreditStatus && `Crédito: ${selectedCreditStatus}`,
-                selectedBusinessType && `Negocio: ${selectedBusinessType}`
+                selectedBusinessType && `Negocio: ${selectedBusinessType}`,
+                selectedDebtStatus && `Deuda: ${selectedDebtStatus === 'con_deuda' ? 'Con Deuda' : 'Sin Deuda'}`,
+                selectedEntityType && `Entidad: ${selectedEntityType}`
               ].filter(Boolean).join(" • ")}
             </div>
           )}
