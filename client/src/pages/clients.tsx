@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye } from "lucide-react";
+import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 
 interface Client {
   id: string;
@@ -50,6 +52,8 @@ export default function Clients() {
   const [previewData, setPreviewData] = useState<any>(null);
   const [importProgress, setImportProgress] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const itemsPerPage = 20;
 
   // Debounce search input - wait 600ms after user stops typing
@@ -84,6 +88,11 @@ export default function Clients() {
 
   const handleSearch = useCallback((value: string) => {
     setSearch(value);
+  }, []);
+
+  const openClientDetails = useCallback((client: Client) => {
+    setSelectedClient(client);
+    setIsClientModalOpen(true);
   }, []);
 
   // Preview mutation
@@ -518,6 +527,7 @@ export default function Clients() {
                           variant="ghost" 
                           size="sm" 
                           className="h-8 w-8 p-0"
+                          onClick={() => openClientDetails(client)}
                           data-testid={`button-view-client-${client.id}`}
                         >
                           <Eye className="h-4 w-4" />
@@ -572,6 +582,179 @@ export default function Clients() {
           </Button>
         </div>
       )}
+
+      {/* Client Details Modal */}
+      <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <User className="h-5 w-5 text-primary" />
+              <span>Detalles del Cliente</span>
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedClient && (
+            <div className="space-y-6">
+              {/* Basic Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Building2 className="h-4 w-4" />
+                      <span>Información Básica</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Nombre del Cliente</label>
+                      <p className="text-lg font-semibold">{selectedClient.nokoen}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Código Cliente</label>
+                      <p className="font-medium">{selectedClient.koen || "N/A"}</p>
+                    </div>
+                    {selectedClient.rten && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">RUT</label>
+                        <p className="font-medium">{selectedClient.rten}</p>
+                      </div>
+                    )}
+                    {selectedClient.gien && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Tipo de Negocio</label>
+                        <p className="font-medium">{selectedClient.gien}</p>
+                      </div>
+                    )}
+                    {selectedClient.sien && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Sector Industrial</label>
+                        <p className="font-medium">{selectedClient.sien}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Phone className="h-4 w-4" />
+                      <span>Información de Contacto</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {selectedClient.email && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Email</label>
+                        <p className="font-medium flex items-center">
+                          <Mail className="h-4 w-4 mr-2 text-gray-400" />
+                          {selectedClient.email}
+                        </p>
+                      </div>
+                    )}
+                    {selectedClient.foen && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Teléfono</label>
+                        <p className="font-medium flex items-center">
+                          <Phone className="h-4 w-4 mr-2 text-gray-400" />
+                          {selectedClient.foen}
+                        </p>
+                      </div>
+                    )}
+                    {selectedClient.dien && (
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Dirección</label>
+                        <p className="font-medium flex items-start">
+                          <MapPin className="h-4 w-4 mr-2 text-gray-400 mt-0.5" />
+                          <span>{selectedClient.dien}</span>
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Separator />
+
+              {/* Credit Information */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <CreditCard className="h-4 w-4" />
+                    <span>Información de Crédito</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600">
+                        {formatCurrency(selectedClient.crlt)}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Límite de Crédito</div>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {formatCurrency(selectedClient.cren)}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Crédito Disponible</div>
+                    </div>
+                    {selectedClient.crsd && parseFloat(selectedClient.crsd) > 0 && (
+                      <div className="text-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                        <div className="text-2xl font-bold text-red-600">
+                          {formatCurrency(selectedClient.crsd)}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Deuda Pendiente</div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-4 flex justify-center">
+                    <Badge className={`${getCreditStatus(selectedClient.cren, selectedClient.crlt, selectedClient.crsd).color} text-white`}>
+                      {getCreditStatus(selectedClient.cren, selectedClient.crlt, selectedClient.crsd).text}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Separator />
+
+              {/* Sales Statistics */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>Estadísticas de Ventas</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-indigo-600">
+                        {formatCurrency(selectedClient.totalSales || 0)}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Total en Ventas</div>
+                    </div>
+                    <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {selectedClient.totalTransactions || 0}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Total Transacciones</div>
+                    </div>
+                    {selectedClient.lastTransactionDate && (
+                      <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                        <div className="text-lg font-bold text-orange-600 flex items-center justify-center">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          {formatDate(selectedClient.lastTransactionDate)}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Última Compra</div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
