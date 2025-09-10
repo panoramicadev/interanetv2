@@ -8,7 +8,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import React from "react";
 import { Link } from "wouter";
@@ -55,7 +54,6 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
-  const [showMore, setShowMore] = useState(false);
 
   const handleTransactionClick = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
@@ -107,9 +105,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
   });
 
   const allGroupedSales = allTransactions ? groupTransactionsByNudo(allTransactions) : [];
-  const displayLimit = showMore ? 50 : limit;
-  const groupedSales = allGroupedSales.slice(0, displayLimit);
-  const hasMoreSales = allGroupedSales.length > limit;
+  const groupedSales = allGroupedSales.slice(0, limit);
 
   // Removed artificial salesperson assignment - now using real data from transactions
 
