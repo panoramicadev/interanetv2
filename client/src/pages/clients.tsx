@@ -471,8 +471,8 @@ export default function Clients() {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex items-center gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:flex lg:flex-wrap gap-2 sm:gap-3 items-start lg:items-center">
+            <div className="flex items-center gap-2 col-span-full lg:col-span-1">
               <Filter className="h-4 w-4 text-gray-500" />
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtros:</span>
             </div>
@@ -481,7 +481,7 @@ export default function Clients() {
               setSelectedSegment(value === "all" ? "" : value);
               setCurrentPage(1);
             }} data-testid="select-segment-filter">
-              <SelectTrigger className="w-48" data-testid="select-segment">
+              <SelectTrigger className="w-full sm:w-48" data-testid="select-segment">
                 <SelectValue placeholder="Todos los segmentos" />
               </SelectTrigger>
               <SelectContent>
@@ -498,7 +498,7 @@ export default function Clients() {
               setSelectedSalesperson(value === "all" ? "" : value);
               setCurrentPage(1);
             }} data-testid="select-salesperson-filter">
-              <SelectTrigger className="w-48" data-testid="select-salesperson">
+              <SelectTrigger className="w-full sm:w-48" data-testid="select-salesperson">
                 <SelectValue placeholder="Todos los vendedores" />
               </SelectTrigger>
               <SelectContent>
@@ -515,7 +515,7 @@ export default function Clients() {
               setSelectedCreditStatus(value === "all" ? "" : value);
               setCurrentPage(1);
             }} data-testid="select-credit-status-filter">
-              <SelectTrigger className="w-48" data-testid="select-credit-status">
+              <SelectTrigger className="w-full sm:w-48" data-testid="select-credit-status">
                 <SelectValue placeholder="Estado de crédito" />
               </SelectTrigger>
               <SelectContent>
@@ -531,7 +531,7 @@ export default function Clients() {
               setSelectedBusinessType(value === "all" ? "" : value);
               setCurrentPage(1);
             }} data-testid="select-business-type-filter">
-              <SelectTrigger className="w-48" data-testid="select-business-type">
+              <SelectTrigger className="w-full sm:w-48" data-testid="select-business-type">
                 <SelectValue placeholder="Tipo de negocio" />
               </SelectTrigger>
               <SelectContent>
@@ -548,7 +548,7 @@ export default function Clients() {
               setSelectedDebtStatus(value === "all" ? "" : value);
               setCurrentPage(1);
             }} data-testid="select-debt-status-filter">
-              <SelectTrigger className="w-48" data-testid="select-debt-status">
+              <SelectTrigger className="w-full sm:w-48" data-testid="select-debt-status">
                 <SelectValue placeholder="Estado de deuda" />
               </SelectTrigger>
               <SelectContent>
@@ -562,7 +562,7 @@ export default function Clients() {
               setSelectedEntityType(value === "all" ? "" : value);
               setCurrentPage(1);
             }} data-testid="select-entity-type-filter">
-              <SelectTrigger className="w-48" data-testid="select-entity-type">
+              <SelectTrigger className="w-full sm:w-48" data-testid="select-entity-type">
                 <SelectValue placeholder="Tipo de entidad" />
               </SelectTrigger>
               <SelectContent>
@@ -590,15 +590,23 @@ export default function Clients() {
           </div>
 
           {hasActiveFilters && (
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              Filtros activos: {[
-                selectedSegment && `Segmento: ${selectedSegment}`,
-                selectedSalesperson && `Vendedor: ${selectedSalesperson}`,
-                selectedCreditStatus && `Crédito: ${selectedCreditStatus}`,
-                selectedBusinessType && `Negocio: ${selectedBusinessType}`,
-                selectedDebtStatus && `Deuda: ${selectedDebtStatus === 'con_deuda' ? 'Con Deuda' : 'Sin Deuda'}`,
-                selectedEntityType && `Entidad: ${selectedEntityType}`
-              ].filter(Boolean).join(" • ")}
+            <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+              <div className="font-medium mb-2">Filtros activos:</div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ...(selectedSegment ? [{ label: 'Segmento', value: selectedSegment }] : []),
+                  ...(selectedSalesperson ? [{ label: 'Vendedor', value: selectedSalesperson }] : []),
+                  ...(selectedCreditStatus ? [{ label: 'Crédito', value: selectedCreditStatus }] : []),
+                  ...(selectedBusinessType ? [{ label: 'Negocio', value: selectedBusinessType }] : []),
+                  ...(selectedDebtStatus ? [{ label: 'Deuda', value: selectedDebtStatus === 'con_deuda' ? 'Con Deuda' : 'Sin Deuda' }] : []),
+                  ...(selectedEntityType ? [{ label: 'Entidad', value: selectedEntityType }] : [])
+                ].map((filter, index) => (
+                  <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                    <span className="font-medium">{filter.label}:</span>
+                    <span className="ml-1">{filter.value}</span>
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
@@ -607,15 +615,15 @@ export default function Clients() {
       {/* Clients List */}
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            <Table className="min-w-full">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-semibold">Cliente</TableHead>
-                  <TableHead className="font-semibold">RUT</TableHead>
-                  <TableHead className="font-semibold">Contacto</TableHead>
-                  <TableHead className="font-semibold">Crédito</TableHead>
-                  <TableHead className="font-semibold">Ventas</TableHead>
+                  <TableHead className="font-semibold min-w-[200px] sm:min-w-0">Cliente</TableHead>
+                  <TableHead className="font-semibold hidden sm:table-cell">RUT</TableHead>
+                  <TableHead className="font-semibold hidden md:table-cell">Contacto</TableHead>
+                  <TableHead className="font-semibold min-w-[120px] sm:min-w-0">Crédito</TableHead>
+                  <TableHead className="font-semibold min-w-[100px] sm:min-w-0">Ventas</TableHead>
                   <TableHead className="font-semibold">Estado</TableHead>
                   <TableHead className="font-semibold w-20">Acción</TableHead>
                 </TableRow>
@@ -626,13 +634,16 @@ export default function Clients() {
                   
                   return (
                     <TableRow key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50" data-testid={`row-client-${client.id}`}>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium min-w-[200px] sm:min-w-0">
                         <div>
                           <div className="font-semibold text-gray-900 dark:text-white">
                             {client.nokoen}
                           </div>
                           <div className="text-sm text-gray-500">
                             Código: {client.koen || "N/A"}
+                          </div>
+                          <div className="text-xs text-gray-400 sm:hidden mt-1">
+                            RUT: {client.rten || "N/A"}
                           </div>
                           {client.gien && (
                             <div className="text-xs text-gray-400 mt-1">
@@ -642,13 +653,13 @@ export default function Clients() {
                         </div>
                       </TableCell>
                       
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <div className="text-sm">
                           {client.rten || "N/A"}
                         </div>
                       </TableCell>
                       
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <div className="space-y-1">
                           {client.email && (
                             <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
@@ -665,16 +676,16 @@ export default function Clients() {
                         </div>
                       </TableCell>
                       
-                      <TableCell>
-                        <div className="space-y-1 text-sm">
+                      <TableCell className="min-w-[120px] sm:min-w-0">
+                        <div className="space-y-1 text-xs sm:text-sm">
                           <div>
-                            <span className="text-gray-500">Límite:</span>
+                            <span className="text-gray-500 hidden sm:inline">Límite:</span>
                             <div className="font-semibold text-green-600">
                               {formatCurrency(client.crlt)}
                             </div>
                           </div>
                           <div>
-                            <span className="text-gray-500">Disponible:</span>
+                            <span className="text-gray-500 hidden sm:inline">Disponible:</span>
                             <div className="font-semibold text-blue-600">
                               {formatCurrency(client.cren)}
                             </div>
@@ -682,10 +693,10 @@ export default function Clients() {
                         </div>
                       </TableCell>
                       
-                      <TableCell>
-                        <div className="space-y-1 text-sm">
+                      <TableCell className="min-w-[100px] sm:min-w-0">
+                        <div className="space-y-1 text-xs sm:text-sm">
                           <div>
-                            <span className="text-gray-500">Total:</span>
+                            <span className="text-gray-500 hidden sm:inline">Total:</span>
                             <div className="font-semibold text-indigo-600">
                               {formatCurrency(client.totalSales || 0)}
                             </div>
