@@ -106,6 +106,7 @@ export interface IStorage {
   getUniqueSegments(): Promise<string[]>;
   getUniqueSalespeople(): Promise<string[]>;
   getUniqueClients(): Promise<string[]>;
+  getUniqueSuppliers(): Promise<string[]>;
   
   // Client categorization for salespeople
   getSalespersonClientsAnalysis(salesperson: string): Promise<{
@@ -649,6 +650,8 @@ export class DatabaseStorage implements IStorage {
     endDate?: string;
     salesperson?: string;
     segment?: string;
+    client?: string;
+    supplier?: string;
   } = {}): Promise<{
     totalSales: number;
     totalTransactions: number;
@@ -656,7 +659,7 @@ export class DatabaseStorage implements IStorage {
     totalUnits: number;
     activeCustomers: number;
   }> {
-    const { startDate, endDate, salesperson, segment } = filters;
+    const { startDate, endDate, salesperson, segment, client, supplier } = filters;
     const conditions = [];
     
     if (startDate) {
@@ -670,6 +673,13 @@ export class DatabaseStorage implements IStorage {
     }
     if (segment) {
       conditions.push(eq(salesTransactions.noruen, segment));
+    }
+    if (client) {
+      conditions.push(eq(salesTransactions.nokoen, client));
+    }
+    if (supplier) {
+      // Note: No supplier field in current schema, so this will be a no-op for now
+      // When suppliers are implemented, add the appropriate condition here
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -1160,6 +1170,12 @@ export class DatabaseStorage implements IStorage {
       .orderBy(salesTransactions.nokoen);
     
     return result.map((r: any) => r.client).filter((client: string | null): client is string => Boolean(client));
+  }
+
+  async getUniqueSuppliers(): Promise<string[]> {
+    // For now, return empty array since we don't have supplier data in the schema
+    // When suppliers are implemented, replace this with actual query
+    return [];
   }
 
   // Sales data for goals comparison
