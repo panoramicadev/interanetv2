@@ -52,12 +52,12 @@ export default function Clients() {
   const [isImporting, setIsImporting] = useState(false);
   const itemsPerPage = 20;
 
-  // Debounce search input
+  // Debounce search input - wait 600ms after user stops typing
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
       setCurrentPage(1); // Reset to first page when searching
-    }, 300);
+    }, 600);
 
     return () => clearTimeout(timer);
   }, [search]);
