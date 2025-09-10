@@ -108,6 +108,7 @@ export interface IStorage {
   getUniqueClients(): Promise<string[]>;
   getUniqueSuppliers(): Promise<string[]>;
   getUniqueBusinessTypes(): Promise<string[]>;
+  getUniqueEntityTypes(): Promise<string[]>;
   
   // Client categorization for salespeople
   getSalespersonClientsAnalysis(salesperson: string): Promise<{
@@ -285,6 +286,8 @@ export interface IStorage {
     salesperson?: string;
     creditStatus?: string;
     businessType?: string;
+    debtStatus?: string; // con/sin deuda
+    entityType?: string; // cliente/proveedor/otro
     limit?: number;
     offset?: number;
   }): Promise<Array<Client & {
@@ -1195,6 +1198,18 @@ export class DatabaseStorage implements IStorage {
     return result
       .map(row => row.gien?.trim())
       .filter(type => type && !['..', '.', '-', 'N/A'].includes(type)) as string[];
+  }
+
+  async getUniqueEntityTypes(): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ tien: clients.tien })
+      .from(clients)
+      .where(sql`${clients.tien} IS NOT NULL AND ${clients.tien} != ''`)
+      .orderBy(clients.tien);
+    
+    return result
+      .map(row => row.tien?.trim())
+      .filter(type => type && type.length > 0) as string[];
   }
 
   // Sales data for goals comparison
@@ -3376,6 +3391,8 @@ export class DatabaseStorage implements IStorage {
     salesperson?: string;
     creditStatus?: string;
     businessType?: string;
+    debtStatus?: string;
+    entityType?: string;
     limit?: number;
     offset?: number;
   }): Promise<Array<Client & {
@@ -3397,6 +3414,23 @@ export class DatabaseStorage implements IStorage {
 
     if (filters?.businessType) {
       conditions.push(sql`${clients.gien} ILIKE ${`%${filters.businessType}%`}`);
+    }
+
+    if (filters?.debtStatus) {
+      // Filter by debt status using crsd (credit balance/debt)
+      switch (filters.debtStatus) {
+        case 'con_deuda':
+          conditions.push(sql`${clients.crsd} > 0`);
+          break;
+        case 'sin_deuda':
+          conditions.push(sql`${clients.crsd} <= 0 OR ${clients.crsd} IS NULL`);
+          break;
+      }
+    }
+
+    if (filters?.entityType) {
+      // Filter by entity type using tien column
+      conditions.push(eq(clients.tien, filters.entityType));
     }
 
     if (filters?.creditStatus) {
