@@ -3409,46 +3409,94 @@ export class DatabaseStorage implements IStorage {
   }
 
   async insertMultipleClients(clientsData: InsertClient[]) {
-    if (clientsData.length === 0) return undefined;
+    if (clientsData.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
     
     let inserted = 0;
     let updated = 0;
     let skipped = 0;
     
-    console.log(`📊 Starting import of ${clientsData.length} clients`);
+    console.log(`🚀 Starting FAST batch import of ${clientsData.length} clients`);
     
-    for (const client of clientsData) {
-      try {
-        // Check if client exists by KOEN (primary identifier) or NOKOEN (name)
-        const existingByKoen = client.koen 
-          ? await db.select().from(clients).where(eq(clients.koen, client.koen)).limit(1)
-          : [];
-        
-        const existingByName = !existingByKoen.length && client.nokoen
-          ? await db.select().from(clients).where(eq(clients.nokoen, client.nokoen)).limit(1)
-          : [];
-        
-        const existing = existingByKoen[0] || existingByName[0];
-        
-        if (existing) {
-          // Update existing client
-          await db
-            .update(clients)
-            .set({ ...client, updatedAt: new Date() })
-            .where(eq(clients.id, existing.id));
-          updated++;
-        } else {
-          // Insert new client
-          await db.insert(clients).values(client);
-          inserted++;
+    try {
+      // Get ALL existing clients in ONE query for super fast lookup (only needed columns)
+      const existingClients = await db.select({
+        id: clients.id,
+        koen: clients.koen,
+        nokoen: clients.nokoen
+      }).from(clients);
+      const existingByKoen = new Map(existingClients.filter(c => c.koen).map(c => [c.koen!, c]));
+      const existingByName = new Map(existingClients.filter(c => c.nokoen).map(c => [c.nokoen, c]));
+      
+      // Separate clients into insert and update batches
+      const toInsert: InsertClient[] = [];
+      const toUpdate: Array<{ id: string; data: InsertClient }> = [];
+      
+      console.log(`📋 Analyzing ${clientsData.length} clients for duplicates...`);
+      
+      for (const client of clientsData) {
+        try {
+          // Super fast lookup using Maps (no database queries)
+          const existingByKoenMatch = client.koen ? existingByKoen.get(client.koen) : null;
+          const existingByNameMatch = !existingByKoenMatch && client.nokoen ? existingByName.get(client.nokoen) : null;
+          const existing = existingByKoenMatch || existingByNameMatch;
+          
+          if (existing) {
+            toUpdate.push({ id: existing.id, data: client });
+          } else {
+            toInsert.push(client);
+          }
+        } catch (error) {
+          console.error(`❌ Error analyzing client ${client.nokoen}:`, error);
+          skipped++;
         }
-      } catch (error) {
-        console.error(`❌ Error processing client ${client.nokoen}:`, error);
-        skipped++;
       }
+      
+      console.log(`📊 Analysis complete: ${toInsert.length} new, ${toUpdate.length} existing`);
+      
+      // Batch insert new clients (SUPER fast - 500 at a time)
+      if (toInsert.length > 0) {
+        const BATCH_SIZE = 500;
+        const totalBatches = Math.ceil(toInsert.length / BATCH_SIZE);
+        
+        for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+          const batch = toInsert.slice(i, i + BATCH_SIZE);
+          const batchNumber = Math.floor(i/BATCH_SIZE) + 1;
+          
+          try {
+            await db.insert(clients).values(batch);
+            inserted += batch.length;
+            console.log(`✅ Batch ${batchNumber}/${totalBatches}: Inserted ${batch.length} clients`);
+          } catch (error) {
+            console.error(`❌ Error inserting batch ${batchNumber}:`, error);
+            skipped += batch.length;
+          }
+        }
+      }
+      
+      // Update existing clients (still fast, individual updates)
+      if (toUpdate.length > 0) {
+        console.log(`🔄 Updating ${toUpdate.length} existing clients...`);
+        for (const { id, data } of toUpdate) {
+          try {
+            await db
+              .update(clients)
+              .set({ ...data, updatedAt: new Date() })
+              .where(eq(clients.id, id));
+            updated++;
+          } catch (error) {
+            console.error(`❌ Error updating client ${data.nokoen}:`, error);
+            skipped++;
+          }
+        }
+        console.log(`✅ Updated ${updated} existing clients`);
+      }
+      
+    } catch (error) {
+      console.error(`💥 Critical error in FAST client import:`, error);
+      throw error;
     }
     
-    console.log(`🎉 Import completed: ${inserted} inserted, ${updated} updated, ${skipped} skipped`);
+    console.log(`🎉 FAST import completed in seconds: ${inserted} new, ${updated} updated, ${skipped} errors`);
     return { inserted, updated, skipped };
   }
 

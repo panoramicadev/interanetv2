@@ -558,13 +558,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Import clients using upsert logic
-      await storage.insertMultipleClients(clientsToInsert);
+      const importResult = await storage.insertMultipleClients(clientsToInsert) ?? 
+        { inserted: 0, updated: 0, skipped: 0 };
 
       res.json({
         success: true,
         message: `Successfully imported ${clientsToInsert.length} clients`,
-        imported: clientsToInsert.length,
-        errors: []
+        ...importResult // This includes inserted, updated, skipped
       });
 
     } catch (error) {
