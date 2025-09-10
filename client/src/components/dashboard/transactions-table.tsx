@@ -55,7 +55,6 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
-  const [timeFilter, setTimeFilter] = useState<string>("all");
   const [showMore, setShowMore] = useState(false);
 
   const handleTransactionClick = (transaction: Transaction) => {
@@ -102,46 +101,12 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
     return Object.values(grouped).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
-  // Filter transactions based on time filter
-  const getTimeFilteredTransactions = (transactions: Transaction[]) => {
-    if (!transactions || timeFilter === 'all') return transactions;
-    
-    const now = new Date();
-    let cutoffDate = new Date();
-    
-    switch (timeFilter) {
-      case '24h':
-        cutoffDate.setHours(now.getHours() - 24);
-        break;
-      case '48h':
-        cutoffDate.setHours(now.getHours() - 48);
-        break;
-      case '3d':
-        cutoffDate.setDate(now.getDate() - 3);
-        break;
-      case '7d':
-        cutoffDate.setDate(now.getDate() - 7);
-        break;
-      case '30d':
-        cutoffDate.setDate(now.getDate() - 30);
-        break;
-      default:
-        return transactions;
-    }
-    
-    return transactions.filter(transaction => {
-      if (!transaction.feemdo) return false;
-      const transactionDate = new Date(transaction.feemdo);
-      return transactionDate >= cutoffDate;
-    });
-  };
 
   const { data: allTransactions, isLoading } = useQuery<Transaction[]>({
     queryKey: [`/api/sales/transactions?limit=100&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
-  const filteredTransactions = allTransactions ? getTimeFilteredTransactions(allTransactions) : [];
-  const allGroupedSales = filteredTransactions ? groupTransactionsByNudo(filteredTransactions) : [];
+  const allGroupedSales = allTransactions ? groupTransactionsByNudo(allTransactions) : [];
   const displayLimit = showMore ? 50 : limit;
   const groupedSales = allGroupedSales.slice(0, displayLimit);
   const hasMoreSales = allGroupedSales.length > limit;
@@ -245,40 +210,16 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Órdenes Recientes</h2>
         </div>
         <div className="flex items-center gap-2">
-          {hasMoreSales && !showMore && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowMore(true)}
-              className="text-xs px-3 py-1"
-              data-testid="button-see-more-orders"
-            >
-              Ver más ({allGroupedSales.length - limit}+)
-            </Button>
-          )}
           <Link href="/ordenes">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               className="text-xs px-3 py-1"
               data-testid="button-view-all-orders"
             >
-              Ver todas
+              Ver todas las órdenes
             </Button>
           </Link>
-          <Select value={timeFilter} onValueChange={setTimeFilter}>
-            <SelectTrigger className="w-32 rounded-xl border-gray-300 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-gray-200">
-              <SelectItem value="all">Todas del período</SelectItem>
-              <SelectItem value="24h">Últimas 24h</SelectItem>
-              <SelectItem value="48h">Últimas 48h</SelectItem>
-              <SelectItem value="3d">Últimos 3 días</SelectItem>
-              <SelectItem value="7d">Última semana</SelectItem>
-              <SelectItem value="30d">Último mes</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
