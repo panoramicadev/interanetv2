@@ -12,7 +12,7 @@ import {
   Filler,
   Legend,
 } from 'chart.js';
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 ChartJS.register(
   CategoryScale,
@@ -39,8 +39,15 @@ interface SalesChartProps {
 export default function SalesChart({ selectedPeriod, filterType, salespersonFilter }: SalesChartProps) {
   const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('daily');
   
+  // Ajustar período por defecto cuando cambia filterType
+  useEffect(() => {
+    if (filterType === 'year') {
+      setPeriod('monthly'); // Default a mensual para año
+    }
+  }, [filterType]);
+  
   // Auto-ajustar el período del gráfico basado en el tipo de filtro
-  const chartPeriod = filterType === 'day' ? 'daily' : filterType === 'year' ? 'monthly' : period;
+  const chartPeriod = filterType === 'day' ? 'daily' : period;
   
   const { data: chartData, isLoading } = useQuery<ChartDataPoint[]>({
     queryKey: [`/api/sales/chart-data?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}${salespersonFilter ? `&salesperson=${encodeURIComponent(salespersonFilter)}` : ''}`],
