@@ -134,18 +134,23 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               }
               
               return (
-                <Link key={item.href} href={item.href}>
-                  <Button
-                    variant="ghost"
-                    className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                      isActive ? "bg-slate-800 text-white" : ""
-                    }`}
-                    data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.label}
-                  </Button>
-                </Link>
+                <div key={item.href}>
+                  <Link href={item.href}>
+                    <Button
+                      variant="ghost"
+                      className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                        isActive ? "bg-slate-800 text-white" : ""
+                      }`}
+                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-5 h-5 mr-3" />
+                      {item.label}
+                    </Button>
+                  </Link>
+                  {item.separator && (
+                    <div className="border-b border-slate-700/50 my-2" />
+                  )}
+                </div>
               );
             })}
             
