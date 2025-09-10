@@ -8,8 +8,7 @@ import {
   Settings,
   ShoppingCart,
   Calculator,
-  Palette,
-  Wrench
+  Palette
 } from "lucide-react";
 
 interface SidebarItem {
@@ -75,13 +74,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       disabled: true,
       comingSoon: true,
     },
-    {
-      href: "#herramientas",
-      label: "Herramientas de Venta",
-      icon: Wrench,
-      disabled: true,
-      comingSoon: true,
-    },
+
   ],
   
   supervisor: [
@@ -126,13 +119,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       disabled: true,
       comingSoon: true,
     },
-    {
-      href: "#herramientas",
-      label: "Herramientas de Venta",
-      icon: Wrench,
-      disabled: true,
-      comingSoon: true,
-    },
+
   ],
   
   salesperson: [
@@ -167,13 +154,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       disabled: true,
       comingSoon: true,
     },
-    {
-      href: "#herramientas",
-      label: "Herramientas de Venta",
-      icon: Wrench,
-      disabled: true,
-      comingSoon: true,
-    },
+
   ],
   
   client: [
@@ -213,12 +194,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       disabled: true,
       comingSoon: true,
     },
-    {
-      href: "#herramientas",
-      label: "Herramientas de Venta",
-      icon: Wrench,
-      disabled: true,
-      comingSoon: true,
-    },
+
   ],
 };
