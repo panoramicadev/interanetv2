@@ -358,7 +358,7 @@ export function registerRoutes(app: Express): Server {
   // Clients API
   app.get('/api/clients', requireAuth, async (req, res) => {
     try {
-      const { search, segment, salesperson, creditStatus, businessType, limit, offset } = req.query;
+      const { search, segment, salesperson, creditStatus, businessType, debtStatus, entityType, limit, offset } = req.query;
       
       const filters = {
         search: search as string,
@@ -366,6 +366,8 @@ export function registerRoutes(app: Express): Server {
         salesperson: salesperson as string,
         creditStatus: creditStatus as string,
         businessType: businessType as string,
+        debtStatus: debtStatus as string,
+        entityType: entityType as string,
         limit: limit ? parseInt(limit as string) : 50,
         offset: offset ? parseInt(offset as string) : 0,
       };
@@ -392,6 +394,22 @@ export function registerRoutes(app: Express): Server {
       res.json(businessTypes);
     } catch (error) {
       console.error('Error al obtener tipos de negocio:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // Get unique entity types for client filtering
+  app.get('/api/clients/entity-types', requireAuth, async (req, res) => {
+    try {
+      console.log('GET /api/clients/entity-types');
+      
+      const entityTypes = await storage.getUniqueEntityTypes();
+      
+      console.log(`GET /api/clients/entity-types - Devolviendo ${entityTypes.length} tipos de entidad`);
+      
+      res.json(entityTypes);
+    } catch (error) {
+      console.error('Error al obtener tipos de entidad:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
   });
