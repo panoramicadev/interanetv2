@@ -106,7 +106,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto overscroll-contain">
             {sidebarItems.map((item, index) => {
               const Icon = item.icon;
               const isActive = location === item.href;
