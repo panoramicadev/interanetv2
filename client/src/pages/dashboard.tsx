@@ -25,8 +25,9 @@ export default function Dashboard() {
     // Inicializar con el mes actual por defecto
     return format(new Date(), "yyyy-MM");
   });
-  const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
+  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">("month");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   
   // Date range state for custom range selection
   const [startDate, setStartDate] = useState<Date | undefined>();
@@ -55,6 +56,9 @@ export default function Dashboard() {
           setSelectedPeriod(format(new Date(), "yyyy-MM"));
         }
         break;
+      case "year":
+        setSelectedPeriod(selectedYear.toString());
+        break;
       case "range":
         if (startDate && endDate) {
           setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
@@ -63,7 +67,7 @@ export default function Dashboard() {
         }
         break;
     }
-  }, [filterType, selectedDate, startDate, endDate]);
+  }, [filterType, selectedDate, selectedYear, startDate, endDate]);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -106,7 +110,7 @@ export default function Dashboard() {
                 Dashboard de Ventas
               </h1>
               <p className="text-gray-600 text-xs sm:text-sm lg:text-lg">
-                Resumen de rendimiento - {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : "Análisis por rango"}
+                Resumen de rendimiento - {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
               </p>
             </div>
             
@@ -116,13 +120,14 @@ export default function Dashboard() {
                 <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
                   Filtrar:
                 </label>
-                <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
+                <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
                   <SelectTrigger className="w-20 sm:w-32 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm" data-testid="select-filter-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
                     <SelectItem value="day">Día</SelectItem>
                     <SelectItem value="month">Mes</SelectItem>
+                    <SelectItem value="year">Año</SelectItem>
                     <SelectItem value="range">Rango</SelectItem>
                   </SelectContent>
                 </Select>
@@ -213,6 +218,19 @@ export default function Dashboard() {
                       </PopoverContent>
                     </Popover>
                   </div>
+                ) : filterType === "year" ? (
+                  <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                    <SelectTrigger className="flex-1 lg:w-52 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0" data-testid="select-year">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-gray-200">
+                      <SelectItem value="2025">2025</SelectItem>
+                      <SelectItem value="2024">2024</SelectItem>
+                      <SelectItem value="2023">2023</SelectItem>
+                      <SelectItem value="2022">2022</SelectItem>
+                      <SelectItem value="2021">2021</SelectItem>
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                     <SelectTrigger className="flex-1 lg:w-52 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0" data-testid="select-period">

@@ -20,7 +20,7 @@ interface SalesMetrics {
 
 interface KPICardsProps {
   selectedPeriod: string;
-  filterType: "day" | "month" | "range";
+  filterType: "day" | "month" | "year" | "range";
 }
 
 export default function KPICards({ selectedPeriod, filterType }: KPICardsProps) {

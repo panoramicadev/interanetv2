@@ -20,7 +20,7 @@ interface SegmentData {
 
 interface SegmentChartProps {
   selectedPeriod: string;
-  filterType: "day" | "month" | "range";
+  filterType: "day" | "month" | "year" | "range";
 }
 
 // Register ChartJS components

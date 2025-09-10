@@ -10,7 +10,7 @@ interface TopSalesperson {
 
 interface TopSalespeoplePanelProps {
   selectedPeriod: string;
-  filterType: "day" | "month" | "range";
+  filterType: "day" | "month" | "year" | "range";
 }
 
 export default function TopSalespeoplePanel({ selectedPeriod, filterType }: TopSalespeoplePanelProps) {
