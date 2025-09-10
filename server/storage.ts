@@ -1187,10 +1187,14 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .selectDistinct({ gien: clients.gien })
       .from(clients)
-      .where(sql`${clients.gien} IS NOT NULL AND ${clients.gien} != ''`)
-      .orderBy(clients.gien);
+      .where(sql`${clients.gien} IS NOT NULL AND ${clients.gien} != '' AND LENGTH(${clients.gien}) > 1`)
+      .orderBy(clients.gien)
+      .limit(200); // Limit results to avoid heavy queries
     
-    return result.map(row => row.gien).filter(Boolean) as string[];
+    // Simple filter for obvious placeholder values  
+    return result
+      .map(row => row.gien?.trim())
+      .filter(type => type && !['..', '.', '-', 'N/A'].includes(type)) as string[];
   }
 
   // Sales data for goals comparison
