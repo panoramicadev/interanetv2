@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -32,7 +32,12 @@ interface GoalsProgressProps {
 }
 
 export default function GoalsProgress({ globalFilter, onFilterChange, selectedPeriod, goalsData, isLoading: externalLoading }: GoalsProgressProps) {
-  const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  const [selectedFilter, setSelectedFilter] = useState<string>(globalFilter.type);
+
+  // Sync local state with globalFilter prop changes
+  React.useEffect(() => {
+    setSelectedFilter(globalFilter.type);
+  }, [globalFilter.type]);
   
   // Fetch segments and salespeople for the filter dropdown (only if no external data provided)
   const { data: segments } = useQuery<string[]>({
