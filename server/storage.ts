@@ -59,17 +59,17 @@ export interface IStorage {
     totalUnits: number;
     activeCustomers: number;
   }>;
-  getTopSalespeople(limit?: number, startDate?: string, endDate?: string): Promise<Array<{
+  getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string): Promise<Array<{
     salesperson: string;
     totalSales: number;
     transactionCount: number;
   }>>;
-  getTopProducts(limit?: number, startDate?: string, endDate?: string): Promise<Array<{
+  getTopProducts(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     productName: string;
     totalSales: number;
     totalUnits: number;
   }>>;
-  getTopClients(limit?: number, startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
+  getTopClients(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     clientName: string;
     totalSales: number;
     transactionCount: number;
@@ -84,7 +84,7 @@ export interface IStorage {
     uniqueClients: number;
     percentage: number;
   }>>;
-  getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
+  getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     period: string;
     sales: number;
   }>>;
@@ -673,7 +673,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string): Promise<Array<{
+  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string): Promise<Array<{
     salesperson: string;
     totalSales: number;
     transactionCount: number;
@@ -687,6 +687,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (endDate) {
       conditions.push(sql`feemdo <= ${endDate}`);
+    }
+    if (segment) {
+      conditions.push(sql`caprad2 = ${segment}`);
     }
     
     const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
@@ -718,7 +721,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
+  async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     productName: string;
     totalSales: number;
     totalUnits: number;
@@ -733,6 +736,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (salesperson) {
       conditions.push(eq(salesTransactions.nokofu, salesperson));
+    }
+    if (segment) {
+      conditions.push(eq(salesTransactions.caprad2, segment));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -757,7 +763,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getTopClients(limit = 10, startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
+  async getTopClients(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     clientName: string;
     totalSales: number;
     transactionCount: number;
@@ -774,6 +780,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (salesperson) {
       conditions.push(sql`nokofu = ${salesperson}`);
+    }
+    if (segment) {
+      conditions.push(sql`caprad2 = ${segment}`);
     }
     
     const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
@@ -855,7 +864,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
+  async getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     period: string;
     sales: number;
   }>> {
@@ -869,6 +878,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (salesperson) {
       conditions.push(eq(salesTransactions.nokofu, salesperson));
+    }
+    if (segment) {
+      conditions.push(eq(salesTransactions.caprad2, segment));
     }
     
     let query: any;
