@@ -492,10 +492,12 @@ export class DatabaseStorage implements IStorage {
       const batchIds = Array.from(new Set(batch.map(t => t.idmaeedo)));
       
       // Check which IDMAEEDO values already exist in database
-      const existingIds = await db
+      const validBatchIds = batchIds.filter(id => id != null && id !== '').map(id => id!.toString());
+      
+      const existingIds = validBatchIds.length > 0 ? await db
         .select({ idmaeedo: salesTransactions.idmaeedo })
         .from(salesTransactions)
-        .where(inArray(salesTransactions.idmaeedo, batchIds.map(id => id ? id.toString() : null).filter(Boolean)));
+        .where(inArray(salesTransactions.idmaeedo, validBatchIds)) : [];
       
       const existingIdSet = new Set(existingIds.map(row => row.idmaeedo?.toString()));
       
@@ -520,6 +522,69 @@ export class DatabaseStorage implements IStorage {
     }
     
     console.log(`✅ Import completed: ${totalInserted} new transactions imported, ${totalSkipped} duplicates skipped`);
+  }
+
+  // Delete transactions by date range - for clean reimports
+  async deleteTransactionsByDateRange(startDate: string, endDate: string): Promise<number> {
+    const result = await db
+      .delete(salesTransactions)
+      .where(
+        and(
+          gte(salesTransactions.feemdo, startDate),
+          lte(salesTransactions.feemdo, endDate)
+        )
+      );
+    
+    return result.rowCount || 0;
+  }
+
+  // Atomic operation: delete existing + insert new transactions
+  async replaceTransactionsByDateRange(
+    transactions: InsertSalesTransaction[], 
+    startDate: string, 
+    endDate: string
+  ): Promise<{ deleted: number; inserted: number }> {
+    if (transactions.length === 0) {
+      throw new Error('No transactions to import');
+    }
+
+    console.log(`🔄 Starting atomic replace operation for period ${startDate} to ${endDate}`);
+    
+    return await db.transaction(async (tx) => {
+      // 1. Delete existing transactions in the date range
+      const deleteResult = await tx
+        .delete(salesTransactions)
+        .where(
+          and(
+            gte(salesTransactions.feemdo, startDate),
+            lte(salesTransactions.feemdo, endDate)
+          )
+        );
+      
+      const deletedCount = deleteResult.rowCount || 0;
+      console.log(`🗑️  Deleted ${deletedCount} existing transactions`);
+
+      // 2. Insert new transactions in batches
+      const BATCH_SIZE = 100;
+      let totalInserted = 0;
+      
+      for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+        const batch = transactions.slice(i, i + BATCH_SIZE);
+        await tx.insert(salesTransactions).values(batch);
+        totalInserted += batch.length;
+        
+        if (i + BATCH_SIZE < transactions.length) {
+          console.log(`📦 Inserted batch: ${totalInserted}/${transactions.length}`);
+        }
+      }
+      
+      console.log(`✅ Replace operation completed: ${deletedCount} deleted, ${totalInserted} inserted`);
+      
+      return {
+        deleted: deletedCount,
+        inserted: totalInserted
+      };
+    });
   }
 
   async getSalesTransactions(filters: {

@@ -1465,7 +1465,139 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // CSV Import endpoint
+  // Preview CSV endpoint - Analyze sales CSV without importing
+  app.post('/api/sales/preview', requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      console.log(`📋 Analyzing CSV file: ${req.file.originalname}`);
+      
+      // Parse CSV content using the same logic as import
+      const csvContent = req.file.buffer.toString('utf-8');
+      const transactions = parseCSV(csvContent);
+      
+      if (transactions.length === 0) {
+        return res.status(400).json({ message: "No valid transactions found in CSV" });
+      }
+
+      // Analyze date range
+      const dates = transactions
+        .map(t => t.feemdo)
+        .filter(date => date && date !== '')
+        .sort();
+      
+      const startDate = dates[0];
+      const endDate = dates[dates.length - 1];
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: "No valid dates found in CSV" });
+      }
+
+      // Check existing transactions in this date range
+      const existingTransactions = await storage.getSalesTransactions({
+        startDate,
+        endDate
+      });
+
+      // Group by month for better visualization
+      const monthsAffected = [...new Set(dates.map(date => date.substring(0, 7)))]; // YYYY-MM
+
+      console.log(`📊 Preview analysis: ${transactions.length} transactions, period ${startDate} to ${endDate}`);
+
+      res.json({
+        preview: {
+          totalTransactions: transactions.length,
+          dateRange: {
+            start: startDate,
+            end: endDate
+          },
+          monthsAffected,
+          existingTransactions: existingTransactions.length,
+          wouldDelete: existingTransactions.length,
+          wouldInsert: transactions.length
+        }
+      });
+    } catch (error) {
+      console.error("Error previewing CSV:", error);
+      res.status(500).json({ message: "Failed to preview CSV" });
+    }
+  });
+
+  // Atomic Replace Import endpoint - Delete existing period + import new data
+  app.post('/api/sales/import-replace', requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const { confirmed } = req.body;
+      if (!confirmed || confirmed !== 'true') {
+        return res.status(400).json({ message: "Import must be confirmed" });
+      }
+
+      console.log(`🔄 Starting atomic replace import: ${req.file.originalname}`);
+      
+      // Parse and validate CSV content
+      const csvContent = req.file.buffer.toString('utf-8');
+      const transactions = parseCSV(csvContent);
+      
+      // Validate each transaction
+      const validatedTransactions = [];
+      const errors = [];
+      
+      for (let i = 0; i < transactions.length; i++) {
+        const transaction = transactions[i];
+        try {
+          const validated = insertSalesTransactionSchema.parse(transaction);
+          validatedTransactions.push(validated);
+        } catch (error: any) {
+          errors.push({
+            index: i,
+            transaction: transaction.nudo || `Row ${i + 1}`,
+            error: error.issues ? error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ') : error.message
+          });
+        }
+      }
+
+      if (validatedTransactions.length === 0) {
+        return res.status(400).json({ 
+          message: "No valid transactions found",
+          errors: errors.slice(0, 5)
+        });
+      }
+
+      // Determine date range for deletion
+      const dates = validatedTransactions
+        .map(t => t.feemdo)
+        .filter(date => date && date !== '')
+        .sort();
+      
+      const startDate = dates[0];
+      const endDate = dates[dates.length - 1];
+
+      // Perform atomic replace operation
+      const result = await storage.replaceTransactionsByDateRange(
+        validatedTransactions,
+        startDate,
+        endDate
+      );
+      
+      res.json({ 
+        message: "Data replaced successfully",
+        deleted: result.deleted,
+        inserted: result.inserted,
+        dateRange: { start: startDate, end: endDate },
+        errors: errors.length > 0 ? errors.slice(0, 5) : undefined
+      });
+    } catch (error) {
+      console.error("Error in atomic replace import:", error);
+      res.status(500).json({ message: "Failed to replace sales data" });
+    }
+  });
+
+  // CSV Import endpoint - Products
   app.post('/api/products/import-csv', requireAuth, upload.single('csvFile'), async (req: any, res) => {
     try {
       if (!req.file) {
