@@ -104,6 +104,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
     queryKey: [`/api/sales/transactions?limit=100&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
+
   const allGroupedSales = allTransactions ? groupTransactionsByNudo(allTransactions) : [];
   const groupedSales = allGroupedSales.slice(0, limit);
 
