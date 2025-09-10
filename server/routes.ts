@@ -1705,10 +1705,11 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "No valid dates found in CSV" });
       }
 
-      // Check existing transactions in this date range
+      // Check existing transactions in this date range (no limit for preview)
       const existingTransactions = await storage.getSalesTransactions({
         startDate,
-        endDate
+        endDate,
+        limit: 999999 // Remove limit for accurate count
       });
 
       // Group by month for better visualization
