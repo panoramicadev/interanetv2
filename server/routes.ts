@@ -146,6 +146,7 @@ export function registerRoutes(app: Express): Server {
         ...metrics,
         previousMonthSales: previousMetrics.totalTransactions > 0 ? previousMetrics.totalSales : undefined,
         previousMonthTransactions: previousMetrics.totalTransactions > 0 ? previousMetrics.totalTransactions : undefined,
+        previousMonthOrders: previousMetrics.totalOrders > 0 ? previousMetrics.totalOrders : undefined,
         previousMonthUnits: previousMetrics.totalTransactions > 0 ? previousMetrics.totalUnits : undefined,
         previousMonthCustomers: previousMetrics.totalTransactions > 0 ? previousMetrics.activeCustomers : undefined,
       };
