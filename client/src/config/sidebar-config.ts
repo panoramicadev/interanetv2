@@ -18,6 +18,7 @@ interface SidebarItem {
   icon: any;
   disabled?: boolean;
   comingSoon?: boolean;
+  separator?: boolean; // Para mostrar separador después del item
 }
 
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
@@ -46,6 +47,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Gestión de Clientes",
       icon: Users,
+      separator: true, // Agregar separador después de este elemento
     },
     {
       href: "#presupuesto",
