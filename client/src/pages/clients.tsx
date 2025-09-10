@@ -109,6 +109,7 @@ export default function Clients() {
 
   const { data: businessTypes } = useQuery<string[]>({
     queryKey: ['/api/clients/business-types'],
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes since business types don't change often
   });
 
   const handleSearch = useCallback((value: string) => {
@@ -468,7 +469,7 @@ export default function Clients() {
             <Select value={selectedSegment} onValueChange={(value) => {
               setSelectedSegment(value === "all" ? "" : value);
               setCurrentPage(1);
-            }}>
+            }} data-testid="select-segment-filter">
               <SelectTrigger className="w-48" data-testid="select-segment">
                 <SelectValue placeholder="Todos los segmentos" />
               </SelectTrigger>
@@ -485,7 +486,7 @@ export default function Clients() {
             <Select value={selectedSalesperson} onValueChange={(value) => {
               setSelectedSalesperson(value === "all" ? "" : value);
               setCurrentPage(1);
-            }}>
+            }} data-testid="select-salesperson-filter">
               <SelectTrigger className="w-48" data-testid="select-salesperson">
                 <SelectValue placeholder="Todos los vendedores" />
               </SelectTrigger>
@@ -502,7 +503,7 @@ export default function Clients() {
             <Select value={selectedCreditStatus} onValueChange={(value) => {
               setSelectedCreditStatus(value === "all" ? "" : value);
               setCurrentPage(1);
-            }}>
+            }} data-testid="select-credit-status-filter">
               <SelectTrigger className="w-48" data-testid="select-credit-status">
                 <SelectValue placeholder="Estado de crédito" />
               </SelectTrigger>
@@ -518,7 +519,7 @@ export default function Clients() {
             <Select value={selectedBusinessType} onValueChange={(value) => {
               setSelectedBusinessType(value === "all" ? "" : value);
               setCurrentPage(1);
-            }}>
+            }} data-testid="select-business-type-filter">
               <SelectTrigger className="w-48" data-testid="select-business-type">
                 <SelectValue placeholder="Tipo de negocio" />
               </SelectTrigger>
