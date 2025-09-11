@@ -9,6 +9,8 @@ import {
   productPriceHistory,
   warehouses,
   clients,
+  tasks,
+  taskAssignments,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -29,6 +31,10 @@ import {
   type Client,
   type InsertClient,
   type CsvProductStockImport,
+  type Task,
+  type InsertTask,
+  type TaskAssignment,
+  type InsertTaskAssignment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
@@ -399,6 +405,21 @@ export interface IStorage {
     unit1?: string;
     unit2?: string;
   }>>;
+
+  // Task management operations
+  getTasks(filters?: {
+    creatorId?: string;
+    assigneeUserId?: string;
+    status?: string;
+    priority?: string;
+  }): Promise<Array<Task & { assignments: TaskAssignment[] }>>;
+  getTask(id: string): Promise<Task & { assignments: TaskAssignment[] } | undefined>;
+  createTask(task: InsertTask, assignments: InsertTaskAssignment[]): Promise<Task>;
+  updateTask(id: string, task: Partial<InsertTask>): Promise<Task>;
+  deleteTask(id: string): Promise<void>;
+  updateAssignmentStatus(assignmentId: string, status: string, notes?: string): Promise<TaskAssignment>;
+  markAssignmentRead(assignmentId: string): Promise<TaskAssignment>;
+  getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3643,6 +3664,203 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(clients)
       .where(eq(clients.koen, koen));
+  }
+
+  // Task management operations implementation
+  async getTasks(filters: {
+    creatorId?: string;
+    assigneeUserId?: string;
+    status?: string;
+    priority?: string;
+  } = {}): Promise<Array<Task & { assignments: TaskAssignment[] }>> {
+    const { creatorId, assigneeUserId, status, priority } = filters;
+    const conditions = [];
+
+    if (creatorId) {
+      conditions.push(eq(tasks.createdByUserId, creatorId));
+    }
+    if (status) {
+      conditions.push(eq(tasks.status, status));
+    }
+    if (priority) {
+      conditions.push(eq(tasks.priority, priority));
+    }
+
+    let query = db.select().from(tasks);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const allTasks = await query.orderBy(desc(tasks.createdAt));
+
+    // Get assignments for all tasks
+    const tasksWithAssignments = await Promise.all(
+      allTasks.map(async (task) => {
+        const assignments = await db
+          .select()
+          .from(taskAssignments)
+          .where(eq(taskAssignments.taskId, task.id))
+          .orderBy(taskAssignments.createdAt);
+
+        return {
+          ...task,
+          assignments,
+        };
+      })
+    );
+
+    // Filter by assignee if specified
+    if (assigneeUserId) {
+      return tasksWithAssignments.filter(task =>
+        task.assignments.some(assignment =>
+          assignment.assigneeType === "user" && assignment.assigneeId === assigneeUserId
+        )
+      );
+    }
+
+    return tasksWithAssignments;
+  }
+
+  async getTask(id: string): Promise<Task & { assignments: TaskAssignment[] } | undefined> {
+    const [task] = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, id));
+
+    if (!task) return undefined;
+
+    const assignments = await db
+      .select()
+      .from(taskAssignments)
+      .where(eq(taskAssignments.taskId, task.id))
+      .orderBy(taskAssignments.createdAt);
+
+    return {
+      ...task,
+      assignments,
+    };
+  }
+
+  async createTask(task: InsertTask, assignments: InsertTaskAssignment[]): Promise<Task> {
+    const [newTask] = await db
+      .insert(tasks)
+      .values(task)
+      .returning();
+
+    // Add assignments
+    if (assignments.length > 0) {
+      const assignmentsWithTaskId = assignments.map(assignment => ({
+        ...assignment,
+        taskId: newTask.id,
+      }));
+      
+      await db
+        .insert(taskAssignments)
+        .values(assignmentsWithTaskId);
+    }
+
+    return newTask;
+  }
+
+  async updateTask(id: string, task: Partial<InsertTask>): Promise<Task> {
+    const [updatedTask] = await db
+      .update(tasks)
+      .set({ ...task, updatedAt: new Date() })
+      .where(eq(tasks.id, id))
+      .returning();
+
+    return updatedTask;
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    // Delete assignments first (foreign key constraint)
+    await db
+      .delete(taskAssignments)
+      .where(eq(taskAssignments.taskId, id));
+
+    // Delete task
+    await db
+      .delete(tasks)
+      .where(eq(tasks.id, id));
+  }
+
+  async updateAssignmentStatus(assignmentId: string, status: string, notes?: string): Promise<TaskAssignment> {
+    const updates: any = {
+      status,
+      ...(notes && { notes }),
+      ...(status === "completed" && { completedAt: new Date() }),
+    };
+
+    const [updatedAssignment] = await db
+      .update(taskAssignments)
+      .set(updates)
+      .where(eq(taskAssignments.id, assignmentId))
+      .returning();
+
+    return updatedAssignment;
+  }
+
+  async markAssignmentRead(assignmentId: string): Promise<TaskAssignment> {
+    const [updatedAssignment] = await db
+      .update(taskAssignments)
+      .set({ readAt: new Date() })
+      .where(eq(taskAssignments.id, assignmentId))
+      .returning();
+
+    return updatedAssignment;
+  }
+
+  async getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>> {
+    // Get all task assignments for this user (direct or by segment)
+    const conditions = [
+      and(
+        eq(taskAssignments.assigneeType, "user"),
+        eq(taskAssignments.assigneeId, userId)
+      )
+    ];
+
+    // Add segment conditions if user has segments
+    if (userSegments.length > 0) {
+      conditions.push(
+        and(
+          eq(taskAssignments.assigneeType, "segment"),
+          inArray(taskAssignments.assigneeId, userSegments)
+        )
+      );
+    }
+
+    const userAssignments = await db
+      .select()
+      .from(taskAssignments)
+      .where(sql`${conditions.map(c => sql`(${c})`).join(' OR ')}`);
+
+    const taskIds = [...new Set(userAssignments.map(a => a.taskId))];
+
+    if (taskIds.length === 0) return [];
+
+    // Get tasks with all their assignments
+    const userTasks = await db
+      .select()
+      .from(tasks)
+      .where(inArray(tasks.id, taskIds))
+      .orderBy(desc(tasks.createdAt));
+
+    const tasksWithAssignments = await Promise.all(
+      userTasks.map(async (task) => {
+        const assignments = await db
+          .select()
+          .from(taskAssignments)
+          .where(eq(taskAssignments.taskId, task.id))
+          .orderBy(taskAssignments.createdAt);
+
+        return {
+          ...task,
+          assignments,
+        };
+      })
+    );
+
+    return tasksWithAssignments;
   }
 
 }
