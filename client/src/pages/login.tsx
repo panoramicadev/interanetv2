@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Redirect } from "wouter";
+import panoramicaLogo from "@assets/logo-inicio_1757596790120.png";
 
 export default function Login() {
   const { user, isLoading } = useAuth();
@@ -25,12 +26,11 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Sistema de Ventas
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            Panel profesional de análisis de ventas colombiano
-          </p>
+          <img 
+            src={panoramicaLogo}
+            alt="Panoramica - 30 Años"
+            className="mx-auto max-w-full h-auto max-h-24 mb-4"
+          />
         </div>
 
         <LoginForm />
