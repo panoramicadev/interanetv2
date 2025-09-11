@@ -7,6 +7,11 @@ interface TopProduct {
   totalUnits: number;
 }
 
+interface TopProductsResponse {
+  items: TopProduct[];
+  periodTotalSales: number;
+}
+
 interface TopProductsChartProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
@@ -15,9 +20,12 @@ interface TopProductsChartProps {
 }
 
 export default function TopProductsChart({ selectedPeriod, filterType, segment, salesperson }: TopProductsChartProps) {
-  const { data: topProducts, isLoading } = useQuery<TopProduct[]>({
+  const { data: topProductsResponse, isLoading } = useQuery<TopProductsResponse>({
     queryKey: [`/api/sales/top-products?limit=5&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
+
+  const topProducts = topProductsResponse?.items;
+  const periodTotal = topProductsResponse?.periodTotalSales || 0;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -27,11 +35,10 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
     }).format(value);
   };
 
-  // Calculate percentages
-  const maxSales = topProducts ? Math.max(...topProducts.map(p => p.totalSales)) : 0;
+  // Calculate percentages based on period total
   const productsWithPercentage = topProducts?.map(product => ({
     ...product,
-    percentage: maxSales > 0 ? (product.totalSales / maxSales) * 100 : 0
+    percentage: periodTotal > 0 ? (product.totalSales / periodTotal) * 100 : 0
   }));
 
   return (
