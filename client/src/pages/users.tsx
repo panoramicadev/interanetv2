@@ -262,6 +262,12 @@ export default function UsersPage() {
       supervisorId: data.role === "salesperson" && data.supervisorId !== "none" ? data.supervisorId : null,
       assignedSegment: data.assignedSegment && data.assignedSegment !== "none" ? data.assignedSegment : null
     };
+    
+    // Filtrar contraseñas vacías para evitar sobrescribir contraseñas existentes
+    if (!data.password || data.password.trim() === "") {
+      delete cleanedData.password;
+    }
+    
     console.log("Editando datos:", cleanedData);
     updateUserMutation.mutate({ id: editingUser.id, userData: cleanedData });
   };
