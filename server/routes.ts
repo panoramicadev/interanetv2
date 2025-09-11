@@ -2504,7 +2504,13 @@ export function registerRoutes(app: Express): Server {
         title: z.string().min(1).optional(),
         description: z.string().optional(),
         type: z.enum(["texto", "formulario", "visita"]).optional(),
-        dueDate: z.string().datetime().optional().or(z.null()),
+        dueDate: z.string().refine((date) => {
+          if (!date) return true;
+          // Accept datetime-local format (YYYY-MM-DDTHH:mm) or full ISO format (YYYY-MM-DDTHH:mm:ss.sssZ)
+          const datetimeLocalRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+          const isoDatetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+          return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
+        }, "Fecha debe ser formato válido (YYYY-MM-DDTHH:mm o ISO datetime)").optional().or(z.null()),
         priority: z.enum(["low", "medium", "high"]).optional(),
         status: z.enum(["pendiente", "en_progreso", "completada"]).optional()
       }).partial();

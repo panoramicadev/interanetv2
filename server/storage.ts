@@ -3769,6 +3769,10 @@ export class DatabaseStorage implements IStorage {
 
     // If filtering by salesperson, we need to join with sales transactions
     if (filters?.salesperson) {
+      const salespersonConditions = conditions.length > 0 
+        ? [...conditions, eq(salesTransactions.nokofu, filters.salesperson)]
+        : [eq(salesTransactions.nokofu, filters.salesperson)];
+
       query = db
         .selectDistinct({
           id: clients.id,
@@ -3789,13 +3793,9 @@ export class DatabaseStorage implements IStorage {
         })
         .from(clients)
         .innerJoin(salesTransactions, eq(clients.nokoen, salesTransactions.nokoen))
-        .where(
-          conditions.length > 0 
-            ? and(...conditions, eq(salesTransactions.nokofu, filters.salesperson))
-            : eq(salesTransactions.nokofu, filters.salesperson)
-        );
+        .where(and(...salespersonConditions)) as any;
     } else {
-      query = query.where(conditions.length > 0 ? and(...conditions) : undefined);
+      query = conditions.length > 0 ? query.where(and(...conditions)) : query;
     }
 
     const clientsData = await query
@@ -4129,13 +4129,17 @@ export class DatabaseStorage implements IStorage {
     // Build the optimized query with LEFT JOIN
     let query = db
       .select({
-        // Task fields
+        // Task fields (including missing ones)
         id: tasks.id,
         title: tasks.title,
         description: tasks.description,
+        type: tasks.type,
         status: tasks.status,
+        progress: tasks.progress,
         priority: tasks.priority,
         dueDate: tasks.dueDate,
+        assignedToUserId: tasks.assignedToUserId,
+        payload: tasks.payload,
         createdAt: tasks.createdAt,
         updatedAt: tasks.updatedAt,
         createdByUserId: tasks.createdByUserId,
@@ -4166,9 +4170,13 @@ export class DatabaseStorage implements IStorage {
           id: row.id,
           title: row.title,
           description: row.description,
+          type: row.type,
           status: row.status,
+          progress: row.progress,
           priority: row.priority,
           dueDate: row.dueDate,
+          assignedToUserId: row.assignedToUserId,
+          payload: row.payload,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           createdByUserId: row.createdByUserId,

@@ -1008,7 +1008,13 @@ export const visitaTaskPayloadSchema = z.object({
   address: z.string().optional(),
   lat: z.number().min(-90).max(90, "Latitud debe estar entre -90 y 90").optional(),
   lng: z.number().min(-180).max(180, "Longitud debe estar entre -180 y 180").optional(),
-  scheduledAt: z.string().datetime("Fecha debe ser un ISO date string válido").optional(),
+  scheduledAt: z.string().refine((date) => {
+    if (!date) return true;
+    // Accept datetime-local format (YYYY-MM-DDTHH:mm) or full ISO format (YYYY-MM-DDTHH:mm:ss.sssZ)
+    const datetimeLocalRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+    const isoDatetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+    return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
+  }, "Fecha debe ser formato válido (YYYY-MM-DDTHH:mm o ISO datetime)").optional(),
 });
 
 const visitaTaskPayloadOptionalSchema = visitaTaskPayloadSchema.optional();
@@ -1020,7 +1026,13 @@ const baseTaskSchema = z.object({
   status: z.enum(["pendiente", "en_progreso", "completada"]).default("pendiente"),
   progress: z.number().min(0).max(100).default(0),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
-  dueDate: z.string().datetime().optional().or(z.null()),
+  dueDate: z.string().refine((date) => {
+    if (!date) return true;
+    // Accept datetime-local format (YYYY-MM-DDTHH:mm) or full ISO format (YYYY-MM-DDTHH:mm:ss.sssZ)
+    const datetimeLocalRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+    const isoDatetimeRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+    return datetimeLocalRegex.test(date) || isoDatetimeRegex.test(date) || !isNaN(Date.parse(date));
+  }, "Fecha debe ser formato válido (YYYY-MM-DDTHH:mm o ISO datetime)").optional().or(z.null()),
   assignedToUserId: z.string().optional().or(z.null()),
 });
 
