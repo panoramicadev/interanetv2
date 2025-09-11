@@ -389,41 +389,6 @@ export default function SalespersonDashboard() {
           </Card>
         </div>
 
-        {/* Progreso de Metas */}
-        {goals.length > 0 && (
-          <Card className="rounded-2xl shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-blue-600" />
-                Progreso de Metas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {goals.map((goal: GoalProgress, index: number) => (
-                  <div key={goal.id || index} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{goal.description || 'Meta'}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {(goal.progress || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-secondary rounded-full h-2">
-                      <div
-                        className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(goal.progress || 0, 100)}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>${(goal.currentSales || 0).toLocaleString()}</span>
-                      <span>${(goal.targetAmount || 0).toLocaleString()}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Tendencia de Ventas - Ancho completo */}
         <div className="modern-card p-5 lg:p-6 hover-lift">
