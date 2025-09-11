@@ -3534,7 +3534,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (filters?.segment) {
-      conditions.push(eq(clients.noruen, filters.segment));
+      conditions.push(eq(clients.ruen, filters.segment));
     }
 
     if (filters?.businessType) {
@@ -3591,11 +3591,11 @@ export class DatabaseStorage implements IStorage {
           gien: clients.gien,
           cien: clients.cien,
           foen: clients.foen,
-          emalmc: clients.emalmc,
+          email: clients.email,
           cren: clients.cren,
           crlt: clients.crlt,
           crsd: clients.crsd,
-          noruen: clients.noruen,
+          ruen: clients.ruen,
           createdAt: clients.createdAt,
           updatedAt: clients.updatedAt
         })
@@ -3895,7 +3895,7 @@ export class DatabaseStorage implements IStorage {
                 WHERE ${taskAssignments.taskId} = ${tasks.id} 
                 AND (
                   (${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId}) OR
-                  (${taskAssignments.assigneeType} = 'segment' AND ${taskAssignments.assigneeId} = ANY(${assigneeSegments}))
+                  (${taskAssignments.assigneeType} = 'segment' AND ${taskAssignments.assigneeId} = ANY(ARRAY[${sql.join(assigneeSegments.map(seg => sql`${seg}`), sql`, `)}]))
                 )
               )
             )`);
@@ -3919,7 +3919,7 @@ export class DatabaseStorage implements IStorage {
                 WHERE ${taskAssignments.taskId} = ${tasks.id} 
                 AND (
                   (${taskAssignments.assigneeType} = 'user' AND ${taskAssignments.assigneeId} = ${userId}) OR
-                  (${taskAssignments.assigneeType} = 'segment' AND ${taskAssignments.assigneeId} = ANY(${assigneeSegments}))
+                  (${taskAssignments.assigneeType} = 'segment' AND ${taskAssignments.assigneeId} = ANY(ARRAY[${sql.join(assigneeSegments.map(seg => sql`${seg}`), sql`, `)}]))
                 )
               )
             `);
