@@ -12,6 +12,13 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 - **Role-Based Access**: Unified access control where both admin and supervisor roles share the same interface and permissions for better operational consistency
 - **Future Customization**: Dashboard differentiation can be restored later when specific supervisor features are developed
 
+### Task Management System (September 2025)
+- **New Module**: Implemented comprehensive task management system for admin and supervisor roles
+- **Database Schema**: Added `tasks` and `task_assignments` tables with full relational structure
+- **API Endpoints**: Complete REST API for task CRUD operations with role-based access control
+- **Sidebar Integration**: Added "Panel de Tareas" menu item positioned above "Crear Presupuesto" for admin and supervisor users
+- **Assignment Capabilities**: Supports assigning tasks to individual users or entire segments with flexible recipient selection
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

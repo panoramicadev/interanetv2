@@ -15,6 +15,7 @@ import MisVendedoresPage from "@/pages/mis-vendedores";
 import ClientsDashboard from "@/pages/clients-dashboard";
 import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
+import TareasPage from "@/pages/tareas";
 import Users from "@/pages/users";
 import Products from "@/pages/products";
 import Clients from "@/pages/clients";
@@ -80,6 +81,7 @@ function Router() {
               return null;
             }} />
             <Route path="/metas" component={Metas} />
+            <Route path="/tareas" component={TareasPage} />
             <Route path="/segment/:segmentName" component={SegmentDetail} />
             <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
             <Route path="/client/:clientName" component={ClientDetail} />
