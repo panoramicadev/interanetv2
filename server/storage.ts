@@ -44,6 +44,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
+import { getComunaRegion } from "./chile-regions";
 
 export interface IStorage {
   // User operations
@@ -107,6 +108,17 @@ export interface IStorage {
     segment?: string;
   }): Promise<Array<{
     comuna: string;
+    totalSales: number;
+    transactionCount: number;
+    percentage: number;
+  }>>;
+  getRegionAnalysis(filters?: {
+    startDate?: string;
+    endDate?: string;
+    salesperson?: string;
+    segment?: string;
+  }): Promise<Array<{
+    region: string;
     totalSales: number;
     transactionCount: number;
     percentage: number;
@@ -3507,6 +3519,89 @@ export class DatabaseStorage implements IStorage {
       transactionCount: Number(r.transactionCount),
       percentage: totalSales > 0 ? (Number(r.totalSales) / totalSales) * 100 : 0,
     }));
+  }
+
+  // Region analysis - sales by region (grouped from comunas) with filters
+  async getRegionAnalysis(filters?: {
+    startDate?: string;
+    endDate?: string;
+    salesperson?: string;
+    segment?: string;
+  }): Promise<Array<{
+    region: string;
+    totalSales: number;
+    transactionCount: number;
+    percentage: number;
+  }>> {
+    const conditions = [
+      sql`${clients.comuna} IS NOT NULL AND ${clients.comuna} != ''`
+    ];
+
+    // Add date filters
+    if (filters?.startDate) {
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+    }
+
+    // Add salesperson filter
+    if (filters?.salesperson) {
+      conditions.push(eq(salesTransactions.nokofu, filters.salesperson));
+    }
+
+    // Add segment filter
+    if (filters?.segment) {
+      conditions.push(eq(salesTransactions.noruen, filters.segment));
+    }
+
+    // Get total sales for percentage calculation
+    const [totalSalesResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+      })
+      .from(salesTransactions)
+      .innerJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .where(and(...conditions));
+
+    const totalSales = Number(totalSalesResult.total);
+
+    // Get sales grouped by comuna first, then we'll aggregate by region
+    const comunaResults = await db
+      .select({
+        comuna: clients.comuna,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(salesTransactions)
+      .innerJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .where(and(...conditions))
+      .groupBy(clients.comuna);
+
+    // Group by region using the mapping function
+    const regionMap = new Map<string, { totalSales: number; transactionCount: number }>();
+    
+    for (const comunaData of comunaResults) {
+      const region = getComunaRegion(comunaData.comuna || '');
+      const existing = regionMap.get(region) || { totalSales: 0, transactionCount: 0 };
+      
+      regionMap.set(region, {
+        totalSales: existing.totalSales + Number(comunaData.totalSales),
+        transactionCount: existing.transactionCount + Number(comunaData.transactionCount),
+      });
+    }
+
+    // Convert map to array and sort by sales
+    const results = Array.from(regionMap.entries())
+      .map(([region, data]) => ({
+        region,
+        totalSales: data.totalSales,
+        transactionCount: data.transactionCount,
+        percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0,
+      }))
+      .sort((a, b) => b.totalSales - a.totalSales);
+
+    return results;
   }
 
   // Client operations implementation
