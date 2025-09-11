@@ -90,8 +90,18 @@ export default function OrdenesPage() {
     }
   }, [filterType, selectedDate, selectedYear, startDate, endDate]);
 
+  // Debug logging
+  console.log('🔍 OrdenesPage user:', {
+    user: user,
+    salespersonName: (user as any)?.salespersonName,
+    hasUser: !!user
+  });
+  
+  const salespersonParam = (user as any)?.salespersonName ? `&salesperson=${encodeURIComponent((user as any).salespersonName)}` : '';
+  console.log('🔍 OrdenesPage URL params:', salespersonParam);
+
   const { data: allTransactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/sales/transactions?limit=200&period=${selectedPeriod}&filterType=${filterType}${(user as any)?.salespersonName ? `&salesperson=${encodeURIComponent((user as any).salespersonName)}` : ''}`],
+    queryKey: [`/api/sales/transactions?limit=200&period=${selectedPeriod}&filterType=${filterType}${salespersonParam}`],
   });
 
   const handleTransactionClick = (transaction: Transaction) => {

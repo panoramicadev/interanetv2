@@ -103,14 +103,28 @@ export function setupAuth(app: Express) {
       if (!user) {
         return done(null, false);
       }
-      done(null, {
+      console.log('🔍 Auth deserializeUser - User from DB:', {
+        id: user.id,
+        email: user.email,
+        salespersonName: user.salespersonName,
+        role: user.role
+      });
+      
+      const serializedUser = {
         ...user,
         firstName: user.firstName || undefined,
         lastName: user.lastName || undefined,
         profileImageUrl: user.profileImageUrl || undefined,
         salespersonName: user.salespersonName || undefined,
         role: user.role || 'user'
+      };
+      
+      console.log('🔍 Auth deserializeUser - Serialized user:', {
+        id: serializedUser.id,
+        salespersonName: serializedUser.salespersonName
       });
+      
+      done(null, serializedUser);
     } catch (error) {
       console.error("Deserialize error:", error);
       done(null, false);

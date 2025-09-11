@@ -227,7 +227,14 @@ export const insertSalesTransactionSchema = z.object({
 
 export type UpsertUser = typeof users.$inferInsert;
 export type InsertUser = typeof users.$inferInsert;
-export type User = typeof users.$inferSelect;
+export type User = typeof users.$inferSelect & {
+  // Additional fields for salesperson users
+  salespersonName?: string;
+  username?: string;
+  isActive?: boolean;
+  supervisorId?: string;
+  assignedSegment?: string;
+};
 
 // Products table - Simplified KOPR-based structure with only necessary fields
 export const products = pgTable("products", {
