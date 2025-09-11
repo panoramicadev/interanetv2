@@ -90,6 +90,10 @@ export default function OrdenesPage() {
     }
   }, [filterType, selectedDate, selectedYear, startDate, endDate]);
 
+  // Debug logging
+  console.log('🔍 OrdenesPage - User object:', user);
+  console.log('🔍 OrdenesPage - salespersonName:', (user as any)?.salespersonName);
+
   const { data: allTransactions, isLoading } = useQuery<Transaction[]>({
     queryKey: [`/api/sales/transactions?limit=200&period=${selectedPeriod}&filterType=${filterType}${(user as any)?.salespersonName ? `&salesperson=${encodeURIComponent((user as any).salespersonName)}` : ''}`],
   });
