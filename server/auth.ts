@@ -16,6 +16,7 @@ declare global {
       email: string;
       firstName?: string;
       lastName?: string;
+      profileImageUrl?: string;
       role: string;
     }
   }
