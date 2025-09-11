@@ -8,7 +8,8 @@ import {
   Settings,
   ShoppingCart,
   Calculator,
-  Palette
+  Palette,
+  ClipboardList
 } from "lucide-react";
 
 interface SidebarItem {
@@ -52,6 +53,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Gestión de Clientes",
       icon: Users,
       separator: true, // Agregar separador después de este elemento
+    },
+    {
+      href: "/tareas",
+      label: "Panel de Tareas",
+      icon: ClipboardList,
     },
     {
       href: "#presupuesto",
@@ -108,6 +114,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Gestión de Clientes",
       icon: Users,
       separator: true, // Agregar separador después de este elemento
+    },
+    {
+      href: "/tareas",
+      label: "Panel de Tareas",
+      icon: ClipboardList,
     },
     {
       href: "#presupuesto",

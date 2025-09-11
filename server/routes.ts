@@ -2292,6 +2292,227 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Task management endpoints
+  app.get('/api/tasks', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { status, priority } = req.query;
+      
+      let tasks;
+      
+      if (user.role === 'admin' || user.role === 'supervisor') {
+        // Admin and supervisor can see all tasks
+        tasks = await storage.getTasks({
+          status: status as string,
+          priority: priority as string,
+        });
+      } else {
+        // Regular users only see tasks assigned to them or their segments
+        const userSegments = user.assignedSegment ? [user.assignedSegment] : [];
+        tasks = await storage.getTasksForUser(user.id, userSegments);
+        
+        // Apply additional filters if specified
+        if (status) {
+          tasks = tasks.filter(task => 
+            task.assignments.some(a => a.status === status)
+          );
+        }
+        if (priority) {
+          tasks = tasks.filter(task => task.priority === priority);
+        }
+      }
+      
+      res.json(tasks);
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  app.get('/api/tasks/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const task = await storage.getTask(id);
+      
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      // Check if user has access to this task
+      const canAccess = user.role === 'admin' || user.role === 'supervisor' ||
+        task.createdByUserId === user.id ||
+        task.assignments.some(assignment => 
+          (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
+          (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment)
+        );
+      
+      if (!canAccess) {
+        return res.status(403).json({ message: "Access denied to this task" });
+      }
+      
+      res.json(task);
+    } catch (error) {
+      console.error("Error fetching task:", error);
+      res.status(500).json({ message: "Failed to fetch task" });
+    }
+  });
+
+  app.post('/api/tasks', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Only admin and supervisor can create tasks
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Only administrators and supervisors can create tasks" });
+      }
+      
+      const { title, description, dueDate, priority, assignments } = req.body;
+      
+      // Validate required fields
+      if (!title || !assignments || assignments.length === 0) {
+        return res.status(400).json({ message: "Title and assignments are required" });
+      }
+      
+      const taskData = {
+        title,
+        description: description || null,
+        dueDate: dueDate || null,
+        priority: priority || 'medium',
+        status: 'pending',
+        createdByUserId: user.id,
+      };
+      
+      const task = await storage.createTask(taskData, assignments);
+      res.status(201).json(task);
+    } catch (error) {
+      console.error("Error creating task:", error);
+      res.status(500).json({ message: "Failed to create task" });
+    }
+  });
+
+  app.patch('/api/tasks/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const task = await storage.getTask(id);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      // Only admin, supervisor, or task creator can update task
+      const canUpdate = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
+      if (!canUpdate) {
+        return res.status(403).json({ message: "Not authorized to update this task" });
+      }
+      
+      const { title, description, dueDate, priority, status } = req.body;
+      const updates: any = {};
+      
+      if (title !== undefined) updates.title = title;
+      if (description !== undefined) updates.description = description;
+      if (dueDate !== undefined) updates.dueDate = dueDate;
+      if (priority !== undefined) updates.priority = priority;
+      if (status !== undefined) updates.status = status;
+      
+      const updatedTask = await storage.updateTask(id, updates);
+      res.json(updatedTask);
+    } catch (error) {
+      console.error("Error updating task:", error);
+      res.status(500).json({ message: "Failed to update task" });
+    }
+  });
+
+  app.delete('/api/tasks/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const task = await storage.getTask(id);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      // Only admin, supervisor, or task creator can delete task
+      const canDelete = user.role === 'admin' || user.role === 'supervisor' || task.createdByUserId === user.id;
+      if (!canDelete) {
+        return res.status(403).json({ message: "Not authorized to delete this task" });
+      }
+      
+      await storage.deleteTask(id);
+      res.json({ message: "Task deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      res.status(500).json({ message: "Failed to delete task" });
+    }
+  });
+
+  app.patch('/api/tasks/:taskId/assignments/:assignmentId', requireAuth, async (req: any, res) => {
+    try {
+      const { taskId, assignmentId } = req.params;
+      const { status, notes } = req.body;
+      const user = req.user;
+      
+      const task = await storage.getTask(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      const assignment = task.assignments.find(a => a.id === assignmentId);
+      if (!assignment) {
+        return res.status(404).json({ message: "Assignment not found" });
+      }
+      
+      // Check if user can update this assignment
+      const isAssignee = (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
+        (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment);
+      const isAdminOrSupervisor = user.role === 'admin' || user.role === 'supervisor';
+      
+      if (!isAssignee && !isAdminOrSupervisor) {
+        return res.status(403).json({ message: "Not authorized to update this assignment" });
+      }
+      
+      const updatedAssignment = await storage.updateAssignmentStatus(assignmentId, status, notes);
+      res.json(updatedAssignment);
+    } catch (error) {
+      console.error("Error updating assignment:", error);
+      res.status(500).json({ message: "Failed to update assignment" });
+    }
+  });
+
+  app.patch('/api/tasks/:taskId/assignments/:assignmentId/read', requireAuth, async (req: any, res) => {
+    try {
+      const { taskId, assignmentId } = req.params;
+      const user = req.user;
+      
+      const task = await storage.getTask(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      const assignment = task.assignments.find(a => a.id === assignmentId);
+      if (!assignment) {
+        return res.status(404).json({ message: "Assignment not found" });
+      }
+      
+      // Check if user can mark this assignment as read
+      const isAssignee = (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
+        (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment);
+      
+      if (!isAssignee) {
+        return res.status(403).json({ message: "Not authorized to mark this assignment as read" });
+      }
+      
+      const updatedAssignment = await storage.markAssignmentRead(assignmentId);
+      res.json(updatedAssignment);
+    } catch (error) {
+      console.error("Error marking assignment as read:", error);
+      res.status(500).json({ message: "Failed to mark assignment as read" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
