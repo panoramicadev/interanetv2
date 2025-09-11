@@ -17,6 +17,7 @@ declare global {
       firstName?: string;
       lastName?: string;
       profileImageUrl?: string;
+      salespersonName?: string;
       role: string;
     }
   }
@@ -85,6 +86,7 @@ export function setupAuth(app: Express) {
             firstName: user.firstName || undefined,
             lastName: user.lastName || undefined,
             profileImageUrl: user.profileImageUrl || undefined,
+            salespersonName: (user as any).salespersonName || undefined,
             role: user.role || 'user'
           });
         } catch (error) {
@@ -106,6 +108,7 @@ export function setupAuth(app: Express) {
         firstName: user.firstName || undefined,
         lastName: user.lastName || undefined,
         profileImageUrl: user.profileImageUrl || undefined,
+        salespersonName: (user as any).salespersonName || undefined,
         role: user.role || 'user'
       });
     } catch (error) {
