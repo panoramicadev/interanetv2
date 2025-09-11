@@ -320,6 +320,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/salesperson/:salespersonId/goals', requireAuth, async (req, res) => {
     try {
       const { salespersonId } = req.params;
+      const { period, filterType = "month" } = req.query;
       
       // Obtener el nombre del vendedor por su ID
       const user = await storage.getSalespersonUser(salespersonId);
@@ -330,7 +331,49 @@ export function registerRoutes(app: Express): Server {
       }
 
       const goals = await storage.getGoalsBySalesperson(salespersonName);
-      res.json(goals);
+      
+      // Filter goals by period if specified
+      const filteredGoals = period 
+        ? goals.filter(goal => goal.period === period)
+        : goals;
+      
+      // Process goals to include current sales and progress calculations
+      const goalsWithProgress = await Promise.all(
+        filteredGoals.map(async (goal) => {
+          let currentSales = 0;
+          
+          switch (goal.type) {
+            case 'global':
+              currentSales = await storage.getGlobalSalesForPeriod(goal.period);
+              break;
+            case 'segment':
+              if (goal.target) {
+                currentSales = await storage.getSegmentSalesForPeriod(goal.target, goal.period);
+              }
+              break;
+            case 'salesperson':
+              if (goal.target) {
+                currentSales = await storage.getSalespersonSalesForPeriod(goal.target, goal.period);
+              }
+              break;
+          }
+
+          const targetAmount = parseFloat(goal.amount);
+          const progress = targetAmount > 0 ? (currentSales / targetAmount) * 100 : 0;
+          const remaining = Math.max(0, targetAmount - currentSales);
+
+          return {
+            ...goal,
+            currentSales,
+            targetAmount,
+            progress: Math.min(100, progress),
+            remaining,
+            isCompleted: progress >= 100
+          };
+        })
+      );
+
+      res.json(goalsWithProgress);
     } catch (error) {
       console.error("Error fetching salesperson goals:", error);
       res.status(500).json({ message: "Failed to fetch salesperson goals" });
