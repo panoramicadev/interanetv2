@@ -11,6 +11,8 @@ import {
   clients,
   tasks,
   taskAssignments,
+  orders,
+  orderItems,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -35,6 +37,10 @@ import {
   type InsertTask,
   type TaskAssignment,
   type InsertTaskAssignment,
+  type Order,
+  type InsertOrder,
+  type OrderItem,
+  type InsertOrderItem,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
@@ -420,6 +426,27 @@ export interface IStorage {
   updateAssignmentStatus(assignmentId: string, status: string, notes?: string): Promise<TaskAssignment>;
   markAssignmentRead(assignmentId: string): Promise<TaskAssignment>;
   getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>>;
+  
+  // Order management operations
+  createOrder(order: InsertOrder): Promise<Order>;
+  getOrders(filters?: {
+    createdBy?: string;
+    status?: string;
+    clientName?: string;
+    userRole?: string;
+    userId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Order[]>;
+  getOrderById(id: string): Promise<Order | undefined>;
+  updateOrder(id: string, order: Partial<InsertOrder>): Promise<Order>;
+  deleteOrder(id: string): Promise<void>;
+  
+  // Order items operations
+  createOrderItem(orderItem: InsertOrderItem): Promise<OrderItem>;
+  getOrderItems(orderId: string): Promise<OrderItem[]>;
+  updateOrderItem(id: string, orderItem: Partial<InsertOrderItem>): Promise<OrderItem>;
+  deleteOrderItem(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4044,6 +4071,146 @@ export class DatabaseStorage implements IStorage {
     );
 
     return tasksWithAssignments;
+  }
+
+  // Order management operations
+  async createOrder(order: InsertOrder): Promise<Order> {
+    // Generate unique order number
+    const orderCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(orders);
+    
+    const orderNumber = `ORD-${new Date().getFullYear()}-${String(orderCount[0].count + 1).padStart(6, '0')}`;
+    
+    const [newOrder] = await db
+      .insert(orders)
+      .values({
+        ...order,
+        orderNumber,
+      })
+      .returning();
+
+    return newOrder;
+  }
+
+  async getOrders(filters: {
+    createdBy?: string;
+    status?: string;
+    clientName?: string;
+    userRole?: string;
+    userId?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<Order[]> {
+    const { createdBy, status, clientName, userRole, userId, limit = 50, offset = 0 } = filters;
+    
+    const conditions = [];
+    
+    // Role-based access control
+    if (userRole && userId) {
+      switch (userRole) {
+        case 'admin':
+        case 'supervisor':
+          // Admin and supervisor can see all orders
+          break;
+        case 'salesperson':
+          // Salesperson can only see orders they created
+          conditions.push(eq(orders.createdBy, userId));
+          break;
+        default:
+          // Unknown role - deny access
+          throw new Error('Unauthorized: Invalid user role');
+      }
+    }
+    
+    if (createdBy) {
+      conditions.push(eq(orders.createdBy, createdBy));
+    }
+    if (status) {
+      conditions.push(eq(orders.status, status));
+    }
+    if (clientName) {
+      conditions.push(sql`${orders.clientName} ILIKE ${'%' + clientName + '%'}`);
+    }
+
+    let query = db.select().from(orders);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const ordersList = await query
+      .orderBy(desc(orders.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return ordersList;
+  }
+
+  async getOrderById(id: string): Promise<Order | undefined> {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id));
+
+    return order;
+  }
+
+  async updateOrder(id: string, order: Partial<InsertOrder>): Promise<Order> {
+    const [updatedOrder] = await db
+      .update(orders)
+      .set({ ...order, updatedAt: new Date() })
+      .where(eq(orders.id, id))
+      .returning();
+
+    return updatedOrder;
+  }
+
+  async deleteOrder(id: string): Promise<void> {
+    // Delete order items first (foreign key constraint)
+    await db
+      .delete(orderItems)
+      .where(eq(orderItems.orderId, id));
+
+    // Delete order
+    await db
+      .delete(orders)
+      .where(eq(orders.id, id));
+  }
+
+  // Order items operations
+  async createOrderItem(orderItem: InsertOrderItem): Promise<OrderItem> {
+    const [newOrderItem] = await db
+      .insert(orderItems)
+      .values(orderItem)
+      .returning();
+
+    return newOrderItem;
+  }
+
+  async getOrderItems(orderId: string): Promise<OrderItem[]> {
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderId))
+      .orderBy(orderItems.createdAt);
+
+    return items;
+  }
+
+  async updateOrderItem(id: string, orderItem: Partial<InsertOrderItem>): Promise<OrderItem> {
+    const [updatedOrderItem] = await db
+      .update(orderItems)
+      .set(orderItem)
+      .where(eq(orderItems.id, id))
+      .returning();
+
+    return updatedOrderItem;
+  }
+
+  async deleteOrderItem(id: string): Promise<void> {
+    await db
+      .delete(orderItems)
+      .where(eq(orderItems.id, id));
   }
 
 }

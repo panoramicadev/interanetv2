@@ -987,3 +987,82 @@ export const insertTaskAssignmentSchema = createInsertSchema(taskAssignments, {
 
 export type InsertTaskInput = z.infer<typeof insertTaskSchema>;
 export type InsertTaskAssignmentInput = z.infer<typeof insertTaskAssignmentSchema>;
+
+// Orders system - Tomador de Pedidos
+export const orders = pgTable("orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderNumber: varchar("order_number").notNull().unique(), // Auto-generated order number
+  clientName: text("client_name").notNull(), // Client name (referencing clients.nokoen)
+  clientId: varchar("client_id"), // Optional FK to clients.id for structured reference
+  createdBy: varchar("created_by").notNull(), // FK to users.id - who created the order
+  status: varchar("status").default("draft"), // draft, confirmed, processing, completed, cancelled
+  priority: varchar("priority").default("medium"), // low, medium, high, urgent
+  notes: text("notes"), // Additional notes about the order
+  estimatedDeliveryDate: timestamp("estimated_delivery_date"), // Optional estimated delivery
+  totalAmount: numeric("total_amount", { precision: 15, scale: 2 }), // Calculated total if items exist
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const orderItems = pgTable("order_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull(), // FK to orders.id
+  productName: text("product_name").notNull(), // Product name
+  productCode: varchar("product_code"), // Optional product code (KOPR)
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+  unitPrice: numeric("unit_price", { precision: 15, scale: 2 }),
+  totalPrice: numeric("total_price", { precision: 15, scale: 2 }),
+  notes: text("notes"), // Item-specific notes
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Order = typeof orders.$inferSelect;
+export type InsertOrder = typeof orders.$inferInsert;
+export type OrderItem = typeof orderItems.$inferSelect;
+export type InsertOrderItem = typeof orderItems.$inferInsert;
+
+// Relations
+export const ordersRelations = relations(orders, ({ many, one }) => ({
+  items: many(orderItems),
+  creator: one(users, {
+    fields: [orders.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderItems.orderId],
+    references: [orders.id],
+  }),
+}));
+
+// Schemas for validation
+export const insertOrderSchema = createInsertSchema(orders, {
+  clientName: z.string().min(1, "Nombre del cliente es requerido"),
+  status: z.enum(["draft", "confirmed", "processing", "completed", "cancelled"]).default("draft"),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+  notes: z.string().optional(),
+  estimatedDeliveryDate: z.string().optional().or(z.null()),
+}).omit({
+  id: true,
+  orderNumber: true, // Auto-generated
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOrderItemSchema = createInsertSchema(orderItems, {
+  productName: z.string().min(1, "Nombre del producto es requerido"),
+  quantity: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  unitPrice: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertOrderInput = z.infer<typeof insertOrderSchema>;
+export type InsertOrderItemInput = z.infer<typeof insertOrderItemSchema>;
