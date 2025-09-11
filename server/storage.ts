@@ -100,6 +100,17 @@ export interface IStorage {
     uniqueClients: number;
     percentage: number;
   }>>;
+  getComunasAnalysis(filters?: {
+    startDate?: string;
+    endDate?: string;
+    salesperson?: string;
+    segment?: string;
+  }): Promise<Array<{
+    comuna: string;
+    totalSales: number;
+    transactionCount: number;
+    percentage: number;
+  }>>;
   getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     period: string;
     sales: number;
@@ -3430,6 +3441,72 @@ export class DatabaseStorage implements IStorage {
       uniqueClients: Number(segment.uniqueClients),
       percentage: totalUniqueClients > 0 ? (Number(segment.uniqueClients) / totalUniqueClients) * 100 : 0
     })).sort((a, b) => b.uniqueClients - a.uniqueClients);
+  }
+
+  // Comunas analysis - sales by comuna with filters
+  async getComunasAnalysis(filters?: {
+    startDate?: string;
+    endDate?: string;
+    salesperson?: string;
+    segment?: string;
+  }): Promise<Array<{
+    comuna: string;
+    totalSales: number;
+    transactionCount: number;
+    percentage: number;
+  }>> {
+    const conditions = [
+      sql`${clients.comuna} IS NOT NULL AND ${clients.comuna} != ''`
+    ];
+
+    // Add date filters
+    if (filters?.startDate) {
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+    }
+
+    // Add salesperson filter
+    if (filters?.salesperson) {
+      conditions.push(eq(salesTransactions.nokofu, filters.salesperson));
+    }
+
+    // Add segment filter
+    if (filters?.segment) {
+      conditions.push(eq(salesTransactions.noruen, filters.segment));
+    }
+
+    // Get total sales for percentage calculation
+    const [totalSalesResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+      })
+      .from(salesTransactions)
+      .innerJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .where(and(...conditions));
+
+    const totalSales = Number(totalSalesResult.total);
+
+    // Get sales grouped by comuna
+    const results = await db
+      .select({
+        comuna: clients.comuna,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(salesTransactions)
+      .innerJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .where(and(...conditions))
+      .groupBy(clients.comuna)
+      .orderBy(sql`SUM(${salesTransactions.monto}) DESC`);
+
+    return results.map(r => ({
+      comuna: r.comuna || '',
+      totalSales: Number(r.totalSales),
+      transactionCount: Number(r.transactionCount),
+      percentage: totalSales > 0 ? (Number(r.totalSales) / totalSales) * 100 : 0,
+    }));
   }
 
   // Client operations implementation

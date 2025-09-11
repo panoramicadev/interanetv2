@@ -734,6 +734,25 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Comunas analysis endpoint
+  app.get('/api/sales/comunas', requireAuth, async (req, res) => {
+    try {
+      const { period, filterType, segment, salesperson } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
+      const comunasAnalysis = await storage.getComunasAnalysis({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        segment: segment as string,
+        salesperson: salesperson as string,
+      });
+      res.json(comunasAnalysis);
+    } catch (error) {
+      console.error("Error fetching comunas analysis:", error);
+      res.status(500).json({ message: "Failed to fetch comunas analysis" });
+    }
+  });
+
   // Sales chart data endpoint
   app.get('/api/sales/chart-data', requireAuth, async (req, res) => {
     try {
