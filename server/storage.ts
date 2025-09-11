@@ -35,6 +35,7 @@ import {
   type CsvProductStockImport,
   type Task,
   type InsertTask,
+  type InsertTaskInput,
   type TaskAssignment,
   type InsertTaskAssignment,
   type Order,
@@ -458,6 +459,31 @@ export interface IStorage {
   updateAssignmentStatus(assignmentId: string, status: string, notes?: string): Promise<TaskAssignment>;
   markAssignmentRead(assignmentId: string): Promise<TaskAssignment>;
   getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>>;
+  
+  // Personal Task Management - SECURITY: All methods filter by assignedToUserId = userId
+  createMyTask(task: InsertTaskInput, userId: string): Promise<Task>;
+  getMyTasks(filters: {
+    status?: 'pendiente' | 'en_progreso' | 'completada';
+    type?: 'texto' | 'formulario' | 'visita';
+    period?: 'week' | 'month';
+  }, userId: string): Promise<Task[]>;
+  updateMyTask(id: string, patch: Partial<Task>, userId: string): Promise<Task>;
+  deleteMyTask(id: string, userId: string): Promise<void>;
+  getMyTaskSummary(filters: {
+    period?: 'week' | 'month';
+  }, userId: string): Promise<{
+    statusCounts: {
+      pendiente: number;
+      en_progreso: number;
+      completada: number;
+    };
+    typeCounts: {
+      texto: number;
+      formulario: number;
+      visita: number;
+    };
+    montoEstimadoTotal: number;
+  }>;
   
   // Order management operations
   createOrder(order: InsertOrder): Promise<Order>;
@@ -4310,6 +4336,249 @@ export class DatabaseStorage implements IStorage {
     );
 
     return tasksWithAssignments;
+  }
+
+  // Personal Task Management - SECURITY: All methods filter by assignedToUserId = userId
+  async createMyTask(task: InsertTaskInput, userId: string): Promise<Task> {
+    // SECURITY: Automatically assign both createdByUserId and assignedToUserId to the current user
+    const taskToInsert: InsertTask = {
+      title: task.title,
+      description: task.description,
+      type: task.type,
+      status: task.status || 'pendiente',
+      progress: task.progress || 0,
+      priority: task.priority || 'medium',
+      dueDate: task.dueDate ? new Date(task.dueDate) : null,
+      createdByUserId: userId, // SECURITY: Always set to current user
+      assignedToUserId: userId, // SECURITY: Always assign to current user
+      payload: task.payload,
+    };
+
+    const [newTask] = await db
+      .insert(tasks)
+      .values(taskToInsert)
+      .returning();
+
+    return newTask;
+  }
+
+  async getMyTasks(filters: {
+    status?: 'pendiente' | 'en_progreso' | 'completada';
+    type?: 'texto' | 'formulario' | 'visita';
+    period?: 'week' | 'month';
+  }, userId: string): Promise<Task[]> {
+    // SECURITY: ALWAYS filter by assignedToUserId = userId
+    const conditions = [eq(tasks.assignedToUserId, userId)];
+
+    // Apply status filter
+    if (filters.status) {
+      conditions.push(eq(tasks.status, filters.status));
+    }
+
+    // Apply type filter
+    if (filters.type) {
+      conditions.push(eq(tasks.type, filters.type));
+    }
+
+    // Apply period filter based on createdAt
+    if (filters.period) {
+      const now = new Date();
+      let startDate: Date;
+      
+      if (filters.period === 'week') {
+        // Get start of current week (Monday)
+        const startOfWeek = new Date(now);
+        const day = startOfWeek.getDay();
+        const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+        startOfWeek.setDate(diff);
+        startOfWeek.setHours(0, 0, 0, 0);
+        startDate = startOfWeek;
+      } else if (filters.period === 'month') {
+        // Get start of current month
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else {
+        startDate = new Date(0); // Default: all time
+      }
+      
+      conditions.push(gte(tasks.createdAt, startDate));
+    }
+
+    const userTasks = await db
+      .select()
+      .from(tasks)
+      .where(and(...conditions))
+      .orderBy(desc(tasks.createdAt));
+
+    return userTasks;
+  }
+
+  async updateMyTask(id: string, patch: Partial<Task>, userId: string): Promise<Task> {
+    // SECURITY: First verify the task belongs to the current user
+    const [existingTask] = await db
+      .select()
+      .from(tasks)
+      .where(and(
+        eq(tasks.id, id),
+        eq(tasks.assignedToUserId, userId)
+      ));
+
+    if (!existingTask) {
+      throw new Error('Task not found or access denied');
+    }
+
+    // Whitelist allowed fields for security
+    const allowedUpdates: Partial<InsertTask> = {};
+    if (patch.title !== undefined) allowedUpdates.title = patch.title;
+    if (patch.description !== undefined) allowedUpdates.description = patch.description;
+    if (patch.status !== undefined) allowedUpdates.status = patch.status;
+    if (patch.progress !== undefined) allowedUpdates.progress = patch.progress;
+    if (patch.priority !== undefined) allowedUpdates.priority = patch.priority;
+    if (patch.dueDate !== undefined) {
+      allowedUpdates.dueDate = patch.dueDate ? new Date(patch.dueDate) : null;
+    }
+    if (patch.payload !== undefined) allowedUpdates.payload = patch.payload;
+
+    // Always update updatedAt
+    allowedUpdates.updatedAt = new Date();
+
+    const [updatedTask] = await db
+      .update(tasks)
+      .set(allowedUpdates)
+      .where(and(
+        eq(tasks.id, id),
+        eq(tasks.assignedToUserId, userId) // SECURITY: Double-check ownership
+      ))
+      .returning();
+
+    if (!updatedTask) {
+      throw new Error('Task not found or access denied');
+    }
+
+    return updatedTask;
+  }
+
+  async deleteMyTask(id: string, userId: string): Promise<void> {
+    // SECURITY: First verify the task belongs to the current user
+    const [existingTask] = await db
+      .select()
+      .from(tasks)
+      .where(and(
+        eq(tasks.id, id),
+        eq(tasks.assignedToUserId, userId)
+      ));
+
+    if (!existingTask) {
+      throw new Error('Task not found or access denied');
+    }
+
+    // Delete the task (no assignments to worry about for personal tasks)
+    const result = await db
+      .delete(tasks)
+      .where(and(
+        eq(tasks.id, id),
+        eq(tasks.assignedToUserId, userId) // SECURITY: Double-check ownership
+      ));
+
+    // No need to check result.count for delete operations in Drizzle
+  }
+
+  async getMyTaskSummary(filters: {
+    period?: 'week' | 'month';
+  }, userId: string): Promise<{
+    statusCounts: {
+      pendiente: number;
+      en_progreso: number;
+      completada: number;
+    };
+    typeCounts: {
+      texto: number;
+      formulario: number;
+      visita: number;
+    };
+    montoEstimadoTotal: number;
+  }> {
+    // SECURITY: ALWAYS filter by assignedToUserId = userId
+    const baseConditions = [eq(tasks.assignedToUserId, userId)];
+
+    // Apply period filter if specified
+    if (filters.period) {
+      const now = new Date();
+      let startDate: Date;
+      
+      if (filters.period === 'week') {
+        // Get start of current week (Monday)
+        const startOfWeek = new Date(now);
+        const day = startOfWeek.getDay();
+        const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+        startOfWeek.setDate(diff);
+        startOfWeek.setHours(0, 0, 0, 0);
+        startDate = startOfWeek;
+      } else if (filters.period === 'month') {
+        // Get start of current month
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      } else {
+        startDate = new Date(0); // Default: all time
+      }
+      
+      baseConditions.push(gte(tasks.createdAt, startDate));
+    }
+
+    // Get all tasks for the user in the specified period
+    const userTasks = await db
+      .select()
+      .from(tasks)
+      .where(and(...baseConditions));
+
+    // Calculate status counts
+    const statusCounts = {
+      pendiente: 0,
+      en_progreso: 0,
+      completada: 0,
+    };
+
+    // Calculate type counts
+    const typeCounts = {
+      texto: 0,
+      formulario: 0,
+      visita: 0,
+    };
+
+    // Calculate montoEstimado total for 'formulario' tasks with 'compras_potenciales' payload
+    let montoEstimadoTotal = 0;
+
+    userTasks.forEach(task => {
+      // Count by status
+      if (task.status === 'pendiente') statusCounts.pendiente++;
+      else if (task.status === 'en_progreso') statusCounts.en_progreso++;
+      else if (task.status === 'completada') statusCounts.completada++;
+
+      // Count by type
+      if (task.type === 'texto') typeCounts.texto++;
+      else if (task.type === 'formulario') typeCounts.formulario++;
+      else if (task.type === 'visita') typeCounts.visita++;
+
+      // Sum montoEstimado for formulario tasks with compras_potenciales
+      if (task.type === 'formulario' && task.payload) {
+        try {
+          const payload = typeof task.payload === 'string' 
+            ? JSON.parse(task.payload) 
+            : task.payload;
+          
+          if (payload.formKey === 'compras_potenciales' && payload.montoEstimado) {
+            montoEstimadoTotal += payload.montoEstimado;
+          }
+        } catch (error) {
+          // Ignore invalid JSON payload
+          console.warn('Invalid JSON payload in task:', task.id);
+        }
+      }
+    });
+
+    return {
+      statusCounts,
+      typeCounts,
+      montoEstimadoTotal,
+    };
   }
 
   // Order management operations
