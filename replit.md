@@ -8,6 +8,7 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ### Dashboard Unification (September 2025)
 - **Supervisor & Admin Dashboard**: Supervisors now use the identical dashboard as administrators, providing full access to all management capabilities except file upload functionality
+- **Goals Management**: Supervisors now see and manage all system goals (identical to administrators) instead of being limited to their assigned area
 - **Role-Based Access**: Unified access control where both admin and supervisor roles share the same interface and permissions for better operational consistency
 - **Future Customization**: Dashboard differentiation can be restored later when specific supervisor features are developed
 

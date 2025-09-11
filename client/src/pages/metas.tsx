@@ -86,12 +86,10 @@ export default function Metas() {
 
   // Fetch goals based on user role
   const getGoalsEndpoint = () => {
-    if (user?.role === 'supervisor') {
-      return `/api/supervisor/${user.id}/goals`;
-    } else if (user?.role === 'salesperson') {
+    if (user?.role === 'salesperson') {
       return `/api/salesperson/${user.id}/goals`;
     }
-    // Admin and other roles see all goals
+    // Admin, supervisor and other roles see all goals
     return "/api/goals";
   };
 
@@ -286,12 +284,10 @@ export default function Metas() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
             <div className="min-w-0 flex-1">
               <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground">
-                {user?.role === 'supervisor' ? 'Mis Metas' : user?.role === 'salesperson' ? 'Mis Metas' : 'Gestión de Metas'}
+                {user?.role === 'salesperson' ? 'Mis Metas' : 'Gestión de Metas'}
               </h1>
               <p className="text-muted-foreground text-xs sm:text-sm">
-                {user?.role === 'supervisor' 
-                  ? 'Metas de tu segmento asignado y vendedores bajo tu supervisión'
-                  : user?.role === 'salesperson'
+                {user?.role === 'salesperson'
                   ? 'Tus metas personales de ventas'
                   : 'Administra las metas de ventas globales, por segmento y por vendedor'
                 }
