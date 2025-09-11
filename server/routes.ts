@@ -669,6 +669,13 @@ export function registerRoutes(app: Express): Server {
       const { startDate, endDate, salesperson, segment, limit, offset, period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
+      console.log('🔍 /api/sales/transactions - Query params:', {
+        salesperson: salesperson as string,
+        segment: segment as string,
+        period: period as string,
+        filterType: filterType as string
+      });
+      
       const transactions = await storage.getSalesTransactions({
         startDate: (startDate as string) || dateRange.startDate,
         endDate: (endDate as string) || dateRange.endDate,
@@ -677,6 +684,9 @@ export function registerRoutes(app: Express): Server {
         limit: limit ? parseInt(limit as string) : undefined,
         offset: offset ? parseInt(offset as string) : undefined,
       });
+      
+      console.log(`🔍 Transactions found: ${transactions.length} total, ${salesperson ? `filtered by salesperson: ${salesperson}` : 'no salesperson filter'}`);
+      
       res.json(transactions);
     } catch (error) {
       console.error("Error fetching sales transactions:", error);
