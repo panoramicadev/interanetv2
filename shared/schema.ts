@@ -920,3 +920,70 @@ export const insertGoalSchema = createInsertSchema(goals).omit({
 });
 export type InsertSalesTransaction = z.infer<typeof insertSalesTransactionSchema>;
 export type SalesTransaction = typeof salesTransactions.$inferSelect;
+
+// Tasks system - Panel de Tareas
+export const tasks = pgTable("tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  dueDate: timestamp("due_date"), // nullable
+  priority: varchar("priority").default("medium"), // low, medium, high
+  status: varchar("status").default("pending"), // pending, in_progress, completed, blocked, cancelled
+  createdByUserId: varchar("created_by_user_id").notNull(), // FK to users.id
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const taskAssignments = pgTable("task_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: varchar("task_id").notNull(), // FK to tasks.id
+  assigneeType: varchar("assignee_type").notNull(), // "user" | "segment"
+  assigneeId: varchar("assignee_id").notNull(), // userId or segment code
+  status: varchar("status").default("pending"), // pending, in_progress, completed, declined
+  readAt: timestamp("read_at"), // nullable
+  completedAt: timestamp("completed_at"), // nullable
+  notes: text("notes"), // nullable
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = typeof tasks.$inferInsert;
+export type TaskAssignment = typeof taskAssignments.$inferSelect;
+export type InsertTaskAssignment = typeof taskAssignments.$inferInsert;
+
+// Relations
+export const tasksRelations = relations(tasks, ({ many }) => ({
+  assignments: many(taskAssignments),
+}));
+
+export const taskAssignmentsRelations = relations(taskAssignments, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskAssignments.taskId],
+    references: [tasks.id],
+  }),
+}));
+
+// Schemas for validation
+export const insertTaskSchema = createInsertSchema(tasks, {
+  title: z.string().min(1, "Título es requerido"),
+  description: z.string().optional(),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  status: z.enum(["pending", "in_progress", "completed", "blocked", "cancelled"]).default("pending"),
+  dueDate: z.string().optional().or(z.null()),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTaskAssignmentSchema = createInsertSchema(taskAssignments, {
+  assigneeType: z.enum(["user", "segment"]),
+  assigneeId: z.string().min(1, "Asignado es requerido"),
+  status: z.enum(["pending", "in_progress", "completed", "declined"]).default("pending"),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTaskInput = z.infer<typeof insertTaskSchema>;
+export type InsertTaskAssignmentInput = z.infer<typeof insertTaskAssignmentSchema>;
