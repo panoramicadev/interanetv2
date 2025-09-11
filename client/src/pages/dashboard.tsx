@@ -6,6 +6,7 @@ import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
 import SegmentChart from "@/components/dashboard/segment-chart";
+import ComunasChart from "@/components/dashboard/comunas-chart";
 import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import TopSalespeoplePanel from "@/components/dashboard/top-salespeople-panel";
 import TransactionsTable from "@/components/dashboard/transactions-table";
@@ -291,6 +292,16 @@ export default function Dashboard() {
           {globalFilter.type === "all" && (
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <SegmentChart 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
+          )}
+
+          {/* Ventas por Comuna - Full Width Chart - Ocultar cuando hay filtro activo */}
+          {globalFilter.type === "all" && (
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <ComunasChart 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
               />
