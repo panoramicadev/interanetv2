@@ -932,14 +932,24 @@ export type SalesTransaction = typeof salesTransactions.$inferSelect;
 export const tasks = pgTable("tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
-  description: text("description"),
-  dueDate: timestamp("due_date"), // nullable
-  priority: varchar("priority").default("medium"), // low, medium, high
-  status: varchar("status").default("pending"), // pending, in_progress, completed, blocked, cancelled
+  description: text("description"), // Added description field
+  type: varchar("type").notNull(), // 'texto', 'formulario', 'visita'
+  status: varchar("status").default("pendiente"), // 'pendiente', 'en_progreso', 'completada'
+  progress: integer("progress").default(0), // 0-100
+  priority: varchar("priority").default("medium"), // 'low', 'medium', 'high'
+  dueDate: timestamp("due_date"), // nullable, changed to timestamp for datetime support
   createdByUserId: varchar("created_by_user_id").notNull(), // FK to users.id
+  assignedToUserId: varchar("assigned_to_user_id"), // FK to users.id (nullable)
+  payload: jsonb("payload"), // Type-specific data
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Indexes for performance
+  assignedToUserIdIdx: index("IDX_tasks_assigned_to_user_id").on(table.assignedToUserId),
+  statusIdx: index("IDX_tasks_status").on(table.status),
+  typeIdx: index("IDX_tasks_type").on(table.type),
+  dueDateIdx: index("IDX_tasks_due_date").on(table.dueDate),
+}));
 
 export const taskAssignments = pgTable("task_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -953,14 +963,20 @@ export const taskAssignments = pgTable("task_assignments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export type Task = typeof tasks.$inferSelect;
-export type InsertTask = typeof tasks.$inferInsert;
 export type TaskAssignment = typeof taskAssignments.$inferSelect;
 export type InsertTaskAssignment = typeof taskAssignments.$inferInsert;
 
 // Relations
-export const tasksRelations = relations(tasks, ({ many }) => ({
+export const tasksRelations = relations(tasks, ({ many, one }) => ({
   assignments: many(taskAssignments),
+  createdBy: one(users, {
+    fields: [tasks.createdByUserId],
+    references: [users.id],
+  }),
+  assignedTo: one(users, {
+    fields: [tasks.assignedToUserId],
+    references: [users.id],
+  }),
 }));
 
 export const taskAssignmentsRelations = relations(taskAssignments, ({ one }) => ({
@@ -970,18 +986,80 @@ export const taskAssignmentsRelations = relations(taskAssignments, ({ one }) => 
   }),
 }));
 
-// Schemas for validation
-export const insertTaskSchema = createInsertSchema(tasks, {
+// Payload schemas for different task types with enhanced validation
+export const textoTaskPayloadSchema = z.object({
+  description: z.string().optional(),
+  notes: z.string().optional(),
+}).optional();
+
+export const formularioTaskPayloadSchema = z.object({
+  formKey: z.literal("compras_potenciales"),
+  clientId: z.string().optional(),
+  clientName: z.string().min(1, "Nombre del cliente es requerido"),
+  montoEstimado: z.number().positive("El monto debe ser mayor a 0"),
+  semanaISO: z.string().regex(/^\d{4}-W\d{2}$/, "Formato debe ser YYYY-Www (ej: 2025-W37)"), // YYYY-Www format validation
+  notas: z.string().optional(),
+});
+
+const formularioTaskPayloadOptionalSchema = formularioTaskPayloadSchema.optional();
+
+export const visitaTaskPayloadSchema = z.object({
+  locationName: z.string().min(1, "Nombre de la ubicación es requerido"),
+  address: z.string().optional(),
+  lat: z.number().min(-90).max(90, "Latitud debe estar entre -90 y 90").optional(),
+  lng: z.number().min(-180).max(180, "Longitud debe estar entre -180 y 180").optional(),
+  scheduledAt: z.string().datetime("Fecha debe ser un ISO date string válido").optional(),
+});
+
+const visitaTaskPayloadOptionalSchema = visitaTaskPayloadSchema.optional();
+
+// Task schema with discriminated union validation for security and type safety
+const baseTaskSchema = z.object({
   title: z.string().min(1, "Título es requerido"),
   description: z.string().optional(),
+  status: z.enum(["pendiente", "en_progreso", "completada"]).default("pendiente"),
+  progress: z.number().min(0).max(100).default(0),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
-  status: z.enum(["pending", "in_progress", "completed", "blocked", "cancelled"]).default("pending"),
-  dueDate: z.string().optional().or(z.null()),
-}).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+  dueDate: z.string().datetime().optional().or(z.null()),
+  assignedToUserId: z.string().optional().or(z.null()),
 });
+
+// Discriminated union for strict type-based validation
+export const insertTaskSchema = z.discriminatedUnion("type", [
+  // Texto task - payload is optional
+  baseTaskSchema.extend({
+    type: z.literal("texto"),
+    payload: textoTaskPayloadSchema,
+  }),
+  // Formulario task - requires specific payload
+  baseTaskSchema.extend({
+    type: z.literal("formulario"),
+    payload: formularioTaskPayloadSchema, // Required for formulario type
+  }),
+  // Visita task - requires location payload
+  baseTaskSchema.extend({
+    type: z.literal("visita"),
+    payload: visitaTaskPayloadSchema, // Required for visita type
+  }),
+]);
+
+// SECURITY: Server-only schema that includes createdByUserId - NEVER expose this to frontend
+export const serverInsertTaskSchema = baseTaskSchema.extend({
+  createdByUserId: z.string().min(1, "Usuario creador es requerido"),
+}).and(z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("texto"),
+    payload: textoTaskPayloadSchema,
+  }),
+  z.object({
+    type: z.literal("formulario"),
+    payload: formularioTaskPayloadSchema,
+  }),
+  z.object({
+    type: z.literal("visita"),
+    payload: visitaTaskPayloadSchema,
+  }),
+]));
 
 export const insertTaskAssignmentSchema = createInsertSchema(taskAssignments, {
   assigneeType: z.enum(["user", "segment"]),
@@ -992,8 +1070,18 @@ export const insertTaskAssignmentSchema = createInsertSchema(taskAssignments, {
   createdAt: true,
 });
 
+// TypeScript types - CRITICAL: Export all task-related types
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = typeof tasks.$inferInsert;
 export type InsertTaskInput = z.infer<typeof insertTaskSchema>;
+export type ServerInsertTaskInput = z.infer<typeof serverInsertTaskSchema>;
 export type InsertTaskAssignmentInput = z.infer<typeof insertTaskAssignmentSchema>;
+export type TextoTaskPayload = z.infer<typeof textoTaskPayloadSchema>;
+export type FormularioTaskPayload = z.infer<typeof formularioTaskPayloadSchema>;
+export type VisitaTaskPayload = z.infer<typeof visitaTaskPayloadSchema>;
+
+// TaskPayload union type - CRITICAL export requested by architect
+export type TaskPayload = TextoTaskPayload | FormularioTaskPayload | VisitaTaskPayload;
 
 // Orders system - Tomador de Pedidos
 export const orders = pgTable("orders", {

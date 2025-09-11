@@ -74,7 +74,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, InsertTask } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -2429,22 +2429,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Only administrators and supervisors can create tasks" });
       }
       
-      // Create validation schema for task creation with assignments
-      const createTaskSchema = insertTaskSchema.extend({
+      // SECURITY: Use discriminated union validation with assignments
+      const createTaskWithAssignmentsSchema = z.object({
         assignments: z.array(insertTaskAssignmentSchema.pick({
           assigneeType: true,
           assigneeId: true
         })).min(1, "At least one assignment is required")
-      }).pick({
-        title: true,
-        description: true,
-        dueDate: true,
-        priority: true,
-        assignments: true
-      });
+      }).and(insertTaskSchema);
       
-      // Validate request body with Zod
-      const validation = createTaskSchema.safeParse(req.body);
+      // Validate request body with discriminated union validation
+      const validation = createTaskWithAssignmentsSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json({ 
           message: "Invalid task data", 
@@ -2452,14 +2446,26 @@ export function registerRoutes(app: Express): Server {
         });
       }
       
-      const { title, description, dueDate, priority, assignments } = validation.data;
+      const { title, description, type, dueDate, priority, payload, assignments } = validation.data;
+      
+      // Additional validation: formulario tasks must have formKey='compras_potenciales'
+      if (type === 'formulario' && payload && 'formKey' in payload) {
+        if (payload.formKey !== 'compras_potenciales') {
+          return res.status(400).json({ 
+            message: "Invalid formulario task", 
+            errors: [{ message: "formulario tasks must have formKey='compras_potenciales'" }]
+          });
+        }
+      }
       
       const taskData = {
         title,
         description: description || null,
+        type,
         dueDate: dueDate ? new Date(dueDate) : null,
         priority: priority || 'medium',
-        status: 'pending' as const,
+        status: 'pendiente' as const,
+        payload, // Now properly validated payload based on task type
         createdByUserId: user.id,
       };
       
@@ -2493,13 +2499,14 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to update this task" });
       }
       
-      // Field whitelisting: only allow specific fields to be updated
-      const updateTaskSchema = insertTaskSchema.pick({
-        title: true,
-        description: true,
-        dueDate: true,
-        priority: true,
-        status: true
+      // Field whitelisting: only allow specific fields to be updated (no createdByUserId for security)
+      const updateTaskSchema = z.object({
+        title: z.string().min(1).optional(),
+        description: z.string().optional(),
+        type: z.enum(["texto", "formulario", "visita"]).optional(),
+        dueDate: z.string().datetime().optional().or(z.null()),
+        priority: z.enum(["low", "medium", "high"]).optional(),
+        status: z.enum(["pendiente", "en_progreso", "completada"]).optional()
       }).partial();
       
       // Validate request body with Zod
@@ -2532,18 +2539,16 @@ export function registerRoutes(app: Express): Server {
       }
       
       // Convert dueDate string to Date if present, handle all cases properly
+      const { dueDate, ...otherUpdates } = updates;
       const processedUpdates: Partial<InsertTask> = {
-        ...updates
+        ...otherUpdates,
+        // Handle dueDate conversion properly
+        ...(dueDate !== undefined && {
+          dueDate: typeof dueDate === 'string' 
+            ? new Date(dueDate) 
+            : dueDate // Already Date or null
+        })
       };
-      
-      // Handle dueDate conversion properly
-      if (updates.dueDate !== undefined) {
-        if (typeof updates.dueDate === 'string') {
-          processedUpdates.dueDate = new Date(updates.dueDate);
-        } else {
-          processedUpdates.dueDate = updates.dueDate; // Already Date or null
-        }
-      }
       
       const updatedTask = await storage.updateTask(id, processedUpdates);
       res.json(updatedTask);
@@ -2714,10 +2719,19 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to create orders" });
       }
       
-      const orderData = insertOrderSchema.parse({
+      const validatedData = insertOrderSchema.parse({
         ...req.body,
         createdBy: user.id
       });
+      
+      // Transform data for storage layer and generate orderNumber
+      const orderData = {
+        ...validatedData,
+        orderNumber: `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        estimatedDeliveryDate: validatedData.estimatedDeliveryDate 
+          ? new Date(validatedData.estimatedDeliveryDate) 
+          : null
+      };
       
       const order = await storage.createOrder(orderData);
       res.status(201).json(order);
@@ -2750,7 +2764,18 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to update this order" });
       }
       
-      const updateData = insertOrderSchema.partial().parse(req.body);
+      const validatedUpdateData = insertOrderSchema.partial().parse(req.body);
+      
+      // Transform data for storage layer
+      const updateData = {
+        ...validatedUpdateData,
+        ...(validatedUpdateData.estimatedDeliveryDate !== undefined && {
+          estimatedDeliveryDate: validatedUpdateData.estimatedDeliveryDate 
+            ? new Date(validatedUpdateData.estimatedDeliveryDate) 
+            : null
+        })
+      } as Partial<any>; // Type assertion to handle storage compatibility
+      
       const updatedOrder = await storage.updateOrder(id, updateData);
       
       res.json(updatedOrder);
