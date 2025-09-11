@@ -2,7 +2,14 @@
 
 ## Overview
 
-This is a full-stack sales analytics dashboard built for analyzing sales transaction data. The application provides comprehensive sales metrics, visualizations, and data management capabilities. Users can import CSV sales data, view KPI metrics, analyze sales trends through charts, and examine detailed transaction records. The system is designed for sales teams and managers to gain insights into their sales performance.
+This is a comprehensive Spanish language sales analytics dashboard application called "PANORAMICA" (branded as "Pinturas Panoramica") built for the Chilean market. The application provides complete client management, user management with role-based access, comprehensive sales analytics, and mobile-responsive design. Users can import CSV sales data, view KPI metrics, analyze sales trends through charts, and examine detailed transaction records. The system features the Panoramica 30th anniversary logo prominently displayed on the login page and is designed for sales teams and managers to gain insights into their sales performance.
+
+## Recent Changes
+
+### Dashboard Unification (September 2025)
+- **Supervisor & Admin Dashboard**: Supervisors now use the identical dashboard as administrators, providing full access to all management capabilities except file upload functionality
+- **Role-Based Access**: Unified access control where both admin and supervisor roles share the same interface and permissions for better operational consistency
+- **Future Customization**: Dashboard differentiation can be restored later when specific supervisor features are developed
 
 ## User Preferences
 
@@ -35,11 +42,12 @@ Preferred communication style: Simple, everyday language.
 - **Data Types**: Optimized column types including numeric for currency, date for transactions, and text for flexible content
 
 ### Authentication & Authorization
-- **Provider**: Replit OpenID Connect (OIDC) for seamless authentication
-- **Strategy**: Passport.js with OpenID Connect strategy
+- **Provider**: Local email/password authentication system
+- **Strategy**: Passport.js with Local Strategy for email/password verification
 - **Session Storage**: PostgreSQL-backed sessions with connect-pg-simple
-- **Security**: HTTP-only cookies, secure flags, and CSRF protection
-- **User Management**: Automatic user provisioning and profile synchronization
+- **Security**: Bcrypt password hashing, HTTP-only cookies, secure flags, and CSRF protection
+- **User Management**: Manual user provisioning and role-based access control (admin, supervisor, salesperson, client)
+- **Role Hierarchy**: admin > supervisor > salesperson > client with appropriate permission levels
 
 ### Data Processing
 - **CSV Import**: Client-side CSV parsing with Papa Parse for sales transaction uploads
@@ -51,7 +59,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Core Infrastructure
 - **Database**: Neon PostgreSQL serverless database for scalable data storage
-- **Authentication**: Replit OIDC service for user authentication and authorization
+- **Authentication**: Local email/password authentication with session management
 - **Hosting**: Designed for Replit deployment with environment-specific configurations
 
 ### Third-Party Libraries

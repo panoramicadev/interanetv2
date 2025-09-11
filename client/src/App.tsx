@@ -58,9 +58,8 @@ function Router() {
             <Route path="/" component={() => {
               switch (user.role) {
                 case 'admin':
-                  return <Dashboard />;
                 case 'supervisor':
-                  return <SupervisorDashboard />;
+                  return <Dashboard />;
                 case 'salesperson':
                   return <SalespersonDashboard />;
                 case 'client':
