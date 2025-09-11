@@ -1272,12 +1272,12 @@ export function registerRoutes(app: Express): Server {
       console.log('[DEBUG] userRecord:', userRecord);
       console.log('[DEBUG] userRecord.role:', userRecord?.role);
       
-      if (userRecord?.role !== 'admin') {
-        console.log('[DEBUG] Access denied - role is not admin');
-        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden actualizar usuarios.' });
+      if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor') {
+        console.log('[DEBUG] Access denied - role is not admin or supervisor');
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores y supervisores pueden actualizar usuarios.' });
       }
       
-      console.log('[DEBUG] Access granted - user is admin');
+      console.log('[DEBUG] Access granted - user is admin or supervisor');
 
       const { id } = req.params;
       const validatedUser = insertSalespersonUserSchema.partial().parse(req.body);
@@ -1332,8 +1332,8 @@ export function registerRoutes(app: Express): Server {
       userId = req.user.id;
       userRecord = req.user;
       
-      if (userRecord?.role !== 'admin') {
-        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden eliminar usuarios.' });
+      if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores y supervisores pueden eliminar usuarios.' });
       }
 
       const { id } = req.params;
@@ -1359,8 +1359,8 @@ export function registerRoutes(app: Express): Server {
       userId = req.user.id;
       userRecord = req.user;
       
-      if (userRecord?.role !== 'admin') {
-        return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden acceder a la gestión de usuarios.' });
+      if (userRecord?.role !== 'admin' && userRecord?.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Acceso denegado. Solo administradores y supervisores pueden acceder a la gestión de usuarios.' });
       }
 
       const supervisors = await storage.getSupervisors();
