@@ -85,12 +85,12 @@ export default function ProductsPage() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
-  // Redirect to dashboard if not authenticated or not admin
+  // Redirect to dashboard if not authenticated or not admin/supervisor
   useEffect(() => {
-    if (!isLoading && (!isAuthenticated || user?.role !== 'admin')) {
+    if (!isLoading && (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'supervisor'))) {
       toast({
         title: "Acceso denegado",
-        description: "Solo los administradores pueden acceder a esta página.",
+        description: "Solo los administradores y supervisores pueden acceder a esta página.",
         variant: "destructive",
       });
       setTimeout(() => {

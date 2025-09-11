@@ -32,10 +32,10 @@ export default function UsersPage() {
   const [, setLocation] = useLocation();
   
   useEffect(() => {
-    if (user && user.role !== 'admin') {
+    if (user && user.role !== 'admin' && user.role !== 'supervisor') {
       toast({
         title: "Acceso denegado",
-        description: "Solo los administradores pueden acceder a esta página.",
+        description: "Solo los administradores y supervisores pueden acceder a esta página.",
         variant: "destructive",
       });
       setTimeout(() => {
@@ -47,7 +47,7 @@ export default function UsersPage() {
   // Query para obtener usuarios
   const { data: salespeopleUsers = [], isLoading } = useQuery<SalespersonUser[]>({
     queryKey: ["/api/users/salespeople"],
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
   // Filtrar usuarios según el filtro seleccionado
@@ -78,31 +78,31 @@ export default function UsersPage() {
   // Query para obtener vendedores disponibles
   const { data: availableSalespeople = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/salespeople"],
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
   // Query para obtener supervisores disponibles
   const { data: availableSupervisors = [] } = useQuery<SalespersonUser[]>({
     queryKey: ["/api/users/salespeople/supervisors"],
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
   // Query para obtener clientes disponibles
   const { data: availableClients = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/clients"],
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
   // Query para obtener segmentos únicos (para asignación de usuarios)
   const { data: availableSegments = [] } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
   // Query para obtener segmentos ordenados por ventas (para sugerencias)
   const { data: segmentsData = [] } = useQuery<Array<{segment: string; totalSales: number; percentage: number}>>({
     queryKey: ["/api/sales/segments?period=2025-09&filterType=month"],
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
   // Mutation para crear usuario
@@ -293,8 +293,8 @@ export default function UsersPage() {
     }
   };
 
-  if (user?.role !== 'admin') {
-    return null; // No renderizar nada si no es admin
+  if (user?.role !== 'admin' && user?.role !== 'supervisor') {
+    return null; // No renderizar nada si no es admin o supervisor
   }
 
   return (
