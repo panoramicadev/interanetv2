@@ -91,7 +91,7 @@ export default function OrdenesPage() {
   }, [filterType, selectedDate, selectedYear, startDate, endDate]);
 
   const { data: allTransactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/sales/transactions?limit=200&period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/transactions?limit=200&period=${selectedPeriod}&filterType=${filterType}${(user as any)?.salespersonName ? `&salesperson=${encodeURIComponent((user as any).salespersonName)}` : ''}`],
   });
 
   const handleTransactionClick = (transaction: Transaction) => {
