@@ -38,11 +38,16 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertTaskSchema, type Task, type TaskAssignment, type InsertTaskAssignment } from "@shared/schema";
+import { type Task, type TaskAssignment, type InsertTaskAssignment } from "@shared/schema";
 import { z } from "zod";
 
-// Extended schema for task creation with assignments
-const createTaskWithAssignmentsSchema = insertTaskSchema.extend({
+// SECURITY: Frontend schema that excludes createdByUserId to prevent user impersonation
+const createTaskWithAssignmentsSchema = z.object({
+  title: z.string().min(1, "Título es requerido"),
+  description: z.string().optional(),
+  type: z.enum(["texto", "formulario", "visita"]).default("texto"),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  dueDate: z.string().datetime().optional().or(z.null()),
   assignments: z.array(z.object({
     assigneeType: z.enum(["user", "segment"]),
     assigneeId: z.string().min(1, "Destinatario requerido"),
