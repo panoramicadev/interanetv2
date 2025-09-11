@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { MapPin } from "lucide-react";
 import { Bar } from "react-chartjs-2";
+import { useState } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -13,6 +14,13 @@ import {
 
 interface ComunaData {
   comuna: string;
+  totalSales: number;
+  transactionCount: number;
+  percentage: number;
+}
+
+interface RegionData {
+  region: string;
   totalSales: number;
   transactionCount: number;
   percentage: number;
@@ -36,10 +44,13 @@ ChartJS.register(
 );
 
 export default function ComunasChart({ selectedPeriod, filterType, segment, salesperson }: ComunasChartProps) {
+  const [viewType, setViewType] = useState<'regiones' | 'comunas'>('regiones');
+  
   // Build query parameters
   const queryParams = new URLSearchParams({
     period: selectedPeriod,
     filterType: filterType,
+    viewType: viewType,
   });
   
   if (segment) {
@@ -49,17 +60,17 @@ export default function ComunasChart({ selectedPeriod, filterType, segment, sale
     queryParams.append('salesperson', salesperson);
   }
 
-  const { data: comunaData, isLoading } = useQuery<ComunaData[]>({
+  const { data: locationData, isLoading } = useQuery<(ComunaData | RegionData)[]>({
     queryKey: [`/api/sales/comunas?${queryParams.toString()}`],
   });
 
   // Prepare chart data
   const chartData = {
-    labels: comunaData?.map(comuna => comuna.comuna) || [],
+    labels: locationData?.map(item => (item as any).comuna || (item as any).region) || [],
     datasets: [
       {
         label: 'Ventas (Millones CLP)',
-        data: comunaData?.map(comuna => Math.round(comuna.totalSales / 1000000)) || [],
+        data: locationData?.map(item => Math.round(item.totalSales / 1000000)) || [],
         backgroundColor: [
           'rgba(34, 197, 94, 0.8)',
           'rgba(59, 130, 246, 0.8)',
@@ -106,11 +117,11 @@ export default function ComunasChart({ selectedPeriod, filterType, segment, sale
         cornerRadius: 8,
         callbacks: {
           label: function(context: any) {
-            const comuna = comunaData?.[context.dataIndex];
+            const location = locationData?.[context.dataIndex];
             return [
               `${context.parsed.y}M CLP`,
-              `Transacciones: ${comuna?.transactionCount || 0}`,
-              `Porcentaje: ${(comuna?.percentage || 0).toFixed(1)}%`
+              `Transacciones: ${location?.transactionCount || 0}`,
+              `Porcentaje: ${(location?.percentage || 0).toFixed(1)}%`
             ];
           }
         }
@@ -159,7 +170,34 @@ export default function ComunasChart({ selectedPeriod, filterType, segment, sale
           <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-lg flex items-center justify-center">
             <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Ventas por Comuna</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">
+            Ventas por {viewType === 'regiones' ? 'Región' : 'Comuna'}
+          </h2>
+        </div>
+        
+        <div className="flex bg-gray-100 rounded-lg p-1" data-testid="location-view-selector">
+          <button
+            onClick={() => setViewType('regiones')}
+            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+              viewType === 'regiones'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+            data-testid="button-view-regiones"
+          >
+            Regiones
+          </button>
+          <button
+            onClick={() => setViewType('comunas')}
+            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+              viewType === 'comunas'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+            data-testid="button-view-comunas"
+          >
+            Comunas
+          </button>
         </div>
       </div>
       
@@ -168,7 +206,7 @@ export default function ComunasChart({ selectedPeriod, filterType, segment, sale
           <div className="animate-pulse" data-testid="comunas-chart-loading">
             <div className="h-64 bg-gray-200 rounded"></div>
           </div>
-        ) : comunaData && comunaData.length > 0 ? (
+        ) : locationData && locationData.length > 0 ? (
           <div className="h-64 sm:h-80" data-testid="comunas-chart-content">
             <Bar data={chartData} options={chartOptions} />
           </div>
@@ -176,7 +214,7 @@ export default function ComunasChart({ selectedPeriod, filterType, segment, sale
           <div className="h-64 flex items-center justify-center text-gray-500" data-testid="comunas-chart-empty">
             <div className="text-center">
               <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No hay datos de comunas disponibles</p>
+              <p>No hay datos de {viewType} disponibles</p>
             </div>
           </div>
         )}
