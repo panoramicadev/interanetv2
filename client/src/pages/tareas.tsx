@@ -47,7 +47,15 @@ const createTaskWithAssignmentsSchema = z.object({
   description: z.string().optional(),
   type: z.enum(["texto", "formulario", "visita"]).default("texto"),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
-  dueDate: z.string().datetime().optional().or(z.null()),
+  dueDate: z.string().refine((date) => {
+    if (!date) return true; // Allow empty dates
+    // Accept datetime-local format (YYYY-MM-DDTHH:mm) and ISO format
+    const datetimeLocalPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+    const isoPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+    return datetimeLocalPattern.test(date) || isoPattern.test(date) || !isNaN(Date.parse(date));
+  }, {
+    message: "Formato de fecha inválido. Use el selector de fecha.",
+  }).optional().or(z.null()),
   assignments: z.array(z.object({
     assigneeType: z.enum(["user", "segment"]),
     assigneeId: z.string().min(1, "Destinatario requerido"),
