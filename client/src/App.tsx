@@ -23,6 +23,7 @@ import OrdenesPage from "@/pages/ordenes";
 import SegmentDetail from "@/pages/segment-detail";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
+import TomadorPedidos from "@/pages/tomador-pedidos";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -81,6 +82,7 @@ function Router() {
               return null;
             }} />
             <Route path="/metas" component={Metas} />
+            <Route path="/tomador-pedidos" component={TomadorPedidos} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/segment/:segmentName" component={SegmentDetail} />
             <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />

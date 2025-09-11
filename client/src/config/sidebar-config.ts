@@ -9,7 +9,8 @@ import {
   ShoppingCart,
   Calculator,
   Palette,
-  ClipboardList
+  ClipboardList,
+  ClipboardCheck
 } from "lucide-react";
 
 interface SidebarItem {
@@ -52,7 +53,12 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Gestión de Clientes",
       icon: Users,
-      separator: true, // Agregar separador después de este elemento
+      separator: true, // Separador antes de Tomador de Pedidos
+    },
+    {
+      href: "/tomador-pedidos",
+      label: "Tomador de Pedidos",
+      icon: ClipboardCheck,
     },
     {
       href: "/tareas",
@@ -113,7 +119,12 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Gestión de Clientes",
       icon: Users,
-      separator: true, // Agregar separador después de este elemento
+      separator: true, // Separador antes de Tomador de Pedidos
+    },
+    {
+      href: "/tomador-pedidos",
+      label: "Tomador de Pedidos",
+      icon: ClipboardCheck,
     },
     {
       href: "/tareas",

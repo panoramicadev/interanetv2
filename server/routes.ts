@@ -74,7 +74,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -2582,6 +2582,200 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error marking assignment as read:", error);
       res.status(500).json({ message: "Failed to mark assignment as read" });
+    }
+  });
+
+  // Order management endpoints
+  app.get('/api/orders', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { status, clientName, limit = 50, offset = 0 } = req.query;
+      
+      const orders = await storage.getOrders({
+        status: status as string,
+        clientName: clientName as string,
+        userRole: user.role,
+        userId: user.id,
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string),
+      });
+      
+      res.json(orders);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+      if (error instanceof Error && error.message?.includes('Unauthorized')) {
+        return res.status(403).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to fetch orders" });
+    }
+  });
+
+  app.get('/api/orders/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const order = await storage.getOrderById(id);
+      
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && order.createdBy !== user.id) {
+        return res.status(403).json({ message: "Access denied to this order" });
+      }
+      
+      res.json(order);
+    } catch (error) {
+      console.error("Error fetching order:", error);
+      res.status(500).json({ message: "Failed to fetch order" });
+    }
+  });
+
+  app.post('/api/orders', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Only admin and supervisor can create orders
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "Not authorized to create orders" });
+      }
+      
+      const orderData = insertOrderSchema.parse({
+        ...req.body,
+        createdBy: user.id
+      });
+      
+      const order = await storage.createOrder(orderData);
+      res.status(201).json(order);
+    } catch (error) {
+      console.error("Error creating order:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to create order" });
+    }
+  });
+
+  app.patch('/api/orders/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const order = await storage.getOrderById(id);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Role-based access control - only admin and supervisor can update orders
+      const canUpdate = user.role === 'admin' || user.role === 'supervisor';
+      
+      if (!canUpdate) {
+        return res.status(403).json({ message: "Not authorized to update this order" });
+      }
+      
+      const updateData = insertOrderSchema.partial().parse(req.body);
+      const updatedOrder = await storage.updateOrder(id, updateData);
+      
+      res.json(updatedOrder);
+    } catch (error) {
+      console.error("Error updating order:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to update order" });
+    }
+  });
+
+  app.delete('/api/orders/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const order = await storage.getOrderById(id);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Role-based access control - only admin and supervisor can delete orders
+      const canDelete = user.role === 'admin' || user.role === 'supervisor';
+      
+      if (!canDelete) {
+        return res.status(403).json({ message: "Not authorized to delete this order" });
+      }
+      
+      await storage.deleteOrder(id);
+      res.json({ message: "Order deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting order:", error);
+      res.status(500).json({ message: "Failed to delete order" });
+    }
+  });
+
+  // Order items endpoints
+  app.get('/api/orders/:orderId/items', requireAuth, async (req: any, res) => {
+    try {
+      const { orderId } = req.params;
+      const user = req.user;
+      
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && order.createdBy !== user.id) {
+        return res.status(403).json({ message: "Access denied to this order" });
+      }
+      
+      const items = await storage.getOrderItems(orderId);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching order items:", error);
+      res.status(500).json({ message: "Failed to fetch order items" });
+    }
+  });
+
+  app.post('/api/orders/:orderId/items', requireAuth, async (req: any, res) => {
+    try {
+      const { orderId } = req.params;
+      const user = req.user;
+      
+      const order = await storage.getOrderById(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Role-based access control - only admin and supervisor can add order items
+      const canAddItems = user.role === 'admin' || user.role === 'supervisor';
+      
+      if (!canAddItems) {
+        return res.status(403).json({ message: "Not authorized to add items to this order" });
+      }
+      
+      const itemData = insertOrderItemSchema.parse({
+        ...req.body,
+        orderId
+      });
+      
+      const item = await storage.createOrderItem(itemData);
+      res.status(201).json(item);
+    } catch (error) {
+      console.error("Error creating order item:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to create order item" });
     }
   });
 
