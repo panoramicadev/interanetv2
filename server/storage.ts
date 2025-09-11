@@ -76,21 +76,30 @@ export interface IStorage {
     totalUnits: number;
     activeCustomers: number;
   }>;
-  getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string): Promise<Array<{
-    salesperson: string;
-    totalSales: number;
-    transactionCount: number;
-  }>>;
-  getTopProducts(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
-    productName: string;
-    totalSales: number;
-    totalUnits: number;
-  }>>;
-  getTopClients(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
-    clientName: string;
-    totalSales: number;
-    transactionCount: number;
-  }>>;
+  getTopSalespeople(limit?: number, startDate?: string, endDate?: string, segment?: string): Promise<{
+    items: Array<{
+      salesperson: string;
+      totalSales: number;
+      transactionCount: number;
+    }>;
+    periodTotalSales: number;
+  }>;
+  getTopProducts(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+    items: Array<{
+      productName: string;
+      totalSales: number;
+      totalUnits: number;
+    }>;
+    periodTotalSales: number;
+  }>;
+  getTopClients(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+    items: Array<{
+      clientName: string;
+      totalSales: number;
+      transactionCount: number;
+    }>;
+    periodTotalSales: number;
+  }>;
   getSegmentAnalysis(startDate?: string, endDate?: string): Promise<Array<{
     segment: string;
     totalSales: number;
@@ -784,11 +793,14 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string): Promise<Array<{
-    salesperson: string;
-    totalSales: number;
-    transactionCount: number;
-  }>> {
+  async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string): Promise<{
+    items: Array<{
+      salesperson: string;
+      totalSales: number;
+      transactionCount: number;
+    }>;
+    periodTotalSales: number;
+  }> {
     const conditions = [
       sql`nokofu IS NOT NULL AND nokofu != ''`
     ];
@@ -804,6 +816,22 @@ export class DatabaseStorage implements IStorage {
     }
     
     const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
+    
+    // Get period total sales
+    const [totalResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(monto), 0)`,
+      })
+      .from(sql`(
+        SELECT DISTINCT 
+          nudo,
+          nokofu,
+          tido,
+          monto
+        FROM ${salesTransactions} 
+        ${whereClause}
+        GROUP BY nudo, nokofu, tido, monto
+      ) as unique_transactions`);
     
     const results = await db
       .select({
@@ -825,18 +853,24 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`SUM(monto) DESC`)
       .limit(limit);
 
-    return results.map(r => ({
-      salesperson: r.salesperson || '',
-      totalSales: Number(r.totalSales),
-      transactionCount: Number(r.transactionCount),
-    }));
+    return {
+      items: results.map(r => ({
+        salesperson: r.salesperson || '',
+        totalSales: Number(r.totalSales),
+        transactionCount: Number(r.transactionCount),
+      })),
+      periodTotalSales: Number(totalResult.total),
+    };
   }
 
-  async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
-    productName: string;
-    totalSales: number;
-    totalUnits: number;
-  }>> {
+  async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+    items: Array<{
+      productName: string;
+      totalSales: number;
+      totalUnits: number;
+    }>;
+    periodTotalSales: number;
+  }> {
     const conditions = [];
     
     if (startDate) {
@@ -854,6 +888,14 @@ export class DatabaseStorage implements IStorage {
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
+    // Get period total sales
+    const [totalResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.ppprne} ELSE ${salesTransactions.ppprne} END), 0)`,
+      })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != '' ${whereClause ? sql`AND ${whereClause}` : sql``}`);
+    
     // For products, sum by individual product lines (not NUDO grouping)
     const results = await db
       .select({
@@ -867,18 +909,24 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`SUM(CASE WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.ppprne} ELSE ${salesTransactions.ppprne} END) DESC`)
       .limit(limit);
 
-    return results.map(r => ({
-      productName: r.productName || '',
-      totalSales: Number(r.totalSales),
-      totalUnits: Number(r.totalUnits),
-    }));
+    return {
+      items: results.map(r => ({
+        productName: r.productName || '',
+        totalSales: Number(r.totalSales),
+        totalUnits: Number(r.totalUnits),
+      })),
+      periodTotalSales: Number(totalResult.total),
+    };
   }
 
-  async getTopClients(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
-    clientName: string;
-    totalSales: number;
-    transactionCount: number;
-  }>> {
+  async getTopClients(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+    items: Array<{
+      clientName: string;
+      totalSales: number;
+      transactionCount: number;
+    }>;
+    periodTotalSales: number;
+  }> {
     const conditions = [
       sql`nokoen IS NOT NULL AND nokoen != ''`
     ];
@@ -897,6 +945,22 @@ export class DatabaseStorage implements IStorage {
     }
     
     const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
+    
+    // Get period total sales
+    const [totalResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(monto), 0)`,
+      })
+      .from(sql`(
+        SELECT DISTINCT 
+          nudo,
+          nokoen,
+          tido,
+          monto
+        FROM ${salesTransactions} 
+        ${whereClause}
+        GROUP BY nudo, nokoen, tido, monto
+      ) as unique_transactions`);
     
     const results = await db
       .select({
@@ -918,11 +982,14 @@ export class DatabaseStorage implements IStorage {
       .orderBy(sql`SUM(monto) DESC`)
       .limit(limit);
 
-    return results.map(r => ({
-      clientName: r.clientName || '',
-      totalSales: Number(r.totalSales),
-      transactionCount: Number(r.transactionCount),
-    }));
+    return {
+      items: results.map(r => ({
+        clientName: r.clientName || '',
+        totalSales: Number(r.totalSales),
+        transactionCount: Number(r.transactionCount),
+      })),
+      periodTotalSales: Number(totalResult.total),
+    };
   }
 
   async getSegmentAnalysis(startDate?: string, endDate?: string): Promise<Array<{

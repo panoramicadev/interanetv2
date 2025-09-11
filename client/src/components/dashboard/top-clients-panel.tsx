@@ -10,6 +10,11 @@ interface TopClient {
   transactionCount: number;
 }
 
+interface TopClientsResponse {
+  items: TopClient[];
+  periodTotalSales: number;
+}
+
 interface TopClientsPanelProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
@@ -21,9 +26,12 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
   const [showMore, setShowMore] = useState(false);
   const displayLimit = showMore ? 50 : 10;
   
-  const { data: topClients, isLoading } = useQuery<TopClient[]>({
+  const { data: topClientsResponse, isLoading } = useQuery<TopClientsResponse>({
     queryKey: [`/api/sales/top-clients?limit=${displayLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
+
+  const topClients = topClientsResponse?.items;
+  const periodTotal = topClientsResponse?.periodTotalSales || 0;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -33,11 +41,10 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
     }).format(amount);
   };
 
-  // Calculate percentages
-  const maxSales = topClients ? Math.max(...topClients.map(c => c.totalSales)) : 0;
+  // Calculate percentages based on period total
   const clientsWithPercentage = topClients?.map(client => ({
     ...client,
-    percentage: maxSales > 0 ? (client.totalSales / maxSales) * 100 : 0
+    percentage: periodTotal > 0 ? (client.totalSales / periodTotal) * 100 : 0
   }));
 
   return (

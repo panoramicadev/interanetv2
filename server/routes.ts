@@ -690,13 +690,13 @@ export function registerRoutes(app: Express): Server {
       const { limit, period, filterType, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
-      const topSalespeople = await storage.getTopSalespeople(
+      const result = await storage.getTopSalespeople(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
         dateRange.endDate,
         segment as string // Filtrar por segmento específico
       );
-      res.json(topSalespeople);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching top salespeople:", error);
       res.status(500).json({ message: "Failed to fetch top salespeople" });
@@ -709,14 +709,14 @@ export function registerRoutes(app: Express): Server {
       const { limit, period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
-      const topProducts = await storage.getTopProducts(
+      const result = await storage.getTopProducts(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
         dateRange.endDate,
         salesperson as string, // Filtrar por vendedor específico
         segment as string // Filtrar por segmento específico
       );
-      res.json(topProducts);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching top products:", error);
       res.status(500).json({ message: "Failed to fetch top products" });
@@ -729,14 +729,14 @@ export function registerRoutes(app: Express): Server {
       const { limit, period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
-      const topClients = await storage.getTopClients(
+      const result = await storage.getTopClients(
         limit ? parseInt(limit as string) : undefined,
         dateRange.startDate,
         dateRange.endDate,
         salesperson as string, // Filtrar por vendedor específico
         segment as string // Filtrar por segmento específico
       );
-      res.json(topClients);
+      res.json(result);
     } catch (error) {
       console.error("Error fetching top clients:", error);
       res.status(500).json({ message: "Failed to fetch top clients" });
