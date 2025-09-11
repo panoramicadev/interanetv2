@@ -34,6 +34,32 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
+// Type definitions for API responses
+interface GoalProgress {
+  id: string;
+  type: string;
+  target?: string;
+  amount: number;
+  period: string;
+  description?: string;
+  currentSales: number;
+  targetAmount: number;
+  progress: number;
+  remaining: number;
+  isCompleted: boolean;
+}
+
+interface SalespersonDashboardData {
+  totalSales: number;
+  transactions: number;
+  avgTicket: number;
+  topProducts: any[];
+  recentSales: any[];
+  clientCount?: number;
+}
+
+type ClientData = any; // Can be refined later if needed
+
 export default function SalespersonDashboard() {
   const { user, isAuthenticated, isLoading } = useAuth() as { user: (User & { salespersonName?: string }) | null; isAuthenticated: boolean; isLoading: boolean };
   const { toast } = useToast();
@@ -83,18 +109,18 @@ export default function SalespersonDashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  const { data: salespersonData, isLoading: loadingSalesperson } = useQuery({
+  const { data: salespersonData, isLoading: loadingSalesperson } = useQuery<SalespersonDashboardData>({
     queryKey: [`/api/salesperson/${user?.id}/dashboard?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!user?.id,
     staleTime: 300000, // 5 minutos
   });
 
-  const { data: clientsData, isLoading: loadingClients } = useQuery({
+  const { data: clientsData, isLoading: loadingClients } = useQuery<ClientData[]>({
     queryKey: [`/api/salesperson/${user?.id}/clients?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!user?.id,
   });
 
-  const { data: goalsData, isLoading: loadingGoals } = useQuery({
+  const { data: goalsData, isLoading: loadingGoals } = useQuery<GoalProgress[]>({
     queryKey: [`/api/salesperson/${user?.id}/goals?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!user?.id,
   });
@@ -114,16 +140,19 @@ export default function SalespersonDashboard() {
     return null;
   }
 
-  const salesData = salespersonData || {
-    totalSales: 0,
-    transactions: 0,
-    avgTicket: 0,
-    topProducts: [],
-    recentSales: []
+  // Safe data access with proper defaults
+  const salesData: SalespersonDashboardData = {
+    totalSales: salespersonData?.totalSales || 0,
+    transactions: salespersonData?.transactions || 0,
+    avgTicket: salespersonData?.avgTicket || 0,
+    topProducts: salespersonData?.topProducts || [],
+    recentSales: salespersonData?.recentSales || [],
+    clientCount: salespersonData?.clientCount || 0
   };
 
-  const clients = clientsData || [];
-  const goals = goalsData || [];
+  const clients = Array.isArray(clientsData) ? clientsData : [];
+  const goals = Array.isArray(goalsData) ? goalsData : [];
+  const primaryGoal = goals.length > 0 ? goals[0] : null;
 
   return (
     <>
@@ -240,7 +269,7 @@ export default function SalespersonDashboard() {
       {/* Contenido Principal */}
       <main className="px-4 lg:px-6 pb-6 space-y-6">
         {/* Progreso de Meta Principal - Solo si hay metas */}
-        {goals && goals.length > 0 && goals[0] && (
+        {primaryGoal && (
           <Card className="rounded-2xl shadow-sm border-green-100 bg-gradient-to-r from-green-50 to-blue-50">
             <CardContent className="pt-6">
               <div className="space-y-3">
@@ -250,18 +279,18 @@ export default function SalespersonDashboard() {
                     <span className="text-sm font-semibold text-gray-700">Meta de Ventas</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    {(goals[0]?.progress || 0) >= 100 ? (
+                    {(primaryGoal.progress || 0) >= 100 ? (
                       <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : (goals[0]?.progress || 0) >= 70 ? (
+                    ) : (primaryGoal.progress || 0) >= 70 ? (
                       <TrendingUp className="h-4 w-4 text-yellow-600" />
                     ) : (
                       <AlertCircle className="h-4 w-4 text-red-600" />
                     )}
                     <span className={`text-xs font-medium ${
-                      (goals[0]?.progress || 0) >= 100 ? 'text-green-600' : 
-                      (goals[0]?.progress || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'
+                      (primaryGoal.progress || 0) >= 100 ? 'text-green-600' : 
+                      (primaryGoal.progress || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'
                     }`}>
-                      {(goals[0]?.progress || 0).toFixed(1)}%
+                      {(primaryGoal.progress || 0).toFixed(1)}%
                     </span>
                   </div>
                 </div>
@@ -269,16 +298,16 @@ export default function SalespersonDashboard() {
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div
                     className={`h-3 rounded-full transition-all duration-500 ${
-                      (goals[0]?.progress || 0) >= 100 ? 'bg-green-500' : 
-                      (goals[0]?.progress || 0) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                      (primaryGoal.progress || 0) >= 100 ? 'bg-green-500' : 
+                      (primaryGoal.progress || 0) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
                     }`}
-                    style={{ width: `${Math.min(goals[0]?.progress || 0, 100)}%` }}
+                    style={{ width: `${Math.min(primaryGoal.progress || 0, 100)}%` }}
                   ></div>
                 </div>
                 
                 <div className="flex justify-between text-xs text-gray-600">
-                  <span>Actual: <strong>${(goals[0]?.currentSales || 0).toLocaleString()}</strong></span>
-                  <span>Meta: <strong>${(goals[0]?.targetAmount || 0).toLocaleString()}</strong></span>
+                  <span>Actual: <strong>${(primaryGoal.currentSales || 0).toLocaleString()}</strong></span>
+                  <span>Meta: <strong>${(primaryGoal.targetAmount || 0).toLocaleString()}</strong></span>
                 </div>
               </div>
             </CardContent>
@@ -299,17 +328,17 @@ export default function SalespersonDashboard() {
               <p className="text-xs text-blue-700">
                 Este período
               </p>
-              {goals && goals.length > 0 && goals[0] && (
+              {primaryGoal && (
                 <div className="mt-2 pt-2 border-t border-blue-100">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-blue-600">vs Meta:</span>
                     <span className={`font-medium ${
-                      (goals[0]?.progress || 0) >= 100 ? 'text-green-600' : 
-                      (goals[0]?.progress || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'
+                      (primaryGoal.progress || 0) >= 100 ? 'text-green-600' : 
+                      (primaryGoal.progress || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'
                     }`}>
-                      {(goals[0]?.remaining || 0) <= 0 ? 
-                        `+$${((goals[0]?.currentSales || 0) - (goals[0]?.targetAmount || 0)).toLocaleString()}` : 
-                        `-$${(goals[0]?.remaining || 0).toLocaleString()}`
+                      {(primaryGoal.remaining || 0) <= 0 ? 
+                        `+$${((primaryGoal.currentSales || 0) - (primaryGoal.targetAmount || 0)).toLocaleString()}` : 
+                        `-$${(primaryGoal.remaining || 0).toLocaleString()}`
                       }
                     </span>
                   </div>
@@ -361,7 +390,7 @@ export default function SalespersonDashboard() {
         </div>
 
         {/* Progreso de Metas */}
-        {goals && goals.length > 0 && (
+        {goals.length > 0 && (
           <Card className="rounded-2xl shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -371,23 +400,23 @@ export default function SalespersonDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {goals.map((goal: any, index: number) => (
-                  <div key={index} className="space-y-2">
+                {goals.map((goal: GoalProgress, index: number) => (
+                  <div key={goal.id || index} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{goal?.description || 'Meta'}</span>
+                      <span className="text-sm font-medium">{goal.description || 'Meta'}</span>
                       <span className="text-sm text-muted-foreground">
-                        {(goal?.progress || 0).toFixed(1)}%
+                        {(goal.progress || 0).toFixed(1)}%
                       </span>
                     </div>
                     <div className="w-full bg-secondary rounded-full h-2">
                       <div
                         className="bg-primary h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(goal?.progress || 0, 100)}%` }}
+                        style={{ width: `${Math.min(goal.progress || 0, 100)}%` }}
                       ></div>
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>${(goal?.currentSales || 0).toLocaleString()}</span>
-                      <span>${(goal?.targetAmount || 0).toLocaleString()}</span>
+                      <span>${(goal.currentSales || 0).toLocaleString()}</span>
+                      <span>${(goal.targetAmount || 0).toLocaleString()}</span>
                     </div>
                   </div>
                 ))}

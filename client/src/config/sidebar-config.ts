@@ -162,9 +162,40 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
-      href: "/mis-clientes",
-      label: "Mis Clientes",
+      href: "/metas",
+      label: "Gestión de Metas",
+      icon: Target,
+    },
+    {
+      href: "/ordenes",
+      label: "Gestión de Órdenes",
+      icon: FileText,
+    },
+    {
+      href: "/usuarios",
+      label: "Gestión de Usuarios",
+      icon: User,
+    },
+    {
+      href: "/productos",
+      label: "Gestión de Productos",
+      icon: Package,
+    },
+    {
+      href: "/clientes",
+      label: "Gestión de Clientes",
       icon: Users,
+      separator: true, // Separador antes de Tomador de Pedidos
+    },
+    {
+      href: "/tomador-pedidos",
+      label: "Tomador de Pedidos",
+      icon: ClipboardCheck,
+    },
+    {
+      href: "/tareas",
+      label: "Panel de Tareas",
+      icon: ClipboardList,
     },
     {
       href: "#presupuesto",
