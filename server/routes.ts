@@ -74,7 +74,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -2298,33 +2298,22 @@ export function registerRoutes(app: Express): Server {
       const user = req.user;
       const { status, priority } = req.query;
       
-      let tasks;
-      
-      if (user.role === 'admin' || user.role === 'supervisor') {
-        // Admin and supervisor can see all tasks
-        tasks = await storage.getTasks({
-          status: status as string,
-          priority: priority as string,
-        });
-      } else {
-        // Regular users only see tasks assigned to them or their segments
-        const userSegments = user.assignedSegment ? [user.assignedSegment] : [];
-        tasks = await storage.getTasksForUser(user.id, userSegments);
-        
-        // Apply additional filters if specified
-        if (status) {
-          tasks = tasks.filter(task => 
-            task.assignments.some(a => a.status === status)
-          );
-        }
-        if (priority) {
-          tasks = tasks.filter(task => task.priority === priority);
-        }
-      }
+      // SECURE: Use optimized method with role-based access control
+      const userSegments = user.assignedSegment ? [user.assignedSegment] : [];
+      const tasks = await storage.getTasksWithAssignmentsOptimized({
+        status: status as string,
+        priority: priority as string,
+        userRole: user.role,
+        userId: user.id,
+        assigneeSegments: userSegments,
+      });
       
       res.json(tasks);
     } catch (error) {
       console.error("Error fetching tasks:", error);
+      if (error instanceof Error && error.message?.includes('Unauthorized')) {
+        return res.status(403).json({ message: error.message });
+      }
       res.status(500).json({ message: "Failed to fetch tasks" });
     }
   });
@@ -2368,23 +2357,47 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Only administrators and supervisors can create tasks" });
       }
       
-      const { title, description, dueDate, priority, assignments } = req.body;
+      // Create validation schema for task creation with assignments
+      const createTaskSchema = insertTaskSchema.extend({
+        assignments: z.array(insertTaskAssignmentSchema.pick({
+          assigneeType: true,
+          assigneeId: true
+        })).min(1, "At least one assignment is required")
+      }).pick({
+        title: true,
+        description: true,
+        dueDate: true,
+        priority: true,
+        assignments: true
+      });
       
-      // Validate required fields
-      if (!title || !assignments || assignments.length === 0) {
-        return res.status(400).json({ message: "Title and assignments are required" });
+      // Validate request body with Zod
+      const validation = createTaskSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid task data", 
+          errors: validation.error.issues 
+        });
       }
+      
+      const { title, description, dueDate, priority, assignments } = validation.data;
       
       const taskData = {
         title,
         description: description || null,
-        dueDate: dueDate || null,
+        dueDate: dueDate ? new Date(dueDate) : null,
         priority: priority || 'medium',
-        status: 'pending',
+        status: 'pending' as const,
         createdByUserId: user.id,
       };
       
-      const task = await storage.createTask(taskData, assignments);
+      // Add taskId to assignments (will be set by storage method)
+      const assignmentsWithDefaults = assignments.map(assignment => ({
+        ...assignment,
+        taskId: '', // Will be set by createTask method
+      }));
+      
+      const task = await storage.createTask(taskData, assignmentsWithDefaults);
       res.status(201).json(task);
     } catch (error) {
       console.error("Error creating task:", error);
@@ -2408,16 +2421,59 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to update this task" });
       }
       
-      const { title, description, dueDate, priority, status } = req.body;
-      const updates: any = {};
+      // Field whitelisting: only allow specific fields to be updated
+      const updateTaskSchema = insertTaskSchema.pick({
+        title: true,
+        description: true,
+        dueDate: true,
+        priority: true,
+        status: true
+      }).partial();
       
-      if (title !== undefined) updates.title = title;
-      if (description !== undefined) updates.description = description;
-      if (dueDate !== undefined) updates.dueDate = dueDate;
-      if (priority !== undefined) updates.priority = priority;
-      if (status !== undefined) updates.status = status;
+      // Validate request body with Zod
+      const validation = updateTaskSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid task update data", 
+          errors: validation.error.issues 
+        });
+      }
       
-      const updatedTask = await storage.updateTask(id, updates);
+      const updates = validation.data;
+      
+      // Additional role-based restrictions
+      if (user.role === 'salesperson' && task.createdByUserId !== user.id) {
+        // Salesperson can only update status of tasks assigned to them
+        const isAssigned = task.assignments.some(assignment => 
+          (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
+          (assignment.assigneeType === "segment" && assignment.assigneeId === user.assignedSegment)
+        );
+        
+        if (!isAssigned) {
+          return res.status(403).json({ message: "Not authorized to update this task" });
+        }
+        
+        // Only allow status updates for assigned salesperson
+        if (Object.keys(updates).some(key => key !== 'status')) {
+          return res.status(403).json({ message: "Salesperson can only update task status" });
+        }
+      }
+      
+      // Convert dueDate string to Date if present, handle all cases properly
+      const processedUpdates: Partial<InsertTask> = {
+        ...updates
+      };
+      
+      // Handle dueDate conversion properly
+      if (updates.dueDate !== undefined) {
+        if (typeof updates.dueDate === 'string') {
+          processedUpdates.dueDate = new Date(updates.dueDate);
+        } else {
+          processedUpdates.dueDate = updates.dueDate; // Already Date or null
+        }
+      }
+      
+      const updatedTask = await storage.updateTask(id, processedUpdates);
       res.json(updatedTask);
     } catch (error) {
       console.error("Error updating task:", error);
@@ -2452,8 +2508,24 @@ export function registerRoutes(app: Express): Server {
   app.patch('/api/tasks/:taskId/assignments/:assignmentId', requireAuth, async (req: any, res) => {
     try {
       const { taskId, assignmentId } = req.params;
-      const { status, notes } = req.body;
       const user = req.user;
+      
+      // Field whitelisting: only allow status and notes to be updated
+      const updateAssignmentSchema = insertTaskAssignmentSchema.pick({
+        status: true,
+        notes: true
+      }).partial();
+      
+      // Validate request body with Zod
+      const validation = updateAssignmentSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid assignment update data", 
+          errors: validation.error.issues 
+        });
+      }
+      
+      const { status, notes } = validation.data;
       
       const task = await storage.getTask(taskId);
       if (!task) {
@@ -2474,7 +2546,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to update this assignment" });
       }
       
-      const updatedAssignment = await storage.updateAssignmentStatus(assignmentId, status, notes);
+      const updatedAssignment = await storage.updateAssignmentStatus(assignmentId, status || '', notes || undefined);
       res.json(updatedAssignment);
     } catch (error) {
       console.error("Error updating assignment:", error);
