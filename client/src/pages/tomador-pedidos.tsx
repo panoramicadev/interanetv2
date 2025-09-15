@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -34,6 +35,7 @@ interface CartItem {
   unitPrice: number;
   totalPrice: number;
   priceTier?: PriceTier; // Price tier selected for standard products
+  tierPrices?: PriceTierOption[]; // Available price tiers stored with item
   costOfProduction?: number;
   profitMargin?: number;
   pricingMode?: "calculated" | "direct";
@@ -286,6 +288,7 @@ export default function TomadorPedidos() {
         description: `Se aumentó la cantidad de ${product.producto}`,
       });
     } else {
+      const availableTiers = getAvailableTiers(product);
       const newItem: CartItem = {
         id: `item-${Date.now()}-${Math.random()}`,
         type: "standard",
@@ -295,6 +298,7 @@ export default function TomadorPedidos() {
         unitPrice: price,
         totalPrice: price,
         priceTier: selectedTier,
+        tierPrices: availableTiers,
       };
       
       setCart(prev => [...prev, newItem]);
@@ -317,6 +321,34 @@ export default function TomadorPedidos() {
         ? { ...item, quantity: newQuantity, totalPrice: item.unitPrice * newQuantity }
         : item
     ));
+  };
+
+  // Update cart item price tier
+  const updateCartItemPriceTier = (itemId: string, newTier: PriceTier) => {
+    setCart(prev => prev.map(item => {
+      if (item.id === itemId && item.type === "standard" && item.tierPrices) {
+        // Use stored tier prices instead of searching current product list
+        const tierOption = item.tierPrices.find(tier => tier.key === newTier);
+        if (!tierOption) {
+          console.warn(`Tier ${newTier} not found in stored prices for item ${itemId}`);
+          return item;
+        }
+
+        const newUnitPrice = tierOption.price;
+        return {
+          ...item,
+          priceTier: newTier,
+          unitPrice: newUnitPrice,
+          totalPrice: newUnitPrice * item.quantity
+        };
+      }
+      return item;
+    }));
+    
+    toast({
+      title: "Precio actualizado",
+      description: `Se cambió el precio del producto`,
+    });
   };
 
   // Remove item from cart
@@ -968,6 +1000,32 @@ export default function TomadorPedidos() {
                               {item.productCode}
                             </Badge>
                           )}
+                          {item.type === "standard" && item.tierPrices && (() => {
+                            // Use stored tier prices instead of searching current product list
+                            const availableTiers = item.tierPrices;
+                            if (availableTiers.length <= 1) return null;
+                            
+                            return (
+                              <div className="mt-2">
+                                <label className="text-xs text-muted-foreground">Precio:</label>
+                                <Select
+                                  value={item.priceTier || 'lista'}
+                                  onValueChange={(newTier) => updateCartItemPriceTier(item.id, newTier as PriceTier)}
+                                >
+                                  <SelectTrigger className="h-6 text-xs mt-1" data-testid={`select-tier-${item.id}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {availableTiers.map((tier) => (
+                                      <SelectItem key={tier.key} value={tier.key}>
+                                        {tier.label}: {formatCurrency(tier.price)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            );
+                          })()}
                         </div>
                         <Button
                           variant="ghost"
