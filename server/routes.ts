@@ -3281,10 +3281,21 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get available units for filtering
+  app.get('/api/price-list/units', requireAuth, async (req, res) => {
+    try {
+      const units = await storage.getAvailableUnits();
+      res.json(units);
+    } catch (error) {
+      console.error("Error fetching available units:", error);
+      res.status(500).json({ message: "Failed to fetch available units" });
+    }
+  });
+
   // Price List endpoints
   app.get('/api/price-list', requireAuth, async (req, res) => {
     try {
-      const { search, limit = 50, offset = 0 } = req.query;
+      const { search, unidad, limit = 50, offset = 0 } = req.query;
       
       // Validate and clamp pagination parameters
       const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 200);
@@ -3292,11 +3303,12 @@ export function registerRoutes(app: Express): Server {
       
       const items = await storage.getPriceList({
         search: search as string,
+        unidad: unidad as string,
         limit: validatedLimit,
         offset: validatedOffset,
       });
       
-      const totalCount = await storage.getPriceListCount(search as string);
+      const totalCount = await storage.getPriceListCount(search as string, unidad as string);
       
       res.json({
         items,

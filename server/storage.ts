@@ -519,10 +519,12 @@ export interface IStorage {
   // Price List operations
   getPriceList(filters?: {
     search?: string;
+    unidad?: string;
     limit?: number;
     offset?: number;
   }): Promise<PriceList[]>;
-  getPriceListCount(search?: string): Promise<number>;
+  getPriceListCount(search?: string, unidad?: string): Promise<number>;
+  getAvailableUnits(): Promise<string[]>;
   getPriceListById(id: string): Promise<PriceList | undefined>;
   getPriceListByCodigo(codigo: string): Promise<PriceList | undefined>;
   createPriceListItem(item: InsertPriceListInput): Promise<PriceList>;
@@ -4782,6 +4784,7 @@ export class DatabaseStorage implements IStorage {
   // Price List operations
   async getPriceList(filters?: {
     search?: string;
+    unidad?: string;
     limit?: number;
     offset?: number;
   }): Promise<PriceList[]> {
@@ -4790,12 +4793,28 @@ export class DatabaseStorage implements IStorage {
     
     let query = db.select().from(priceList);
     
+    // Build where conditions
+    const conditions = [];
+    
     if (filters?.search) {
       const searchTerm = `%${filters.search}%`;
-      query = query.where(
+      conditions.push(
         sql`${priceList.codigo} ILIKE ${searchTerm} OR 
             ${priceList.producto} ILIKE ${searchTerm}`
       );
+    }
+    
+    if (filters?.unidad) {
+      conditions.push(eq(priceList.unidad, filters.unidad));
+    }
+    
+    // Apply conditions
+    if (conditions.length > 0) {
+      if (conditions.length === 1) {
+        query = query.where(conditions[0]);
+      } else {
+        query = query.where(sql`${conditions[0]} AND ${conditions[1]}`);
+      }
     }
     
     const items = await query
@@ -4806,19 +4825,45 @@ export class DatabaseStorage implements IStorage {
     return items;
   }
 
-  async getPriceListCount(search?: string): Promise<number> {
+  async getPriceListCount(search?: string, unidad?: string): Promise<number> {
     let query = db.select({ count: sql<number>`count(*)` }).from(priceList);
+    
+    // Build where conditions
+    const conditions = [];
     
     if (search) {
       const searchTerm = `%${search}%`;
-      query = query.where(
+      conditions.push(
         sql`${priceList.codigo} ILIKE ${searchTerm} OR 
             ${priceList.producto} ILIKE ${searchTerm}`
       );
     }
     
+    if (unidad) {
+      conditions.push(eq(priceList.unidad, unidad));
+    }
+    
+    // Apply conditions
+    if (conditions.length > 0) {
+      if (conditions.length === 1) {
+        query = query.where(conditions[0]);
+      } else {
+        query = query.where(sql`${conditions[0]} AND ${conditions[1]}`);
+      }
+    }
+    
     const [result] = await query;
     return Number(result.count) || 0;
+  }
+
+  async getAvailableUnits(): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ unidad: priceList.unidad })
+      .from(priceList)
+      .where(sql`${priceList.unidad} IS NOT NULL AND ${priceList.unidad} != ''`)
+      .orderBy(priceList.unidad);
+    
+    return result.map(row => row.unidad).filter(Boolean) as string[];
   }
 
   async getPriceListById(id: string): Promise<PriceList | undefined> {
