@@ -1210,17 +1210,29 @@ export function registerRoutes(app: Express): Server {
   // Goals progress endpoint
   app.get('/api/goals/progress', requireAuth, async (req, res) => {
     try {
-      const { selectedPeriod } = req.query;
+      const { selectedPeriod, type, target } = req.query;
       const filterPeriod = selectedPeriod as string;
+      const filterType = type as string;
+      const filterTarget = target as string;
       
       const allGoals = await storage.getGoals();
       
       // Filter goals by selected period - only show goals for the specific period
-      const filteredGoals = filterPeriod 
+      let filteredGoals = filterPeriod 
         ? allGoals.filter(goal => goal.period === filterPeriod)
         : allGoals;
       
-      // If no goals found for the period, return empty array (this will hide the section)
+      // Additional filtering by type and target if provided
+      if (filterType && filterType !== "all") {
+        filteredGoals = filteredGoals.filter(goal => goal.type === filterType);
+        
+        // If a specific target is provided, filter by it
+        if (filterTarget) {
+          filteredGoals = filteredGoals.filter(goal => goal.target === filterTarget);
+        }
+      }
+      
+      // If no goals found for the filters, return empty array (this will hide the section)
       if (filteredGoals.length === 0) {
         res.json([]);
         return;
