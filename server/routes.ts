@@ -146,7 +146,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Health check endpoint
-  app.get('/api/health', asyncHandler(async (req, res) => {
+  app.get('/api/health', asyncHandler(async (req: any, res: any) => {
     const dbHealth = await checkDbHealth();
     const health = {
       status: dbHealth.connected ? 'healthy' : 'degraded',
@@ -3155,7 +3155,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.post('/api/quotes/:quoteId/items', requireAuth, async (req: any, res) => {
+  app.post('/api/quotes/:quoteId/items', requireAuth, async (req: any, res: any) => {
     try {
       const { quoteId } = req.params;
       const user = req.user;
@@ -3172,7 +3172,8 @@ export function registerRoutes(app: Express): Server {
       
       const itemData = insertQuoteItemSchema.parse({
         ...req.body,
-        quoteId
+        quoteId,
+        totalPrice: (parseFloat(req.body.quantity) * parseFloat(req.body.unitPrice)).toString()
       });
       
       const item = await storage.createQuoteItem(itemData);
