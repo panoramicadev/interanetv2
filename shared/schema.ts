@@ -246,6 +246,17 @@ export const products = pgTable("products", {
   priceOffer: numeric("price_offer", { precision: 15, scale: 2 }), // Precio de oferta
   showInStore: boolean("show_in_store").default(false), // Mostrar en tienda
   
+  // eCommerce fields
+  slug: varchar("slug").unique(), // SEO-friendly URL slug
+  ecomActive: boolean("ecom_active").default(false), // Show in eCommerce store
+  ecomPrice: numeric("ecom_price", { precision: 15, scale: 2 }), // eCommerce-specific price
+  category: varchar("category"), // Product category for eCommerce
+  tags: text("tags").array(), // Product tags for filtering/search
+  images: jsonb("images").default(sql`'[]'::jsonb`), // Product images: [{id, url, alt, primary, sort}]
+  seoTitle: varchar("seo_title"), // SEO title for product page
+  seoDescription: text("seo_description"), // SEO description for product page
+  ogImageUrl: varchar("og_image_url"), // Open Graph image URL
+  
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -600,6 +611,55 @@ export const insertProductSchema = createInsertSchema(products).omit({
   updatedAt: true,
 });
 
+// eCommerce-specific schemas
+export const productImageSchema = z.object({
+  id: z.string(),
+  url: z.string().url(),
+  alt: z.string(),
+  primary: z.boolean().default(false),
+  sort: z.number().default(0),
+});
+
+export const ecommerceProductSchema = z.object({
+  // Core product fields
+  kopr: z.string().min(1, "Product code is required"),
+  name: z.string().min(1, "Product name is required"),
+  ud02pr: z.string().optional(),
+  priceProduct: z.number().min(0).optional(),
+  priceOffer: z.number().min(0).optional(),
+  
+  // eCommerce fields
+  slug: z.string().min(1, "Slug is required").regex(/^[a-z0-9-]+$/, "Slug must contain only lowercase letters, numbers, and hyphens"),
+  ecomActive: z.boolean().default(false),
+  ecomPrice: z.number().min(0).optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).default([]),
+  images: z.array(productImageSchema).default([]),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  ogImageUrl: z.string().url().optional(),
+  
+  // Base fields
+  showInStore: z.boolean().default(false),
+  active: z.boolean().default(true),
+});
+
+export const updateEcommerceProductSchema = ecommerceProductSchema.partial().omit({
+  kopr: true, // kopr cannot be updated
+});
+
+export const ecommerceProductFiltersSchema = z.object({
+  search: z.string().optional(),
+  category: z.string().optional(),
+  active: z.boolean().optional(),
+  ecomActive: z.boolean().optional(),
+  minPrice: z.number().min(0).optional(),
+  maxPrice: z.number().min(0).optional(),
+  tags: z.array(z.string()).optional(),
+  limit: z.number().min(1).max(100).default(20),
+  offset: z.number().min(0).default(0),
+});
+
 // CSV import schema for products and stock (KOPR-based)
 export const csvProductStockImportSchema = z.object({
   // Product identification from CSV
@@ -697,6 +757,12 @@ export type CsvProductImport = z.infer<typeof csvProductImportSchema>;
 export type InsertWarehouseInput = z.infer<typeof insertWarehouseSchema>;
 export type InsertProductStockInput = z.infer<typeof insertProductStockSchema>;
 export type InsertProductPriceHistoryInput = z.infer<typeof insertProductPriceHistorySchema>;
+
+// eCommerce type exports
+export type ProductImage = z.infer<typeof productImageSchema>;
+export type EcommerceProduct = z.infer<typeof ecommerceProductSchema>;
+export type UpdateEcommerceProduct = z.infer<typeof updateEcommerceProductSchema>;
+export type EcommerceProductFilters = z.infer<typeof ecommerceProductFiltersSchema>;
 
 // Client types and schemas
 export type Client = typeof clients.$inferSelect;

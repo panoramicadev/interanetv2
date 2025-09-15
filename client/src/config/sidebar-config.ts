@@ -55,6 +55,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: DollarSign,
     },
     {
+      href: "/ecommerce",
+      label: "eCommerce",
+      icon: ShoppingCart,
+    },
+    {
       href: "/clientes",
       label: "Gestión de Clientes",
       icon: Users,
@@ -118,6 +123,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/lista-precios",
       label: "Lista de Precios",
       icon: DollarSign,
+    },
+    {
+      href: "/ecommerce",
+      label: "eCommerce",
+      icon: ShoppingCart,
     },
     {
       href: "/clientes",
