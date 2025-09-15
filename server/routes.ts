@@ -3303,10 +3303,21 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get available colors for filtering
+  app.get('/api/price-list/colors', requireAuth, async (req, res) => {
+    try {
+      const colors = await storage.getProductColors();
+      res.json(colors);
+    } catch (error) {
+      console.error("Error fetching product colors:", error);
+      res.status(500).json({ message: "Failed to fetch product colors" });
+    }
+  });
+
   // Price List endpoints
   app.get('/api/price-list', requireAuth, async (req, res) => {
     try {
-      const { search, unidad, tipoProducto, limit = 50, offset = 0 } = req.query;
+      const { search, unidad, tipoProducto, color, limit = 50, offset = 0 } = req.query;
       
       // Validate and clamp pagination parameters
       const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 200);
@@ -3316,11 +3327,12 @@ export function registerRoutes(app: Express): Server {
         search: search as string,
         unidad: unidad as string,
         tipoProducto: tipoProducto as string,
+        color: color as string,
         limit: validatedLimit,
         offset: validatedOffset,
       });
       
-      const totalCount = await storage.getPriceListCount(search as string, unidad as string, tipoProducto as string);
+      const totalCount = await storage.getPriceListCount(search as string, unidad as string, tipoProducto as string, color as string);
       
       res.json({
         items,

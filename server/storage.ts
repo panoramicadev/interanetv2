@@ -521,12 +521,14 @@ export interface IStorage {
     search?: string;
     unidad?: string;
     tipoProducto?: string;
+    color?: string;
     limit?: number;
     offset?: number;
   }): Promise<PriceList[]>;
-  getPriceListCount(search?: string, unidad?: string, tipoProducto?: string): Promise<number>;
+  getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number>;
   getAvailableUnits(): Promise<string[]>;
   getProductTypes(): Promise<string[]>;
+  getProductColors(): Promise<string[]>;
   getPriceListById(id: string): Promise<PriceList | undefined>;
   getPriceListByCodigo(codigo: string): Promise<PriceList | undefined>;
   createPriceListItem(item: InsertPriceListInput): Promise<PriceList>;
@@ -4815,15 +4817,17 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${priceList.producto} ILIKE ${'%' + filters.tipoProducto + '%'}`);
     }
     
-    // Apply conditions
+    if (filters?.color) {
+      conditions.push(sql`${priceList.producto} ILIKE ${'%' + filters.color + '%'}`);
+    }
+    
+    // Apply conditions dynamically
     if (conditions.length > 0) {
-      if (conditions.length === 1) {
-        query = query.where(conditions[0]);
-      } else if (conditions.length === 2) {
-        query = query.where(sql`${conditions[0]} AND ${conditions[1]}`);
-      } else {
-        query = query.where(sql`${conditions[0]} AND ${conditions[1]} AND ${conditions[2]}`);
+      let combinedCondition = conditions[0];
+      for (let i = 1; i < conditions.length; i++) {
+        combinedCondition = sql`${combinedCondition} AND ${conditions[i]}`;
       }
+      query = query.where(combinedCondition);
     }
     
     const items = await query
@@ -4834,7 +4838,7 @@ export class DatabaseStorage implements IStorage {
     return items;
   }
 
-  async getPriceListCount(search?: string, unidad?: string, tipoProducto?: string): Promise<number> {
+  async getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number> {
     let query = db.select({ count: sql<number>`count(*)` }).from(priceList);
     
     // Build where conditions
@@ -4856,15 +4860,17 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${priceList.producto} ILIKE ${'%' + tipoProducto + '%'}`);
     }
     
-    // Apply conditions
+    if (color) {
+      conditions.push(sql`${priceList.producto} ILIKE ${'%' + color + '%'}`);
+    }
+    
+    // Apply conditions dynamically
     if (conditions.length > 0) {
-      if (conditions.length === 1) {
-        query = query.where(conditions[0]);
-      } else if (conditions.length === 2) {
-        query = query.where(sql`${conditions[0]} AND ${conditions[1]}`);
-      } else {
-        query = query.where(sql`${conditions[0]} AND ${conditions[1]} AND ${conditions[2]}`);
+      let combinedCondition = conditions[0];
+      for (let i = 1; i < conditions.length; i++) {
+        combinedCondition = sql`${combinedCondition} AND ${conditions[i]}`;
       }
+      query = query.where(combinedCondition);
     }
     
     const [result] = await query;
@@ -4902,6 +4908,29 @@ export class DatabaseStorage implements IStorage {
     });
     
     return Array.from(productTypes).sort();
+  }
+
+  async getProductColors(): Promise<string[]> {
+    // Extract colors from product names using common color keywords
+    const result = await db
+      .select({ producto: priceList.producto })
+      .from(priceList)
+      .where(sql`${priceList.producto} IS NOT NULL AND ${priceList.producto} != ''`);
+    
+    // Extract common color keywords
+    const productColors = new Set<string>();
+    const colors = ['BLANCO', 'NEGRO', 'ROJO', 'AZUL', 'VERDE', 'AMARILLO', 'GRIS', 'CAFE', 'MARRON', 'NARANJA', 'ROSA', 'VIOLETA', 'MORADO', 'CELESTE', 'BEIGE', 'CREMA', 'DORADO', 'PLATEADO', 'TRANSPARENTE', 'INCOLORO'];
+    
+    result.forEach(row => {
+      const producto = row.producto?.toUpperCase() || '';
+      colors.forEach(color => {
+        if (producto.includes(color)) {
+          productColors.add(color);
+        }
+      });
+    });
+    
+    return Array.from(productColors).sort();
   }
 
   async getPriceListById(id: string): Promise<PriceList | undefined> {
