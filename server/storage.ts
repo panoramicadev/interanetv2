@@ -520,11 +520,13 @@ export interface IStorage {
   getPriceList(filters?: {
     search?: string;
     unidad?: string;
+    tipoProducto?: string;
     limit?: number;
     offset?: number;
   }): Promise<PriceList[]>;
-  getPriceListCount(search?: string, unidad?: string): Promise<number>;
+  getPriceListCount(search?: string, unidad?: string, tipoProducto?: string): Promise<number>;
   getAvailableUnits(): Promise<string[]>;
+  getProductTypes(): Promise<string[]>;
   getPriceListById(id: string): Promise<PriceList | undefined>;
   getPriceListByCodigo(codigo: string): Promise<PriceList | undefined>;
   createPriceListItem(item: InsertPriceListInput): Promise<PriceList>;
@@ -4785,6 +4787,7 @@ export class DatabaseStorage implements IStorage {
   async getPriceList(filters?: {
     search?: string;
     unidad?: string;
+    tipoProducto?: string;
     limit?: number;
     offset?: number;
   }): Promise<PriceList[]> {
@@ -4808,12 +4811,18 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(priceList.unidad, filters.unidad));
     }
     
+    if (filters?.tipoProducto) {
+      conditions.push(sql`${priceList.producto} ILIKE ${'%' + filters.tipoProducto + '%'}`);
+    }
+    
     // Apply conditions
     if (conditions.length > 0) {
       if (conditions.length === 1) {
         query = query.where(conditions[0]);
-      } else {
+      } else if (conditions.length === 2) {
         query = query.where(sql`${conditions[0]} AND ${conditions[1]}`);
+      } else {
+        query = query.where(sql`${conditions[0]} AND ${conditions[1]} AND ${conditions[2]}`);
       }
     }
     
@@ -4825,7 +4834,7 @@ export class DatabaseStorage implements IStorage {
     return items;
   }
 
-  async getPriceListCount(search?: string, unidad?: string): Promise<number> {
+  async getPriceListCount(search?: string, unidad?: string, tipoProducto?: string): Promise<number> {
     let query = db.select({ count: sql<number>`count(*)` }).from(priceList);
     
     // Build where conditions
@@ -4843,12 +4852,18 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(priceList.unidad, unidad));
     }
     
+    if (tipoProducto) {
+      conditions.push(sql`${priceList.producto} ILIKE ${'%' + tipoProducto + '%'}`);
+    }
+    
     // Apply conditions
     if (conditions.length > 0) {
       if (conditions.length === 1) {
         query = query.where(conditions[0]);
-      } else {
+      } else if (conditions.length === 2) {
         query = query.where(sql`${conditions[0]} AND ${conditions[1]}`);
+      } else {
+        query = query.where(sql`${conditions[0]} AND ${conditions[1]} AND ${conditions[2]}`);
       }
     }
     
@@ -4864,6 +4879,29 @@ export class DatabaseStorage implements IStorage {
       .orderBy(priceList.unidad);
     
     return result.map(row => row.unidad).filter(Boolean) as string[];
+  }
+
+  async getProductTypes(): Promise<string[]> {
+    // Extract product types from product names using common keywords
+    const result = await db
+      .select({ producto: priceList.producto })
+      .from(priceList)
+      .where(sql`${priceList.producto} IS NOT NULL AND ${priceList.producto} != ''`);
+    
+    // Extract common product type keywords
+    const productTypes = new Set<string>();
+    const keywords = ['ESMALTE', 'PINTURA', 'BARNIZ', 'SELLADOR', 'DILUYENTE', 'THINNER', 'MASILLA', 'PRIMER', 'ANTICORROSIVO', 'LACA', 'FONDO', 'CONVERTIDOR', 'REMOVEDOR'];
+    
+    result.forEach(row => {
+      const producto = row.producto?.toUpperCase() || '';
+      keywords.forEach(keyword => {
+        if (producto.includes(keyword)) {
+          productTypes.add(keyword);
+        }
+      });
+    });
+    
+    return Array.from(productTypes).sort();
   }
 
   async getPriceListById(id: string): Promise<PriceList | undefined> {
