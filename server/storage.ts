@@ -13,6 +13,7 @@ import {
   taskAssignments,
   orders,
   orderItems,
+  priceList,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -42,6 +43,9 @@ import {
   type InsertOrder,
   type OrderItem,
   type InsertOrderItem,
+  type PriceList,
+  type InsertPriceList,
+  type InsertPriceListInput,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
@@ -505,6 +509,21 @@ export interface IStorage {
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   updateOrderItem(id: string, orderItem: Partial<InsertOrderItem>): Promise<OrderItem>;
   deleteOrderItem(id: string): Promise<void>;
+
+  // Price List operations
+  getPriceList(filters?: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<PriceList[]>;
+  getPriceListCount(search?: string): Promise<number>;
+  getPriceListById(id: string): Promise<PriceList | undefined>;
+  getPriceListByCodigo(codigo: string): Promise<PriceList | undefined>;
+  createPriceListItem(item: InsertPriceListInput): Promise<PriceList>;
+  createMultiplePriceListItems(items: InsertPriceListInput[]): Promise<void>;
+  updatePriceListItem(id: string, updates: Partial<InsertPriceListInput>): Promise<PriceList>;
+  deletePriceListItem(id: string): Promise<void>;
+  deleteAllPriceListItems(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4727,6 +4746,106 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(orderItems)
       .where(eq(orderItems.id, id));
+  }
+
+  // Price List operations
+  async getPriceList(filters?: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<PriceList[]> {
+    const limit = filters?.limit || 50;
+    const offset = filters?.offset || 0;
+    
+    let query = db.select().from(priceList);
+    
+    if (filters?.search) {
+      const searchTerm = `%${filters.search}%`;
+      query = query.where(
+        sql`${priceList.codigo} ILIKE ${searchTerm} OR 
+            ${priceList.producto} ILIKE ${searchTerm}`
+      );
+    }
+    
+    const items = await query
+      .orderBy(priceList.codigo)
+      .limit(limit)
+      .offset(offset);
+      
+    return items;
+  }
+
+  async getPriceListCount(search?: string): Promise<number> {
+    let query = db.select({ count: sql<number>`count(*)` }).from(priceList);
+    
+    if (search) {
+      const searchTerm = `%${search}%`;
+      query = query.where(
+        sql`${priceList.codigo} ILIKE ${searchTerm} OR 
+            ${priceList.producto} ILIKE ${searchTerm}`
+      );
+    }
+    
+    const [result] = await query;
+    return Number(result.count) || 0;
+  }
+
+  async getPriceListById(id: string): Promise<PriceList | undefined> {
+    const [item] = await db
+      .select()
+      .from(priceList)
+      .where(eq(priceList.id, id));
+      
+    return item;
+  }
+
+  async getPriceListByCodigo(codigo: string): Promise<PriceList | undefined> {
+    const [item] = await db
+      .select()
+      .from(priceList)
+      .where(eq(priceList.codigo, codigo));
+      
+    return item;
+  }
+
+  async createPriceListItem(item: InsertPriceListInput): Promise<PriceList> {
+    const [newItem] = await db
+      .insert(priceList)
+      .values(item)
+      .returning();
+      
+    return newItem;
+  }
+
+  async createMultiplePriceListItems(items: InsertPriceListInput[]): Promise<void> {
+    if (items.length === 0) return;
+    
+    // Process in batches to avoid too large queries
+    const batchSize = 100;
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      await db.insert(priceList).values(batch);
+    }
+  }
+
+  async updatePriceListItem(id: string, updates: Partial<InsertPriceListInput>): Promise<PriceList> {
+    const [updatedItem] = await db
+      .update(priceList)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(priceList.id, id))
+      .returning();
+      
+    return updatedItem;
+  }
+
+  async deletePriceListItem(id: string): Promise<void> {
+    await db
+      .delete(priceList)
+      .where(eq(priceList.id, id));
+  }
+
+  async deleteAllPriceListItems(): Promise<void> {
+    await db.delete(priceList);
   }
 
 }

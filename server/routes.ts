@@ -74,7 +74,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, InsertTask } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, insertPriceListSchema, InsertTask } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -2902,6 +2902,226 @@ export function registerRoutes(app: Express): Server {
         });
       }
       res.status(500).json({ message: "Failed to create order item" });
+    }
+  });
+
+  // Price List endpoints
+  app.get('/api/price-list', requireAuth, async (req, res) => {
+    try {
+      const { search, limit = 50, offset = 0 } = req.query;
+      
+      // Validate and clamp pagination parameters
+      const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 200);
+      const validatedOffset = Math.max(parseInt(offset as string) || 0, 0);
+      
+      const items = await storage.getPriceList({
+        search: search as string,
+        limit: validatedLimit,
+        offset: validatedOffset,
+      });
+      
+      const totalCount = await storage.getPriceListCount(search as string);
+      
+      res.json({
+        items,
+        totalCount,
+        hasMore: (parseInt(offset as string) + items.length) < totalCount
+      });
+    } catch (error) {
+      console.error("Error fetching price list:", error);
+      res.status(500).json({ message: "Failed to fetch price list" });
+    }
+  });
+
+  app.get('/api/price-list/:id', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const item = await storage.getPriceListById(id);
+      
+      if (!item) {
+        return res.status(404).json({ message: "Price list item not found" });
+      }
+      
+      res.json(item);
+    } catch (error) {
+      console.error("Error fetching price list item:", error);
+      res.status(500).json({ message: "Failed to fetch price list item" });
+    }
+  });
+
+  app.post('/api/price-list', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Only admin and supervisor can create price list items
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized to create price list items" });
+      }
+      
+      const validatedData = insertPriceListSchema.parse(req.body);
+      const item = await storage.createPriceListItem(validatedData);
+      
+      res.status(201).json(item);
+    } catch (error) {
+      console.error("Error creating price list item:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to create price list item" });
+    }
+  });
+
+  app.patch('/api/price-list/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      // Only admin and supervisor can update price list items
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized to update price list items" });
+      }
+      
+      const item = await storage.getPriceListById(id);
+      if (!item) {
+        return res.status(404).json({ message: "Price list item not found" });
+      }
+      
+      const validatedData = insertPriceListSchema.partial().parse(req.body);
+      const updatedItem = await storage.updatePriceListItem(id, validatedData);
+      
+      res.json(updatedItem);
+    } catch (error) {
+      console.error("Error updating price list item:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to update price list item" });
+    }
+  });
+
+  app.delete('/api/price-list/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      // Only admin and supervisor can delete price list items
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized to delete price list items" });
+      }
+      
+      const item = await storage.getPriceListById(id);
+      if (!item) {
+        return res.status(404).json({ message: "Price list item not found" });
+      }
+      
+      await storage.deletePriceListItem(id);
+      res.json({ message: "Price list item deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting price list item:", error);
+      res.status(500).json({ message: "Failed to delete price list item" });
+    }
+  });
+
+  // CSV Import endpoint for price list
+  app.post('/api/price-list/import', upload.single('file'), requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Only admin and supervisor can import price list
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized to import price list" });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      
+      const csvData = req.file.buffer.toString();
+      
+      // Parse CSV data
+      const Papa = require('papaparse');
+      const { data, errors } = Papa.parse(csvData, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (header: string) => {
+          // Map CSV headers to our schema
+          const headerMap: Record<string, string> = {
+            'ID': 'id',
+            'Código': 'codigo',
+            'Producto': 'producto',
+            'Unidad': 'unidad',
+            'Lista': 'lista',
+            'Desc10': 'desc10',
+            'Desc10+5': 'desc10_5',
+            'Desc10+5+3': 'desc10_5_3',
+            'Mínimo': 'minimo',
+            'Canal Digital': 'canalDigital',
+            'Es Personalizado': 'esPersonalizado',
+            'Costo Producción': 'costoProduccion',
+            'Porcentaje Utilidad': 'porcentajeUtilidad',
+            'Modo Precio': 'modoPrecio',
+          };
+          return headerMap[header] || header;
+        }
+      });
+      
+      if (errors.length > 0) {
+        return res.status(400).json({ 
+          message: "CSV parsing error", 
+          errors: errors 
+        });
+      }
+      
+      // Validate and transform data
+      const validatedItems = [];
+      const validationErrors = [];
+      
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        
+        try {
+          // Skip the ID from CSV as we generate our own
+          const { id, ...rowData } = row;
+          
+          const validatedItem = insertPriceListSchema.parse(rowData);
+          validatedItems.push(validatedItem);
+        } catch (error: any) {
+          validationErrors.push({
+            row: i + 1,
+            codigo: row.codigo || `Row ${i + 1}`,
+            error: error.issues ? error.issues.map((issue: any) => 
+              `${issue.path.join('.')}: ${issue.message}`).join(', ') : error.message
+          });
+        }
+      }
+      
+      if (validationErrors.length > 0) {
+        return res.status(400).json({
+          message: "Validation errors found",
+          errors: validationErrors,
+          validCount: validatedItems.length,
+          errorCount: validationErrors.length
+        });
+      }
+      
+      // Clear existing price list and import new data
+      await storage.deleteAllPriceListItems();
+      await storage.createMultiplePriceListItems(validatedItems);
+      
+      res.json({
+        message: "Price list imported successfully",
+        importedCount: validatedItems.length
+      });
+      
+    } catch (error) {
+      console.error("Error importing price list:", error);
+      res.status(500).json({ message: "Failed to import price list" });
     }
   });
 
