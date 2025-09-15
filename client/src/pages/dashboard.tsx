@@ -123,17 +123,7 @@ export default function Dashboard() {
     <div>
         {/* Header */}
         <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
-          <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center justify-between">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg sm:text-xl lg:text-3xl font-bold text-gray-900 truncate">
-                Dashboard de Ventas
-              </h1>
-              <p className="text-gray-600 text-xs sm:text-sm lg:text-lg">
-                Resumen de rendimiento - {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
-              </p>
-            </div>
-            
-            <div className="flex flex-col space-y-2 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4 w-full lg:w-auto">
+          <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4 w-full lg:w-auto">
               {/* Filter Type Selector */}
               <div className="flex items-center space-x-2 flex-none">
                 <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
@@ -357,7 +347,6 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-            </div>
           </div>
         </header>
 
