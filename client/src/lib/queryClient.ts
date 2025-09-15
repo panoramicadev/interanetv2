@@ -7,15 +7,48 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Legacy signature for backward compatibility
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown
+): Promise<Response>;
+// New signature
+export async function apiRequest(
+  url: string,
+  options?: {
+    method?: string;
+    data?: unknown;
+  }
+): Promise<Response>;
+// Implementation
+export async function apiRequest(
+  methodOrUrl: string,
+  urlOrOptions?: string | { method?: string; data?: unknown },
+  data?: unknown
 ): Promise<Response> {
+  let method: string;
+  let url: string;
+  let requestData: unknown;
+
+  // Detect signature based on second parameter type
+  if (typeof urlOrOptions === 'string') {
+    // Legacy signature: (method, url, data?)
+    method = methodOrUrl;
+    url = urlOrOptions;
+    requestData = data;
+    console.warn('Using legacy apiRequest signature. Please migrate to new signature: apiRequest(url, {method, data})');
+  } else {
+    // New signature: (url, {method?, data?}?)
+    url = methodOrUrl;
+    method = urlOrOptions?.method || 'GET';
+    requestData = urlOrOptions?.data;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+    headers: requestData ? { "Content-Type": "application/json" } : {},
+    body: requestData ? JSON.stringify(requestData) : undefined,
     credentials: "include",
   });
 

@@ -19,7 +19,7 @@ export default function TomadorPedidos() {
     queryKey: ['/api/clients', { search: searchTerm }],
     queryFn: async () => {
       const params = new URLSearchParams({ search: searchTerm });
-      const response = await fetch(`/api/clients?${params}`);
+      const response = await fetch(`/api/clients?${params}`, { credentials: 'include' });
       if (!response.ok) {
         throw new Error('Failed to fetch clients');
       }
@@ -29,17 +29,26 @@ export default function TomadorPedidos() {
   });
 
   // Fetch existing orders
-  const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
+  const { data: orders = [], isLoading: isLoadingOrders } = useQuery<Order[]>({
     queryKey: ['/api/orders'],
+    queryFn: async () => {
+      const response = await fetch('/api/orders', { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error('Failed to fetch orders');
+      }
+      return response.json();
+    },
   });
 
   // Create order mutation
-  const createOrderMutation = useMutation({
-    mutationFn: (orderData: { clientName: string; clientId?: string; notes?: string }) => 
-      apiRequest('/api/orders', {
+  const createOrderMutation = useMutation<Order, Error, { clientName: string; clientId?: string; notes?: string }>({
+    mutationFn: async (orderData) => {
+      const response = await apiRequest('/api/orders', {
         method: 'POST',
-        body: JSON.stringify(orderData),
-      }),
+        data: orderData
+      });
+      return response.json();
+    },
     onSuccess: (newOrder: Order) => {
       toast({
         title: "¡Pedido creado exitosamente!",
@@ -66,7 +75,7 @@ export default function TomadorPedidos() {
   };
 
   const formatCurrency = (amount: number | null | undefined) => {
-    if (!amount) return "N/A";
+    if (amount === null || amount === undefined) return "N/A";
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP'
@@ -184,8 +193,8 @@ export default function TomadorPedidos() {
                               )}
                               {client.crlt && (
                                 <div className="text-xs">
-                                  Límite crédito: {formatCurrency(client.crlt)} | 
-                                  Disponible: {formatCurrency(client.cren)}
+                                  Límite crédito: {formatCurrency(Number(client.crlt))} | 
+                                  Disponible: {formatCurrency(Number(client.cren) || 0)}
                                 </div>
                               )}
                             </div>
@@ -263,17 +272,17 @@ export default function TomadorPedidos() {
                         </span>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {new Date(order.createdAt).toLocaleDateString('es-CL', {
+                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString('es-CL', {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit'
-                        })}
+                        }) : 'Fecha no disponible'}
                       </div>
                     </div>
-                    <Badge variant={getStatusBadgeVariant(order.status)}>
-                      {getStatusLabel(order.status)}
+                    <Badge variant={getStatusBadgeVariant(order.status || 'draft')}>
+                      {getStatusLabel(order.status || 'draft')}
                     </Badge>
                   </div>
                 ))}
