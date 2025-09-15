@@ -148,6 +148,40 @@ export interface IStorage {
     sales: number;
   }>>;
   
+  // Product analytics operations
+  getProductDetails(productName: string, filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    productName: string;
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    averageOrderValue: number;
+    topClient: string;
+    topSalesperson: string;
+  }>;
+  
+  getProductFormats(productName: string, filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Array<{
+    format: string;
+    totalSales: number;
+    totalUnits: number;
+    percentage: number;
+  }>>;
+  
+  getProductColors(productName: string, filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Array<{
+    color: string;
+    totalSales: number;
+    totalUnits: number;
+    percentage: number;
+  }>>;
+  
   // Goals operations
   getGoals(): Promise<Goal[]>;
   getGoalsByType(type: string): Promise<Goal[]>;
@@ -1188,6 +1222,252 @@ export class DatabaseStorage implements IStorage {
       period: r.period,
       sales: Number(r.sales),
     }));
+  }
+
+  // Product analytics operations
+  async getProductDetails(productName: string, filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    productName: string;
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    averageOrderValue: number;
+    topClient: string;
+    topSalesperson: string;
+  }> {
+    const conditions = [
+      sql`LOWER(${salesTransactions.nokoprct}) = LOWER(${productName})`
+    ];
+    
+    if (filters?.startDate) {
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+    }
+    
+    const whereClause = and(...conditions);
+
+    // Get main product metrics
+    const [metrics] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averageOrderValue: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+      })
+      .from(salesTransactions)
+      .where(whereClause);
+
+    // Get top client for this product
+    const [topClient] = await db
+      .select({
+        clientName: sql<string>`${salesTransactions.nokoen}`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+      })
+      .from(salesTransactions)
+      .where(whereClause)
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) DESC`)
+      .limit(1);
+
+    // Get top salesperson for this product
+    const [topSalesperson] = await db
+      .select({
+        salesperson: sql<string>`${salesTransactions.nokofu}`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+      })
+      .from(salesTransactions)
+      .where(whereClause)
+      .groupBy(salesTransactions.nokofu)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) DESC`)
+      .limit(1);
+
+    return {
+      productName,
+      totalSales: Number(metrics.totalSales),
+      totalUnits: Number(metrics.totalUnits),
+      transactionCount: Number(metrics.transactionCount),
+      averageOrderValue: Number(metrics.averageOrderValue),
+      topClient: topClient?.clientName || 'N/A',
+      topSalesperson: topSalesperson?.salesperson || 'N/A',
+    };
+  }
+
+  async getProductFormats(productName: string, filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Array<{
+    format: string;
+    totalSales: number;
+    totalUnits: number;
+    percentage: number;
+  }>> {
+    const conditions = [
+      sql`LOWER(${salesTransactions.nokoprct}) = LOWER(${productName})`
+    ];
+    
+    if (filters?.startDate) {
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+    }
+    
+    const whereClause = and(...conditions);
+
+    // Get total sales for percentage calculation
+    const [totalResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+      })
+      .from(salesTransactions)
+      .where(whereClause);
+    
+    const totalSales = Number(totalResult.total);
+
+    // Extract format from product names using regex patterns for common formats
+    const results = await db
+      .select({
+        productName: salesTransactions.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
+      })
+      .from(salesTransactions)
+      .where(whereClause)
+      .groupBy(salesTransactions.nokoprct);
+
+    // Process results to extract formats
+    const formatMap = new Map<string, { totalSales: number; totalUnits: number }>();
+    
+    results.forEach(result => {
+      const productName = result.productName || '';
+      let format = 'Otro'; // Default format
+      
+      // Extract format from product name using common patterns
+      if (productName.toLowerCase().includes('galón') || productName.toLowerCase().includes('galon')) {
+        format = 'Galón';
+      } else if (productName.toLowerCase().includes('balde') || productName.toLowerCase().includes('bd')) {
+        format = 'Balde';
+      } else if (productName.toLowerCase().includes('kilo') || productName.toLowerCase().includes('kg')) {
+        format = 'Kilo';
+      } else if (productName.toLowerCase().includes('litro') || productName.toLowerCase().includes('lt')) {
+        format = 'Litro';
+      } else if (productName.toLowerCase().includes('1/4')) {
+        format = '1/4 Galón';
+      } else if (productName.toLowerCase().includes('cuarto')) {
+        format = '1/4 Galón';
+      }
+      
+      const existing = formatMap.get(format) || { totalSales: 0, totalUnits: 0 };
+      formatMap.set(format, {
+        totalSales: existing.totalSales + Number(result.totalSales),
+        totalUnits: existing.totalUnits + Number(result.totalUnits),
+      });
+    });
+
+    // Convert to array and calculate percentages
+    return Array.from(formatMap.entries()).map(([format, data]) => ({
+      format,
+      totalSales: data.totalSales,
+      totalUnits: data.totalUnits,
+      percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0,
+    })).sort((a, b) => b.totalSales - a.totalSales);
+  }
+
+  async getProductColors(productName: string, filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Array<{
+    color: string;
+    totalSales: number;
+    totalUnits: number;
+    percentage: number;
+  }>> {
+    const conditions = [
+      sql`LOWER(${salesTransactions.nokoprct}) = LOWER(${productName})`
+    ];
+    
+    if (filters?.startDate) {
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+    }
+    
+    const whereClause = and(...conditions);
+
+    // Get total sales for percentage calculation
+    const [totalResult] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+      })
+      .from(salesTransactions)
+      .where(whereClause);
+    
+    const totalSales = Number(totalResult.total);
+
+    // Get all product variations for this product
+    const results = await db
+      .select({
+        productName: salesTransactions.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
+      })
+      .from(salesTransactions)
+      .where(whereClause)
+      .groupBy(salesTransactions.nokoprct);
+
+    // Process results to extract colors
+    const colorMap = new Map<string, { totalSales: number; totalUnits: number }>();
+    
+    results.forEach(result => {
+      const productName = result.productName || '';
+      let color = 'Sin especificar'; // Default color
+      
+      // Extract color from product name using common color patterns
+      const lowerName = productName.toLowerCase();
+      
+      if (lowerName.includes('blanco')) {
+        color = 'Blanco';
+      } else if (lowerName.includes('negro')) {
+        color = 'Negro';
+      } else if (lowerName.includes('rojo')) {
+        color = 'Rojo';
+      } else if (lowerName.includes('azul')) {
+        color = 'Azul';
+      } else if (lowerName.includes('verde')) {
+        color = 'Verde';
+      } else if (lowerName.includes('amarillo')) {
+        color = 'Amarillo';
+      } else if (lowerName.includes('gris')) {
+        color = 'Gris';
+      } else if (lowerName.includes('cafe') || lowerName.includes('café') || lowerName.includes('marron') || lowerName.includes('marrón')) {
+        color = 'Café';
+      } else if (lowerName.includes('rosa') || lowerName.includes('rosado')) {
+        color = 'Rosa';
+      } else if (lowerName.includes('naranja') || lowerName.includes('anaranjado')) {
+        color = 'Naranja';
+      } else if (lowerName.includes('violeta') || lowerName.includes('morado')) {
+        color = 'Violeta';
+      }
+      
+      const existing = colorMap.get(color) || { totalSales: 0, totalUnits: 0 };
+      colorMap.set(color, {
+        totalSales: existing.totalSales + Number(result.totalSales),
+        totalUnits: existing.totalUnits + Number(result.totalUnits),
+      });
+    });
+
+    // Convert to array and calculate percentages
+    return Array.from(colorMap.entries()).map(([color, data]) => ({
+      color,
+      totalSales: data.totalSales,
+      totalUnits: data.totalUnits,
+      percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0,
+    })).sort((a, b) => b.totalSales - a.totalSales);
   }
 
   // Goals operations
