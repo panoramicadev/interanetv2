@@ -1173,3 +1173,65 @@ export const insertOrderItemSchema = createInsertSchema(orderItems, {
 
 export type InsertOrderInput = z.infer<typeof insertOrderSchema>;
 export type InsertOrderItemInput = z.infer<typeof insertOrderItemSchema>;
+
+// Price List - Lista de Precios Comercial
+export const priceList = pgTable("price_list", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  codigo: varchar("codigo").notNull().unique(), // Product code
+  producto: text("producto").notNull(), // Product name
+  unidad: varchar("unidad"), // Unit (1/4 de galón, etc.)
+  lista: numeric("lista", { precision: 15, scale: 2 }), // List price
+  desc10: numeric("desc10", { precision: 15, scale: 2 }), // 10% discount price
+  desc10_5: numeric("desc10_5", { precision: 15, scale: 2 }), // 10%+5% discount price
+  desc10_5_3: numeric("desc10_5_3", { precision: 15, scale: 2 }), // 10%+5%+3% discount price
+  minimo: numeric("minimo", { precision: 15, scale: 2 }), // Minimum price
+  canalDigital: numeric("canal_digital", { precision: 15, scale: 2 }), // Digital channel price
+  esPersonalizado: varchar("es_personalizado").default("No"), // Is customized
+  costoProduccion: numeric("costo_produccion", { precision: 15, scale: 2 }), // Production cost
+  porcentajeUtilidad: numeric("porcentaje_utilidad", { precision: 10, scale: 2 }), // Profit percentage
+  modoPrecio: varchar("modo_precio"), // Price mode
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Price List schemas
+export const insertPriceListSchema = createInsertSchema(priceList, {
+  codigo: z.string().min(1, "Código es requerido"),
+  producto: z.string().min(1, "Producto es requerido"),
+  unidad: z.string().optional(),
+  lista: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  desc10: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  desc10_5: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  desc10_5_3: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  minimo: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  canalDigital: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  esPersonalizado: z.enum(["Si", "No"]).default("No"),
+  costoProduccion: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  porcentajeUtilidad: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  modoPrecio: z.string().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type PriceList = typeof priceList.$inferSelect;
+export type InsertPriceList = typeof priceList.$inferInsert;
+export type InsertPriceListInput = z.infer<typeof insertPriceListSchema>;
