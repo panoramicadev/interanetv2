@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+//import panoramicaLogoPath from "@assets/Diseño sin título (27)_1757959070748.png"; // Commented due to special chars in filename"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -1017,8 +1018,22 @@ export default function TomadorPedidos() {
   <div class="container">
     <div class="header">
       <div class="header-left">
-        <div style="font-weight: bold; font-size: 18px; color: #fd6301;">PANORAMICA</div>
-        <div style="font-size: 12px; color: #6b7280;">System</div>
+        <svg width="140" height="60" viewBox="0 0 140 60" xmlns="http://www.w3.org/2000/svg">
+          <!-- Rainbow arcs representing paint colors -->
+          <path d="M10,30 A20,20 0 0,1 50,30" fill="none" stroke="#fbbf24" stroke-width="8" stroke-linecap="round"/>
+          <path d="M12,30 A18,18 0 0,1 48,30" fill="none" stroke="#84cc16" stroke-width="6" stroke-linecap="round"/>
+          <path d="M14,30 A16,16 0 0,1 46,30" fill="none" stroke="#f97316" stroke-width="4" stroke-linecap="round"/>
+          <path d="M16,30 A14,14 0 0,1 44,30" fill="none" stroke="#ec4899" stroke-width="3" stroke-linecap="round"/>
+          <path d="M18,30 A12,12 0 0,1 42,30" fill="none" stroke="#06b6d4" stroke-width="2" stroke-linecap="round"/>
+          <path d="M20,30 A10,10 0 0,1 40,30" fill="none" stroke="#3b82f6" stroke-width="1" stroke-linecap="round"/>
+          
+          <!-- Company name -->
+          <text x="55" y="25" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#1f2937">PANORAMICA</text>
+          
+          <!-- 30 Anos celebration -->
+          <text x="90" y="15" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#fd6301">30</text>
+          <text x="90" y="35" font-family="Arial, sans-serif" font-size="12" fill="#fd6301" font-style="italic">Años</text>
+        </svg>
       </div>
       <div class="header-right">
         <h1>COTIZACIÓN</h1>
