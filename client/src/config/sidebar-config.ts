@@ -10,7 +10,8 @@ import {
   Calculator,
   Palette,
   ClipboardList,
-  ClipboardCheck
+  ClipboardCheck,
+  DollarSign
 } from "lucide-react";
 
 interface SidebarItem {
@@ -48,6 +49,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/productos",
       label: "Gestión de Productos",
       icon: Package,
+    },
+    {
+      href: "/lista-precios",
+      label: "Lista de Precios",
+      icon: DollarSign,
     },
     {
       href: "/clientes",
@@ -116,6 +122,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Package,
     },
     {
+      href: "/lista-precios",
+      label: "Lista de Precios",
+      icon: DollarSign,
+    },
+    {
       href: "/clientes",
       label: "Gestión de Clientes",
       icon: Users,
@@ -160,6 +171,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
+    },
+    {
+      href: "/lista-precios",
+      label: "Lista de Precios",
+      icon: DollarSign,
     },
     {
       href: "/ordenes",
