@@ -611,53 +611,195 @@ export const insertProductSchema = createInsertSchema(products).omit({
   updatedAt: true,
 });
 
-// eCommerce-specific schemas
+// eCommerce-specific schemas (defined first to avoid initialization order issues)
 export const productImageSchema = z.object({
-  id: z.string(),
-  url: z.string().url(),
-  alt: z.string(),
+  id: z.string().min(1, "Image ID is required"),
+  url: z.string().url("Invalid image URL"),
+  alt: z.string().min(1, "Image alt text is required for accessibility"),
   primary: z.boolean().default(false),
-  sort: z.number().default(0),
+  sort: z.number().int().min(0, "Sort order must be a non-negative integer").default(0),
 });
 
-export const ecommerceProductSchema = z.object({
+// Base eCommerce product object schema (for extending/partial operations)
+export const ecommerceProductObject = z.object({
   // Core product fields
   kopr: z.string().min(1, "Product code is required"),
   name: z.string().min(1, "Product name is required"),
   ud02pr: z.string().optional(),
-  priceProduct: z.number().min(0).optional(),
-  priceOffer: z.number().min(0).optional(),
+  priceProduct: z.number().min(0, "Product price must be non-negative").optional(),
+  priceOffer: z.number().min(0, "Offer price must be non-negative").optional(),
   
-  // eCommerce fields
+  // eCommerce fields - conditional validation based on ecomActive
   slug: z.string().min(1, "Slug is required").regex(/^[a-z0-9-]+$/, "Slug must contain only lowercase letters, numbers, and hyphens"),
   ecomActive: z.boolean().default(false),
-  ecomPrice: z.number().min(0).optional(),
-  category: z.string().optional(),
+  ecomPrice: z.number().min(0, "eCommerce price must be non-negative").optional(),
+  category: z.string().min(1, "Category is required for active eCommerce products").optional(),
   tags: z.array(z.string()).default([]),
   images: z.array(productImageSchema).default([]),
   seoTitle: z.string().optional(),
   seoDescription: z.string().optional(),
-  ogImageUrl: z.string().url().optional(),
+  ogImageUrl: z.string().url("Invalid Open Graph image URL").optional().or(z.literal("")),
   
   // Base fields
   showInStore: z.boolean().default(false),
   active: z.boolean().default(true),
 });
 
-export const updateEcommerceProductSchema = ecommerceProductSchema.partial().omit({
-  kopr: true, // kopr cannot be updated
+// Enhanced eCommerce product schema with validation (for API validation)
+export const ecommerceProductSchema = ecommerceProductObject
+.superRefine((data, ctx) => {
+  // When ecommerce is active, enforce additional requirements
+  if (data.ecomActive) {
+    // Require at least one image with primary=true when active
+    if (data.images.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one image is required for active eCommerce products",
+        path: ["images"]
+      });
+    } else {
+      const hasPrimaryImage = data.images.some(img => img.primary);
+      if (!hasPrimaryImage) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one image must be marked as primary for active eCommerce products",
+          path: ["images"]
+        });
+      }
+    }
+    
+    // Require category when active
+    if (!data.category || data.category.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Category is required for active eCommerce products",
+        path: ["category"]
+      });
+    }
+    
+    // Require at least one pricing option
+    if (!data.ecomPrice && !data.priceOffer && !data.priceProduct) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one price (ecomPrice, priceOffer, or priceProduct) is required for active eCommerce products",
+        path: ["ecomPrice"]
+      });
+    }
+  }
 });
 
-export const ecommerceProductFiltersSchema = z.object({
-  search: z.string().optional(),
-  category: z.string().optional(),
+// Base object for creating eCommerce product with price calculation (extends base object)
+const createEcommerceProductWithPriceObject = ecommerceProductObject.extend({
+  // Additional field for price calculation
+  displayPrice: z.number().optional(), // Will be calculated automatically
+});
+
+// Enhanced eCommerce product creation schema with price calculation
+export const createEcommerceProductWithPriceSchema = createEcommerceProductWithPriceObject
+.superRefine((data, ctx) => {
+  // When ecommerce is active, enforce additional requirements
+  if (data.ecomActive) {
+    // Require at least one image with primary=true when active
+    if (data.images.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one image is required for active eCommerce products",
+        path: ["images"]
+      });
+    } else {
+      const hasPrimaryImage = data.images.some(img => img.primary);
+      if (!hasPrimaryImage) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one image must be marked as primary for active eCommerce products",
+          path: ["images"]
+        });
+      }
+    }
+    
+    // Require category when active
+    if (!data.category || data.category.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Category is required for active eCommerce products",
+        path: ["category"]
+      });
+    }
+    
+    // Require at least one pricing option
+    if (!data.ecomPrice && !data.priceOffer && !data.priceProduct) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one price (ecomPrice, priceOffer, or priceProduct) is required for active eCommerce products",
+        path: ["ecomPrice"]
+      });
+    }
+  }
+})
+.transform((data) => {
+  // Calculate display price using proper precedence
+  const displayPrice = data.ecomPrice ?? data.priceOffer ?? data.priceProduct;
+  return {
+    ...data,
+    displayPrice
+  };
+});
+
+// Base object for updating eCommerce products (uses partial of base object)
+const updateEcommerceProductObject = ecommerceProductObject.omit({ kopr: true }).partial();
+
+// Enhanced update schema with validation
+export const updateEcommerceProductSchema = updateEcommerceProductObject
+.superRefine((data, ctx) => {
+  // Apply same validation rules as create schema when ecomActive is being set to true
+  if (data.ecomActive === true) {
+    // Validate images if provided
+    if (data.images && data.images.length > 0) {
+      const hasPrimaryImage = data.images.some(img => img.primary);
+      if (!hasPrimaryImage) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one image must be marked as primary when activating eCommerce",
+          path: ["images"]
+        });
+      }
+    }
+    
+    // Validate category if provided
+    if (data.category !== undefined && (!data.category || data.category.trim() === "")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Category is required when activating eCommerce",
+        path: ["category"]
+      });
+    }
+  }
+});
+
+// Base object for eCommerce product filters (for extending/partial operations)
+export const ecommerceProductFiltersObject = z.object({
+  search: z.string().trim().optional(),
+  category: z.string().trim().optional(),
   active: z.boolean().optional(),
   ecomActive: z.boolean().optional(),
-  minPrice: z.number().min(0).optional(),
-  maxPrice: z.number().min(0).optional(),
-  tags: z.array(z.string()).optional(),
-  limit: z.number().min(1).max(100).default(20),
-  offset: z.number().min(0).default(0),
+  minPrice: z.number().min(0, "Minimum price must be non-negative").optional(),
+  maxPrice: z.number().min(0, "Maximum price must be non-negative").optional(),
+  tags: z.array(z.string().min(1, "Tag cannot be empty")).optional(),
+  limit: z.number().int().min(1, "Limit must be at least 1").max(100, "Limit cannot exceed 100").default(20),
+  offset: z.number().int().min(0, "Offset must be non-negative").default(0),
+});
+
+// Enhanced filters schema with validation
+export const ecommerceProductFiltersSchema = ecommerceProductFiltersObject
+.superRefine((data, ctx) => {
+  // Ensure maxPrice is greater than or equal to minPrice when both are provided
+  if (data.minPrice !== undefined && data.maxPrice !== undefined && data.maxPrice < data.minPrice) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Maximum price must be greater than or equal to minimum price",
+      path: ["maxPrice"]
+    });
+  }
 });
 
 // CSV import schema for products and stock (KOPR-based)
@@ -758,11 +900,29 @@ export type InsertWarehouseInput = z.infer<typeof insertWarehouseSchema>;
 export type InsertProductStockInput = z.infer<typeof insertProductStockSchema>;
 export type InsertProductPriceHistoryInput = z.infer<typeof insertProductPriceHistorySchema>;
 
+// Slug validation schema for separate validation endpoint
+export const validateSlugSchema = z.object({
+  slug: z.string()
+    .min(1, "Slug is required")
+    .max(100, "Slug cannot exceed 100 characters")
+    .regex(/^[a-z0-9-]+$/, "Slug must contain only lowercase letters, numbers, and hyphens")
+    .regex(/^[a-z0-9].*[a-z0-9]$|^[a-z0-9]$/, "Slug cannot start or end with hyphens")
+    .refine(val => !val.includes("--"), "Slug cannot contain consecutive hyphens"),
+  excludeKopr: z.string().optional(),
+});
+
+// Toggle active status schema
+export const toggleEcommerceActiveSchema = z.object({
+  ecomActive: z.boolean(),
+});
+
 // eCommerce type exports
 export type ProductImage = z.infer<typeof productImageSchema>;
 export type EcommerceProduct = z.infer<typeof ecommerceProductSchema>;
 export type UpdateEcommerceProduct = z.infer<typeof updateEcommerceProductSchema>;
 export type EcommerceProductFilters = z.infer<typeof ecommerceProductFiltersSchema>;
+export type ValidateSlugInput = z.infer<typeof validateSlugSchema>;
+export type ToggleEcommerceActiveInput = z.infer<typeof toggleEcommerceActiveSchema>;
 
 // Client types and schemas
 export type Client = typeof clients.$inferSelect;

@@ -251,3 +251,24 @@ export const requireAuth = (req: any, res: any, next: any) => {
   }
   next();
 };
+
+// Role-based authorization middleware
+export const requireRoles = (roles: string[]) => {
+  return (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "No autenticado" });
+    }
+    
+    const userRole = req.user?.role;
+    if (!userRole || !roles.includes(userRole)) {
+      return res.status(403).json({ 
+        message: "Acceso denegado. No tienes permisos para realizar esta acción." 
+      });
+    }
+    
+    next();
+  };
+};
+
+// Convenience middleware for admin/supervisor only
+export const requireAdminOrSupervisor = requireRoles(['admin', 'supervisor']);
