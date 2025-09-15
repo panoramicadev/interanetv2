@@ -711,12 +711,31 @@ export default function TomadorPedidos() {
         }
       }
 
+      // Convert quote to order so it appears in "Recent Orders"
+      try {
+        const convertResponse = await apiRequest(`/api/quotes/${savedQuote.id}/convert-to-order`, {
+          method: 'POST',
+          data: {}
+        });
+        
+        if (convertResponse.ok) {
+          const convertedOrder = await convertResponse.json();
+          // Invalidate orders cache so the new order appears immediately in "Recent Orders"
+          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+          
+          console.log(`Quote ${savedQuote.quoteNumber} converted to order ${convertedOrder.orderNumber}`);
+        }
+      } catch (error) {
+        console.warn('Could not convert quote to order, but quote was saved successfully:', error);
+        // Don't fail the whole operation if order conversion fails
+      }
+
       // Now generate PDF with real saved data
       generatePDFFromQuote(savedQuote, savedItems);
 
       toast({
         title: "Cotización creada y PDF generado",
-        description: `Cotización ${savedQuote.quoteNumber} creada y descargada exitosamente`,
+        description: `Cotización ${savedQuote.quoteNumber} creada, descargada y agregada a pedidos recientes`,
       });
 
       resetQuoteBuilder();
