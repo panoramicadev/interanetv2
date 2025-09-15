@@ -3,8 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Target, TrendingUp, Users, Building, CheckCircle, AlertCircle, Filter, TrendingDown, Clock, AlertTriangle } from "lucide-react";
+import { Target, TrendingUp, CheckCircle, AlertCircle, TrendingDown, Clock, AlertTriangle, Building, Users } from "lucide-react";
 
 export interface GoalProgress {
   id: string;
@@ -22,33 +21,15 @@ export interface GoalProgress {
 
 interface GoalsProgressProps {
   globalFilter: {
-    type: "all" | "segment" | "salesperson";
+    type: "all" | "global" | "segment" | "salesperson";
     value?: string;
   };
-  onFilterChange: (filter: { type: "all" | "segment" | "salesperson"; value?: string }) => void;
   selectedPeriod: string; // Required period for filtering goals
   goalsData?: GoalProgress[]; // Accept external goals data
   isLoading?: boolean; // Accept loading state
 }
 
-export default function GoalsProgress({ globalFilter, onFilterChange, selectedPeriod, goalsData, isLoading: externalLoading }: GoalsProgressProps) {
-  const [selectedFilter, setSelectedFilter] = useState<string>(globalFilter.type);
-
-  // Sync local state with globalFilter prop changes
-  React.useEffect(() => {
-    setSelectedFilter(globalFilter.type);
-  }, [globalFilter.type]);
-  
-  // Fetch segments and salespeople for the filter dropdown (only if no external data provided)
-  const { data: segments } = useQuery<string[]>({
-    queryKey: ["/api/goals/data/segments"],
-    enabled: !goalsData, // Only fetch if no external data
-  });
-
-  const { data: salespeople } = useQuery<string[]>({
-    queryKey: ["/api/goals/data/salespeople"],
-    enabled: !goalsData, // Only fetch if no external data
-  });
+export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData, isLoading: externalLoading }: GoalsProgressProps) {
   
   const { data: fetchedGoalsProgress, isLoading: fetchedLoading } = useQuery<GoalProgress[]>({
     queryKey: ["/api/goals/progress", selectedPeriod],
@@ -67,16 +48,16 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
   const goalsProgress = goalsData || fetchedGoalsProgress;
   const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
 
-  // Filter goals based on selected filter and global filter
+  // Filter goals based on global filter
   const filteredGoals = goalsProgress?.filter(goal => {
     // If we have a global filter with a specific value, show only goals matching that exact target
     if (globalFilter.type !== "all" && globalFilter.value) {
       return goal.type === globalFilter.type && goal.target === globalFilter.value;
     }
     
-    // Otherwise filter by selected filter type
-    if (selectedFilter === "all") return true;
-    return goal.type === selectedFilter;
+    // Otherwise filter by global filter type
+    if (globalFilter.type === "all") return true;
+    return goal.type === globalFilter.type;
   }) || [];
 
   const formatCurrency = (amount: number | string | null | undefined) => {
@@ -255,14 +236,6 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
     }
   };
 
-  const getFilterLabel = (filter: string) => {
-    switch (filter) {
-      case "global": return "Metas Globales";
-      case "segment": return "Metas por Segmento";
-      case "salesperson": return "Metas por Vendedor";
-      default: return "Todas las Metas";
-    }
-  };
 
   // Función para obtener el nombre del mes en español
   const getMonthName = (period: string) => {
@@ -322,98 +295,16 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header with Filter */}
-      <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center justify-between">
-        <div className="flex items-center space-x-2 sm:space-x-3">
-          <Target className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-          <div>
-            <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground">Progreso de Metas</h2>
-            {globalFilter.type !== "all" && globalFilter.value && (
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Filtrando por {globalFilter.type === "segment" ? "segmento" : "vendedor"}: 
-                <span className="font-medium ml-1">{globalFilter.value}</span>
-              </p>
-            )}
-          </div>
-        </div>
-        
-        {/* Elegant Filter Dropdown */}
-        <div className="flex items-center space-x-2 sm:space-x-3">
-          <Filter className="h-4 w-4 text-muted-foreground hidden sm:block" />
-          <Select 
-            value={selectedFilter} 
-            onValueChange={(value) => {
-              setSelectedFilter(value);
-              if (value === "all") {
-                onFilterChange({ type: "all" });
-              } else {
-                onFilterChange({ type: value as "segment" | "salesperson" });
-              }
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-48 bg-card border border-border/50 shadow-sm hover:shadow-md transition-shadow text-sm">
-              <SelectValue placeholder="Filtrar dashboard" />
-            </SelectTrigger>
-            <SelectContent className="border border-border/50 shadow-lg">
-              <SelectItem value="all" className="hover:bg-muted/50">
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                  <span>Todo el dashboard</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="global" className="hover:bg-muted/50">
-                <div className="flex items-center space-x-2">
-                  <Target className="h-4 w-4 text-blue-500" />
-                  <span>Solo metas globales</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="segment" className="hover:bg-muted/50">
-                <div className="flex items-center space-x-2">
-                  <Building className="h-4 w-4 text-green-500" />
-                  <span>Por segmento</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="salesperson" className="hover:bg-muted/50">
-                <div className="flex items-center space-x-2">
-                  <Users className="h-4 w-4 text-purple-500" />
-                  <span>Por vendedor</span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          
-          {/* Secondary selector for specific segment/salesperson */}
-          {(selectedFilter === "segment" || selectedFilter === "salesperson") && (
-            <Select 
-              value={globalFilter.value || ""} 
-              onValueChange={(value) => {
-                onFilterChange({ 
-                  type: selectedFilter as "segment" | "salesperson", 
-                  value 
-                });
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-56 bg-card border border-border/50 shadow-sm text-sm">
-                <SelectValue placeholder={
-                  selectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"
-                } />
-              </SelectTrigger>
-              <SelectContent className="border border-border/50 shadow-lg max-h-60 overflow-y-auto">
-                {selectedFilter === "segment" ? (
-                  segments?.map((segment) => (
-                    <SelectItem key={segment} value={segment} className="hover:bg-muted/50">
-                      {segment}
-                    </SelectItem>
-                  ))
-                ) : (
-                  salespeople?.map((salesperson) => (
-                    <SelectItem key={salesperson} value={salesperson} className="hover:bg-muted/50">
-                      {salesperson}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+      {/* Header */}
+      <div className="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
+        <Target className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+        <div>
+          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground">Progreso de Metas</h2>
+          {globalFilter.type !== "all" && globalFilter.value && (
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Filtrando por {globalFilter.type === "segment" ? "segmento" : "vendedor"}: 
+              <span className="font-medium ml-1">{globalFilter.value}</span>
+            </p>
           )}
         </div>
       </div>
@@ -424,12 +315,12 @@ export default function GoalsProgress({ globalFilter, onFilterChange, selectedPe
           <CardContent className="p-8 text-center">
             <Target className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">
-              No hay metas {selectedFilter === "all" ? "" : getFilterLabel(selectedFilter).toLowerCase()}
+              No hay metas {globalFilter.type === "all" ? "" : (globalFilter.type === "segment" ? "de segmento" : "de vendedor")}
             </h3>
             <p className="text-muted-foreground">
-              {selectedFilter === "all" 
+              {globalFilter.type === "all" 
                 ? "Configura tu primera meta para empezar a monitorear el progreso."
-                : `No tienes metas configuradas para ${getFilterLabel(selectedFilter).toLowerCase()}.`
+                : `No tienes metas configuradas para ${globalFilter.type === "segment" ? "segmentos" : "vendedores"}.`
               }
             </p>
           </CardContent>
