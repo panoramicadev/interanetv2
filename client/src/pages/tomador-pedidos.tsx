@@ -15,7 +15,15 @@ import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileTex
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 
-// Types for cart management
+// Types for price tiers and cart management
+type PriceTier = 'lista' | 'desc10' | 'desc10_5' | 'desc10_5_3' | 'minimo' | 'canalDigital';
+
+interface PriceTierOption {
+  key: PriceTier;
+  label: string;
+  price: number;
+}
+
 interface CartItem {
   id: string;
   type: "standard" | "custom";
@@ -25,6 +33,7 @@ interface CartItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  priceTier?: PriceTier; // Price tier selected for standard products
   costOfProduction?: number;
   profitMargin?: number;
   pricingMode?: "calculated" | "direct";
@@ -388,6 +397,33 @@ export default function TomadorPedidos() {
       style: 'currency',
       currency: 'CLP'
     }).format(amount);
+  };
+
+  // Helper function to get available price tiers for a product
+  const getAvailableTiers = (product: PriceList): PriceTierOption[] => {
+    const tiers: PriceTierOption[] = [];
+    
+    const tierMappings = [
+      { key: 'lista' as PriceTier, label: 'Lista', field: product.lista },
+      { key: 'desc10' as PriceTier, label: '10%', field: product.desc10 },
+      { key: 'desc10_5' as PriceTier, label: '10%+5%', field: product.desc10_5 },
+      { key: 'desc10_5_3' as PriceTier, label: '10%+5%+3%', field: product.desc10_5_3 },
+      { key: 'minimo' as PriceTier, label: 'Mínimo', field: product.minimo },
+      { key: 'canalDigital' as PriceTier, label: 'Digital', field: product.canalDigital },
+    ];
+    
+    for (const tier of tierMappings) {
+      const price = parseFloat(tier.field?.toString() || '0');
+      if (price > 0) {
+        tiers.push({
+          key: tier.key,
+          label: tier.label,
+          price: price,
+        });
+      }
+    }
+    
+    return tiers;
   };
 
   const getStatusBadgeVariant = (status: string) => {
