@@ -88,6 +88,7 @@ export default function TomadorPedidos() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [quoteForm, setQuoteForm] = useState<QuoteFormData>(INITIAL_QUOTE_FORM);
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [selectedTiers, setSelectedTiers] = useState<Record<string, PriceTier>>({});
   const { toast } = useToast();
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
   const [customProduct, setCustomProduct] = useState<CustomProductData>(INITIAL_CUSTOM_PRODUCT);
@@ -832,38 +833,76 @@ export default function TomadorPedidos() {
                             <p className="text-muted-foreground">No se encontraron productos</p>
                           </div>
                         ) : (
-                          priceList.map((product) => (
-                            <div
-                              key={product.id}
-                              className="border-b p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                              onClick={() => addProductToCart(product)}
-                              data-testid={`modal-product-${product.codigo}`}
-                            >
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Badge variant="secondary" className="text-xs">
-                                      {product.codigo}
-                                    </Badge>
+                          priceList.map((product) => {
+                            const availableTiers = getAvailableTiers(product);
+                            const selectedTier = selectedTiers[product.codigo] || 'lista';
+                            const selectedPrice = availableTiers.find(tier => tier.key === selectedTier)?.price || 0;
+                            
+                            return (
+                              <div
+                                key={product.id}
+                                className="border-b p-3 hover:bg-muted/50 cursor-pointer transition-colors"
+                                onClick={() => addProductToCart(product, selectedTier)}
+                                data-testid={`modal-product-${product.codigo}`}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Badge variant="secondary" className="text-xs">
+                                        {product.codigo}
+                                      </Badge>
+                                    </div>
+                                    <h4 className="font-medium text-sm mb-1">
+                                      {product.producto}
+                                    </h4>
+                                    <p className="text-xs text-muted-foreground">
+                                      Unidad: {product.unidad || "N/A"}
+                                    </p>
                                   </div>
-                                  <h4 className="font-medium text-sm mb-1">
-                                    {product.descripcion}
-                                  </h4>
-                                  <p className="text-xs text-muted-foreground">
-                                    Unidad: {product.unidad || "N/A"}
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-bold text-green-600">
-                                    {formatCurrency(parseFloat(product.lista || "0"))}
-                                  </p>
-                                  <Button size="sm" className="mt-1">
-                                    <Plus className="w-3 h-3" />
-                                  </Button>
+                                  <div className="text-right flex-1">
+                                    <div className="space-y-2">
+                                      <div className="text-xs text-muted-foreground">Precios disponibles:</div>
+                                      <div className="flex flex-wrap gap-1 justify-end">
+                                        {availableTiers.map((tier) => (
+                                          <Badge
+                                            key={tier.key}
+                                            variant={selectedTier === tier.key ? "default" : "outline"}
+                                            className={`cursor-pointer text-xs px-2 py-1 ${
+                                              selectedTier === tier.key 
+                                                ? "bg-green-600 hover:bg-green-700 text-white" 
+                                                : "hover:bg-green-50"
+                                            }`}
+                                            onClick={() => {
+                                              setSelectedTiers(prev => ({
+                                                ...prev,
+                                                [product.codigo]: tier.key
+                                              }));
+                                            }}
+                                            data-testid={`badge-price-${product.codigo}-${tier.key}`}
+                                          >
+                                            {tier.label}: {formatCurrency(tier.price)}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="font-bold text-green-600 text-lg">
+                                          {formatCurrency(selectedPrice)}
+                                        </p>
+                                      </div>
+                                      <Button 
+                                        size="sm" 
+                                        className="mt-1"
+                                        onClick={() => addProductToCart(product, selectedTier)}
+                                        data-testid={`button-add-${product.codigo}`}
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     )}
