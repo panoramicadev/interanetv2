@@ -33,11 +33,7 @@ export default function ListaPrecios() {
   const { data, isLoading, error } = useQuery<PriceListResponse>({
     queryKey: ['/api/price-list', { search, limit: itemsPerPage, offset: page * itemsPerPage }],
     queryFn: async () => {
-      const url = `/api/price-list?search=${encodeURIComponent(search)}&limit=${itemsPerPage}&offset=${page * itemsPerPage}`;
-      const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) {
-        throw new Error(`${response.status}: ${response.statusText}`);
-      }
+      const response = await apiRequest('GET', `/api/price-list?search=${encodeURIComponent(search)}&limit=${itemsPerPage}&offset=${page * itemsPerPage}`);
       return response.json();
     },
   });
