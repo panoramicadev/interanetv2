@@ -1823,7 +1823,10 @@ export default function TomadorPedidos() {
                                       <Button 
                                         size="sm" 
                                         className="mt-1"
-                                        onClick={() => addProductToCart(product, selectedTier)}
+                                        onClick={(e) => {
+                                          e.stopPropagation(); // Prevent double addition
+                                          addProductToCart(product, selectedTier);
+                                        }}
                                         data-testid={`button-add-${product.codigo}`}
                                       >
                                         <Plus className="w-3 h-3" />
