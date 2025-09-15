@@ -20,7 +20,7 @@ import { z } from "zod";
 import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
-import jsPDF from "jspdf";
+// HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
 
 // Validation schema for edit order form
 const editOrderSchema = z.object({
@@ -750,435 +750,395 @@ export default function TomadorPedidos() {
     }
   };
 
-  // Generate PDF from saved quote data
+  // Generate PDF from saved quote data using HTML/CSS - EXACT specification compliance
   const generatePDFFromQuote = (quote: Quote, items: any[]) => {
-
     try {
-      const pdf = new jsPDF();
-      const pageWidth = pdf.internal.pageSize.width;
-      const margin = 20;
-      const maxLineWidth = pageWidth - 2 * margin;
-      let currentY = 20;
-
-      // Modern color scheme that complements Panoramica logo
-      const colors = {
-        primary: [0, 123, 255],      // Blue #007BFF
-        accent: [255, 165, 0],       // Orange #FFA500
-        lightBlue: [232, 244, 253],  // Light Blue #E8F4FD
-        lightOrange: [255, 249, 230], // Light Orange #FFF9E6
-        lightGray: [248, 249, 250],  // Light Gray #F8F9FA
-        border: [224, 224, 224],     // Gray #E0E0E0
-        text: [51, 51, 51],          // Dark Gray #333333
-        textSecondary: [85, 85, 85]  // Medium Gray #555555
-      };
-
-      // Use REAL quote number and date from saved quote
-      const quoteNumber = quote.quoteNumber; // Real server-generated quote number
+      // Format data for Chilean standards
       const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', { 
         day: '2-digit',
-        month: 'long', 
+        month: '2-digit', 
         year: 'numeric'
       });
 
-      // Header section with modern design and logo space
-      // Create rounded header container
-      const [r1, g1, b1] = colors.lightBlue;
-      pdf.setFillColor(r1, g1, b1);
-      const [r2, g2, b2] = colors.primary;
-      pdf.setDrawColor(r2, g2, b2);
-      pdf.setLineWidth(0.5);
-      pdf.roundedRect(margin, currentY, pageWidth - 2 * margin, 50, 8, 8, 'FD');
-      
-      // Logo space (left side) - Add Panoramica text placeholder
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      const [r3, g3, b3] = colors.primary;
-      pdf.setTextColor(r3, g3, b3);
-      pdf.text("PANORAMICA", margin + 10, currentY + 20);
-      pdf.setFontSize(9);
-      pdf.setFont("helvetica", "normal");
-      const [r3b, g3b, b3b] = colors.textSecondary;
-      pdf.setTextColor(r3b, g3b, b3b);
-      pdf.text("System", margin + 10, currentY + 32);
-      
-      // Quote title and info (right side)
-      pdf.setFontSize(20);
-      pdf.setFont("helvetica", "bold");
-      const [r4, g4, b4] = colors.primary;
-      pdf.setTextColor(r4, g4, b4);
-      pdf.text("COTIZACIÓN", pageWidth - margin - 10, currentY + 15, { align: "right" });
-      
-      pdf.setFontSize(11);
-      pdf.setFont("helvetica", "normal");
-      const [r5, g5, b5] = colors.text;
-      pdf.setTextColor(r5, g5, b5);
-      pdf.text(`Fecha: ${quoteDate}`, pageWidth - margin - 10, currentY + 28, { align: "right" });
-      pdf.text(`Cotización N°: ${quoteNumber}`, pageWidth - margin - 10, currentY + 40, { align: "right" });
-      
-      currentY += 70;
-
-      // Client information section with rounded container
-      const clientSectionHeight = 55;
-      
-      // Create rounded container for client info
-      const [r6, g6, b6] = colors.lightGray;
-      pdf.setFillColor(r6, g6, b6);
-      const [r7, g7, b7] = colors.border;
-      pdf.setDrawColor(r7, g7, b7);
-      pdf.setLineWidth(0.5);
-      pdf.roundedRect(margin, currentY, pageWidth - 2 * margin, clientSectionHeight, 6, 6, 'FD');
-      
-      // Section title with accent bar
-      const [r8, g8, b8] = colors.accent;
-      pdf.setFillColor(r8, g8, b8);
-      pdf.roundedRect(margin + 10, currentY + 8, 3, 12, 1.5, 1.5, 'F');
-      
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      const [r9, g9, b9] = colors.primary;
-      pdf.setTextColor(r9, g9, b9);
-      pdf.text("INFORMACIÓN DEL CLIENTE", margin + 20, currentY + 17);
-      
-      // Two-column layout for client info within container
-      const leftColumn = margin + 15;
-      const rightColumn = pageWidth / 2 + 5;
-      
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      const [r10, g10, b10] = colors.text;
-      pdf.setTextColor(r10, g10, b10);
-      
-      // Left column - Use real quote data
-      let leftY = currentY + 30;
-      if (quote.clientRut) {
-        pdf.setFont("helvetica", "bold");
-        pdf.text("RUT:", leftColumn, leftY);
-        pdf.setFont("helvetica", "normal");
-        pdf.text(quote.clientRut, leftColumn + 20, leftY);
-        leftY += 8;
-      }
-      
-      if (quote.clientEmail) {
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Email:", leftColumn, leftY);
-        pdf.setFont("helvetica", "normal");
-        pdf.text(quote.clientEmail, leftColumn + 25, leftY);
-        leftY += 8;
-      }
-      
-      if (quote.clientAddress) {
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Dirección:", leftColumn, leftY);
-        pdf.setFont("helvetica", "normal");
-        const addressText = pdf.splitTextToSize(quote.clientAddress, 65);
-        pdf.text(addressText, leftColumn + 35, leftY);
-        leftY += 8;
-      }
-
-      // Right column - Use real quote data
-      let rightY = currentY + 30;
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Cliente:", rightColumn, rightY);
-      pdf.setFont("helvetica", "normal");
-      const clientNameText = pdf.splitTextToSize(quote.clientName, 75);
-      pdf.text(clientNameText, rightColumn + 25, rightY);
-      rightY += 8;
-      
-      if (quote.clientPhone) {
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Teléfono:", rightColumn, rightY);
-        pdf.setFont("helvetica", "normal");
-        pdf.text(quote.clientPhone, rightColumn + 30, rightY);
-        rightY += 8;
-      }
-      
-      currentY += clientSectionHeight + 15;
-
-      // Observaciones section (if notes exist) - Use real quote data
-      if (quote.notes && quote.notes.trim()) {
-        const notesHeight = 40;
-        
-        // Create rounded container for notes
-        const [r11, g11, b11] = colors.lightOrange;
-        pdf.setFillColor(r11, g11, b11);
-        const [r12, g12, b12] = colors.accent;
-        pdf.setDrawColor(r12, g12, b12);
-        pdf.setLineWidth(0.5);
-        pdf.roundedRect(margin, currentY, pageWidth - 2 * margin, notesHeight, 6, 6, 'FD');
-        
-        // Section title with accent bar
-        pdf.setFillColor(r12, g12, b12);
-        pdf.roundedRect(margin + 10, currentY + 8, 3, 12, 1.5, 1.5, 'F');
-        
-        pdf.setFontSize(14);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(r12, g12, b12);
-        pdf.text("OBSERVACIONES", margin + 20, currentY + 17);
-        
-        pdf.setFontSize(10);
-        pdf.setFont("helvetica", "normal");
-        const [r13, g13, b13] = colors.text;
-        pdf.setTextColor(r13, g13, b13);
-        const splitNotes = pdf.splitTextToSize(quote.notes, pageWidth - 4 * margin);
-        pdf.text(splitNotes, margin + 15, currentY + 30);
-        currentY += notesHeight + 15;
-      }
-
-      // Product details section with modern table design
-      const tableHeaderHeight = 25;
-      const tableItemHeight = items.length * 20 + 10;
-      const totalTableHeight = tableHeaderHeight + tableItemHeight;
-      
-      // Create rounded container for products table
-      const [r14, g14, b14] = colors.lightGray;
-      pdf.setFillColor(r14, g14, b14);
-      const [r15, g15, b15] = colors.border;
-      pdf.setDrawColor(r15, g15, b15);
-      pdf.setLineWidth(0.5);
-      pdf.roundedRect(margin, currentY, pageWidth - 2 * margin, totalTableHeight, 6, 6, 'FD');
-      
-      // Section title with accent bar
-      const [r16, g16, b16] = colors.primary;
-      pdf.setFillColor(r16, g16, b16);
-      pdf.roundedRect(margin + 10, currentY + 8, 3, 12, 1.5, 1.5, 'F');
-      
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(r16, g16, b16);
-      pdf.text("DETALLE DE PRODUCTOS", margin + 20, currentY + 17);
-      
-      currentY += 30;
-
-      // Modern table header design within container
-      const colWidths = {
-        product: 85,
-        unit: 20,
-        quantity: 20,
-        price: 35,
-        total: 40
-      };
-
-      // Create header background within container
-      const [r17, g17, b17] = colors.primary;
-      pdf.setFillColor(r17, g17, b17);
-      pdf.roundedRect(margin + 10, currentY, pageWidth - 2 * margin - 20, 15, 4, 4, 'F');
-      
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(255, 255, 255); // White text on blue background
-      
-      const headerY = currentY + 10;
-      pdf.text("Producto", margin + 15, headerY);
-      pdf.text("Unidad", margin + 15 + colWidths.product, headerY);
-      pdf.text("Cant.", margin + 15 + colWidths.product + colWidths.unit, headerY);
-      pdf.text("Precio", margin + 15 + colWidths.product + colWidths.unit + colWidths.quantity, headerY);
-      pdf.text("Total", margin + 15 + colWidths.product + colWidths.unit + colWidths.quantity + colWidths.price, headerY);
-      
-      currentY += 25;
-
-      // Table content - Use real saved item data
-      pdf.setFont("helvetica", "normal");
-      const [r18, g18, b18] = colors.text;
-      pdf.setTextColor(r18, g18, b18);
-      
-      items.forEach((item, index) => {
-        // Alternate row background for better readability
-        if (index % 2 === 1) {
-          pdf.setFillColor(250, 250, 250);
-          pdf.rect(margin + 10, currentY - 2, pageWidth - 2 * margin - 20, 16, 'F');
-        }
-        
-        // Product name
-        pdf.setFont("helvetica", "bold");
-        pdf.text(item.productName, margin + 15, currentY + 5);
-        
-        // SKU (if exists)
-        if (item.productCode || item.customSku) {
-          pdf.setFontSize(8);
-          pdf.setFont("helvetica", "normal");
-          const [r19, g19, b19] = colors.textSecondary;
-          pdf.setTextColor(r19, g19, b19);
-          pdf.text(`SKU: ${item.productCode || item.customSku}`, margin + 15, currentY + 12);
-          pdf.setFontSize(10);
-          pdf.setTextColor(r18, g18, b18);
-        }
-        
-        // Use REAL product unit data instead of hardcoded "UN"
-        const productUnit = item.productUnit || "UN";
-        pdf.setFont("helvetica", "normal");
-        pdf.text(productUnit, margin + 15 + colWidths.product, currentY + 5);
-        pdf.text(parseFloat(item.quantity).toString(), margin + 15 + colWidths.product + colWidths.unit, currentY + 5);
-        
-        // Format price with dots as thousands separator
-        const unitPrice = parseFloat(item.unitPrice);
-        const totalPrice = parseFloat(item.totalPrice);
-        const formattedPrice = `$${Math.round(unitPrice).toLocaleString('es-CL').replace(/,/g, '.')}`;
-        const formattedTotal = `$${Math.round(totalPrice).toLocaleString('es-CL').replace(/,/g, '.')}`;
-        
-        pdf.text(formattedPrice, margin + 15 + colWidths.product + colWidths.unit + colWidths.quantity, currentY + 5);
-        
-        // Highlight total price
-        pdf.setFont("helvetica", "bold");
-        pdf.text(formattedTotal, margin + 15 + colWidths.product + colWidths.unit + colWidths.quantity + colWidths.price, currentY + 5);
-        pdf.setFont("helvetica", "normal");
-        
-        currentY += 16;
-      });
-
-      currentY += 25;
-
-      // Financial summary with modern rounded container - Use real quote totals
+      // Calculate totals with proper formatting
       const subtotal = parseFloat(quote.subtotal || "0");
-      const subtotalNeto = subtotal; // Same as subtotal in this case  
+      const discount = 0; // Currently no discount system, but structure supports it
+      const netTotal = subtotal - discount;
       const tax = parseFloat(quote.taxAmount || "0");
       const total = parseFloat(quote.total || "0");
 
-      const summaryHeight = 70;
-      const summaryWidth = 100;
-      const summaryX = pageWidth - margin - summaryWidth;
-      
-      // Create rounded container for financial summary with accent color
-      const [r20, g20, b20] = colors.lightBlue;
-      pdf.setFillColor(r20, g20, b20);
-      const [r21, g21, b21] = colors.primary;
-      pdf.setDrawColor(r21, g21, b21);
-      pdf.setLineWidth(1);
-      pdf.roundedRect(summaryX, currentY, summaryWidth, summaryHeight, 8, 8, 'FD');
+      // Format currency in Chilean format (CLP with dots as thousand separators)
+      const formatCurrency = (amount: number) => `$${Math.round(amount).toLocaleString('es-CL').replace(/,/g, '.')}`;
 
-      // Inner content positioning
-      const labelX = summaryX + 10;
-      const valueX = summaryX + summaryWidth - 10;
-      let summaryY = currentY + 15;
+      // Build products table rows HTML
+      const productRows = items.map(item => {
+        const unitPrice = parseFloat(item.unitPrice);
+        const lineTotal = parseFloat(item.totalPrice);
+        const productUnit = item.productUnit || "UN";
+        
+        return `
+          <tr>
+            <td>
+              <div class="product-name">${item.productName}</div>
+              ${item.productCode || item.customSku ? `<div class="product-code">SKU: ${item.productCode || item.customSku}</div>` : ''}
+            </td>
+            <td class="text-center">${productUnit}</td>
+            <td class="text-center">${parseFloat(item.quantity)}</td>
+            <td class="text-right">${formatCurrency(unitPrice)}</td>
+            <td class="text-right" style="color: #fd6301; font-weight: 600;">${formatCurrency(lineTotal)}</td>
+          </tr>`;
+      }).join('');
 
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      const [r22, g22, b22] = colors.text;
-      pdf.setTextColor(r22, g22, b22);
-      
-      pdf.text("Subtotal:", labelX, summaryY);
-      pdf.text(`$${Math.round(subtotal).toLocaleString('es-CL').replace(/,/g, '.')}`, valueX, summaryY, { align: "right" });
-      summaryY += 8;
+      // Build complete HTML with all real data mapped
+      const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Cotización ${quote.quoteNumber}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      color: #333;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #fd6301;
+      padding-bottom: 15px;
+    }
+    .header-left {
+      flex-shrink: 0;
+    }
+    .header-right {
+      text-align: right;
+    }
+    .header img {
+      max-height: 60px;
+      width: auto;
+    }
+    .header h1 {
+      color: #fd6301;
+      margin: 0;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .header-info {
+      font-size: 13px;
+      color: #374151;
+      margin-top: 8px;
+    }
+    .section {
+      margin-bottom: 15px;
+    }
+    .section h3 {
+      color: #fd6301;
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .client-info {
+      background-color: #fff7ed;
+      border: 1px solid #fdba74;
+      padding: 12px;
+      border-radius: 6px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .client-info p {
+      margin: 0 0 8px 0;
+    }
+    .client-observations {
+      grid-column: 1 / -1;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #fdba74;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      font-size: 13px;
+    }
+    th {
+      background: linear-gradient(to right, #fd6301, #e55100);
+      color: white;
+      padding: 8px;
+      text-align: left;
+      font-weight: bold;
+      font-size: 12px;
+    }
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    tr:hover {
+      background-color: #fff7ed;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .product-name {
+      font-weight: 600;
+      color: #1f2937;
+      font-size: 13px;
+    }
+    .product-code {
+      color: #6b7280;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .totals {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 6px 0;
+      font-size: 14px;
+    }
+    .total-row span:first-child {
+      color: #374151;
+      font-weight: 500;
+    }
+    .total-row span:last-child {
+      font-weight: 600;
+    }
+    .final-total {
+      font-size: 16px;
+      font-weight: bold;
+      border-top: 2px solid #e2e8f0;
+      padding-top: 10px;
+      margin-top: 8px;
+    }
+    .final-total span:last-child {
+      color: #fd6301;
+    }
+    .discount-row span:last-child {
+      color: #10b981;
+    }
+    .terms {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+    .terms h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #374151;
+    }
+    .terms ul {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .terms li {
+      margin-bottom: 4px;
+    }
+    .payment-info {
+      background-color: #fff7ed;
+      border: 1px solid #fdba74;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .payment-info h4 {
+      color: #ea580c;
+      margin: 0 0 10px 0;
+      font-size: 14px;
+    }
+    .payment-info p {
+      margin: 0 0 8px 0;
+    }
+    .payment-info a {
+      color: #2563eb;
+      text-decoration: underline;
+      word-break: break-all;
+    }
+    .payment-section {
+      margin-bottom: 10px;
+    }
+    .payment-section:last-child {
+      margin-bottom: 0;
+    }
+    @media print {
+      body { 
+        margin: 0; 
+        font-size: 12px;
+      }
+      .no-print { 
+        display: none; 
+      }
+      .container {
+        max-width: 100%;
+      }
+      .header {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+      }
+      .section {
+        margin-bottom: 12px;
+      }
+      .totals {
+        padding: 12px;
+      }
+      .payment-info {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <div style="font-weight: bold; font-size: 18px; color: #fd6301;">PANORAMICA</div>
+        <div style="font-size: 12px; color: #6b7280;">System</div>
+      </div>
+      <div class="header-right">
+        <h1>COTIZACIÓN</h1>
+        <div class="header-info">
+          <p><strong>Fecha:</strong> ${quoteDate}</p>
+          <p><strong>Cotización N°:</strong> ${quote.quoteNumber}</p>
+        </div>
+      </div>
+    </div>
 
-      pdf.text("Subtotal neto:", labelX, summaryY);
-      pdf.text(`$${Math.round(subtotalNeto).toLocaleString('es-CL').replace(/,/g, '.')}`, valueX, summaryY, { align: "right" });
-      summaryY += 8;
+    <div class="section">
+      <h3>Información del Cliente</h3>
+      <div class="client-info">
+        <p><strong>RUT:</strong> ${quote.clientRut || 'No especificado'}</p>
+        <p><strong>Cliente:</strong> ${quote.clientName}</p>
+        <p><strong>Email:</strong> ${quote.clientEmail || 'No especificado'}</p>
+        <p><strong>Teléfono:</strong> ${quote.clientPhone || 'No especificado'}</p>
+        <p><strong>Dirección:</strong> ${quote.clientAddress || 'No especificada'}</p>
+        <p><strong>Ubicación:</strong> Chile</p>
+        ${quote.notes ? `<div class="client-observations"><p><strong>Observaciones:</strong> ${quote.notes}</p></div>` : ''}
+      </div>
+    </div>
 
-      pdf.text("IVA (19%):", labelX, summaryY);
-      pdf.text(`$${Math.round(tax).toLocaleString('es-CL').replace(/,/g, '.')}`, valueX, summaryY, { align: "right" });
-      summaryY += 10;
+    <div class="section">
+      <h3>Detalle de Productos</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th class="text-center">Unidad</th>
+            <th class="text-center">Cant.</th>
+            <th class="text-right">Precio</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${productRows}
+        </tbody>
+      </table>
+    </div>
 
-      // Total with accent styling
-      pdf.setFontSize(12);
-      pdf.setFont("helvetica", "bold");
-      const [r23, g23, b23] = colors.primary;
-      pdf.setTextColor(r23, g23, b23);
-      pdf.text("TOTAL FINAL:", labelX, summaryY);
-      pdf.text(`$${Math.round(total).toLocaleString('es-CL').replace(/,/g, '.')}`, valueX, summaryY, { align: "right" });
-      
-      currentY += summaryHeight + 25;
+    <div class="section">
+      <div class="totals">
+        <div class="total-row">
+          <span>Subtotal:</span>
+          <span>${formatCurrency(subtotal)}</span>
+        </div>
+        ${discount > 0 ? `<div class="total-row discount-row">
+          <span>Descuento aplicado:</span>
+          <span>-${formatCurrency(discount)}</span>
+        </div>` : ''}
+        <div class="total-row">
+          <span>Subtotal neto:</span>
+          <span>${formatCurrency(netTotal)}</span>
+        </div>
+        <div class="total-row">
+          <span>IVA (19%):</span>
+          <span>${formatCurrency(tax)}</span>
+        </div>
+        <div class="total-row final-total">
+          <span>Total Final:</span>
+          <span>${formatCurrency(total)}</span>
+        </div>
+      </div>
+    </div>
 
-      // Terms and conditions section with modern rounded container
-      const termsHeight = 55;
-      
-      // Create rounded container for terms
-      const [r24, g24, b24] = colors.lightGray;
-      pdf.setFillColor(r24, g24, b24);
-      const [r25, g25, b25] = colors.border;
-      pdf.setDrawColor(r25, g25, b25);
-      pdf.setLineWidth(0.5);
-      pdf.roundedRect(margin, currentY, pageWidth - 2 * margin, termsHeight, 6, 6, 'FD');
-      
-      // Section title with accent bar
-      const [r26, g26, b26] = colors.accent;
-      pdf.setFillColor(r26, g26, b26);
-      pdf.roundedRect(margin + 10, currentY + 8, 3, 12, 1.5, 1.5, 'F');
-      
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(r26, g26, b26);
-      pdf.text("TÉRMINOS Y CONDICIONES", margin + 20, currentY + 17);
+    <div class="section">
+      <div class="terms">
+        <h4>Términos y Condiciones</h4>
+        <ul>
+          <li>Precios válidos por 7 días hábiles desde la emisión de esta cotización.</li>
+          <li>Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.</li>
+          <li>Los productos están sujetos a disponibilidad de stock.</li>
+          <li>Condiciones de pago: según acuerdo comercial.</li>
+        </ul>
+      </div>
+    </div>
 
-      pdf.setFontSize(9);
-      pdf.setFont("helvetica", "normal");
-      const [r27, g27, b27] = colors.text;
-      pdf.setTextColor(r27, g27, b27);
-      
-      const terms = [
-        "• Precios válidos por 7 días hábiles desde la emisión de esta cotización.",
-        "• Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.",
-        "• Los productos están sujetos a disponibilidad de stock.",
-        "• Condiciones de pago: según acuerdo comercial."
-      ];
+    <div class="section">
+      <div class="payment-info">
+        <h4>Información de Pagos</h4>
+        <div class="payment-section">
+          <p><strong>Link de pagos con tarjetas:</strong><br>
+          <a href="https://micrositios.getnet.cl/pinturaspanoramica">https://micrositios.getnet.cl/pinturaspanoramica</a></p>
+        </div>
+        <div class="payment-section">
+          <p><strong>Pagos con transferencia dirigirlos a:</strong><br>
+          Pintureria Panoramica Limitada<br>
+          RUT: 78.652.260-9<br>
+          Cuenta Corriente Banco Santander: 2592916-0<br>
+          Email: <a href="mailto:contacto@pinturaspanoramica.cl">contacto@pinturaspanoramica.cl</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
 
-      let termsY = currentY + 28;
-      terms.forEach(term => {
-        pdf.text(term, margin + 15, termsY);
-        termsY += 6;
-      });
-      
-      currentY += termsHeight + 15;
+  <div class="no-print" style="margin-top: 20px; text-align: center;">
+    <button onclick="window.print()" style="padding: 10px 20px; background-color: #fd6301; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+      Imprimir / Descargar PDF
+    </button>
+  </div>
+  <script>
+    // Auto-trigger print dialog when page loads
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        window.print();
+      }, 500);
+    });
+  </script>
+</body>
+</html>`;
 
-      // Payment information section with modern rounded container
-      const paymentHeight = 65;
-      
-      // Create rounded container for payment info with accent border
-      const [r28, g28, b28] = colors.lightOrange;
-      pdf.setFillColor(r28, g28, b28);
-      const [r29, g29, b29] = colors.accent;
-      pdf.setDrawColor(r29, g29, b29);
-      pdf.setLineWidth(1);
-      pdf.roundedRect(margin, currentY, pageWidth - 2 * margin, paymentHeight, 8, 8, 'FD');
-      
-      // Section title with accent bar
-      pdf.setFillColor(r29, g29, b29);
-      pdf.roundedRect(margin + 10, currentY + 8, 3, 12, 1.5, 1.5, 'F');
-      
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(r29, g29, b29);
-      pdf.text("INFORMACIÓN DE PAGOS", margin + 20, currentY + 17);
-
-      pdf.setFontSize(9);
-      pdf.setFont("helvetica", "normal");
-      const [r30, g30, b30] = colors.text;
-      pdf.setTextColor(r30, g30, b30);
-      
-      let paymentY = currentY + 30;
-      
-      // Payment link with modern styling
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Link de pagos con tarjetas:", margin + 15, paymentY);
-      pdf.setFont("helvetica", "normal");
-      const [r31, g31, b31] = colors.primary;
-      pdf.setTextColor(r31, g31, b31);
-      pdf.text("https://micrositios.getnet.cl/pinturaspanoramica", margin + 70, paymentY);
-      paymentY += 10;
-
-      // Bank transfer info - split into two columns
-      pdf.setTextColor(r30, g30, b30);
-      const leftPaymentX = margin + 15;
-      const rightPaymentX = pageWidth / 2 + 10;
-      
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Transferencia Bancaria:", leftPaymentX, paymentY);
-      paymentY += 8;
-      
-      pdf.setFont("helvetica", "normal");
-      pdf.text("Pintureria Panoramica Limitada", leftPaymentX, paymentY);
-      pdf.text("RUT: 78.652.260-9", rightPaymentX, paymentY);
-      paymentY += 6;
-      
-      pdf.text("Cuenta Corriente Banco Santander: 2592916-0", leftPaymentX, paymentY);
-      paymentY += 6;
-      
-      pdf.text("Email: contacto@pinturaspanoramica.cl", leftPaymentX, paymentY);
-      
-      currentY += paymentHeight + 10;
-
-      // Save the PDF with real quote number and client name
-      pdf.save(`Cotizacion_${quote.quoteNumber}_${quote.clientName.replace(/\s+/g, '_')}.pdf`);
-      
-      // Don't show PDF-specific toast here as the main function shows a combined success message
+      // Open new window and write HTML content
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+      } else {
+        throw new Error("No se pudo abrir la ventana del PDF. Verifique que no esté bloqueada por el navegador.");
+      }
 
     } catch (error) {
       console.error('Error generating PDF:', error);

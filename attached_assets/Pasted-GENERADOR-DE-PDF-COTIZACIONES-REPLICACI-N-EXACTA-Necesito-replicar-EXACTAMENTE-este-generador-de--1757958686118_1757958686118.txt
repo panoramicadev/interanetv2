@@ -1,0 +1,393 @@
+GENERADOR DE PDF COTIZACIONES - REPLICACIÓN EXACTA
+
+Necesito replicar EXACTAMENTE este generador de PDF de cotizaciones. El diseño debe ser idéntico al original.
+
+ESTRUCTURA HTML COMPLETA:
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Cotización {quoteNumber}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      color: #333;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #fd6301;
+      padding-bottom: 15px;
+    }
+    .header-left {
+      flex-shrink: 0;
+    }
+    .header-right {
+      text-align: right;
+    }
+    .header img {
+      max-height: 60px;
+      width: auto;
+    }
+    .header h1 {
+      color: #fd6301;
+      margin: 0;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .header-info {
+      font-size: 13px;
+      color: #374151;
+      margin-top: 8px;
+    }
+    .section {
+      margin-bottom: 15px;
+    }
+    .section h3 {
+      color: #fd6301;
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .client-info {
+      background-color: #fff7ed;
+      border: 1px solid #fdba74;
+      padding: 12px;
+      border-radius: 6px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .client-info p {
+      margin: 0 0 8px 0;
+    }
+    .client-observations {
+      grid-column: 1 / -1;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #fdba74;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      font-size: 13px;
+    }
+    th {
+      background: linear-gradient(to right, #fd6301, #e55100);
+      color: white;
+      padding: 8px;
+      text-align: left;
+      font-weight: bold;
+      font-size: 12px;
+    }
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    tr:hover {
+      background-color: #fff7ed;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .product-name {
+      font-weight: 600;
+      color: #1f2937;
+      font-size: 13px;
+    }
+    .product-code {
+      color: #6b7280;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .totals {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 6px 0;
+      font-size: 14px;
+    }
+    .total-row span:first-child {
+      color: #374151;
+      font-weight: 500;
+    }
+    .total-row span:last-child {
+      font-weight: 600;
+    }
+    .final-total {
+      font-size: 16px;
+      font-weight: bold;
+      border-top: 2px solid #e2e8f0;
+      padding-top: 10px;
+      margin-top: 8px;
+    }
+    .final-total span:last-child {
+      color: #fd6301;
+    }
+    .discount-row span:last-child {
+      color: #10b981;
+    }
+    .terms {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+    .terms h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #374151;
+    }
+    .terms ul {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .terms li {
+      margin-bottom: 4px;
+    }
+    .payment-info {
+      background-color: #fff7ed;
+      border: 1px solid #fdba74;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .payment-info h4 {
+      color: #ea580c;
+      margin: 0 0 10px 0;
+      font-size: 14px;
+    }
+    .payment-info p {
+      margin: 0 0 8px 0;
+    }
+    .payment-info a {
+      color: #2563eb;
+      text-decoration: underline;
+      word-break: break-all;
+    }
+    .payment-section {
+      margin-bottom: 10px;
+    }
+    .payment-section:last-child {
+      margin-bottom: 0;
+    }
+    @media print {
+      body { 
+        margin: 0; 
+        font-size: 12px;
+      }
+      .no-print { 
+        display: none; 
+      }
+      .container {
+        max-width: 100%;
+      }
+      .header {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+      }
+      .section {
+        margin-bottom: 12px;
+      }
+      .totals {
+        padding: 12px;
+      }
+      .payment-info {
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <img src="{logoUrl}" alt="Logo Empresa" />
+      </div>
+      <div class="header-right">
+        <h1>COTIZACIÓN</h1>
+        <div class="header-info">
+          <p><strong>Fecha:</strong> {date}</p>
+          <p><strong>Cotización N°:</strong> {quoteNumber}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Información del Cliente</h3>
+      <div class="client-info">
+        <p><strong>RUT:</strong> {clientRut}</p>
+        <p><strong>Cliente:</strong> {clientName}</p>
+        <p><strong>Email:</strong> {clientEmail}</p>
+        <p><strong>Teléfono:</strong> {clientPhone}</p>
+        <p><strong>Dirección:</strong> {clientAddress}</p>
+        <p><strong>Ubicación:</strong> {clientComuna}, {clientCity}</p>
+        <div class="client-observations"><p><strong>Observaciones:</strong> {observations}</p></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Detalle de Productos</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th class="text-center">Unidad</th>
+            <th class="text-center">Cant.</th>
+            <th class="text-right">Precio</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- LOOP DE PRODUCTOS -->
+          <tr>
+            <td>
+              <div class="product-name">{productName}</div>
+              <div class="product-code">SKU: {productCode}</div>
+            </td>
+            <td class="text-center">{unit}</td>
+            <td class="text-center">{quantity}</td>
+            <td class="text-right">{unitPrice}</td>
+            <td class="text-right" style="color: #fd6301; font-weight: 600;">{lineTotal}</td>
+          </tr>
+          <!-- FIN LOOP -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="totals">
+        <div class="total-row">
+          <span>Subtotal:</span>
+          <span>{subtotal}</span>
+        </div>
+        <div class="total-row discount-row">
+          <span>Descuento aplicado:</span>
+          <span>-{discount}</span>
+        </div>
+        <div class="total-row">
+          <span>Subtotal neto:</span>
+          <span>{netTotal}</span>
+        </div>
+        <div class="total-row">
+          <span>IVA (19%):</span>
+          <span>{iva}</span>
+        </div>
+        <div class="total-row final-total">
+          <span>Total Final:</span>
+          <span>{totalFinal}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="terms">
+        <h4>Términos y Condiciones</h4>
+        <ul>
+          <li>Precios válidos por 7 días hábiles desde la emisión de esta cotización.</li>
+          <li>Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.</li>
+          <li>Los productos están sujetos a disponibilidad de stock.</li>
+          <li>Condiciones de pago: según acuerdo comercial.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="payment-info">
+        <h4>Información de Pagos</h4>
+        <div class="payment-section">
+          <p><strong>Link de pagos con tarjetas:</strong><br>
+          <a href="https://micrositios.getnet.cl/pinturaspanoramica">https://micrositios.getnet.cl/pinturaspanoramica</a></p>
+        </div>
+        <div class="payment-section">
+          <p><strong>Pagos con transferencia dirigirlos a:</strong><br>
+          Pintureria Panoramica Limitada<br>
+          RUT: 78.652.260-9<br>
+          Cuenta Corriente Banco Santander: 2592916-0<br>
+          Email: <a href="mailto:contacto@pinturaspanoramica.cl">contacto@pinturaspanoramica.cl</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-print" style="margin-top: 20px; text-align: center;">
+    <button onclick="window.print()" style="padding: 10px 20px; background-color: #fd6301; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+      Imprimir / Descargar PDF
+    </button>
+  </div>
+  <script>
+    // Auto-trigger print dialog when page loads
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        window.print();
+      }, 500);
+    });
+  </script>
+</body>
+</html>
+
+COLORES EXACTOS:
+- Color principal (naranja): #fd6301
+- Degradado cabecera tabla: linear-gradient(to right, #fd6301, #e55100)
+- Fondo cliente: #fff7ed con borde #fdba74
+- Texto principal: #333
+- Texto secundario: #374151
+- Texto código producto: #6b7280
+- Verde descuento: #10b981
+- Fondo totales: #f8fafc con borde #e2e8f0
+
+DATOS REQUERIDOS:
+- {quoteNumber}: Número de cotización
+- {date}: Fecha formato DD/MM/YYYY
+- {clientRut}: RUT formateado (XX.XXX.XXX-X)
+- {clientName}: Nombre completo
+- {clientEmail}: Email
+- {clientPhone}: Teléfono
+- {clientAddress}: Dirección completa
+- {clientComuna}: Comuna
+- {clientCity}: Ciudad
+- {observations}: Observaciones del cliente
+- Loop productos: {productName}, {productCode}, {unit}, {quantity}, {unitPrice}, {lineTotal}
+- {subtotal}: Subtotal sin descuentos
+- {discount}: Monto descontado
+- {netTotal}: Subtotal después descuentos
+- {iva}: IVA 19%
+- {totalFinal}: Total final
+
+FUNCIONALIDAD:
+- window.open("", "_blank") para abrir nueva ventana
+- document.write(htmlContent) para escribir HTML
+- Auto-print con setTimeout de 500ms
+- Botón manual de imprimir
+- @media print para optimización de impresión
+- Tamaño A4 con márgenes 15mm
+
+Los textos de términos y pagos deben mantenerse EXACTAMENTE como están escritos.
