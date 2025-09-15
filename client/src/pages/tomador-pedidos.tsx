@@ -645,6 +645,14 @@ export default function TomadorPedidos() {
     });
   };
 
+  // XSS Security: HTML escape function
+  const escapeHtml = (text: string | null | undefined): string => {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
   // Create quote and download PDF function - integrated workflow
   const saveQuoteAndDownloadPDF = async () => {
     if (!quoteForm.clientName.trim()) {
@@ -671,9 +679,11 @@ export default function TomadorPedidos() {
       const tax = subtotal * 0.19; // 19% IVA
       const total = subtotal + tax;
       
-      // Create quote
+      // Create quote with proper totals
       const quoteData = {
         ...quoteForm,
+        subtotal: subtotal.toString(),
+        taxAmount: tax.toString(),
         total: total.toString(),
         status: "draft" as const,
       };
@@ -771,17 +781,17 @@ export default function TomadorPedidos() {
       // Format currency in Chilean format (CLP with dots as thousand separators)
       const formatCurrency = (amount: number) => `$${Math.round(amount).toLocaleString('es-CL').replace(/,/g, '.')}`;
 
-      // Build products table rows HTML
+      // Build products table rows HTML with XSS protection
       const productRows = items.map(item => {
         const unitPrice = parseFloat(item.unitPrice);
         const lineTotal = parseFloat(item.totalPrice);
-        const productUnit = item.productUnit || "UN";
+        const productUnit = escapeHtml(item.productUnit) || "UN";
         
         return `
           <tr>
             <td>
-              <div class="product-name">${item.productName}</div>
-              ${item.productCode || item.customSku ? `<div class="product-code">SKU: ${item.productCode || item.customSku}</div>` : ''}
+              <div class="product-name">${escapeHtml(item.productName)}</div>
+              ${item.productCode || item.customSku ? `<div class="product-code">SKU: ${escapeHtml(item.productCode || item.customSku)}</div>` : ''}
             </td>
             <td class="text-center">${productUnit}</td>
             <td class="text-center">${parseFloat(item.quantity)}</td>
@@ -829,6 +839,10 @@ export default function TomadorPedidos() {
     }
     .header img {
       max-height: 60px;
+      width: auto;
+    }
+    .header-left svg {
+      height: 60px;
       width: auto;
     }
     .header h1 {
@@ -1039,7 +1053,7 @@ export default function TomadorPedidos() {
         <h1>COTIZACIÓN</h1>
         <div class="header-info">
           <p><strong>Fecha:</strong> ${quoteDate}</p>
-          <p><strong>Cotización N°:</strong> ${quote.quoteNumber}</p>
+          <p><strong>Cotización N°:</strong> ${escapeHtml(quote.quoteNumber)}</p>
         </div>
       </div>
     </div>
@@ -1047,13 +1061,13 @@ export default function TomadorPedidos() {
     <div class="section">
       <h3>Información del Cliente</h3>
       <div class="client-info">
-        <p><strong>RUT:</strong> ${quote.clientRut || 'No especificado'}</p>
-        <p><strong>Cliente:</strong> ${quote.clientName}</p>
-        <p><strong>Email:</strong> ${quote.clientEmail || 'No especificado'}</p>
-        <p><strong>Teléfono:</strong> ${quote.clientPhone || 'No especificado'}</p>
-        <p><strong>Dirección:</strong> ${quote.clientAddress || 'No especificada'}</p>
+        <p><strong>RUT:</strong> ${escapeHtml(quote.clientRut) || 'No especificado'}</p>
+        <p><strong>Cliente:</strong> ${escapeHtml(quote.clientName)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(quote.clientEmail) || 'No especificado'}</p>
+        <p><strong>Teléfono:</strong> ${escapeHtml(quote.clientPhone) || 'No especificado'}</p>
+        <p><strong>Dirección:</strong> ${escapeHtml(quote.clientAddress) || 'No especificada'}</p>
         <p><strong>Ubicación:</strong> Chile</p>
-        ${quote.notes ? `<div class="client-observations"><p><strong>Observaciones:</strong> ${quote.notes}</p></div>` : ''}
+        ${quote.notes ? `<div class="client-observations"><p><strong>Observaciones:</strong> ${escapeHtml(quote.notes)}</p></div>` : ''}
       </div>
     </div>
 
@@ -1146,11 +1160,26 @@ export default function TomadorPedidos() {
 </body>
 </html>`;
 
-      // Open new window and write HTML content
+      // Open new window and write HTML content with improved auto-print
       const printWindow = window.open("", "_blank");
       if (printWindow) {
         printWindow.document.write(htmlContent);
         printWindow.document.close();
+        
+        // Enhanced auto-print with proper timing and window management
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+            // Auto-close after print dialog (optional - remove if not desired)
+            setTimeout(() => {
+              try {
+                printWindow.close();
+              } catch (e) {
+                // Ignore errors if user manually closed window
+              }
+            }, 1000);
+          }, 500);
+        };
       } else {
         throw new Error("No se pudo abrir la ventana del PDF. Verifique que no esté bloqueada por el navegador.");
       }
