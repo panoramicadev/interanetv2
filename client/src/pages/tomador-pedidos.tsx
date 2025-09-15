@@ -894,28 +894,26 @@ export default function TomadorPedidos() {
                                   <div className="text-right flex-1">
                                     <div className="space-y-2">
                                       <div className="text-xs text-muted-foreground">Precios disponibles:</div>
-                                      <div className="flex flex-wrap gap-1 justify-end">
-                                        {availableTiers.map((tier) => (
-                                          <Badge
-                                            key={tier.key}
-                                            variant={selectedTier === tier.key ? "default" : "outline"}
-                                            className={`cursor-pointer text-xs px-2 py-1 ${
-                                              selectedTier === tier.key 
-                                                ? "bg-green-600 hover:bg-green-700 text-white" 
-                                                : "hover:bg-green-50"
-                                            }`}
-                                            onClick={() => {
-                                              setSelectedTiers(prev => ({
-                                                ...prev,
-                                                [product.codigo]: tier.key
-                                              }));
-                                            }}
-                                            data-testid={`badge-price-${product.codigo}-${tier.key}`}
-                                          >
-                                            {tier.label}: {formatCurrency(tier.price)}
-                                          </Badge>
-                                        ))}
-                                      </div>
+                                      <Select
+                                        value={selectedTier}
+                                        onValueChange={(newTier) => {
+                                          setSelectedTiers(prev => ({
+                                            ...prev,
+                                            [product.codigo]: newTier as PriceTier
+                                          }));
+                                        }}
+                                      >
+                                        <SelectTrigger className="w-full text-xs" data-testid={`select-price-${product.codigo}`}>
+                                          <SelectValue placeholder="Seleccionar precio" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {availableTiers.map((tier) => (
+                                            <SelectItem key={tier.key} value={tier.key}>
+                                              {tier.label}: {formatCurrency(tier.price)}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
                                       <div className="text-right">
                                         <p className="font-bold text-green-600 text-lg">
                                           {formatCurrency(selectedPrice)}
