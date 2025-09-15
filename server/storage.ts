@@ -5071,9 +5071,17 @@ export class DatabaseStorage implements IStorage {
 
   // Quote items operations
   async createQuoteItem(quoteItem: InsertQuoteItem): Promise<QuoteItem> {
+    // Calculate totalPrice from quantity and unitPrice to ensure data consistency
+    const quantity = typeof quoteItem.quantity === 'string' ? parseFloat(quoteItem.quantity) : quoteItem.quantity;
+    const unitPrice = typeof quoteItem.unitPrice === 'string' ? parseFloat(quoteItem.unitPrice) : quoteItem.unitPrice;
+    const totalPrice = quantity * unitPrice;
+    
     const [newItem] = await db
       .insert(quoteItems)
-      .values(quoteItem)
+      .values({
+        ...quoteItem,
+        totalPrice: totalPrice.toString(), // Ensure totalPrice is calculated and provided
+      })
       .returning();
       
     return newItem;
@@ -5090,9 +5098,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateQuoteItem(id: string, quoteItem: Partial<InsertQuoteItem>): Promise<QuoteItem> {
+    // Calculate totalPrice if quantity or unitPrice are provided
+    let updatedData = { ...quoteItem };
+    if (quoteItem.quantity !== undefined && quoteItem.unitPrice !== undefined) {
+      const quantity = typeof quoteItem.quantity === 'string' ? parseFloat(quoteItem.quantity) : quoteItem.quantity;
+      const unitPrice = typeof quoteItem.unitPrice === 'string' ? parseFloat(quoteItem.unitPrice) : quoteItem.unitPrice;
+      updatedData.totalPrice = (quantity * unitPrice).toString();
+    } else if (quoteItem.quantity !== undefined || quoteItem.unitPrice !== undefined) {
+      // If only one is updated, fetch the current item to get the other value
+      const currentItem = await this.getQuoteItemById(id);
+      if (currentItem) {
+        const quantity = quoteItem.quantity !== undefined 
+          ? (typeof quoteItem.quantity === 'string' ? parseFloat(quoteItem.quantity) : quoteItem.quantity)
+          : parseFloat(currentItem.quantity);
+        const unitPrice = quoteItem.unitPrice !== undefined 
+          ? (typeof quoteItem.unitPrice === 'string' ? parseFloat(quoteItem.unitPrice) : quoteItem.unitPrice)
+          : parseFloat(currentItem.unitPrice);
+        updatedData.totalPrice = (quantity * unitPrice).toString();
+      }
+    }
+    
     const [updatedItem] = await db
       .update(quoteItems)
-      .set(quoteItem)
+      .set(updatedData)
       .where(eq(quoteItems.id, id))
       .returning();
       

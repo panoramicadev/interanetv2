@@ -20,6 +20,7 @@ import { z } from "zod";
 import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
+import jsPDF from "jspdf";
 
 // Validation schema for edit order form
 const editOrderSchema = z.object({
@@ -638,6 +639,198 @@ export default function TomadorPedidos() {
       title: "Producto eliminado",
       description: "Producto eliminado del presupuesto",
     });
+  };
+
+  // Download PDF function
+  const downloadPDF = () => {
+    if (!quoteForm.clientName.trim()) {
+      toast({
+        title: "Error",
+        description: "Debe especificar un nombre de cliente",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (cart.length === 0) {
+      toast({
+        title: "Error", 
+        description: "Debe agregar al menos un producto",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.width;
+      const margin = 20;
+      const maxLineWidth = pageWidth - 2 * margin;
+      let currentY = 30;
+
+      // Title
+      pdf.setFontSize(18);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("COTIZACIÓN", pageWidth / 2, currentY, { align: "center" });
+      currentY += 20;
+
+      // Quote number and date
+      const quoteNumber = `COT-${new Date().getFullYear()}-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
+      const today = new Date().toLocaleDateString('es-CL');
+      
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(`Número de Cotización: ${quoteNumber}`, margin, currentY);
+      pdf.text(`Fecha: ${today}`, pageWidth - margin, currentY, { align: "right" });
+      currentY += 20;
+
+      // Client information section
+      pdf.setFont("helvetica", "bold");
+      pdf.text("INFORMACIÓN DEL CLIENTE", margin, currentY);
+      currentY += 10;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.text(`Cliente: ${quoteForm.clientName}`, margin, currentY);
+      currentY += 8;
+      
+      if (quoteForm.clientRut) {
+        pdf.text(`RUT: ${quoteForm.clientRut}`, margin, currentY);
+        currentY += 8;
+      }
+      
+      if (quoteForm.clientEmail) {
+        pdf.text(`Email: ${quoteForm.clientEmail}`, margin, currentY);
+        currentY += 8;
+      }
+      
+      if (quoteForm.clientPhone) {
+        pdf.text(`Teléfono: ${quoteForm.clientPhone}`, margin, currentY);
+        currentY += 8;
+      }
+      
+      if (quoteForm.clientAddress) {
+        pdf.text(`Dirección: ${quoteForm.clientAddress}`, margin, currentY);
+        currentY += 8;
+      }
+      
+      currentY += 10;
+
+      // Products table header
+      pdf.setFont("helvetica", "bold");
+      pdf.text("DETALLE DE PRODUCTOS", margin, currentY);
+      currentY += 15;
+
+      // Table headers
+      const tableTop = currentY;
+      const colWidths = {
+        product: 80,
+        unit: 25,
+        quantity: 25,
+        price: 35,
+        total: 35
+      };
+
+      pdf.setFontSize(10);
+      pdf.text("Producto", margin, currentY);
+      pdf.text("Unidad", margin + colWidths.product, currentY);
+      pdf.text("Cant.", margin + colWidths.product + colWidths.unit, currentY);
+      pdf.text("Precio Unit.", margin + colWidths.product + colWidths.unit + colWidths.quantity, currentY);
+      pdf.text("Total", margin + colWidths.product + colWidths.unit + colWidths.quantity + colWidths.price, currentY);
+      
+      currentY += 5;
+      
+      // Table line
+      pdf.line(margin, currentY, pageWidth - margin, currentY);
+      currentY += 10;
+
+      // Table content
+      pdf.setFont("helvetica", "normal");
+      cart.forEach((item, index) => {
+        pdf.text(item.productName, margin, currentY);
+        pdf.text("UN", margin + colWidths.product, currentY);
+        pdf.text(item.quantity.toString(), margin + colWidths.product + colWidths.unit, currentY);
+        pdf.text(`$${item.unitPrice.toLocaleString('es-CL')}`, margin + colWidths.product + colWidths.unit + colWidths.quantity, currentY);
+        pdf.text(`$${item.totalPrice.toLocaleString('es-CL')}`, margin + colWidths.product + colWidths.unit + colWidths.quantity + colWidths.price, currentY);
+        currentY += 8;
+      });
+
+      currentY += 10;
+
+      // Totals section
+      const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+      const tax = subtotal * 0.19;
+      const total = subtotal + tax;
+
+      pdf.line(pageWidth - margin - 70, currentY, pageWidth - margin, currentY);
+      currentY += 8;
+
+      pdf.text("Subtotal:", pageWidth - margin - 70, currentY);
+      pdf.text(`$${subtotal.toLocaleString('es-CL')}`, pageWidth - margin, currentY, { align: "right" });
+      currentY += 8;
+
+      pdf.text("IVA (19%):", pageWidth - margin - 70, currentY);
+      pdf.text(`$${tax.toLocaleString('es-CL')}`, pageWidth - margin, currentY, { align: "right" });
+      currentY += 8;
+
+      pdf.setFont("helvetica", "bold");
+      pdf.text("TOTAL FINAL:", pageWidth - margin - 70, currentY);
+      pdf.text(`$${total.toLocaleString('es-CL')}`, pageWidth - margin, currentY, { align: "right" });
+      currentY += 20;
+
+      // Validity section
+      if (quoteForm.validUntil) {
+        pdf.setFont("helvetica", "normal");
+        pdf.text(`Válida hasta: ${new Date(quoteForm.validUntil).toLocaleDateString('es-CL')}`, margin, currentY);
+        currentY += 15;
+      }
+
+      // Terms and conditions
+      pdf.setFont("helvetica", "bold");
+      pdf.text("TÉRMINOS Y CONDICIONES:", margin, currentY);
+      currentY += 10;
+
+      pdf.setFont("helvetica", "normal");
+      const terms = [
+        "• Esta cotización es válida por 30 días desde la fecha de emisión",
+        "• Los precios incluyen IVA",
+        "• Forma de pago: 50% al confirmar pedido, 50% contra entrega",
+        "• Tiempo de entrega: 15 días hábiles",
+        "• Los productos están sujetos a disponibilidad de stock"
+      ];
+
+      terms.forEach(term => {
+        pdf.text(term, margin, currentY);
+        currentY += 6;
+      });
+
+      // Notes section
+      if (quoteForm.notes && quoteForm.notes.trim()) {
+        currentY += 10;
+        pdf.setFont("helvetica", "bold");
+        pdf.text("OBSERVACIONES:", margin, currentY);
+        currentY += 8;
+        
+        pdf.setFont("helvetica", "normal");
+        const splitNotes = pdf.splitTextToSize(quoteForm.notes, maxLineWidth);
+        pdf.text(splitNotes, margin, currentY);
+      }
+
+      // Save the PDF
+      pdf.save(`Cotizacion_${quoteNumber}_${quoteForm.clientName.replace(/\s+/g, '_')}.pdf`);
+      
+      toast({
+        title: "PDF generado",
+        description: "La cotización se ha descargado exitosamente",
+      });
+
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo generar el PDF. Inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Save quote
@@ -1453,6 +1646,7 @@ export default function TomadorPedidos() {
 
                   <div className="flex gap-2">
                     <Button
+                      onClick={downloadPDF}
                       variant="outline"
                       className="flex-1"
                       data-testid="modal-button-download-pdf"
