@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -40,6 +41,16 @@ interface QuoteFormData {
   notes?: string;
 }
 
+interface CustomProductData {
+  productName: string;
+  sku: string;
+  pricingMode: "calculated" | "direct";
+  costOfProduction: number;
+  profitMargin: number;
+  directPrice: number;
+  quantity: number;
+}
+
 const INITIAL_QUOTE_FORM: QuoteFormData = {
   clientName: "",
   clientId: undefined,
@@ -51,6 +62,16 @@ const INITIAL_QUOTE_FORM: QuoteFormData = {
   notes: "",
 };
 
+const INITIAL_CUSTOM_PRODUCT: CustomProductData = {
+  productName: "",
+  sku: "",
+  pricingMode: "calculated",
+  costOfProduction: 0,
+  profitMargin: 55,
+  directPrice: 0,
+  quantity: 1,
+};
+
 export default function TomadorPedidos() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showQuoteBuilder, setShowQuoteBuilder] = useState(false);
@@ -59,9 +80,39 @@ export default function TomadorPedidos() {
   const [quoteForm, setQuoteForm] = useState<QuoteFormData>(INITIAL_QUOTE_FORM);
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const { toast } = useToast();
+  const [showCustomProductModal, setShowCustomProductModal] = useState(false);
+  const [customProduct, setCustomProduct] = useState<CustomProductData>(INITIAL_CUSTOM_PRODUCT);
+  
+  const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
+    ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
+    : customProduct.directPrice;
+  
+  const addCustomProductToCart = () => {
+    if (!customProduct.productName.trim() || customProduct.quantity <= 0) {
+      toast({ title: 'Datos incompletos', description: 'Completa nombre y cantidad', variant: 'destructive' });
+      return;
+    }
+    const unitPrice = computedCustomUnitPrice;
+    const newItem: CartItem = {
+      id: `custom-${Date.now()}`,
+      type: 'custom',
+      productName: customProduct.productName,
+      customSku: customProduct.sku || undefined,
+      quantity: customProduct.quantity,
+      unitPrice,
+      totalPrice: unitPrice * customProduct.quantity,
+      costOfProduction: customProduct.pricingMode === 'calculated' ? customProduct.costOfProduction : undefined,
+      profitMargin: customProduct.pricingMode === 'calculated' ? customProduct.profitMargin : undefined,
+      pricingMode: customProduct.pricingMode,
+    };
+    setCart(prev => [...prev, newItem]);
+    setShowCustomProductModal(false);
+    setCustomProduct(INITIAL_CUSTOM_PRODUCT);
+    toast({ title: 'Producto personalizado agregado' });
+  };
 
   // Fetch products for quote builder
-  const { data: priceList = [], isLoading: priceListLoading } = useQuery<PriceList[]>({
+  const { data: priceListResponse, isLoading: priceListLoading } = useQuery({
     queryKey: ["/api/price-list", { search: productSearchTerm, limit: 50 }],
     queryFn: async () => {
       const params = new URLSearchParams({ search: productSearchTerm, limit: "50" });
@@ -73,6 +124,9 @@ export default function TomadorPedidos() {
     },
     enabled: productSearchTerm.length >= 2,
   });
+  
+  // Extract the items array from the response
+  const priceList = priceListResponse?.items || [];
 
   // Fetch clients with search functionality
   const { data: clients = [], isLoading: isLoadingClients } = useQuery({
@@ -765,6 +819,7 @@ export default function TomadorPedidos() {
                     <Button
                       variant="outline"
                       size="lg"
+                      onClick={() => setShowCustomProductModal(true)}
                       className="w-full border-dashed border-2 border-blue-300 text-blue-600 hover:bg-blue-50"
                       data-testid="modal-button-custom-product"
                     >
@@ -909,6 +964,154 @@ export default function TomadorPedidos() {
                 </>
               )}
             </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Custom Product Modal */}
+    <Dialog open={showCustomProductModal} onOpenChange={setShowCustomProductModal}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="w-5 h-5" />
+            Producto Personalizado
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="custom-product-name">Nombre del Producto *</Label>
+              <Input
+                id="custom-product-name"
+                value={customProduct.productName}
+                onChange={(e) => setCustomProduct(p => ({ ...p, productName: e.target.value }))}
+                data-testid="input-custom-name"
+                placeholder="Ej: PRODUCTO ESPECIAL"
+              />
+            </div>
+            <div>
+              <Label htmlFor="custom-product-sku">SKU (Opcional)</Label>
+              <Input
+                id="custom-product-sku"
+                value={customProduct.sku}
+                onChange={(e) => setCustomProduct(p => ({ ...p, sku: e.target.value }))}
+                data-testid="input-custom-sku"
+                placeholder="Ej: PROD-001"
+              />
+            </div>
+          </div>
+
+          <Tabs 
+            value={customProduct.pricingMode} 
+            onValueChange={(v) => setCustomProduct(p => ({ ...p, pricingMode: v as 'calculated' | 'direct' }))}
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="calculated">Cálculo (Costo + Utilidad)</TabsTrigger>
+              <TabsTrigger value="direct">Precio Directo</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="calculated" className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="custom-cost">Costo de Producción</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
+                    <Input
+                      id="custom-cost"
+                      type="number"
+                      className="pl-8"
+                      value={customProduct.costOfProduction || ""}
+                      onChange={(e) => setCustomProduct(p => ({ ...p, costOfProduction: Number(e.target.value) || 0 }))}
+                      data-testid="input-custom-cost"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="custom-margin">Porcentaje de Utilidad</Label>
+                  <div className="relative">
+                    <Input
+                      id="custom-margin"
+                      type="number"
+                      className="pr-8"
+                      value={customProduct.profitMargin || ""}
+                      onChange={(e) => setCustomProduct(p => ({ ...p, profitMargin: Number(e.target.value) || 0 }))}
+                      data-testid="input-custom-margin"
+                      placeholder="55"
+                    />
+                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">%</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="custom-quantity">Cantidad</Label>
+                <Input
+                  id="custom-quantity"
+                  type="number"
+                  value={customProduct.quantity || ""}
+                  onChange={(e) => setCustomProduct(p => ({ ...p, quantity: Number(e.target.value) || 1 }))}
+                  data-testid="input-custom-quantity"
+                  placeholder="1"
+                />
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="font-semibold text-green-600">
+                  {formatCurrency(computedCustomUnitPrice)}
+                </div>
+                <div className="text-sm text-green-600">
+                  {customProduct.profitMargin}% de utilidad
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="direct" className="space-y-4">
+              <div>
+                <Label htmlFor="custom-direct-price">Precio Final</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
+                  <Input
+                    id="custom-direct-price"
+                    type="number"
+                    className="pl-8"
+                    value={customProduct.directPrice || ""}
+                    onChange={(e) => setCustomProduct(p => ({ ...p, directPrice: Number(e.target.value) || 0 }))}
+                    data-testid="input-custom-direct"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="custom-quantity-direct">Cantidad</Label>
+                <Input
+                  id="custom-quantity-direct"
+                  type="number"
+                  value={customProduct.quantity || ""}
+                  onChange={(e) => setCustomProduct(p => ({ ...p, quantity: Number(e.target.value) || 1 }))}
+                  data-testid="input-custom-quantity-direct"
+                  placeholder="1"
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCustomProductModal(false)}
+              data-testid="button-cancel-custom"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={addCustomProductToCart}
+              disabled={!customProduct.productName.trim() || customProduct.quantity <= 0}
+              className="bg-orange-500 hover:bg-orange-600"
+              data-testid="button-add-custom-to-cart"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Añadir al Presupuesto
+            </Button>
           </div>
         </div>
       </DialogContent>
