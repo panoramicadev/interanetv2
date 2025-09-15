@@ -255,10 +255,27 @@ export default function TomadorPedidos() {
     setProductSearchTerm("");
   };
 
-  // Add product to cart
-  const addProductToCart = (product: PriceList) => {
+  // Add product to cart with selected price tier
+  const addProductToCart = (product: PriceList, selectedTier: PriceTier = 'lista') => {
+    // Get price based on selected tier
+    const getTierPrice = (product: PriceList, tier: PriceTier): number => {
+      const tierFields = {
+        lista: product.lista,
+        desc10: product.desc10,
+        desc10_5: product.desc10_5,
+        desc10_5_3: product.desc10_5_3,
+        minimo: product.minimo,
+        canalDigital: product.canalDigital,
+      };
+      return parseFloat(tierFields[tier]?.toString() || product.lista?.toString() || "0");
+    };
+
+    const price = getTierPrice(product, selectedTier);
+    
     const existingItem = cart.find(item => 
-      item.type === "standard" && item.productCode === product.codigo
+      item.type === "standard" && 
+      item.productCode === product.codigo && 
+      item.priceTier === selectedTier
     );
 
     if (existingItem) {
@@ -274,8 +291,9 @@ export default function TomadorPedidos() {
         productName: product.producto || "Producto sin nombre",
         productCode: product.codigo,
         quantity: 1,
-        unitPrice: parseFloat(product.lista || "0"),
-        totalPrice: parseFloat(product.lista || "0"),
+        unitPrice: price,
+        totalPrice: price,
+        priceTier: selectedTier,
       };
       
       setCart(prev => [...prev, newItem]);
