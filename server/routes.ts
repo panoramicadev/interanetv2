@@ -3025,7 +3025,14 @@ export function registerRoutes(app: Express): Server {
         createdBy: user.id
       });
       
-      const quote = await storage.createQuote(validatedData);
+      // Prepare data for storage with proper type conversions
+      const storageData = {
+        ...validatedData,
+        // Convert validUntil string to Date object if present
+        validUntil: validatedData.validUntil ? new Date(validatedData.validUntil) : null
+      } as any; // Type assertion to handle the conversion
+      
+      const quote = await storage.createQuote(storageData);
       res.status(201).json(quote);
     } catch (error) {
       console.error("Error creating quote:", error);
@@ -3078,7 +3085,14 @@ export function registerRoutes(app: Express): Server {
       
       const validatedUpdateData = insertQuoteSchema.partial().parse(req.body);
       
-      const updatedQuote = await storage.updateQuote(id, validatedUpdateData);
+      // Prepare data for storage with proper type conversions
+      const storageUpdateData = {
+        ...validatedUpdateData,
+        // Convert validUntil string to Date object if present
+        validUntil: validatedUpdateData.validUntil ? new Date(validatedUpdateData.validUntil) : validatedUpdateData.validUntil
+      } as any; // Type assertion to handle the conversion
+      
+      const updatedQuote = await storage.updateQuote(id, storageUpdateData);
       res.json(updatedQuote);
     } catch (error) {
       console.error("Error updating quote:", error);
