@@ -125,7 +125,6 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
 import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, insertPriceListSchema, InsertTask } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import Papa from "papaparse";
 
 export function registerRoutes(app: Express): Server {
   // Setup email/password auth system (primary)
@@ -3094,7 +3093,25 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // CSV Import endpoint for price list
+  // Delete all price list items
+  app.delete('/api/price-list', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Only admin and supervisor can delete all price list items
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized to delete price list items" });
+      }
+      
+      await storage.deleteAllPriceListItems();
+      res.json({ message: "All price list items deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting all price list items:", error);
+      res.status(500).json({ message: "Failed to delete all price list items" });
+    }
+  });
+
+  // Robust CSV Import endpoint for price list
   app.post('/api/price-list/import', upload.single('file'), requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
@@ -3108,92 +3125,199 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "No file uploaded" });
       }
       
-      const csvData = req.file.buffer.toString();
+      const csvData = req.file.buffer.toString('utf8');
       
-      // Parse CSV data with flexible field handling
-      const { data, errors: parseErrors } = Papa.parse(csvData, {
+      console.log('🚀 Starting robust CSV import process...');
+      
+      // Step 1: Parse CSV with basic cleaning
+      const { data: rawData, errors: parseErrors } = Papa.parse(csvData, {
         header: true,
         skipEmptyLines: 'greedy',
-        // Allow extra fields to be ignored
-        transform: (value: string) => value?.trim() || null,
-        transformHeader: (header: string) => {
-          // Map CSV headers to our schema
-          const headerMap: Record<string, string> = {
-            'ID': 'id',
-            'Código': 'codigo',
-            'Producto': 'producto',
-            'Unidad': 'unidad', 
-            'Lista': 'lista',
-            'Desc10': 'desc10',
-            'Desc10+5': 'desc10_5',
-            'Desc10+5+3': 'desc10_5_3',
-            'Mínimo': 'minimo',
-            'Canal Digital': 'canalDigital',
-            'Es Personalizado': 'esPersonalizado',
-            'Costo Producción': 'costoProduccion',
-            'Porcentaje Utilidad': 'porcentajeUtilidad',
-            'Modo Precio': 'modoPrecio',
-          };
-          return headerMap[header] || header.trim();
-        }
+        transformHeader: (header: string) => header.trim()
       });
       
-      // Filter out only parsing errors that are critical
+      console.log(`📊 Raw CSV data: ${rawData.length} rows parsed`);
+      
+      // Only fail on critical parsing errors
       const criticalErrors = parseErrors.filter(error => 
-        error.type !== 'FieldMismatch' || error.code !== 'TooManyFields'
+        error.type !== 'FieldMismatch' && error.code !== 'TooManyFields'
       );
       
       if (criticalErrors.length > 0) {
+        console.error('❌ Critical CSV parsing errors:', criticalErrors);
         return res.status(400).json({ 
           message: "CSV parsing error", 
           errors: criticalErrors 
         });
       }
       
-      // Validate and transform data
+      // Step 2: Auto-detect column mapping
+      const { CSVDataCleaner } = await import('./utils/csv-data-cleaner');
+      const headers = Object.keys(rawData[0] || {});
+      const columnMapping = CSVDataCleaner.detectColumnMapping(headers);
+      
+      console.log('🎯 Detected column mapping:', columnMapping);
+      
+      // Step 3: Apply column mapping and data cleaning
+      const cleaner = new CSVDataCleaner({
+        treatEmptyAsNull: true,
+        convertCommaDecimals: true,
+        allowNegativeNumbers: false,
+        defaultValues: {
+          esPersonalizado: 'No'
+        }
+      });
+      
+      const fieldTypes = {
+        codigo: 'string' as const,
+        producto: 'string' as const,
+        unidad: 'string' as const,
+        lista: 'number' as const,
+        desc10: 'number' as const,
+        desc10_5: 'number' as const,
+        desc10_5_3: 'number' as const,
+        minimo: 'number' as const,
+        canalDigital: 'number' as const,
+        costoProduccion: 'number' as const,
+        porcentajeUtilidad: 'number' as const,
+        modoPrecio: 'string' as const,
+        esPersonalizado: 'string' as const
+      };
+      
+      // Process each row
+      const processedData = [];
+      const allWarnings = [];
+      const criticalRowErrors = [];
+      let totalTransformations = 0;
+      
+      for (let i = 0; i < rawData.length; i++) {
+        const rawRow = rawData[i];
+        
+        // Map columns
+        const mappedRow: Record<string, any> = {};
+        for (const [csvHeader, value] of Object.entries(rawRow as Record<string, any>)) {
+          const mappedField = columnMapping[csvHeader] || csvHeader.toLowerCase();
+          mappedRow[mappedField] = value;
+        }
+        
+        // Clean the data
+        const { cleanedRow, warnings, transformations } = cleaner.cleanRow(mappedRow, fieldTypes);
+        
+        totalTransformations += transformations;
+        
+        // Convert warnings to detailed format
+        if (warnings.length > 0) {
+          allWarnings.push({
+            row: i + 1,
+            codigo: cleanedRow.codigo || `Row ${i + 1}`,
+            warnings: warnings.map((w: any) => `${w.field}: ${w.warnings.join(', ')}`).join('; ')
+          });
+        }
+        
+        // Validate required fields
+        if (!cleanedRow.codigo || !cleanedRow.producto) {
+          criticalRowErrors.push({
+            row: i + 1,
+            codigo: cleanedRow.codigo || `Row ${i + 1}`,
+            error: 'Missing required fields: ' + [
+              !cleanedRow.codigo ? 'código' : '',
+              !cleanedRow.producto ? 'producto' : ''
+            ].filter(Boolean).join(', ')
+          });
+          continue;
+        }
+        
+        processedData.push(cleanedRow);
+      }
+      
+      console.log(`✨ Data cleaning complete: ${totalTransformations} transformations applied`);
+      console.log(`⚠️  Warnings: ${allWarnings.length}, Critical errors: ${criticalRowErrors.length}`);
+      
+      // Step 4: Final validation with Zod
       const validatedItems = [];
       const validationErrors = [];
       
-      for (let i = 0; i < data.length; i++) {
-        const row = data[i];
+      for (let i = 0; i < processedData.length; i++) {
+        const cleanedRow = processedData[i];
         
         try {
-          // Skip the ID from CSV as we generate our own
-          const { id, ...rowData } = row;
-          
-          const validatedItem = insertPriceListSchema.parse(rowData);
+          // Remove any extra fields not in our schema
+          const { id, ...schemaRow } = cleanedRow;
+          const validatedItem = insertPriceListSchema.parse(schemaRow);
           validatedItems.push(validatedItem);
         } catch (error: any) {
           validationErrors.push({
             row: i + 1,
-            codigo: row.codigo || `Row ${i + 1}`,
+            codigo: cleanedRow.codigo || `Row ${i + 1}`,
             error: error.issues ? error.issues.map((issue: any) => 
               `${issue.path.join('.')}: ${issue.message}`).join(', ') : error.message
           });
         }
       }
       
-      if (validationErrors.length > 0) {
+      // Combine all errors
+      const allErrors = [...criticalRowErrors, ...validationErrors];
+      
+      // Step 5: Return results based on error severity
+      if (allErrors.length > 0) {
+        // If more than 50% of rows have errors, reject the import
+        const errorRate = allErrors.length / rawData.length;
+        
+        if (errorRate > 0.5) {
+          return res.status(400).json({
+            message: "Too many validation errors found",
+            errors: allErrors,
+            warnings: allWarnings,
+            stats: {
+              totalRows: rawData.length,
+              validRows: validatedItems.length,
+              errorRows: allErrors.length,
+              warningRows: allWarnings.length,
+              errorRate: Math.round(errorRate * 100) + '%',
+              transformations: totalTransformations
+            }
+          });
+        }
+      }
+      
+      // Step 6: If we have valid data, import it
+      if (validatedItems.length === 0) {
         return res.status(400).json({
-          message: "Validation errors found",
-          errors: validationErrors,
-          validCount: validatedItems.length,
-          errorCount: validationErrors.length
+          message: "No valid data found to import",
+          errors: allErrors,
+          warnings: allWarnings
         });
       }
       
       // Clear existing price list and import new data
+      console.log(`💾 Importing ${validatedItems.length} valid items...`);
       await storage.deleteAllPriceListItems();
       await storage.createMultiplePriceListItems(validatedItems);
       
+      console.log('✅ Import completed successfully!');
+      
+      // Return success with detailed statistics
       res.json({
         message: "Price list imported successfully",
-        importedCount: validatedItems.length
+        importedCount: validatedItems.length,
+        stats: {
+          totalRows: rawData.length,
+          validRows: validatedItems.length,
+          errorRows: allErrors.length,
+          warningRows: allWarnings.length,
+          transformations: totalTransformations,
+          columnMapping: columnMapping
+        },
+        errors: allErrors.length > 0 ? allErrors : undefined,
+        warnings: allWarnings.length > 0 ? allWarnings : undefined
       });
       
     } catch (error) {
-      console.error("Error importing price list:", error);
-      res.status(500).json({ message: "Failed to import price list" });
+      console.error("❌ Error importing price list:", error);
+      res.status(500).json({ 
+        message: "Failed to import price list",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 

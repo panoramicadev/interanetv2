@@ -1194,42 +1194,68 @@ export const priceList = pgTable("price_list", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Price List schemas
+// Helper function for flexible value transformation
+const flexibleTransform = (val: any): string | undefined => {
+  // Handle null, undefined, empty strings, and common null representations
+  if (val === undefined || val === null || val === '' || 
+      (typeof val === 'string' && ['N/A', 'NULL', 'null', '-', '--', 'n/a'].includes(val.trim().toLowerCase()))) {
+    return undefined;
+  }
+  
+  // Convert to string and trim
+  const stringVal = String(val).trim();
+  
+  // Return undefined for empty string after trim
+  return stringVal === '' ? undefined : stringVal;
+};
+
+// Price List schemas with robust validation
 export const insertPriceListSchema = createInsertSchema(priceList, {
   codigo: z.string().min(1, "Código es requerido"),
   producto: z.string().min(1, "Producto es requerido"),
-  unidad: z.string().optional(),
-  lista: z.union([z.string(), z.number()]).optional().transform((val) => 
-    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
-  ),
-  desc10: z.union([z.string(), z.number()]).optional().transform((val) => 
-    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
-  ),
-  desc10_5: z.union([z.string(), z.number()]).optional().transform((val) => 
-    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
-  ),
-  desc10_5_3: z.union([z.string(), z.number()]).optional().transform((val) => 
-    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
-  ),
-  minimo: z.union([z.string(), z.number()]).optional().transform((val) => 
-    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
-  ),
-  canalDigital: z.union([z.string(), z.number()]).optional().transform((val) => 
-    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
-  ),
-  esPersonalizado: z.enum(["Si", "No"]).default("No"),
-  costoProduccion: z.union([z.string(), z.number()]).optional().transform((val) => 
-    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
-  ),
-  porcentajeUtilidad: z.union([z.string(), z.number()]).optional().transform((val) => 
-    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
-  ),
-  modoPrecio: z.string().optional(),
+  unidad: z.any().optional().transform(flexibleTransform),
+  
+  // Numeric fields with flexible parsing
+  lista: z.any().optional().transform(flexibleTransform),
+  desc10: z.any().optional().transform(flexibleTransform),
+  desc10_5: z.any().optional().transform(flexibleTransform),
+  desc10_5_3: z.any().optional().transform(flexibleTransform),
+  minimo: z.any().optional().transform(flexibleTransform),
+  canalDigital: z.any().optional().transform(flexibleTransform),
+  
+  // Special fields
+  esPersonalizado: z.any().optional().transform((val) => {
+    if (val === undefined || val === null || val === '') return "No";
+    const stringVal = String(val).toLowerCase().trim();
+    return ['si', 'sí', 'yes', 'true', '1'].includes(stringVal) ? "Si" : "No";
+  }),
+  
+  // Cost and utility fields - more flexible
+  costoProduccion: z.any().optional().transform(flexibleTransform),
+  porcentajeUtilidad: z.any().optional().transform(flexibleTransform),
+  modoPrecio: z.any().optional().transform(flexibleTransform),
 }).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
+
+// Validation schema for CSV import with detailed error reporting
+export const csvPriceListRowSchema = z.object({
+  codigo: z.string().min(1, "Código es requerido"),
+  producto: z.string().min(1, "Producto es requerido"),
+  unidad: z.string().optional(),
+  lista: z.string().optional(),
+  desc10: z.string().optional(),
+  desc10_5: z.string().optional(),
+  desc10_5_3: z.string().optional(),
+  minimo: z.string().optional(),
+  canalDigital: z.string().optional(),
+  esPersonalizado: z.string().optional(),
+  costoProduccion: z.string().optional(),
+  porcentajeUtilidad: z.string().optional(),
+  modoPrecio: z.string().optional(),
+}).passthrough(); // Allow extra fields that will be ignored
 
 // Types
 export type PriceList = typeof priceList.$inferSelect;
