@@ -32,11 +32,19 @@ interface GoalsProgressProps {
 export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData, isLoading: externalLoading }: GoalsProgressProps) {
   
   const { data: fetchedGoalsProgress, isLoading: fetchedLoading } = useQuery<GoalProgress[]>({
-    queryKey: ["/api/goals/progress", selectedPeriod],
+    queryKey: ["/api/goals/progress", selectedPeriod, globalFilter],
     queryFn: async () => {
-      const url = selectedPeriod 
-        ? `/api/goals/progress?selectedPeriod=${selectedPeriod}`
-        : '/api/goals/progress';
+      const params = new URLSearchParams();
+      if (selectedPeriod) {
+        params.append('selectedPeriod', selectedPeriod);
+      }
+      if (globalFilter.type !== "all") {
+        params.append('type', globalFilter.type);
+        if (globalFilter.value) {
+          params.append('target', globalFilter.value);
+        }
+      }
+      const url = `/api/goals/progress${params.toString() ? `?${params.toString()}` : ''}`;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
