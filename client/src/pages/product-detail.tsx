@@ -457,7 +457,7 @@ export default function ProductDetail() {
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge variant="secondary" className="font-medium">
-                              {format.percentage.toFixed(1)}%
+                              {(format.percentage || 0).toFixed(1)}%
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -524,7 +524,7 @@ export default function ProductDetail() {
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge variant="secondary" className="font-medium">
-                              {color.percentage.toFixed(1)}%
+                              {(color.percentage || 0).toFixed(1)}%
                             </Badge>
                           </TableCell>
                         </TableRow>

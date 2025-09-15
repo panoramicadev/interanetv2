@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 
 interface TopProduct {
   productName: string;
@@ -50,6 +52,16 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Top Productos</h2>
         </div>
+        <Link href="/tomador-pedidos">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs px-3 py-1"
+            data-testid="button-view-all-products"
+          >
+            Ver todos
+          </Button>
+        </Link>
       </div>
       
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
@@ -69,11 +81,15 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
         ) : (
           <div className="space-y-4">
             {productsWithPercentage?.map((product, index) => (
-              <div 
-                key={product.productName}
-                className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 hover:bg-gray-50/50 rounded-lg transition-colors space-y-2 sm:space-y-0"
-                data-testid={`product-${index}`}
+              <Link 
+                key={product.productName} 
+                href={`/product/${encodeURIComponent(product.productName)}`}
+                className="block hover:bg-gray-50/50 rounded-lg transition-colors"
               >
+                <div 
+                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
+                  data-testid={`product-${index}`}
+                >
                 {/* Nombre del producto y monto - Mobile */}
                 <div className="flex justify-between items-center sm:hidden">
                   <p className="text-sm text-gray-700 font-medium truncate flex-1 min-w-0 pr-2">
@@ -136,7 +152,8 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
                     </div>
                   </div>
                 </div>
-              </div>
+                </div>
+              </Link>
             ))}
           </div>
         )}
