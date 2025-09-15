@@ -218,11 +218,19 @@ export default function TomadorPedidos() {
   });
 
   const handleCreateOrder = (client: Client) => {
-    createOrderMutation.mutate({
+    // Open quote builder to add products first before creating order
+    setSelectedClientForQuote(client);
+    setQuoteForm({
       clientName: client.nokoen,
-      clientId: client.id,
-      notes: `Pedido creado para cliente: ${client.nokoen} (RUT: ${client.rten})`,
+      clientRut: client.rten || '',
+      clientEmail: client.emen || '',
+      clientPhone: client.foen || '',
+      clientAddress: client.dien || '',
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+      notes: `Pedido para cliente: ${client.nokoen}`,
     });
+    setCart([]);
+    setShowQuoteBuilder(true);
   };
 
   // Open quote builder for existing client
