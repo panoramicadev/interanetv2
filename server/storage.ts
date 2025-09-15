@@ -552,6 +552,9 @@ export interface IStorage {
   
   // Quote to Order conversion
   convertQuoteToOrder(quoteId: string, userId: string): Promise<Order>;
+  
+  // Additional helper for quote items
+  getQuoteItemById(id: string): Promise<QuoteItem | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4990,6 +4993,15 @@ export class DatabaseStorage implements IStorage {
       .where(eq(quoteItems.id, id));
   }
 
+  async getQuoteItemById(id: string): Promise<QuoteItem | undefined> {
+    const [item] = await db
+      .select()
+      .from(quoteItems)
+      .where(eq(quoteItems.id, id));
+      
+    return item;
+  }
+
   // Quote to Order conversion
   async convertQuoteToOrder(quoteId: string, userId: string): Promise<Order> {
     // Get the quote and its items
@@ -5004,6 +5016,7 @@ export class DatabaseStorage implements IStorage {
     const order = await this.createOrder({
       clientName: quote.clientName,
       clientId: quote.clientId,
+      orderNumber: `ORD-${Date.now()}`, // Generate order number
       createdBy: userId,
       status: 'draft',
       priority: 'medium',

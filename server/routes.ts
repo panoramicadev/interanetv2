@@ -7,10 +7,17 @@ import multer from "multer";
 import Papa from "papaparse";
 import { checkDbHealth } from "./db";
 
-// Database error handling middleware
+// Database error handling middleware with secure logging
 function handleDatabaseError(error: any, operation: string) {
   const timestamp = new Date().toISOString();
-  console.error(`${timestamp} [DB-ERROR] ${operation} failed:`, error.message);
+  // Only log essential error info, no credentials
+  const sanitizedError = {
+    message: error.message || 'Unknown error',
+    code: error.code || 'UNKNOWN',
+    severity: error.severity,
+    name: error.name,
+  };
+  console.error(`${timestamp} [DB-ERROR] ${operation} failed:`, sanitizedError);
   
   // Check if it's a database connection error
   const isDbError = 
@@ -122,7 +129,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, insertPriceListSchema, InsertTask } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -2967,6 +2974,296 @@ export function registerRoutes(app: Express): Server {
         });
       }
       res.status(500).json({ message: "Failed to create order item" });
+    }
+  });
+
+  // Quote endpoints
+  app.get('/api/quotes', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { status, clientName, limit = 50, offset = 0 } = req.query;
+      
+      const filters: any = {
+        limit: Math.min(parseInt(limit) || 50, 100),
+        offset: parseInt(offset) || 0,
+      };
+      
+      // Add filters based on role and user permissions
+      if (user.role === 'salesperson') {
+        filters.createdBy = user.id;
+      }
+      
+      if (status) {
+        filters.status = status;
+      }
+      
+      if (clientName) {
+        filters.clientName = clientName;
+      }
+      
+      const quotes = await storage.getQuotes(filters);
+      res.json(quotes);
+    } catch (error) {
+      console.error("Error fetching quotes:", error);
+      res.status(500).json({ message: "Failed to fetch quotes" });
+    }
+  });
+
+  app.post('/api/quotes', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Role-based access control - only admin, supervisor and salesperson can create quotes
+      const canCreate = ['admin', 'supervisor', 'salesperson'].includes(user.role);
+      
+      if (!canCreate) {
+        return res.status(403).json({ message: "Not authorized to create quotes" });
+      }
+      
+      const validatedData = insertQuoteSchema.parse({
+        ...req.body,
+        createdBy: user.id
+      });
+      
+      const quote = await storage.createQuote(validatedData);
+      res.status(201).json(quote);
+    } catch (error) {
+      console.error("Error creating quote:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to create quote" });
+    }
+  });
+
+  app.get('/api/quotes/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const quote = await storage.getQuoteById(id);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Access denied to this quote" });
+      }
+      
+      res.json(quote);
+    } catch (error) {
+      console.error("Error fetching quote:", error);
+      res.status(500).json({ message: "Failed to fetch quote" });
+    }
+  });
+
+  app.put('/api/quotes/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const quote = await storage.getQuoteById(id);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Not authorized to update this quote" });
+      }
+      
+      const validatedUpdateData = insertQuoteSchema.partial().parse(req.body);
+      
+      const updatedQuote = await storage.updateQuote(id, validatedUpdateData);
+      res.json(updatedQuote);
+    } catch (error) {
+      console.error("Error updating quote:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to update quote" });
+    }
+  });
+
+  app.delete('/api/quotes/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const quote = await storage.getQuoteById(id);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control - only admin and supervisor can delete quotes
+      const canDelete = user.role === 'admin' || user.role === 'supervisor';
+      
+      if (!canDelete) {
+        return res.status(403).json({ message: "Not authorized to delete this quote" });
+      }
+      
+      await storage.deleteQuote(id);
+      res.json({ message: "Quote deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting quote:", error);
+      res.status(500).json({ message: "Failed to delete quote" });
+    }
+  });
+
+  // Quote items endpoints
+  app.get('/api/quotes/:quoteId/items', requireAuth, async (req: any, res) => {
+    try {
+      const { quoteId } = req.params;
+      const user = req.user;
+      
+      const quote = await storage.getQuoteById(quoteId);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Access denied to this quote" });
+      }
+      
+      const items = await storage.getQuoteItems(quoteId);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching quote items:", error);
+      res.status(500).json({ message: "Failed to fetch quote items" });
+    }
+  });
+
+  app.post('/api/quotes/:quoteId/items', requireAuth, async (req: any, res) => {
+    try {
+      const { quoteId } = req.params;
+      const user = req.user;
+      
+      const quote = await storage.getQuoteById(quoteId);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Not authorized to add items to this quote" });
+      }
+      
+      const itemData = insertQuoteItemSchema.parse({
+        ...req.body,
+        quoteId
+      });
+      
+      const item = await storage.createQuoteItem(itemData);
+      res.status(201).json(item);
+    } catch (error) {
+      console.error("Error creating quote item:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to create quote item" });
+    }
+  });
+
+  app.put('/api/quote-items/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      // Get the quote item to verify ownership via quote
+      const item = await storage.getQuoteItemById(id);
+      if (!item) {
+        return res.status(404).json({ message: "Quote item not found" });
+      }
+      
+      const quote = await storage.getQuoteById(item.quoteId);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Not authorized to update this quote item" });
+      }
+      
+      const validatedData = insertQuoteItemSchema.partial().parse(req.body);
+      const updatedItem = await storage.updateQuoteItem(id, validatedData);
+      
+      res.json(updatedItem);
+    } catch (error) {
+      console.error("Error updating quote item:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to update quote item" });
+    }
+  });
+
+  app.delete('/api/quote-items/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      // Get the quote item to verify ownership via quote
+      const item = await storage.getQuoteItemById(id);
+      if (!item) {
+        return res.status(404).json({ message: "Quote item not found" });
+      }
+      
+      const quote = await storage.getQuoteById(item.quoteId);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Not authorized to delete this quote item" });
+      }
+      
+      await storage.deleteQuoteItem(id);
+      res.json({ message: "Quote item deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting quote item:", error);
+      res.status(500).json({ message: "Failed to delete quote item" });
+    }
+  });
+
+  // Quote to Order conversion
+  app.post('/api/quotes/:id/convert-to-order', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const quote = await storage.getQuoteById(id);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control - only admin, supervisor and quote creator can convert
+      const canConvert = user.role === 'admin' || user.role === 'supervisor' || quote.createdBy === user.id;
+      
+      if (!canConvert) {
+        return res.status(403).json({ message: "Not authorized to convert this quote" });
+      }
+      
+      const order = await storage.convertQuoteToOrder(id, user.id);
+      res.status(201).json(order);
+    } catch (error) {
+      console.error("Error converting quote to order:", error);
+      res.status(500).json({ message: "Failed to convert quote to order" });
     }
   });
 
