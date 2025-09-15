@@ -3045,17 +3045,19 @@ export function registerRoutes(app: Express): Server {
       
       const csvData = req.file.buffer.toString();
       
-      // Parse CSV data
-      const { data, errors } = Papa.parse(csvData, {
+      // Parse CSV data with flexible field handling
+      const { data, errors: parseErrors } = Papa.parse(csvData, {
         header: true,
-        skipEmptyLines: true,
+        skipEmptyLines: 'greedy',
+        // Allow extra fields to be ignored
+        transform: (value: string) => value?.trim() || null,
         transformHeader: (header: string) => {
           // Map CSV headers to our schema
           const headerMap: Record<string, string> = {
             'ID': 'id',
             'Código': 'codigo',
             'Producto': 'producto',
-            'Unidad': 'unidad',
+            'Unidad': 'unidad', 
             'Lista': 'lista',
             'Desc10': 'desc10',
             'Desc10+5': 'desc10_5',
@@ -3067,14 +3069,19 @@ export function registerRoutes(app: Express): Server {
             'Porcentaje Utilidad': 'porcentajeUtilidad',
             'Modo Precio': 'modoPrecio',
           };
-          return headerMap[header] || header;
+          return headerMap[header] || header.trim();
         }
       });
       
-      if (errors.length > 0) {
+      // Filter out only parsing errors that are critical
+      const criticalErrors = parseErrors.filter(error => 
+        error.type !== 'FieldMismatch' || error.code !== 'TooManyFields'
+      );
+      
+      if (criticalErrors.length > 0) {
         return res.status(400).json({ 
           message: "CSV parsing error", 
-          errors: errors 
+          errors: criticalErrors 
         });
       }
       
