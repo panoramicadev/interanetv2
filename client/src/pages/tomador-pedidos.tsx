@@ -255,7 +255,7 @@ export default function TomadorPedidos() {
   const [quoteForm, setQuoteForm] = useState<QuoteFormData>(INITIAL_QUOTE_FORM);
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
-  const [selectedTipoProducto, setSelectedTipoProducto] = useState<string>("");
+  const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedTiers, setSelectedTiers] = useState<Record<string, PriceTier>>({});
   const { toast } = useToast();
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
@@ -304,13 +304,13 @@ export default function TomadorPedidos() {
     },
   });
 
-  // Fetch product types for filtering
-  const { data: productTypes = [] } = useQuery({
-    queryKey: ["/api/price-list/product-types"],
+  // Fetch colors for filtering
+  const { data: availableColors = [] } = useQuery({
+    queryKey: ["/api/price-list/colors"],
     queryFn: async () => {
-      const response = await fetch('/api/price-list/product-types', { credentials: 'include' });
+      const response = await fetch('/api/price-list/colors', { credentials: 'include' });
       if (!response.ok) {
-        throw new Error('Failed to fetch product types');
+        throw new Error('Failed to fetch colors');
       }
       return response.json() as string[];
     },
@@ -318,14 +318,14 @@ export default function TomadorPedidos() {
 
   // Fetch products for quote builder
   const { data: priceListResponse, isLoading: priceListLoading } = useQuery({
-    queryKey: ["/api/price-list", { search: productSearchTerm, unidad: selectedUnidad, tipoProducto: selectedTipoProducto, limit: 50 }],
+    queryKey: ["/api/price-list", { search: productSearchTerm, unidad: selectedUnidad, color: selectedColor, limit: 50 }],
     queryFn: async () => {
       const params = new URLSearchParams({ search: productSearchTerm, limit: "50" });
       if (selectedUnidad) {
         params.set("unidad", selectedUnidad);
       }
-      if (selectedTipoProducto) {
-        params.set("tipoProducto", selectedTipoProducto);
+      if (selectedColor) {
+        params.set("color", selectedColor);
       }
       const response = await fetch(`/api/price-list?${params}`, { credentials: 'include' });
       if (!response.ok) {
@@ -1192,19 +1192,19 @@ export default function TomadorPedidos() {
                         </Select>
                       </div>
                       <div>
-                        <Label htmlFor="modal-product-type-filter">Filtrar por tipo de producto</Label>
+                        <Label htmlFor="modal-color-filter">Filtrar por color</Label>
                         <Select
-                          value={selectedTipoProducto}
-                          onValueChange={(value) => setSelectedTipoProducto(value === "all" ? "" : value)}
+                          value={selectedColor}
+                          onValueChange={(value) => setSelectedColor(value === "all" ? "" : value)}
                         >
-                          <SelectTrigger data-testid="modal-select-product-type-filter">
-                            <SelectValue placeholder="Todos los productos" />
+                          <SelectTrigger data-testid="modal-select-color-filter">
+                            <SelectValue placeholder="Todos los colores" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">Todos los productos</SelectItem>
-                            {productTypes.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
+                            <SelectItem value="all">Todos los colores</SelectItem>
+                            {availableColors.map((color) => (
+                              <SelectItem key={color} value={color}>
+                                {color}
                               </SelectItem>
                             ))}
                           </SelectContent>
