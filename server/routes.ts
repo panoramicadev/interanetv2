@@ -3292,10 +3292,21 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get available product types for filtering
+  app.get('/api/price-list/product-types', requireAuth, async (req, res) => {
+    try {
+      const productTypes = await storage.getProductTypes();
+      res.json(productTypes);
+    } catch (error) {
+      console.error("Error fetching product types:", error);
+      res.status(500).json({ message: "Failed to fetch product types" });
+    }
+  });
+
   // Price List endpoints
   app.get('/api/price-list', requireAuth, async (req, res) => {
     try {
-      const { search, unidad, limit = 50, offset = 0 } = req.query;
+      const { search, unidad, tipoProducto, limit = 50, offset = 0 } = req.query;
       
       // Validate and clamp pagination parameters
       const validatedLimit = Math.min(Math.max(parseInt(limit as string) || 50, 1), 200);
@@ -3304,11 +3315,12 @@ export function registerRoutes(app: Express): Server {
       const items = await storage.getPriceList({
         search: search as string,
         unidad: unidad as string,
+        tipoProducto: tipoProducto as string,
         limit: validatedLimit,
         offset: validatedOffset,
       });
       
-      const totalCount = await storage.getPriceListCount(search as string, unidad as string);
+      const totalCount = await storage.getPriceListCount(search as string, unidad as string, tipoProducto as string);
       
       res.json({
         items,

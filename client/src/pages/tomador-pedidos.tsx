@@ -91,6 +91,7 @@ export default function TomadorPedidos() {
   const [quoteForm, setQuoteForm] = useState<QuoteFormData>(INITIAL_QUOTE_FORM);
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
+  const [selectedTipoProducto, setSelectedTipoProducto] = useState<string>("");
   const [selectedTiers, setSelectedTiers] = useState<Record<string, PriceTier>>({});
   const { toast } = useToast();
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
@@ -136,13 +137,28 @@ export default function TomadorPedidos() {
     },
   });
 
+  // Fetch product types for filtering
+  const { data: productTypes = [] } = useQuery({
+    queryKey: ["/api/price-list/product-types"],
+    queryFn: async () => {
+      const response = await fetch('/api/price-list/product-types', { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error('Failed to fetch product types');
+      }
+      return response.json() as string[];
+    },
+  });
+
   // Fetch products for quote builder
   const { data: priceListResponse, isLoading: priceListLoading } = useQuery({
-    queryKey: ["/api/price-list", { search: productSearchTerm, unidad: selectedUnidad, limit: 50 }],
+    queryKey: ["/api/price-list", { search: productSearchTerm, unidad: selectedUnidad, tipoProducto: selectedTipoProducto, limit: 50 }],
     queryFn: async () => {
       const params = new URLSearchParams({ search: productSearchTerm, limit: "50" });
       if (selectedUnidad) {
         params.set("unidad", selectedUnidad);
+      }
+      if (selectedTipoProducto) {
+        params.set("tipoProducto", selectedTipoProducto);
       }
       const response = await fetch(`/api/price-list?${params}`, { credentials: 'include' });
       if (!response.ok) {
@@ -865,32 +881,51 @@ export default function TomadorPedidos() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="modal-product-search">Buscar producto por código o descripción</Label>
+                      <Input
+                        id="modal-product-search"
+                        type="text"
+                        placeholder="Ej: ESMALTE, E001, pintura..."
+                        value={productSearchTerm}
+                        onChange={(e) => setProductSearchTerm(e.target.value)}
+                        data-testid="modal-input-product-search"
+                      />
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="modal-product-search">Buscar producto por código o descripción</Label>
-                        <Input
-                          id="modal-product-search"
-                          type="text"
-                          placeholder="Ej: ESMALTE, E001, pintura..."
-                          value={productSearchTerm}
-                          onChange={(e) => setProductSearchTerm(e.target.value)}
-                          data-testid="modal-input-product-search"
-                        />
-                      </div>
                       <div>
                         <Label htmlFor="modal-unit-filter">Filtrar por tipo de envase (unidad)</Label>
                         <Select
                           value={selectedUnidad}
-                          onValueChange={setSelectedUnidad}
+                          onValueChange={(value) => setSelectedUnidad(value === "all" ? "" : value)}
                         >
                           <SelectTrigger data-testid="modal-select-unit-filter">
                             <SelectValue placeholder="Todos los envases" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">Todos los envases</SelectItem>
+                            <SelectItem value="all">Todos los envases</SelectItem>
                             {availableUnits.map((unit) => (
                               <SelectItem key={unit} value={unit}>
                                 {unit}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="modal-product-type-filter">Filtrar por tipo de producto</Label>
+                        <Select
+                          value={selectedTipoProducto}
+                          onValueChange={(value) => setSelectedTipoProducto(value === "all" ? "" : value)}
+                        >
+                          <SelectTrigger data-testid="modal-select-product-type-filter">
+                            <SelectValue placeholder="Todos los productos" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos los productos</SelectItem>
+                            {productTypes.map((type) => (
+                              <SelectItem key={type} value={type}>
+                                {type}
                               </SelectItem>
                             ))}
                           </SelectContent>
