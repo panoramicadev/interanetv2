@@ -1336,9 +1336,7 @@ export const insertQuoteSchema = createInsertSchema(quotes, {
   quoteNumber: true, // Auto-generated
   createdAt: true,
   updatedAt: true,
-  subtotal: true, // Calculated
-  taxAmount: true, // Calculated
-  total: true, // Calculated
+  // Allow subtotal, taxAmount, total to be sent from frontend
 });
 
 export const insertQuoteItemSchema = createInsertSchema(quoteItems, {
