@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
@@ -15,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Dashboard() {
@@ -36,9 +37,26 @@ export default function Dashboard() {
   
   // Global filter state for goals/segments/salespeople
   const [globalFilter, setGlobalFilter] = useState<{
-    type: "all" | "segment" | "salesperson";
+    type: "all" | "global" | "segment" | "salesperson";
     value?: string;
   }>({ type: "all" });
+  
+  // Filter selector state
+  const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  
+  // Fetch segments and salespeople for the filter dropdown
+  const { data: segments } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/segments"],
+  });
+
+  const { data: salespeople } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/salespeople"],
+  });
+
+  // Sync local filter state with globalFilter changes
+  useEffect(() => {
+    setSelectedFilter(globalFilter.type);
+  }, [globalFilter.type]);
 
   // Update selected period when filter type changes
   useEffect(() => {
@@ -249,6 +267,96 @@ export default function Dashboard() {
                   </Select>
                 )}
               </div>
+
+              {/* Dashboard Filter */}
+              <div className="flex items-center space-x-2 flex-none">
+                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Vista:
+                </label>
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <Filter className="h-4 w-4 text-gray-500 hidden sm:block" />
+                  <Select 
+                    value={selectedFilter} 
+                    onValueChange={(value) => {
+                      setSelectedFilter(value);
+                      if (value === "all") {
+                        setGlobalFilter({ type: "all" });
+                      } else if (value === "global") {
+                        setGlobalFilter({ type: "global" });
+                      } else if (value === "segment") {
+                        setGlobalFilter({ type: "segment" });
+                      } else if (value === "salesperson") {
+                        setGlobalFilter({ type: "salesperson" });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full sm:w-48 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm">
+                      <SelectValue placeholder="Filtrar dashboard" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-gray-200">
+                      <SelectItem value="all">
+                        <div className="flex items-center space-x-2">
+                          <TrendingUp className="h-4 w-4 text-gray-500" />
+                          <span>Todo el dashboard</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="global">
+                        <div className="flex items-center space-x-2">
+                          <Target className="h-4 w-4 text-blue-500" />
+                          <span>Solo metas globales</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="segment">
+                        <div className="flex items-center space-x-2">
+                          <Building className="h-4 w-4 text-green-500" />
+                          <span>Por segmento</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="salesperson">
+                        <div className="flex items-center space-x-2">
+                          <Users className="h-4 w-4 text-purple-500" />
+                          <span>Por vendedor</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* Secondary selector for specific segment/salesperson */}
+                  {(selectedFilter === "segment" || selectedFilter === "salesperson") && (
+                    <Select 
+                      value={globalFilter.value || ""} 
+                      onValueChange={(value) => {
+                        if (selectedFilter === "segment") {
+                          setGlobalFilter({ type: "segment", value });
+                        } else if (selectedFilter === "salesperson") {
+                          setGlobalFilter({ type: "salesperson", value });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full sm:w-56 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm">
+                        <SelectValue placeholder={
+                          selectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"
+                        } />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
+                        {selectedFilter === "segment" ? (
+                          segments?.map((segment) => (
+                            <SelectItem key={segment} value={segment}>
+                              {segment}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          salespeople?.map((salesperson) => (
+                            <SelectItem key={salesperson} value={salesperson}>
+                              {salesperson}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </header>
@@ -270,7 +378,6 @@ export default function Dashboard() {
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <GoalsProgress 
                 globalFilter={globalFilter}
-                onFilterChange={setGlobalFilter}
                 selectedPeriod={selectedPeriod}
               />
             </div>
