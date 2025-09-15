@@ -1215,6 +1215,17 @@ export function registerRoutes(app: Express): Server {
       const filterType = type as string;
       const filterTarget = target as string;
       
+      // Normalize function to handle case and accent insensitive comparison
+      const normalize = (str: string | null | undefined): string => {
+        if (!str) return '';
+        return str
+          .toString()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '') // Remove diacritics (accents)
+          .toLowerCase()
+          .trim();
+      };
+      
       const allGoals = await storage.getGoals();
       
       // Filter goals by selected period - only show goals for the specific period
@@ -1226,9 +1237,9 @@ export function registerRoutes(app: Express): Server {
       if (filterType && filterType !== "all") {
         filteredGoals = filteredGoals.filter(goal => goal.type === filterType);
         
-        // If a specific target is provided, filter by it
+        // If a specific target is provided, filter by it with normalized comparison
         if (filterTarget) {
-          filteredGoals = filteredGoals.filter(goal => goal.target === filterTarget);
+          filteredGoals = filteredGoals.filter(goal => normalize(goal.target) === normalize(filterTarget));
         }
       }
       

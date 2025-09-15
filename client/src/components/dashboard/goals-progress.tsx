@@ -56,11 +56,22 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
   const goalsProgress = goalsData || fetchedGoalsProgress;
   const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
 
+  // Normalize function to handle case and accent insensitive comparison
+  const normalize = (str: string | null | undefined): string => {
+    if (!str) return '';
+    return str
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove diacritics (accents)
+      .toLowerCase()
+      .trim();
+  };
+
   // Filter goals based on global filter
   const filteredGoals = goalsProgress?.filter(goal => {
-    // If we have a global filter with a specific value, show only goals matching that exact target
+    // If we have a global filter with a specific value, show only goals matching that target
     if (globalFilter.type !== "all" && globalFilter.value) {
-      return goal.type === globalFilter.type && goal.target === globalFilter.value;
+      return goal.type === globalFilter.type && normalize(goal.target) === normalize(globalFilter.value);
     }
     
     // Otherwise filter by global filter type
