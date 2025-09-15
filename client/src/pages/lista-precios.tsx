@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,8 @@ interface PriceListResponse {
 
 export default function ListaPrecios() {
   const [search, setSearch] = useState("");
+  const [selectedUnidad, setSelectedUnidad] = useState<string>("");
+  const [selectedColor, setSelectedColor] = useState<string>("");
   const [page, setPage] = useState(0);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -29,11 +32,36 @@ export default function ListaPrecios() {
 
   const itemsPerPage = 50;
 
+  // Query para obtener unidades disponibles para filtros
+  const { data: availableUnits = [] } = useQuery({
+    queryKey: ["/api/price-list/units"],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/price-list/units');
+      return response.json() as string[];
+    },
+  });
+
+  // Query para obtener colores disponibles para filtros
+  const { data: availableColors = [] } = useQuery({
+    queryKey: ["/api/price-list/colors"],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/price-list/colors');
+      return response.json() as string[];
+    },
+  });
+
   // Query para obtener lista de precios
   const { data, isLoading, error } = useQuery<PriceListResponse>({
-    queryKey: ['/api/price-list', { search, limit: itemsPerPage, offset: page * itemsPerPage }],
+    queryKey: ['/api/price-list', { search, unidad: selectedUnidad, color: selectedColor, limit: itemsPerPage, offset: page * itemsPerPage }],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/price-list?search=${encodeURIComponent(search)}&limit=${itemsPerPage}&offset=${page * itemsPerPage}`);
+      const params = new URLSearchParams({ search, limit: itemsPerPage.toString(), offset: (page * itemsPerPage).toString() });
+      if (selectedUnidad) {
+        params.set('unidad', selectedUnidad);
+      }
+      if (selectedColor) {
+        params.set('color', selectedColor);
+      }
+      const response = await apiRequest('GET', `/api/price-list?${params}`);
       return response.json();
     },
   });
@@ -231,11 +259,11 @@ export default function ListaPrecios() {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search and Filters */}
       <Card>
         <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            <div className="relative flex-1">
+          <div className="space-y-4">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
@@ -249,12 +277,60 @@ export default function ListaPrecios() {
                 data-testid="input-search"
               />
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {data && (
-                <span data-testid="text-total-count">
-                  {data.totalCount} elementos total
-                </span>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="filter-unidad">Filtrar por tipo de envase</Label>
+                <Select
+                  value={selectedUnidad}
+                  onValueChange={(value) => {
+                    setSelectedUnidad(value === "all" ? "" : value);
+                    setPage(0); // Reset to first page when filtering
+                  }}
+                >
+                  <SelectTrigger data-testid="select-unit-filter">
+                    <SelectValue placeholder="Todos los envases" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los envases</SelectItem>
+                    {availableUnits.map((unit) => (
+                      <SelectItem key={unit} value={unit}>
+                        {unit}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="filter-color">Filtrar por color</Label>
+                <Select
+                  value={selectedColor}
+                  onValueChange={(value) => {
+                    setSelectedColor(value === "all" ? "" : value);
+                    setPage(0); // Reset to first page when filtering
+                  }}
+                >
+                  <SelectTrigger data-testid="select-color-filter">
+                    <SelectValue placeholder="Todos los colores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los colores</SelectItem>
+                    {availableColors.map((color) => (
+                      <SelectItem key={color} value={color}>
+                        {color}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  {data && (
+                    <span data-testid="text-total-count">
+                      {data.totalCount} elementos total
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
