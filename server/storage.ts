@@ -1347,18 +1347,25 @@ export class DatabaseStorage implements IStorage {
       let format = 'Otro'; // Default format
       
       // Extract format from product name using common patterns
-      if (productName.toLowerCase().includes('galón') || productName.toLowerCase().includes('galon')) {
+      const lowerName = productName.toLowerCase();
+      
+      // Check for specific patterns in order of specificity
+      if (lowerName.includes('4 galones') || lowerName.includes('4gal')) {
+        format = '4 Galones';
+      } else if (lowerName.includes('1/4') || lowerName.includes('cuarto')) {
+        format = '1/4 Galón';
+      } else if (lowerName.includes('galón') || lowerName.includes('galon') || lowerName.includes(' gl') || lowerName.endsWith(' gl') || lowerName.includes(' gal ') || lowerName.endsWith(' gal')) {
         format = 'Galón';
-      } else if (productName.toLowerCase().includes('balde') || productName.toLowerCase().includes('bd')) {
+      } else if (lowerName.includes('balde') || lowerName.includes('bd') || lowerName.includes('bld')) {
         format = 'Balde';
-      } else if (productName.toLowerCase().includes('kilo') || productName.toLowerCase().includes('kg')) {
+      } else if (lowerName.includes('kilo') || lowerName.includes(' kg') || lowerName.endsWith(' kg')) {
         format = 'Kilo';
-      } else if (productName.toLowerCase().includes('litro') || productName.toLowerCase().includes('lt')) {
+      } else if (lowerName.includes('litro') || lowerName.includes(' lt') || lowerName.endsWith(' lt') || lowerName.includes(' lts')) {
         format = 'Litro';
-      } else if (productName.toLowerCase().includes('1/4')) {
-        format = '1/4 Galón';
-      } else if (productName.toLowerCase().includes('cuarto')) {
-        format = '1/4 Galón';
+      } else if (lowerName.includes('onza') || lowerName.includes(' oz')) {
+        format = 'Onza';
+      } else if (lowerName.includes('metro') || lowerName.includes(' mt') || lowerName.includes(' m ')) {
+        format = 'Metro';
       }
       
       const existing = formatMap.get(format) || { totalSales: 0, totalUnits: 0 };
@@ -1371,10 +1378,12 @@ export class DatabaseStorage implements IStorage {
     // Convert to array and calculate percentages
     return Array.from(formatMap.entries()).map(([format, data]) => ({
       format,
-      totalSales: data.totalSales,
-      totalUnits: data.totalUnits,
-      percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0,
-    })).sort((a, b) => b.totalSales - a.totalSales);
+      totalSales: isNaN(data.totalSales) ? 0 : data.totalSales,
+      totalUnits: isNaN(data.totalUnits) ? 0 : data.totalUnits,
+      percentage: totalSales > 0 && !isNaN(totalSales) && !isNaN(data.totalSales) 
+        ? (data.totalSales / totalSales) * 100 
+        : 0,
+    })).filter(item => item.totalSales > 0).sort((a, b) => b.totalSales - a.totalSales);
   }
 
   async getProductColors(productName: string, filters?: {
@@ -1430,12 +1439,15 @@ export class DatabaseStorage implements IStorage {
       // Extract color from product name using common color patterns
       const lowerName = productName.toLowerCase();
       
+      // Use simple string matching since it's more reliable than regex in this context
       if (lowerName.includes('blanco')) {
         color = 'Blanco';
       } else if (lowerName.includes('negro')) {
         color = 'Negro';
       } else if (lowerName.includes('rojo')) {
         color = 'Rojo';
+      } else if (lowerName.includes('azul pacifico')) {
+        color = 'Azul Pacífico';
       } else if (lowerName.includes('azul')) {
         color = 'Azul';
       } else if (lowerName.includes('verde')) {
@@ -1452,6 +1464,8 @@ export class DatabaseStorage implements IStorage {
         color = 'Naranja';
       } else if (lowerName.includes('violeta') || lowerName.includes('morado')) {
         color = 'Violeta';
+      } else if (lowerName.includes('incoloro') || lowerName.includes('transparente')) {
+        color = 'Incoloro';
       }
       
       const existing = colorMap.get(color) || { totalSales: 0, totalUnits: 0 };
@@ -1464,10 +1478,12 @@ export class DatabaseStorage implements IStorage {
     // Convert to array and calculate percentages
     return Array.from(colorMap.entries()).map(([color, data]) => ({
       color,
-      totalSales: data.totalSales,
-      totalUnits: data.totalUnits,
-      percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0,
-    })).sort((a, b) => b.totalSales - a.totalSales);
+      totalSales: isNaN(data.totalSales) ? 0 : data.totalSales,
+      totalUnits: isNaN(data.totalUnits) ? 0 : data.totalUnits,
+      percentage: totalSales > 0 && !isNaN(totalSales) && !isNaN(data.totalSales) 
+        ? (data.totalSales / totalSales) * 100 
+        : 0,
+    })).filter(item => item.totalSales > 0).sort((a, b) => b.totalSales - a.totalSales);
   }
 
   // Goals operations
