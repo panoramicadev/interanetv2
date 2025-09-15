@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, requireAuth } from "./auth";
+import { setupAuth, requireAuth, requireAdminOrSupervisor } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
@@ -2195,8 +2195,8 @@ export function registerRoutes(app: Express): Server {
 
   // ===================== eCommerce API Routes =====================
   
-  // Get eCommerce products with filters
-  app.get('/api/ecommerce/products', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // Get eCommerce products with filters (admin/supervisor only)
+  app.get('/api/ecommerce/products', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { 
       search, 
       category, 
@@ -2229,8 +2229,8 @@ export function registerRoutes(app: Express): Server {
     res.json(products);
   }));
 
-  // Get single eCommerce product
-  app.get('/api/ecommerce/products/:kopr', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // Get single eCommerce product (admin/supervisor only)
+  app.get('/api/ecommerce/products/:kopr', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { kopr } = req.params;
     const product = await storage.getEcommerceProduct(kopr);
     
@@ -2241,8 +2241,8 @@ export function registerRoutes(app: Express): Server {
     res.json(product);
   }));
 
-  // Create new eCommerce product
-  app.post('/api/ecommerce/products', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // Create new eCommerce product (admin/supervisor only)
+  app.post('/api/ecommerce/products', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { 
       ecommerceProductSchema 
     } = await import('@shared/schema');
@@ -2268,8 +2268,8 @@ export function registerRoutes(app: Express): Server {
     res.status(201).json(product);
   }));
 
-  // Update eCommerce product
-  app.patch('/api/ecommerce/products/:kopr', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // Update eCommerce product (admin/supervisor only)
+  app.patch('/api/ecommerce/products/:kopr', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { kopr } = req.params;
     const { 
       updateEcommerceProductSchema 
@@ -2305,8 +2305,8 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Toggle eCommerce active status
-  app.patch('/api/ecommerce/products/:kopr/toggle-active', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // Toggle eCommerce active status (admin/supervisor only)
+  app.patch('/api/ecommerce/products/:kopr/toggle-active', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { kopr } = req.params;
     
     try {
@@ -2320,14 +2320,14 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Get available eCommerce categories
-  app.get('/api/ecommerce/categories', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // Get available eCommerce categories (admin/supervisor only)
+  app.get('/api/ecommerce/categories', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const categories = await storage.getEcommerceCategories();
     res.json(categories);
   }));
 
-  // Validate product slug availability
-  app.post('/api/ecommerce/products/validate-slug', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // Validate product slug availability (admin/supervisor only)
+  app.post('/api/ecommerce/products/validate-slug', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { slug, excludeKopr } = req.body;
     
     if (!slug) {

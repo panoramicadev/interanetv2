@@ -52,6 +52,9 @@ import {
   type InsertQuote,
   type QuoteItem,
   type InsertQuoteItem,
+  type EcommerceProduct,
+  type UpdateEcommerceProduct,
+  type EcommerceProductFilters,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
@@ -364,56 +367,14 @@ export interface IStorage {
   updateProductPrice(kopr: string, newPrice: number, changedBy: string, reason?: string): Promise<Product>;
   
   // eCommerce product operations
-  getEcommerceProducts(filters?: {
-    search?: string;
-    category?: string;
-    active?: boolean;
-    ecomActive?: boolean;
-    minPrice?: number;
-    maxPrice?: number;
-    tags?: string[];
-    limit?: number;
-    offset?: number;
-  }): Promise<Array<Product & {
+  getEcommerceProducts(filters?: EcommerceProductFilters): Promise<Array<Product & {
     primaryImageUrl?: string;
     totalStock?: number;
+    displayPrice?: number;
   }>>;
-  getEcommerceProduct(kopr: string): Promise<Product | undefined>;
-  createEcommerceProduct(product: {
-    kopr: string;
-    name: string;
-    slug: string;
-    ecomActive: boolean;
-    ecomPrice?: number;
-    category?: string;
-    tags?: string[];
-    images?: Array<{id: string, url: string, alt: string, primary: boolean, sort: number}>;
-    seoTitle?: string;
-    seoDescription?: string;
-    ogImageUrl?: string;
-    ud02pr?: string;
-    priceProduct?: number;
-    priceOffer?: number;
-    showInStore?: boolean;
-    active?: boolean;
-  }): Promise<Product>;
-  updateEcommerceProduct(kopr: string, product: Partial<{
-    name: string;
-    slug: string;
-    ecomActive: boolean;
-    ecomPrice?: number;
-    category?: string;
-    tags?: string[];
-    images?: Array<{id: string, url: string, alt: string, primary: boolean, sort: number}>;
-    seoTitle?: string;
-    seoDescription?: string;
-    ogImageUrl?: string;
-    ud02pr?: string;
-    priceProduct?: number;
-    priceOffer?: number;
-    showInStore?: boolean;
-    active?: boolean;
-  }>): Promise<Product>;
+  getEcommerceProduct(kopr: string): Promise<(Product & { displayPrice?: number }) | undefined>;
+  createEcommerceProduct(product: EcommerceProduct): Promise<Product>;
+  updateEcommerceProduct(kopr: string, product: UpdateEcommerceProduct): Promise<Product>;
   toggleEcommerceActive(kopr: string): Promise<Product>;
   getEcommerceCategories(): Promise<string[]>;
   validateProductSlug(slug: string, excludeKopr?: string): Promise<boolean>;
