@@ -14,6 +14,8 @@ import {
   orders,
   orderItems,
   priceList,
+  quotes,
+  quoteItems,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -46,6 +48,10 @@ import {
   type PriceList,
   type InsertPriceList,
   type InsertPriceListInput,
+  type Quote,
+  type InsertQuote,
+  type QuoteItem,
+  type InsertQuoteItem,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
@@ -524,6 +530,28 @@ export interface IStorage {
   updatePriceListItem(id: string, updates: Partial<InsertPriceListInput>): Promise<PriceList>;
   deletePriceListItem(id: string): Promise<void>;
   deleteAllPriceListItems(): Promise<void>;
+
+  // Quote operations
+  createQuote(quote: InsertQuote): Promise<Quote>;
+  getQuotes(filters?: {
+    createdBy?: string;
+    status?: string;
+    clientName?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Quote[]>;
+  getQuoteById(id: string): Promise<Quote | undefined>;
+  updateQuote(id: string, quote: Partial<InsertQuote>): Promise<Quote>;
+  deleteQuote(id: string): Promise<void>;
+  
+  // Quote items operations
+  createQuoteItem(quoteItem: InsertQuoteItem): Promise<QuoteItem>;
+  getQuoteItems(quoteId: string): Promise<QuoteItem[]>;
+  updateQuoteItem(id: string, quoteItem: Partial<InsertQuoteItem>): Promise<QuoteItem>;
+  deleteQuoteItem(id: string): Promise<void>;
+  
+  // Quote to Order conversion
+  convertQuoteToOrder(quoteId: string, userId: string): Promise<Order>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4846,6 +4874,160 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAllPriceListItems(): Promise<void> {
     await db.delete(priceList);
+  }
+
+  // Quote operations
+  async createQuote(quote: InsertQuote): Promise<Quote> {
+    // Generate quote number
+    const quoteNumber = `Q-${Date.now()}`;
+    
+    const [newQuote] = await db
+      .insert(quotes)
+      .values({
+        ...quote,
+        quoteNumber,
+      })
+      .returning();
+      
+    return newQuote;
+  }
+
+  async getQuotes(filters?: {
+    createdBy?: string;
+    status?: string;
+    clientName?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Quote[]> {
+    const limit = filters?.limit || 50;
+    const offset = filters?.offset || 0;
+    
+    let query = db.select().from(quotes);
+    
+    const conditions = [];
+    if (filters?.createdBy) {
+      conditions.push(eq(quotes.createdBy, filters.createdBy));
+    }
+    if (filters?.status) {
+      conditions.push(eq(quotes.status, filters.status));
+    }
+    if (filters?.clientName) {
+      conditions.push(sql`${quotes.clientName} ILIKE ${'%' + filters.clientName + '%'}`);
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    const result = await query
+      .orderBy(desc(quotes.createdAt))
+      .limit(limit)
+      .offset(offset);
+      
+    return result;
+  }
+
+  async getQuoteById(id: string): Promise<Quote | undefined> {
+    const [quote] = await db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.id, id));
+      
+    return quote;
+  }
+
+  async updateQuote(id: string, quote: Partial<InsertQuote>): Promise<Quote> {
+    const [updatedQuote] = await db
+      .update(quotes)
+      .set({ ...quote, updatedAt: new Date() })
+      .where(eq(quotes.id, id))
+      .returning();
+      
+    return updatedQuote;
+  }
+
+  async deleteQuote(id: string): Promise<void> {
+    // First delete all quote items
+    await db.delete(quoteItems).where(eq(quoteItems.quoteId, id));
+    
+    // Then delete the quote
+    await db.delete(quotes).where(eq(quotes.id, id));
+  }
+
+  // Quote items operations
+  async createQuoteItem(quoteItem: InsertQuoteItem): Promise<QuoteItem> {
+    const [newItem] = await db
+      .insert(quoteItems)
+      .values(quoteItem)
+      .returning();
+      
+    return newItem;
+  }
+
+  async getQuoteItems(quoteId: string): Promise<QuoteItem[]> {
+    const result = await db
+      .select()
+      .from(quoteItems)
+      .where(eq(quoteItems.quoteId, quoteId))
+      .orderBy(desc(quoteItems.createdAt));
+      
+    return result;
+  }
+
+  async updateQuoteItem(id: string, quoteItem: Partial<InsertQuoteItem>): Promise<QuoteItem> {
+    const [updatedItem] = await db
+      .update(quoteItems)
+      .set(quoteItem)
+      .where(eq(quoteItems.id, id))
+      .returning();
+      
+    return updatedItem;
+  }
+
+  async deleteQuoteItem(id: string): Promise<void> {
+    await db
+      .delete(quoteItems)
+      .where(eq(quoteItems.id, id));
+  }
+
+  // Quote to Order conversion
+  async convertQuoteToOrder(quoteId: string, userId: string): Promise<Order> {
+    // Get the quote and its items
+    const quote = await this.getQuoteById(quoteId);
+    if (!quote) {
+      throw new Error('Quote not found');
+    }
+
+    const items = await this.getQuoteItems(quoteId);
+
+    // Create the order
+    const order = await this.createOrder({
+      clientName: quote.clientName,
+      clientId: quote.clientId,
+      createdBy: userId,
+      status: 'draft',
+      priority: 'medium',
+      notes: `Converted from quote ${quote.quoteNumber}. Original notes: ${quote.notes || 'N/A'}`,
+      totalAmount: quote.total,
+    });
+
+    // Convert quote items to order items
+    for (const item of items) {
+      await this.createOrderItem({
+        orderId: order.id,
+        productName: item.productName,
+        productCode: item.productCode,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        notes: item.notes,
+      });
+    }
+
+    // Update quote status to converted
+    await this.updateQuote(quoteId, { status: 'converted' });
+
+    return order;
   }
 
 }

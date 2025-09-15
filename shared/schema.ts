@@ -1261,3 +1261,113 @@ export const csvPriceListRowSchema = z.object({
 export type PriceList = typeof priceList.$inferSelect;
 export type InsertPriceList = typeof priceList.$inferInsert;
 export type InsertPriceListInput = z.infer<typeof insertPriceListSchema>;
+
+// Quotes system - Constructor de Presupuesto
+export const quotes = pgTable("quotes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quoteNumber: varchar("quote_number").notNull().unique(), // Auto-generated quote number
+  clientName: text("client_name").notNull(), // Client name
+  clientId: varchar("client_id"), // Optional FK to clients.id
+  clientRut: varchar("client_rut"), // Client RUT for new clients
+  clientEmail: varchar("client_email"), // Client email
+  clientPhone: varchar("client_phone"), // Client phone
+  clientAddress: text("client_address"), // Client address
+  createdBy: varchar("created_by").notNull(), // FK to users.id
+  status: varchar("status").default("draft"), // draft, sent, accepted, rejected, converted
+  validUntil: timestamp("valid_until"), // Quote expiration
+  subtotal: numeric("subtotal", { precision: 15, scale: 2 }), // Subtotal before taxes
+  discount: numeric("discount", { precision: 15, scale: 2 }).default("0"), // Discount amount
+  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).default("19"), // IVA rate (19% default)
+  taxAmount: numeric("tax_amount", { precision: 15, scale: 2 }), // Calculated tax
+  total: numeric("total", { precision: 15, scale: 2 }), // Final total
+  notes: text("notes"), // Additional notes
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const quoteItems = pgTable("quote_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  quoteId: varchar("quote_id").notNull(), // FK to quotes.id
+  type: varchar("type").notNull(), // "standard" | "custom"
+  // For standard products
+  productCode: varchar("product_code"), // From price_list.codigo
+  productName: text("product_name").notNull(), // Product name
+  // For custom products
+  customSku: varchar("custom_sku"), // Custom SKU
+  costOfProduction: numeric("cost_of_production", { precision: 15, scale: 2 }), // Custom cost
+  profitMargin: numeric("profit_margin", { precision: 5, scale: 2 }), // Custom profit %
+  pricingMode: varchar("pricing_mode"), // "calculated" | "direct"
+  // Common fields
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
+  unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
+  totalPrice: numeric("total_price", { precision: 15, scale: 2 }).notNull(),
+  notes: text("notes"), // Item-specific notes
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Relations for quotes
+export const quotesRelations = relations(quotes, ({ many, one }) => ({
+  items: many(quoteItems),
+  creator: one(users, {
+    fields: [quotes.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const quoteItemsRelations = relations(quoteItems, ({ one }) => ({
+  quote: one(quotes, {
+    fields: [quoteItems.quoteId],
+    references: [quotes.id],
+  }),
+}));
+
+// Quote schemas
+export const insertQuoteSchema = createInsertSchema(quotes, {
+  clientName: z.string().min(1, "Nombre del cliente es requerido"),
+  clientRut: z.string().optional(),
+  clientEmail: z.string().email("Email inválido").optional().or(z.literal("")),
+  clientPhone: z.string().optional(),
+  clientAddress: z.string().optional(),
+  status: z.enum(["draft", "sent", "accepted", "rejected", "converted"]).default("draft"),
+  validUntil: z.string().optional().or(z.null()),
+  notes: z.string().optional(),
+}).omit({
+  id: true,
+  quoteNumber: true, // Auto-generated
+  createdAt: true,
+  updatedAt: true,
+  subtotal: true, // Calculated
+  taxAmount: true, // Calculated
+  total: true, // Calculated
+});
+
+export const insertQuoteItemSchema = createInsertSchema(quoteItems, {
+  type: z.enum(["standard", "custom"]),
+  productName: z.string().min(1, "Nombre del producto es requerido"),
+  customSku: z.string().optional(),
+  pricingMode: z.enum(["calculated", "direct"]).optional(),
+  quantity: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  unitPrice: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  costOfProduction: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  profitMargin: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+}).omit({
+  id: true,
+  createdAt: true,
+  totalPrice: true, // Calculated
+});
+
+// Types
+export type Quote = typeof quotes.$inferSelect;
+export type InsertQuote = typeof quotes.$inferInsert;
+export type QuoteItem = typeof quoteItems.$inferSelect;
+export type InsertQuoteItem = typeof quoteItems.$inferInsert;
+export type InsertQuoteInput = z.infer<typeof insertQuoteSchema>;
+export type InsertQuoteItemInput = z.infer<typeof insertQuoteItemSchema>;
