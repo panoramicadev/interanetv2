@@ -3863,7 +3863,7 @@ export class DatabaseStorage implements IStorage {
     const clientsWithMetrics = await Promise.all(
       clientsData.map(async (client) => {
         const [transactionCount] = await db
-          .select({ count: sql<number>`COUNT(*)` })
+          .select({ count: sql`COUNT(*)`.as('count') })
           .from(salesTransactions)
           .where(eq(salesTransactions.nokoen, client.nokoen));
 
@@ -4649,7 +4649,7 @@ export class DatabaseStorage implements IStorage {
   async createOrder(order: InsertOrder): Promise<Order> {
     // Generate unique order number
     const orderCount = await db
-      .select({ count: sql<number>`count(*)` })
+      .select({ count: sql`count(*)`.as('count') })
       .from(orders);
     
     const orderNumber = `ORD-${new Date().getFullYear()}-${String(orderCount[0].count + 1).padStart(6, '0')}`;
@@ -4790,6 +4790,7 @@ export class DatabaseStorage implements IStorage {
     search?: string;
     unidad?: string;
     tipoProducto?: string;
+    color?: string;
     limit?: number;
     offset?: number;
   }): Promise<PriceList[]> {
@@ -4839,7 +4840,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number> {
-    let query = db.select({ count: sql<number>`count(*)` }).from(priceList);
+    let query = db.select({ count: sql`count(*)`.as('count') }).from(priceList);
     
     // Build where conditions
     const conditions = [];
