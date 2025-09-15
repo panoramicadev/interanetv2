@@ -32,12 +32,23 @@ export const pool = new Pool(poolConfig);
 // Create drizzle instance with direct access (no wrapper)
 export const db = drizzle({ client: pool, schema });
 
-// Simple logging function
+// Secure logging function that sanitizes database errors
 function dbLog(level: 'info' | 'warn' | 'error', message: string, error?: any) {
   const timestamp = new Date().toISOString();
   console.log(`${timestamp} [DB-${level.toUpperCase()}] ${message}`);
+  
   if (error) {
-    console.error('Error details:', error);
+    // Sanitize error to prevent credential exposure
+    const sanitizedError = {
+      message: error.message || 'Unknown error',
+      code: error.code || 'UNKNOWN',
+      severity: error.severity,
+      detail: error.detail,
+      hint: error.hint,
+      name: error.name,
+      // Exclude any connection info, client, config, etc.
+    };
+    console.error('Error details:', sanitizedError);
   }
 }
 
