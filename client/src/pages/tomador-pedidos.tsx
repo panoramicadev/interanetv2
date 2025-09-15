@@ -256,23 +256,23 @@ export default function TomadorPedidos() {
       updateCartItemQuantity(existingItem.id, existingItem.quantity + 1);
       toast({
         title: "Producto actualizado",
-        description: `Se aumentó la cantidad de ${product.descripcion}`,
+        description: `Se aumentó la cantidad de ${product.producto}`,
       });
     } else {
       const newItem: CartItem = {
         id: `item-${Date.now()}-${Math.random()}`,
         type: "standard",
-        productName: product.descripcion || "Producto sin nombre",
+        productName: product.producto || "Producto sin nombre",
         productCode: product.codigo,
         quantity: 1,
-        unitPrice: parseFloat(product.precio1 || "0"),
-        totalPrice: parseFloat(product.precio1 || "0"),
+        unitPrice: parseFloat(product.lista || "0"),
+        totalPrice: parseFloat(product.lista || "0"),
       };
       
       setCart(prev => [...prev, newItem]);
       toast({
         title: "Producto agregado",
-        description: `${product.descripcion} agregado al presupuesto`,
+        description: `${product.producto} agregado al presupuesto`,
       });
     }
   };
@@ -801,7 +801,7 @@ export default function TomadorPedidos() {
                                 </div>
                                 <div className="text-right">
                                   <p className="font-bold text-green-600">
-                                    {formatCurrency(parseFloat(product.precio1 || "0"))}
+                                    {formatCurrency(parseFloat(product.lista || "0"))}
                                   </p>
                                   <Button size="sm" className="mt-1">
                                     <Plus className="w-3 h-3" />
