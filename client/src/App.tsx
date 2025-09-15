@@ -20,6 +20,7 @@ import Users from "@/pages/users";
 import Products from "@/pages/products";
 import Clients from "@/pages/clients";
 import OrdenesPage from "@/pages/ordenes";
+import ListaPrecios from "@/pages/lista-precios";
 import SegmentDetail from "@/pages/segment-detail";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
@@ -74,6 +75,7 @@ function Router() {
             {/* Rutas específicas de admin */}
             <Route path="/usuarios" component={Users} />
             <Route path="/productos" component={Products} />
+            <Route path="/lista-precios" component={ListaPrecios} />
             <Route path="/clientes" component={Clients} />
             <Route path="/ordenes" component={OrdenesPage} />
             <Route path="/products" component={() => {
