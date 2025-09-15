@@ -32,6 +32,14 @@ export default function ListaPrecios() {
   // Query para obtener lista de precios
   const { data, isLoading, error } = useQuery<PriceListResponse>({
     queryKey: ['/api/price-list', { search, limit: itemsPerPage, offset: page * itemsPerPage }],
+    queryFn: async () => {
+      const url = `/api/price-list?search=${encodeURIComponent(search)}&limit=${itemsPerPage}&offset=${page * itemsPerPage}`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    },
   });
 
   // Mutación para importar CSV

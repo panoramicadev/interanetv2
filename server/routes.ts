@@ -77,6 +77,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
 import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, insertPriceListSchema, InsertTask } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import Papa from "papaparse";
 
 export function registerRoutes(app: Express): Server {
   // Setup email/password auth system (primary)
@@ -3045,7 +3046,6 @@ export function registerRoutes(app: Express): Server {
       const csvData = req.file.buffer.toString();
       
       // Parse CSV data
-      const Papa = require('papaparse');
       const { data, errors } = Papa.parse(csvData, {
         header: true,
         skipEmptyLines: true,
