@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -13,9 +14,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
+
+// Validation schema for edit order form
+const editOrderSchema = z.object({
+  clientName: z.string().min(1, "El nombre del cliente es requerido"),
+  status: z.enum(['draft', 'pending', 'confirmed', 'cancelled']).default('draft'),
+  notes: z.string().optional(),
+});
+
+type EditOrderFormData = z.infer<typeof editOrderSchema>;
 
 // Types for price tiers and cart management
 type PriceTier = 'lista' | 'desc10' | 'desc10_5' | 'desc10_5_3' | 'minimo' | 'canalDigital';
@@ -83,6 +96,156 @@ const INITIAL_CUSTOM_PRODUCT: CustomProductData = {
   directPrice: 0,
   quantity: 1,
 };
+
+// Edit Order Form Component
+interface EditOrderFormProps {
+  order: Order;
+  onClose: () => void;
+}
+
+function EditOrderForm({ order, onClose }: EditOrderFormProps) {
+  const { toast } = useToast();
+  
+  const form = useForm<EditOrderFormData>({
+    resolver: zodResolver(editOrderSchema),
+    defaultValues: {
+      clientName: order.clientName || '',
+      status: (order.status as EditOrderFormData['status']) || 'draft',
+      notes: order.notes || '',
+    },
+  });
+
+  const updateOrderMutation = useMutation({
+    mutationFn: async (data: EditOrderFormData) => {
+      return await apiRequest(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        data: {
+          clientName: data.clientName,
+          status: data.status,
+          notes: data.notes,
+        }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      toast({
+        title: "Pedido actualizado",
+        description: "Los cambios han sido guardados exitosamente.",
+      });
+      onClose();
+    },
+    onError: (error) => {
+      console.error('Error updating order:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el pedido. Inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const onSubmit = (data: EditOrderFormData) => {
+    updateOrderMutation.mutate(data);
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="clientName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre del Cliente</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    data-testid="input-edit-client-name"
+                    placeholder="Nombre del cliente"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Estado</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger data-testid="select-edit-status">
+                      <SelectValue placeholder="Seleccionar estado" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="confirmed">Confirmado</SelectItem>
+                    <SelectItem value="cancelled">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notas (Opcional)</FormLabel>
+              <FormControl>
+                <Textarea
+                  {...field}
+                  rows={3}
+                  data-testid="textarea-edit-notes"
+                  placeholder="Notas adicionales sobre el pedido..."
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="flex justify-end gap-2">
+          <Button 
+            type="button"
+            variant="outline" 
+            onClick={() => {
+              form.reset();
+              onClose();
+            }}
+            data-testid="button-cancel-edit"
+            disabled={updateOrderMutation.isPending}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            type="submit"
+            data-testid="button-save-edit"
+            disabled={updateOrderMutation.isPending}
+          >
+            {updateOrderMutation.isPending ? (
+              <>
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin mr-2" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar Cambios'
+            )}
+          </Button>
+        </div>
+      </form>
+    </Form>
+  );
+}
 
 export default function TomadorPedidos() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -321,23 +484,58 @@ export default function TomadorPedidos() {
     setShowDeleteConfirmation(orderId);
   };
 
-  const confirmDeleteOrder = async (orderId: string) => {
-    try {
-      await apiRequest('DELETE', `/api/orders/${orderId}`);
+  // Order mutations
+  const updateOrderMutation = useMutation({
+    mutationFn: async ({ orderId, data }: { orderId: string, data: Partial<Order> }) => {
+      return await apiRequest(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        data
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      toast({
+        title: "Pedido actualizado",
+        description: "Los cambios han sido guardados exitosamente.",
+      });
+      setSelectedOrderForEdit(null);
+    },
+    onError: (error) => {
+      console.error('Error updating order:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el pedido. Inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      return await apiRequest(`/api/orders/${orderId}`, {
+        method: 'DELETE'
+      });
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       toast({
         title: "Pedido eliminado",
-        description: "El pedido se eliminó correctamente.",
+        description: "El pedido ha sido eliminado exitosamente.",
       });
       setShowDeleteConfirmation(null);
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error('Error deleting order:', error);
       toast({
-        variant: "destructive",
         title: "Error",
-        description: "No se pudo eliminar el pedido.",
+        description: "No se pudo eliminar el pedido. Inténtalo de nuevo.",
+        variant: "destructive",
       });
     }
+  });
+
+  const confirmDeleteOrder = (orderId: string) => {
+    deleteOrderMutation.mutate(orderId);
   };
 
   // Add product to cart with selected price tier
@@ -1435,6 +1633,9 @@ export default function TomadorPedidos() {
             <Eye className="w-5 h-5" />
             Detalles del Pedido
           </DialogTitle>
+          <DialogDescription>
+            Información completa y detallada del pedido seleccionado.
+          </DialogDescription>
         </DialogHeader>
         {selectedOrderForView && (
           <div className="space-y-6">
@@ -1482,7 +1683,7 @@ export default function TomadorPedidos() {
       </DialogContent>
     </Dialog>
 
-    {/* Edit Order Modal - Simple implementation */}
+    {/* Edit Order Modal - React Hook Form implementation */}
     <Dialog open={!!selectedOrderForEdit} onOpenChange={() => setSelectedOrderForEdit(null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -1490,64 +1691,15 @@ export default function TomadorPedidos() {
             <Edit className="w-5 h-5" />
             Editar Pedido
           </DialogTitle>
+          <DialogDescription>
+            Modificar la información básica del pedido seleccionado.
+          </DialogDescription>
         </DialogHeader>
         {selectedOrderForEdit && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-client-name">Nombre del Cliente</Label>
-                <Input
-                  id="edit-client-name"
-                  defaultValue={selectedOrderForEdit.clientName}
-                  data-testid="input-edit-client-name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="edit-status">Estado</Label>
-                <Select defaultValue={selectedOrderForEdit.status || 'draft'}>
-                  <SelectTrigger data-testid="select-edit-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Borrador</SelectItem>
-                    <SelectItem value="pending">Pendiente</SelectItem>
-                    <SelectItem value="confirmed">Confirmado</SelectItem>
-                    <SelectItem value="cancelled">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="edit-notes">Notas</Label>
-              <Textarea
-                id="edit-notes"
-                rows={3}
-                defaultValue={selectedOrderForEdit.notes || ''}
-                data-testid="textarea-edit-notes"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setSelectedOrderForEdit(null)}
-                data-testid="button-cancel-edit"
-              >
-                Cancelar
-              </Button>
-              <Button 
-                onClick={() => {
-                  toast({
-                    title: "Funcionalidad en desarrollo",
-                    description: "La edición completa de pedidos se implementará próximamente.",
-                  });
-                  setSelectedOrderForEdit(null);
-                }}
-                data-testid="button-save-edit"
-              >
-                Guardar Cambios
-              </Button>
-            </div>
-          </div>
+          <EditOrderForm 
+            order={selectedOrderForEdit} 
+            onClose={() => setSelectedOrderForEdit(null)}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -1560,6 +1712,9 @@ export default function TomadorPedidos() {
             <Trash2 className="w-5 h-5" />
             Confirmar Eliminación
           </DialogTitle>
+          <DialogDescription>
+            Esta acción eliminará permanentemente el pedido seleccionado.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
