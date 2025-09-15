@@ -363,6 +363,61 @@ export interface IStorage {
   updateProduct(kopr: string, product: Partial<InsertProduct>): Promise<Product>;
   updateProductPrice(kopr: string, newPrice: number, changedBy: string, reason?: string): Promise<Product>;
   
+  // eCommerce product operations
+  getEcommerceProducts(filters?: {
+    search?: string;
+    category?: string;
+    active?: boolean;
+    ecomActive?: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+    tags?: string[];
+    limit?: number;
+    offset?: number;
+  }): Promise<Array<Product & {
+    primaryImageUrl?: string;
+    totalStock?: number;
+  }>>;
+  getEcommerceProduct(kopr: string): Promise<Product | undefined>;
+  createEcommerceProduct(product: {
+    kopr: string;
+    name: string;
+    slug: string;
+    ecomActive: boolean;
+    ecomPrice?: number;
+    category?: string;
+    tags?: string[];
+    images?: Array<{id: string, url: string, alt: string, primary: boolean, sort: number}>;
+    seoTitle?: string;
+    seoDescription?: string;
+    ogImageUrl?: string;
+    ud02pr?: string;
+    priceProduct?: number;
+    priceOffer?: number;
+    showInStore?: boolean;
+    active?: boolean;
+  }): Promise<Product>;
+  updateEcommerceProduct(kopr: string, product: Partial<{
+    name: string;
+    slug: string;
+    ecomActive: boolean;
+    ecomPrice?: number;
+    category?: string;
+    tags?: string[];
+    images?: Array<{id: string, url: string, alt: string, primary: boolean, sort: number}>;
+    seoTitle?: string;
+    seoDescription?: string;
+    ogImageUrl?: string;
+    ud02pr?: string;
+    priceProduct?: number;
+    priceOffer?: number;
+    showInStore?: boolean;
+    active?: boolean;
+  }>): Promise<Product>;
+  toggleEcommerceActive(kopr: string): Promise<Product>;
+  getEcommerceCategories(): Promise<string[]>;
+  validateProductSlug(slug: string, excludeKopr?: string): Promise<boolean>;
+  
   // Product stock operations (KOPR-based)
   getProductStock(kopr: string): Promise<ProductStock[]>;
   getProductStockByWarehouse(kopr: string, kobo: string, kosu?: string): Promise<ProductStock[]>;
@@ -2830,8 +2885,12 @@ export class DatabaseStorage implements IStorage {
     active?: boolean;
     limit?: number;
     offset?: number;
-  }): Promise<Product[]> {
+  }): Promise<Array<Product & { primaryImageUrl?: string }>> {
     const conditions = [];
+    
+    // Only show products that are active AND eCommerceActive
+    conditions.push(eq(products.active, true));
+    conditions.push(eq(products.ecomActive, true));
     
     if (filters?.search) {
       conditions.push(
@@ -2839,8 +2898,8 @@ export class DatabaseStorage implements IStorage {
       );
     }
     
-    if (filters?.active !== undefined) {
-      conditions.push(eq(products.active, filters.active));
+    if (filters?.category) {
+      conditions.push(eq(products.category, filters.category));
     }
 
     let query = db.select({
@@ -2848,7 +2907,13 @@ export class DatabaseStorage implements IStorage {
       kopr: products.kopr,
       name: products.name,
       ud02pr: products.ud02pr,
+      category: products.category,
+      tags: products.tags,
+      images: products.images,
+      seoTitle: products.seoTitle,
+      seoDescription: products.seoDescription,
       active: products.active,
+      ecomActive: products.ecomActive,
       createdAt: products.createdAt,
       updatedAt: products.updatedAt
       // No incluir campos de precio para acceso público
@@ -2867,26 +2932,39 @@ export class DatabaseStorage implements IStorage {
     }
 
     const publicProducts = await query.orderBy(products.name);
-    // Map to include missing fields for Product type compatibility
-    return publicProducts.map(p => ({
-      ...p,
-      priceProduct: null,
-      priceOffer: null,
-      showInStore: null
-    }));
+    
+    // Map to include missing fields and extract primary image
+    return publicProducts.map(p => {
+      let primaryImageUrl: string | undefined = undefined;
+      if (p.images && Array.isArray(p.images)) {
+        const primaryImage = p.images.find((img: any) => img.primary);
+        const firstImage = p.images[0];
+        primaryImageUrl = (primaryImage || firstImage)?.url;
+      }
+
+      return {
+        ...p,
+        priceProduct: null,
+        priceOffer: null,
+        showInStore: null,
+        primaryImageUrl
+      };
+    });
   }
 
-  // Get all product prices (only for authenticated users)
+  // Get all product prices (only for authenticated users) - prioritizes ecomPrice
   async getAllProductPrices(): Promise<Record<string, string>> {
     const productPrices = await db.select({
       kopr: products.kopr,
+      ecomPrice: products.ecomPrice,
       priceProduct: products.priceProduct,
       priceOffer: products.priceOffer
     }).from(products).where(eq(products.active, true));
 
     const pricesMap: Record<string, string> = {};
     productPrices.forEach(product => {
-      const price = product.priceOffer || product.priceProduct;
+      // Priority: ecomPrice > priceOffer > priceProduct
+      const price = product.ecomPrice || product.priceOffer || product.priceProduct;
       if (price && price !== '0') {
         pricesMap[product.kopr] = price.toString();
       }
@@ -3029,6 +3107,213 @@ export class DatabaseStorage implements IStorage {
     });
 
     return updatedProduct;
+  }
+
+  // eCommerce product operations
+  async getEcommerceProducts(filters?: {
+    search?: string;
+    category?: string;
+    active?: boolean;
+    ecomActive?: boolean;
+    minPrice?: number;
+    maxPrice?: number;
+    tags?: string[];
+    limit?: number;
+    offset?: number;
+  }): Promise<Array<Product & { primaryImageUrl?: string; totalStock?: number }>> {
+    const conditions = [];
+
+    if (filters?.search) {
+      conditions.push(sql`LOWER(${products.name}) LIKE LOWER('%' || ${filters.search} || '%')`);
+    }
+
+    if (filters?.category) {
+      conditions.push(eq(products.category, filters.category));
+    }
+
+    if (filters?.active !== undefined) {
+      conditions.push(eq(products.active, filters.active));
+    }
+
+    if (filters?.ecomActive !== undefined) {
+      conditions.push(eq(products.ecomActive, filters.ecomActive));
+    }
+
+    if (filters?.minPrice !== undefined) {
+      conditions.push(sql`COALESCE(${products.ecomPrice}, ${products.priceProduct}, 0) >= ${filters.minPrice}`);
+    }
+
+    if (filters?.maxPrice !== undefined) {
+      conditions.push(sql`COALESCE(${products.ecomPrice}, ${products.priceProduct}, 0) <= ${filters.maxPrice}`);
+    }
+
+    if (filters?.tags && filters.tags.length > 0) {
+      conditions.push(sql`${products.tags} && ${filters.tags}`);
+    }
+
+    let query = db.select().from(products);
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as typeof query;
+    }
+    
+    if (filters?.offset) {
+      query = query.offset(filters.offset) as typeof query;
+    }
+
+    const productsList = await query.orderBy(products.name);
+    
+    // Enrich with primary image and stock info
+    const enrichedProducts = await Promise.all(productsList.map(async (product) => {
+      // Get primary image URL
+      let primaryImageUrl: string | undefined = undefined;
+      if (product.images && Array.isArray(product.images)) {
+        const primaryImage = product.images.find((img: any) => img.primary);
+        const firstImage = product.images[0];
+        primaryImageUrl = (primaryImage || firstImage)?.url;
+      }
+
+      // Get total stock
+      const stocks = await db.select({
+        availableStock1: productStock.availableStock1,
+        availableStock2: productStock.availableStock2
+      }).from(productStock).where(eq(productStock.kopr, product.kopr));
+      
+      const totalStock = stocks.reduce((sum, stock) => {
+        return sum + (Number(stock.availableStock1) || 0) + (Number(stock.availableStock2) || 0);
+      }, 0);
+
+      return {
+        ...product,
+        primaryImageUrl,
+        totalStock
+      };
+    }));
+
+    return enrichedProducts;
+  }
+
+  async getEcommerceProduct(kopr: string): Promise<Product | undefined> {
+    const [product] = await db.select().from(products).where(eq(products.kopr, kopr));
+    return product;
+  }
+
+  async createEcommerceProduct(productData: {
+    kopr: string;
+    name: string;
+    slug: string;
+    ecomActive: boolean;
+    ecomPrice?: number;
+    category?: string;
+    tags?: string[];
+    images?: Array<{id: string, url: string, alt: string, primary: boolean, sort: number}>;
+    seoTitle?: string;
+    seoDescription?: string;
+    ogImageUrl?: string;
+    ud02pr?: string;
+    priceProduct?: number;
+    priceOffer?: number;
+    showInStore?: boolean;
+    active?: boolean;
+  }): Promise<Product> {
+    const [newProduct] = await db.insert(products).values({
+      ...productData,
+      ecomPrice: productData.ecomPrice?.toString(),
+      priceProduct: productData.priceProduct?.toString(),
+      priceOffer: productData.priceOffer?.toString(),
+    }).returning();
+    return newProduct;
+  }
+
+  async updateEcommerceProduct(kopr: string, productData: Partial<{
+    name: string;
+    slug: string;
+    ecomActive: boolean;
+    ecomPrice?: number;
+    category?: string;
+    tags?: string[];
+    images?: Array<{id: string, url: string, alt: string, primary: boolean, sort: number}>;
+    seoTitle?: string;
+    seoDescription?: string;
+    ogImageUrl?: string;
+    ud02pr?: string;
+    priceProduct?: number;
+    priceOffer?: number;
+    showInStore?: boolean;
+    active?: boolean;
+  }>): Promise<Product> {
+    const updateData: any = { 
+      ...productData, 
+      updatedAt: new Date()
+    };
+
+    // Convert numeric fields to strings if provided
+    if (productData.ecomPrice !== undefined) {
+      updateData.ecomPrice = productData.ecomPrice?.toString();
+    }
+    if (productData.priceProduct !== undefined) {
+      updateData.priceProduct = productData.priceProduct?.toString();
+    }
+    if (productData.priceOffer !== undefined) {
+      updateData.priceOffer = productData.priceOffer?.toString();
+    }
+
+    const [updatedProduct] = await db
+      .update(products)
+      .set(updateData)
+      .where(eq(products.kopr, kopr))
+      .returning();
+    return updatedProduct;
+  }
+
+  async toggleEcommerceActive(kopr: string): Promise<Product> {
+    const currentProduct = await this.getProduct(kopr);
+    if (!currentProduct) {
+      throw new Error(`Product with KOPR ${kopr} not found`);
+    }
+
+    const [updatedProduct] = await db
+      .update(products)
+      .set({ 
+        ecomActive: !currentProduct.ecomActive,
+        updatedAt: new Date()
+      })
+      .where(eq(products.kopr, kopr))
+      .returning();
+    return updatedProduct;
+  }
+
+  async getEcommerceCategories(): Promise<string[]> {
+    const result = await db
+      .selectDistinct({ category: products.category })
+      .from(products)
+      .where(and(
+        eq(products.active, true),
+        sql`${products.category} IS NOT NULL AND ${products.category} != ''`
+      ))
+      .orderBy(products.category);
+
+    return result.map(r => r.category).filter((cat): cat is string => !!cat);
+  }
+
+  async validateProductSlug(slug: string, excludeKopr?: string): Promise<boolean> {
+    const conditions = [eq(products.slug, slug)];
+    
+    if (excludeKopr) {
+      conditions.push(sql`${products.kopr} != ${excludeKopr}`);
+    }
+
+    const [existingProduct] = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(and(...conditions))
+      .limit(1);
+
+    return !existingProduct; // Return true if slug is available (not found)
   }
 
   async getProductStock(sku: string): Promise<ProductStock[]> {

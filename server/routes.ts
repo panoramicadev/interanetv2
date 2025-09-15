@@ -2193,6 +2193,153 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ===================== eCommerce API Routes =====================
+  
+  // Get eCommerce products with filters
+  app.get('/api/ecommerce/products', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { 
+      search, 
+      category, 
+      active, 
+      ecomActive, 
+      minPrice, 
+      maxPrice, 
+      tags,
+      limit, 
+      offset 
+    } = req.query;
+
+    // Parse filters
+    const filters: any = {};
+    
+    if (search) filters.search = search as string;
+    if (category) filters.category = category as string;
+    if (active !== undefined) filters.active = active === 'true';
+    if (ecomActive !== undefined) filters.ecomActive = ecomActive === 'true';
+    if (minPrice) filters.minPrice = parseFloat(minPrice as string);
+    if (maxPrice) filters.maxPrice = parseFloat(maxPrice as string);
+    if (tags) {
+      // Handle tags as comma-separated string
+      filters.tags = (tags as string).split(',').map(tag => tag.trim()).filter(Boolean);
+    }
+    if (limit) filters.limit = parseInt(limit as string);
+    if (offset) filters.offset = parseInt(offset as string);
+
+    const products = await storage.getEcommerceProducts(filters);
+    res.json(products);
+  }));
+
+  // Get single eCommerce product
+  app.get('/api/ecommerce/products/:kopr', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { kopr } = req.params;
+    const product = await storage.getEcommerceProduct(kopr);
+    
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    
+    res.json(product);
+  }));
+
+  // Create new eCommerce product
+  app.post('/api/ecommerce/products', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { 
+      ecommerceProductSchema 
+    } = await import('@shared/schema');
+    
+    // Validate request body
+    const validationResult = ecommerceProductSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({ 
+        message: 'Validation error', 
+        errors: validationResult.error.errors 
+      });
+    }
+
+    // Check if slug is available
+    const slugAvailable = await storage.validateProductSlug(validationResult.data.slug);
+    if (!slugAvailable) {
+      return res.status(400).json({ 
+        message: 'Slug already exists. Please choose a different slug.' 
+      });
+    }
+
+    const product = await storage.createEcommerceProduct(validationResult.data);
+    res.status(201).json(product);
+  }));
+
+  // Update eCommerce product
+  app.patch('/api/ecommerce/products/:kopr', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { kopr } = req.params;
+    const { 
+      updateEcommerceProductSchema 
+    } = await import('@shared/schema');
+    
+    // Validate request body
+    const validationResult = updateEcommerceProductSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      return res.status(400).json({ 
+        message: 'Validation error', 
+        errors: validationResult.error.errors 
+      });
+    }
+
+    // If slug is being updated, check availability
+    if (validationResult.data.slug) {
+      const slugAvailable = await storage.validateProductSlug(validationResult.data.slug, kopr);
+      if (!slugAvailable) {
+        return res.status(400).json({ 
+          message: 'Slug already exists. Please choose a different slug.' 
+        });
+      }
+    }
+
+    try {
+      const product = await storage.updateEcommerceProduct(kopr, validationResult.data);
+      res.json(product);
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
+      throw error;
+    }
+  }));
+
+  // Toggle eCommerce active status
+  app.patch('/api/ecommerce/products/:kopr/toggle-active', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { kopr } = req.params;
+    
+    try {
+      const product = await storage.toggleEcommerceActive(kopr);
+      res.json(product);
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
+      throw error;
+    }
+  }));
+
+  // Get available eCommerce categories
+  app.get('/api/ecommerce/categories', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const categories = await storage.getEcommerceCategories();
+    res.json(categories);
+  }));
+
+  // Validate product slug availability
+  app.post('/api/ecommerce/products/validate-slug', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { slug, excludeKopr } = req.body;
+    
+    if (!slug) {
+      return res.status(400).json({ message: 'Slug is required' });
+    }
+
+    const isAvailable = await storage.validateProductSlug(slug, excludeKopr);
+    res.json({ available: isAvailable });
+  }));
+
+  // ===================== End eCommerce API Routes =====================
+
   // Preview CSV endpoint - Analyze sales CSV without importing
   app.post('/api/sales/preview', requireAuth, upload.single('file'), async (req, res) => {
     try {
