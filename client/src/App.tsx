@@ -24,6 +24,7 @@ import ListaPrecios from "@/pages/lista-precios";
 import SegmentDetail from "@/pages/segment-detail";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
+import ProductDetail from "@/pages/product-detail";
 import TomadorPedidos from "@/pages/tomador-pedidos";
 import NotFound from "@/pages/not-found";
 
@@ -89,6 +90,7 @@ function Router() {
             <Route path="/segment/:segmentName" component={SegmentDetail} />
             <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
             <Route path="/client/:clientName" component={ClientDetail} />
+            <Route path="/product/:productName" component={ProductDetail} />
             
             {/* Rutas específicas de vendedor */}
             <Route path="/mis-clientes" component={ClientsDashboard} />
