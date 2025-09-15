@@ -11,8 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 
@@ -96,6 +97,9 @@ export default function TomadorPedidos() {
   const { toast } = useToast();
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
   const [customProduct, setCustomProduct] = useState<CustomProductData>(INITIAL_CUSTOM_PRODUCT);
+  const [selectedOrderForView, setSelectedOrderForView] = useState<Order | null>(null);
+  const [selectedOrderForEdit, setSelectedOrderForEdit] = useState<Order | null>(null);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<string | null>(null);
   
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
     ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
@@ -296,6 +300,44 @@ export default function TomadorPedidos() {
     setQuoteForm(INITIAL_QUOTE_FORM);
     setCart([]);
     setProductSearchTerm("");
+  };
+
+  // Order action handlers
+  const handleViewOrder = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+      setSelectedOrderForView(order);
+    }
+  };
+
+  const handleEditOrder = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+      setSelectedOrderForEdit(order);
+    }
+  };
+
+  const handleDeleteOrder = (orderId: string) => {
+    setShowDeleteConfirmation(orderId);
+  };
+
+  const confirmDeleteOrder = async (orderId: string) => {
+    try {
+      await apiRequest('DELETE', `/api/orders/${orderId}`);
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      toast({
+        title: "Pedido eliminado",
+        description: "El pedido se eliminó correctamente.",
+      });
+      setShowDeleteConfirmation(null);
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo eliminar el pedido.",
+      });
+    }
   };
 
   // Add product to cart with selected price tier
@@ -726,7 +768,7 @@ export default function TomadorPedidos() {
                     key={order.id}
                     className="flex items-center justify-between p-3 border rounded hover:bg-muted/50 transition-colors"
                   >
-                    <div className="space-y-1">
+                    <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium" data-testid={`text-order-number-${order.id}`}>
                           {order.orderNumber}
@@ -746,9 +788,48 @@ export default function TomadorPedidos() {
                         }) : 'Fecha no disponible'}
                       </div>
                     </div>
-                    <Badge variant={getStatusBadgeVariant(order.status || 'draft')}>
-                      {getStatusLabel(order.status || 'draft')}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={getStatusBadgeVariant(order.status || 'draft')}>
+                        {getStatusLabel(order.status || 'draft')}
+                      </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0"
+                            data-testid={`button-actions-${order.id}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleViewOrder(order.id)}
+                            data-testid={`action-view-${order.id}`}
+                          >
+                            <Eye className="mr-2 h-4 w-4" />
+                            Ver detalles
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleEditOrder(order.id)}
+                            data-testid={`action-edit-${order.id}`}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteOrder(order.id)}
+                            className="text-destructive"
+                            data-testid={`action-delete-${order.id}`}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1340,6 +1421,164 @@ export default function TomadorPedidos() {
             >
               <Plus className="w-4 h-4 mr-2" />
               Añadir al Presupuesto
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* View Order Modal */}
+    <Dialog open={!!selectedOrderForView} onOpenChange={() => setSelectedOrderForView(null)}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Eye className="w-5 h-5" />
+            Detalles del Pedido
+          </DialogTitle>
+        </DialogHeader>
+        {selectedOrderForView && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-semibold">Número de Pedido</Label>
+                <p className="text-sm">{selectedOrderForView.orderNumber}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-semibold">Estado</Label>
+                <Badge variant={getStatusBadgeVariant(selectedOrderForView.status || 'draft')}>
+                  {getStatusLabel(selectedOrderForView.status || 'draft')}
+                </Badge>
+              </div>
+              <div>
+                <Label className="text-sm font-semibold">Cliente</Label>
+                <p className="text-sm">{selectedOrderForView.clientName}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-semibold">Fecha de Creación</Label>
+                <p className="text-sm">
+                  {selectedOrderForView.createdAt ? new Date(selectedOrderForView.createdAt).toLocaleDateString('es-CL', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }) : 'No disponible'}
+                </p>
+              </div>
+            </div>
+            {selectedOrderForView.notes && (
+              <div>
+                <Label className="text-sm font-semibold">Notas</Label>
+                <p className="text-sm bg-muted p-3 rounded-lg">{selectedOrderForView.notes}</p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSelectedOrderForView(null)}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+
+    {/* Edit Order Modal - Simple implementation */}
+    <Dialog open={!!selectedOrderForEdit} onOpenChange={() => setSelectedOrderForEdit(null)}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Edit className="w-5 h-5" />
+            Editar Pedido
+          </DialogTitle>
+        </DialogHeader>
+        {selectedOrderForEdit && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-client-name">Nombre del Cliente</Label>
+                <Input
+                  id="edit-client-name"
+                  defaultValue={selectedOrderForEdit.clientName}
+                  data-testid="input-edit-client-name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-status">Estado</Label>
+                <Select defaultValue={selectedOrderForEdit.status || 'draft'}>
+                  <SelectTrigger data-testid="select-edit-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="confirmed">Confirmado</SelectItem>
+                    <SelectItem value="cancelled">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-notes">Notas</Label>
+              <Textarea
+                id="edit-notes"
+                rows={3}
+                defaultValue={selectedOrderForEdit.notes || ''}
+                data-testid="textarea-edit-notes"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setSelectedOrderForEdit(null)}
+                data-testid="button-cancel-edit"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={() => {
+                  toast({
+                    title: "Funcionalidad en desarrollo",
+                    description: "La edición completa de pedidos se implementará próximamente.",
+                  });
+                  setSelectedOrderForEdit(null);
+                }}
+                data-testid="button-save-edit"
+              >
+                Guardar Cambios
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+
+    {/* Delete Confirmation Dialog */}
+    <Dialog open={!!showDeleteConfirmation} onOpenChange={() => setShowDeleteConfirmation(null)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <Trash2 className="w-5 h-5" />
+            Confirmar Eliminación
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            ¿Estás seguro de que quieres eliminar este pedido? Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteConfirmation(null)}
+              data-testid="button-cancel-delete"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => showDeleteConfirmation && confirmDeleteOrder(showDeleteConfirmation)}
+              data-testid="button-confirm-delete"
+            >
+              Eliminar
             </Button>
           </div>
         </div>
