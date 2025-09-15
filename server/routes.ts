@@ -5,6 +5,54 @@ import { setupAuth, requireAuth } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
+import { checkDbHealth } from "./db";
+
+// Database error handling middleware
+function handleDatabaseError(error: any, operation: string) {
+  const timestamp = new Date().toISOString();
+  console.error(`${timestamp} [DB-ERROR] ${operation} failed:`, error.message);
+  
+  // Check if it's a database connection error
+  const isDbError = 
+    error?.code === '57P01' || // admin_shutdown
+    error?.code === '08006' || // connection_failure
+    error?.code === '08001' || // sqlclient_unable_to_establish_sqlconnection
+    error?.code === '08003' || // connection_does_not_exist
+    error?.code === '08004' || // sqlserver_rejected_establishment_of_sqlconnection
+    error?.message?.includes('terminating connection') ||
+    error?.message?.includes('Connection terminated') ||
+    error?.message?.includes('server closed the connection') ||
+    error?.message?.includes('Connection refused') ||
+    error?.message?.includes('timeout');
+
+  if (isDbError) {
+    return {
+      status: 503,
+      message: 'Database temporarily unavailable. Please try again later.',
+      type: 'database_error'
+    };
+  }
+
+  // For other database errors, return a generic error
+  return {
+    status: 500,
+    message: 'An internal error occurred. Please try again.',
+    type: 'internal_error'
+  };
+}
+
+// Async error wrapper for routes
+function asyncHandler(fn: Function) {
+  return (req: any, res: any, next: any) => {
+    Promise.resolve(fn(req, res, next)).catch((error) => {
+      const errorInfo = handleDatabaseError(error, `${req.method} ${req.path}`);
+      res.status(errorInfo.status).json({ 
+        message: errorInfo.message,
+        type: errorInfo.type
+      });
+    });
+  };
+}
 
 // Helper function to convert period and filterType to date range
 function getDateRange(period?: string, filterType?: string): { startDate?: string; endDate?: string } {
@@ -90,6 +138,23 @@ export function registerRoutes(app: Express): Server {
     storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
   });
+
+  // Health check endpoint
+  app.get('/api/health', asyncHandler(async (req, res) => {
+    const dbHealth = await checkDbHealth();
+    const health = {
+      status: dbHealth.connected ? 'healthy' : 'degraded',
+      database: {
+        connected: dbHealth.connected,
+        connectionAttempts: dbHealth.attempts,
+        lastError: dbHealth.lastError
+      },
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime()
+    };
+    
+    res.status(dbHealth.connected ? 200 : 503).json(health);
+  }));
 
   // Sales metrics endpoint
   app.get('/api/sales/metrics', requireAuth, async (req, res) => {
