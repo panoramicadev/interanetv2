@@ -926,6 +926,43 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Product detail routes - analytics for specific products
+  app.get('/api/sales/product/:productName/details', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { productName } = req.params;
+    const { period, filterType } = req.query;
+    const dateRange = getDateRange(period as string, filterType as string);
+    
+    const details = await storage.getProductDetails(productName, {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    });
+    res.json(details);
+  }));
+
+  app.get('/api/sales/product/:productName/formats', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { productName } = req.params;
+    const { period, filterType } = req.query;
+    const dateRange = getDateRange(period as string, filterType as string);
+    
+    const formats = await storage.getProductFormats(productName, {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    });
+    res.json(formats);
+  }));
+
+  app.get('/api/sales/product/:productName/colors', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { productName } = req.params;
+    const { period, filterType } = req.query;
+    const dateRange = getDateRange(period as string, filterType as string);
+    
+    const colors = await storage.getProductColors(productName, {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    });
+    res.json(colors);
+  }));
+
   // Segment detail route - clients by segment
   app.get("/api/sales/segment/:segmentName/clients", requireAuth, async (req, res) => {
     try {
