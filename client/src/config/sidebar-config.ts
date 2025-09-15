@@ -7,7 +7,6 @@ import {
   FileText,
   Settings,
   ShoppingCart,
-  Calculator,
   Palette,
   ClipboardList,
   ClipboardCheck,
@@ -71,13 +70,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Panel de Tareas",
       icon: ClipboardList,
     },
-    {
-      href: "#presupuesto",
-      label: "Crear Presupuesto",
-      icon: Calculator,
-      disabled: true,
-      comingSoon: true,
-    },
+
     {
       href: "#tintometria",
       label: "Calcular Tintometría",
@@ -142,13 +135,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Panel de Tareas",
       icon: ClipboardList,
     },
-    {
-      href: "#presupuesto",
-      label: "Crear Presupuesto",
-      icon: Calculator,
-      disabled: true,
-      comingSoon: true,
-    },
+
     {
       href: "#tintometria",
       label: "Calcular Tintometría",
@@ -193,13 +180,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Panel de Tareas",
       icon: ClipboardList,
     },
-    {
-      href: "#presupuesto",
-      label: "Crear Presupuesto",
-      icon: Calculator,
-      disabled: true,
-      comingSoon: true,
-    },
+
     {
       href: "#tintometria",
       label: "Calcular Tintometría",
@@ -233,13 +214,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Solicitar Cotización",
       icon: FileText,
     },
-    {
-      href: "#presupuesto",
-      label: "Crear Presupuesto",
-      icon: Calculator,
-      disabled: true,
-      comingSoon: true,
-    },
+
     {
       href: "#tintometria",
       label: "Calcular Tintometría",
