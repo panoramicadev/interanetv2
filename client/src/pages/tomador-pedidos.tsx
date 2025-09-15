@@ -19,6 +19,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit } from "lucide-react";
+import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 // HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
@@ -1786,7 +1787,14 @@ export default function TomadorPedidos() {
                                       </Badge>
                                     </div>
                                     <h4 className="font-medium text-sm mb-1">
-                                      {product.producto}
+                                      <Link
+                                        href={`/product/${encodeURIComponent(product.producto || '')}`}
+                                        className="text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        data-testid={`link-product-${product.codigo}`}
+                                      >
+                                        {product.producto}
+                                      </Link>
                                     </h4>
                                     <p className="text-xs text-muted-foreground">
                                       Unidad: {product.unidad || "N/A"}
