@@ -54,6 +54,7 @@ interface CartItem {
   costOfProduction?: number;
   profitMargin?: number;
   pricingMode?: "calculated" | "direct";
+  productUnit?: string; // Store the actual unit from price list data
 }
 
 interface QuoteFormData {
@@ -286,6 +287,7 @@ export default function TomadorPedidos() {
       costOfProduction: customProduct.pricingMode === 'calculated' ? customProduct.costOfProduction : undefined,
       profitMargin: customProduct.pricingMode === 'calculated' ? customProduct.profitMargin : undefined,
       pricingMode: customProduct.pricingMode,
+      productUnit: "UN", // Default unit for custom products
     };
     setCart(prev => [...prev, newItem]);
     setShowCustomProductModal(false);
@@ -422,7 +424,7 @@ export default function TomadorPedidos() {
     setSelectedClientForQuote(client);
     setQuoteForm({
       clientName: client.nokoen,
-      clientRut: client.rten || '',
+      clientRut: client.rten || '', // Fixed: Use client.rten for RUT
       clientEmail: client.emen || '',
       clientPhone: client.foen || '',
       clientAddress: client.dien || '',
@@ -440,7 +442,7 @@ export default function TomadorPedidos() {
       ...INITIAL_QUOTE_FORM,
       clientName: client.glosa || client.nokoen,
       clientId: client.id,
-      clientRut: client.nokoen,
+      clientRut: client.rten || "", // Fixed: Use client.rten for RUT, not client.nokoen
       clientEmail: client.email || "",
       clientPhone: client.telefono || "",
       clientAddress: `${client.direccion || ""} ${client.comuna || ""}`.trim(),
@@ -580,6 +582,7 @@ export default function TomadorPedidos() {
         totalPrice: price,
         priceTier: selectedTier,
         tierPrices: availableTiers,
+        productUnit: product.unidad || "UN", // Store actual unit from product data
       };
       
       setCart(prev => [...prev, newItem]);
@@ -641,8 +644,8 @@ export default function TomadorPedidos() {
     });
   };
 
-  // Download PDF function
-  const downloadPDF = () => {
+  // Create quote and download PDF function - integrated workflow
+  const saveQuoteAndDownloadPDF = async () => {
     if (!quoteForm.clientName.trim()) {
       toast({
         title: "Error",
@@ -662,79 +665,180 @@ export default function TomadorPedidos() {
     }
 
     try {
+      // First save the quote to get real server data
+      const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+      const tax = subtotal * 0.19; // 19% IVA
+      const total = subtotal + tax;
+      
+      // Create quote
+      const quoteData = {
+        ...quoteForm,
+        total: total.toString(),
+        status: "draft" as const,
+      };
+
+      const response = await apiRequest('/api/quotes', {
+        method: 'POST',
+        data: quoteData
+      });
+      const savedQuote: Quote = await response.json();
+
+      // Add quote items
+      const savedItems: any[] = [];
+      for (const item of cart) {
+        const itemData = {
+          quoteId: savedQuote.id,
+          type: item.type,
+          productName: item.productName,
+          productCode: item.productCode,
+          customSku: item.customSku,
+          quantity: item.quantity.toString(),
+          unitPrice: item.unitPrice.toString(),
+          totalPrice: item.totalPrice.toString(),
+          costOfProduction: item.costOfProduction?.toString(),
+          profitMargin: item.profitMargin?.toString(),
+          pricingMode: item.pricingMode,
+        };
+
+        const itemResponse = await apiRequest(`/api/quotes/${savedQuote.id}/items`, {
+          method: 'POST',
+          data: itemData
+        });
+
+        if (itemResponse.ok) {
+          const savedItem = await itemResponse.json();
+          savedItems.push({ ...savedItem, productUnit: item.productUnit }); // Include unit data
+        }
+      }
+
+      // Now generate PDF with real saved data
+      generatePDFFromQuote(savedQuote, savedItems);
+
+      toast({
+        title: "Cotización creada y PDF generado",
+        description: `Cotización ${savedQuote.quoteNumber} creada y descargada exitosamente`,
+      });
+
+      resetQuoteBuilder();
+
+    } catch (error) {
+      console.error('Error creating quote and PDF:', error);
+      toast({
+        title: "Error",
+        description: "Error al crear la cotización y generar el PDF",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Generate PDF from saved quote data
+  const generatePDFFromQuote = (quote: Quote, items: any[]) => {
+
+    try {
       const pdf = new jsPDF();
       const pageWidth = pdf.internal.pageSize.width;
       const margin = 20;
       const maxLineWidth = pageWidth - 2 * margin;
       let currentY = 30;
 
-      // Title
-      pdf.setFontSize(18);
+      // Use REAL quote number and date from saved quote
+      const quoteNumber = quote.quoteNumber; // Real server-generated quote number
+      const quoteDate = new Date(quote.createdAt).toLocaleDateString('es-CL', { 
+        day: '2-digit',
+        month: 'long', 
+        year: 'numeric'
+      });
+
+      // Header section - all aligned to the right
+      pdf.setFontSize(16);
       pdf.setFont("helvetica", "bold");
-      pdf.text("COTIZACIÓN", pageWidth / 2, currentY, { align: "center" });
-      currentY += 20;
+      pdf.text("COTIZACIÓN", pageWidth - margin, currentY, { align: "right" });
+      currentY += 15;
 
-      // Quote number and date
-      const quoteNumber = `COT-${new Date().getFullYear()}-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
-      const today = new Date().toLocaleDateString('es-CL');
-      
-      pdf.setFontSize(12);
+      pdf.setFontSize(11);
       pdf.setFont("helvetica", "normal");
-      pdf.text(`Número de Cotización: ${quoteNumber}`, margin, currentY);
-      pdf.text(`Fecha: ${today}`, pageWidth - margin, currentY, { align: "right" });
-      currentY += 20;
+      pdf.text(`Fecha: ${quoteDate}`, pageWidth - margin, currentY, { align: "right" });
+      currentY += 8;
 
-      // Client information section
+      pdf.text(`Cotización N°: ${quoteNumber}`, pageWidth - margin, currentY, { align: "right" });
+      currentY += 25;
+
+      // Client information section with title
+      pdf.setFontSize(12);
       pdf.setFont("helvetica", "bold");
       pdf.text("INFORMACIÓN DEL CLIENTE", margin, currentY);
-      currentY += 10;
+      currentY += 15;
 
+      // Two-column layout for client info
+      const leftColumn = margin;
+      const rightColumn = pageWidth / 2 + 10;
+      
+      pdf.setFontSize(10);
       pdf.setFont("helvetica", "normal");
-      pdf.text(`Cliente: ${quoteForm.clientName}`, margin, currentY);
-      currentY += 8;
       
-      if (quoteForm.clientRut) {
-        pdf.text(`RUT: ${quoteForm.clientRut}`, margin, currentY);
-        currentY += 8;
+      // Left column - Use real quote data
+      let leftY = currentY;
+      if (quote.clientRut) {
+        pdf.text(`RUT: ${quote.clientRut}`, leftColumn, leftY);
+        leftY += 8;
       }
       
-      if (quoteForm.clientEmail) {
-        pdf.text(`Email: ${quoteForm.clientEmail}`, margin, currentY);
-        currentY += 8;
+      if (quote.clientEmail) {
+        pdf.text(`Email: ${quote.clientEmail}`, leftColumn, leftY);
+        leftY += 8;
       }
       
-      if (quoteForm.clientPhone) {
-        pdf.text(`Teléfono: ${quoteForm.clientPhone}`, margin, currentY);
-        currentY += 8;
+      if (quote.clientAddress) {
+        pdf.text(`Dirección: ${quote.clientAddress}`, leftColumn, leftY);
+        leftY += 8;
       }
-      
-      if (quoteForm.clientAddress) {
-        pdf.text(`Dirección: ${quoteForm.clientAddress}`, margin, currentY);
-        currentY += 8;
-      }
-      
-      currentY += 10;
 
-      // Products table header
+      // Right column - Use real quote data
+      let rightY = currentY;
+      pdf.text(`Cliente: ${quote.clientName}`, rightColumn, rightY);
+      rightY += 8;
+      
+      if (quote.clientPhone) {
+        pdf.text(`Teléfono: ${quote.clientPhone}`, rightColumn, rightY);
+        rightY += 8;
+      }
+      
+      // Use the greater Y position to continue
+      currentY = Math.max(leftY, rightY) + 10;
+
+      // Observaciones section (if notes exist) - Use real quote data
+      if (quote.notes && quote.notes.trim()) {
+        pdf.setFont("helvetica", "bold");
+        pdf.text("Observaciones:", margin, currentY);
+        currentY += 8;
+        
+        pdf.setFont("helvetica", "normal");
+        const splitNotes = pdf.splitTextToSize(quote.notes, maxLineWidth);
+        pdf.text(splitNotes, margin, currentY);
+        currentY += (splitNotes.length * 6) + 10;
+      }
+
+      // Product details section with title
+      pdf.setFontSize(12);
       pdf.setFont("helvetica", "bold");
       pdf.text("DETALLE DE PRODUCTOS", margin, currentY);
       currentY += 15;
 
       // Table headers
-      const tableTop = currentY;
       const colWidths = {
-        product: 80,
-        unit: 25,
-        quantity: 25,
+        product: 85,
+        unit: 20,
+        quantity: 20,
         price: 35,
-        total: 35
+        total: 40
       };
 
       pdf.setFontSize(10);
+      pdf.setFont("helvetica", "bold");
       pdf.text("Producto", margin, currentY);
       pdf.text("Unidad", margin + colWidths.product, currentY);
       pdf.text("Cant.", margin + colWidths.product + colWidths.unit, currentY);
-      pdf.text("Precio Unit.", margin + colWidths.product + colWidths.unit + colWidths.quantity, currentY);
+      pdf.text("Precio", margin + colWidths.product + colWidths.unit + colWidths.quantity, currentY);
       pdf.text("Total", margin + colWidths.product + colWidths.unit + colWidths.quantity + colWidths.price, currentY);
       
       currentY += 5;
@@ -743,94 +847,132 @@ export default function TomadorPedidos() {
       pdf.line(margin, currentY, pageWidth - margin, currentY);
       currentY += 10;
 
-      // Table content
+      // Table content - Use real saved item data
       pdf.setFont("helvetica", "normal");
-      cart.forEach((item, index) => {
+      items.forEach((item, index) => {
+        // Product name
         pdf.text(item.productName, margin, currentY);
-        pdf.text("UN", margin + colWidths.product, currentY);
-        pdf.text(item.quantity.toString(), margin + colWidths.product + colWidths.unit, currentY);
-        pdf.text(`$${item.unitPrice.toLocaleString('es-CL')}`, margin + colWidths.product + colWidths.unit + colWidths.quantity, currentY);
-        pdf.text(`$${item.totalPrice.toLocaleString('es-CL')}`, margin + colWidths.product + colWidths.unit + colWidths.quantity + colWidths.price, currentY);
-        currentY += 8;
+        currentY += 6;
+        
+        // SKU (if exists)
+        if (item.productCode || item.customSku) {
+          pdf.setFontSize(8);
+          pdf.text(`SKU: ${item.productCode || item.customSku}`, margin, currentY);
+          pdf.setFontSize(10);
+          currentY += 6;
+        }
+        
+        // Reset to the same line for other columns
+        const itemY = currentY - (item.productCode || item.customSku ? 12 : 6);
+        
+        // Use REAL product unit data instead of hardcoded "UN"
+        const productUnit = item.productUnit || "UN";
+        pdf.text(productUnit, margin + colWidths.product, itemY);
+        pdf.text(parseFloat(item.quantity).toString(), margin + colWidths.product + colWidths.unit, itemY);
+        
+        // Format price with dots as thousands separator
+        const unitPrice = parseFloat(item.unitPrice);
+        const totalPrice = parseFloat(item.totalPrice);
+        const formattedPrice = `$${Math.round(unitPrice).toLocaleString('es-CL').replace(/,/g, '.')}`;
+        const formattedTotal = `$${Math.round(totalPrice).toLocaleString('es-CL').replace(/,/g, '.')}`;
+        
+        pdf.text(formattedPrice, margin + colWidths.product + colWidths.unit + colWidths.quantity, itemY);
+        pdf.text(formattedTotal, margin + colWidths.product + colWidths.unit + colWidths.quantity + colWidths.price, itemY);
+        
+        currentY += 10;
       });
 
-      currentY += 10;
+      currentY += 15;
 
-      // Totals section
-      const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-      const tax = subtotal * 0.19;
-      const total = subtotal + tax;
+      // Financial summary (right-aligned) - Use real quote totals
+      const subtotal = parseFloat(quote.subtotal || "0");
+      const subtotalNeto = subtotal; // Same as subtotal in this case  
+      const tax = parseFloat(quote.taxAmount || "0");
+      const total = parseFloat(quote.total || "0");
 
-      pdf.line(pageWidth - margin - 70, currentY, pageWidth - margin, currentY);
+      const summaryX = pageWidth - margin - 60;
+      const valueX = pageWidth - margin;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      
+      pdf.text("Subtotal:", summaryX, currentY);
+      pdf.text(`$${Math.round(subtotal).toLocaleString('es-CL').replace(/,/g, '.')}`, valueX, currentY, { align: "right" });
       currentY += 8;
 
-      pdf.text("Subtotal:", pageWidth - margin - 70, currentY);
-      pdf.text(`$${subtotal.toLocaleString('es-CL')}`, pageWidth - margin, currentY, { align: "right" });
+      pdf.text("Subtotal neto:", summaryX, currentY);
+      pdf.text(`$${Math.round(subtotalNeto).toLocaleString('es-CL').replace(/,/g, '.')}`, valueX, currentY, { align: "right" });
       currentY += 8;
 
-      pdf.text("IVA (19%):", pageWidth - margin - 70, currentY);
-      pdf.text(`$${tax.toLocaleString('es-CL')}`, pageWidth - margin, currentY, { align: "right" });
+      pdf.text("IVA (19%):", summaryX, currentY);
+      pdf.text(`$${Math.round(tax).toLocaleString('es-CL').replace(/,/g, '.')}`, valueX, currentY, { align: "right" });
       currentY += 8;
 
       pdf.setFont("helvetica", "bold");
-      pdf.text("TOTAL FINAL:", pageWidth - margin - 70, currentY);
-      pdf.text(`$${total.toLocaleString('es-CL')}`, pageWidth - margin, currentY, { align: "right" });
-      currentY += 20;
+      pdf.text("Total Final:", summaryX, currentY);
+      pdf.text(`$${Math.round(total).toLocaleString('es-CL').replace(/,/g, '.')}`, valueX, currentY, { align: "right" });
+      currentY += 25;
 
-      // Validity section
-      if (quoteForm.validUntil) {
-        pdf.setFont("helvetica", "normal");
-        pdf.text(`Válida hasta: ${new Date(quoteForm.validUntil).toLocaleDateString('es-CL')}`, margin, currentY);
-        currentY += 15;
-      }
-
-      // Terms and conditions
+      // Terms and conditions section with title
+      pdf.setFontSize(12);
       pdf.setFont("helvetica", "bold");
-      pdf.text("TÉRMINOS Y CONDICIONES:", margin, currentY);
-      currentY += 10;
+      pdf.text("TÉRMINOS Y CONDICIONES", margin, currentY);
+      currentY += 15;
 
+      pdf.setFontSize(10);
       pdf.setFont("helvetica", "normal");
       const terms = [
-        "• Esta cotización es válida por 30 días desde la fecha de emisión",
-        "• Los precios incluyen IVA",
-        "• Forma de pago: 50% al confirmar pedido, 50% contra entrega",
-        "• Tiempo de entrega: 15 días hábiles",
-        "• Los productos están sujetos a disponibilidad de stock"
+        "Precios válidos por 7 días hábiles desde la emisión de esta cotización.",
+        "Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.",
+        "Los productos están sujetos a disponibilidad de stock.",
+        "Condiciones de pago: según acuerdo comercial."
       ];
 
       terms.forEach(term => {
         pdf.text(term, margin, currentY);
         currentY += 6;
       });
-
-      // Notes section
-      if (quoteForm.notes && quoteForm.notes.trim()) {
-        currentY += 10;
-        pdf.setFont("helvetica", "bold");
-        pdf.text("OBSERVACIONES:", margin, currentY);
-        currentY += 8;
-        
-        pdf.setFont("helvetica", "normal");
-        const splitNotes = pdf.splitTextToSize(quoteForm.notes, maxLineWidth);
-        pdf.text(splitNotes, margin, currentY);
-      }
-
-      // Save the PDF
-      pdf.save(`Cotizacion_${quoteNumber}_${quoteForm.clientName.replace(/\s+/g, '_')}.pdf`);
       
-      toast({
-        title: "PDF generado",
-        description: "La cotización se ha descargado exitosamente",
+      currentY += 15;
+
+      // Payment information section with title
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("INFORMACIÓN DE PAGOS", margin, currentY);
+      currentY += 15;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.text("Link de pagos con tarjetas: https://micrositios.getnet.cl/pinturaspanoramica", margin, currentY);
+      currentY += 10;
+
+      // Bank transfer info - split into multiple lines for better formatting
+      const transferInfo = [
+        "Pintureria Panoramica Limitada",
+        "RUT: 78.652.260-9",
+        "Cuenta Corriente Banco Santander: 2592916-0",
+        "Email: contacto@pinturaspanoramica.cl"
+      ];
+
+      transferInfo.forEach(info => {
+        pdf.text(info, margin, currentY);
+        currentY += 6;
       });
+
+      // Save the PDF with real quote number and client name
+      pdf.save(`Cotizacion_${quote.quoteNumber}_${quote.clientName.replace(/\s+/g, '_')}.pdf`);
+      
+      // Don't show PDF-specific toast here as the main function shows a combined success message
 
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo generar el PDF. Inténtalo de nuevo.",
-        variant: "destructive",
-      });
+      throw error; // Re-throw to be handled by the main function
     }
+  };
+
+  // Legacy PDF download function (kept for compatibility, but now just calls the integrated function)
+  const downloadPDF = () => {
+    saveQuoteAndDownloadPDF();
   };
 
   // Save quote
