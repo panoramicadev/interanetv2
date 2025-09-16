@@ -4033,7 +4033,7 @@ export function registerRoutes(app: Express): Server {
         offset: parseInt(offset)
       };
 
-      const products = await storage.getEcommerceProducts(filters);
+      const products = await storage.getEcommerceAdminProducts(filters);
       res.json(products);
     } catch (error) {
       console.error("Error fetching store products:", error);
