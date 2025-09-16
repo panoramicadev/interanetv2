@@ -584,14 +584,14 @@ export default function TiendaPage() {
         data-testid="banner-carousel"
       >
         {/* Image container with transitions */}
-        <div className="relative w-full min-h-[120px] max-h-[160px] sm:max-h-[200px] md:max-h-[240px] lg:max-h-[280px]">
+        <div className="relative w-full">
           {banners.map((banner, index) => (
             <img
               key={index}
               src={banner.src}
               alt={banner.alt}
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-                index === currentSlide ? 'opacity-100' : 'opacity-0'
+              className={`w-full h-auto object-contain transition-opacity duration-500 ${
+                index === currentSlide ? 'opacity-100 relative' : 'opacity-0 absolute top-0 left-0'
               }`}
               data-testid={`banner-slide-${index}`}
             />
