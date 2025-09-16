@@ -886,6 +886,21 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Packaging metrics endpoint
+  app.get('/api/sales/packaging-metrics', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { period, filterType, salesperson, segment } = req.query;
+    const dateRange = getDateRange(period as string, filterType as string);
+    
+    const packagingMetrics = await storage.getPackagingMetrics({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      salesperson: salesperson as string,
+      segment: segment as string,
+    });
+    
+    res.json(packagingMetrics);
+  }));
+
   // Comunas analysis endpoint
   app.get('/api/sales/comunas', requireAuth, async (req, res) => {
     try {

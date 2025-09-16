@@ -70,6 +70,41 @@ function normalizeComunaName(name: string | null): string | null {
     .replace(/\s+/g, ' '); // collapse spaces
 }
 
+// Utility function to extract packaging type from product names
+function extractPackagingType(productName: string | null): string {
+  if (!productName) return 'OT'; // Other
+  
+  const nameUpper = productName.toUpperCase().trim();
+  
+  // Define packaging type patterns - order matters for specificity
+  const packagingPatterns = [
+    { type: 'BD', patterns: ['BALDE', 'BALDES'] },
+    { type: 'GL', patterns: ['GL.', 'GL ', ' GL', 'GALON', 'GALONES'] },
+    { type: 'Q4', patterns: ['4 GALONES', '4 GL', '4GL', 'CUARTO'] },
+    { type: 'KT', patterns: ['KIT', 'KT'] },
+    { type: 'UN', patterns: ['UNIDAD', ' UN.', ' UN ', 'UNITARIO'] },
+    { type: 'KG', patterns: ['KG.', 'KG ', ' KG', 'KILO', 'KILOGRAMO'] },
+    { type: 'LT', patterns: ['LT.', 'LT ', ' LT', 'LITRO', 'LITROS'] },
+    { type: 'GB', patterns: ['GARRAFA', 'BIDÓN'] },
+    { type: 'OD', patterns: ['ONZA', 'OZ'] }
+  ];
+  
+  // Check each pattern in order of specificity
+  for (const packagingGroup of packagingPatterns) {
+    for (const pattern of packagingGroup.patterns) {
+      if (nameUpper.includes(pattern)) {
+        return packagingGroup.type;
+      }
+    }
+  }
+  
+  // Special cases for fractions
+  if (nameUpper.match(/1\/4\s*GL/)) return 'Q4';
+  if (nameUpper.match(/1\/2\s*GL/)) return 'GL';
+  
+  return 'OT'; // Other - unclassified packaging
+}
+
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -159,6 +194,21 @@ export interface IStorage {
   getSalesChartData(period: 'weekly' | 'monthly' | 'daily', startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     period: string;
     sales: number;
+  }>>;
+  
+  // Packaging metrics operations
+  getPackagingMetrics(filters?: {
+    startDate?: string;
+    endDate?: string;
+    salesperson?: string;
+    segment?: string;
+  }): Promise<Array<{
+    packagingType: string;
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    salesPercentage: number;
+    unitPercentage: number;
   }>>;
   
   // Product analytics operations
@@ -1281,6 +1331,97 @@ export class DatabaseStorage implements IStorage {
     return results.map((r: any) => ({
       period: r.period,
       sales: Number(r.sales),
+    }));
+  }
+
+  // Packaging metrics operations
+  async getPackagingMetrics(filters?: {
+    startDate?: string;
+    endDate?: string;
+    salesperson?: string;
+    segment?: string;
+  }): Promise<Array<{
+    packagingType: string;
+    totalSales: number;
+    totalUnits: number;
+    transactionCount: number;
+    salesPercentage: number;
+    unitPercentage: number;
+  }>> {
+    const conditions = [sql`${salesTransactions.feemdo} IS NOT NULL`];
+    
+    // Use proper date boundaries for inclusive range
+    const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(filters?.startDate, filters?.endDate);
+    
+    if (startDateCondition) {
+      conditions.push(startDateCondition);
+    }
+    if (endDateCondition) {
+      conditions.push(endDateCondition);
+    }
+    if (filters?.salesperson) {
+      conditions.push(eq(salesTransactions.nokofu, filters.salesperson));
+    }
+    if (filters?.segment) {
+      conditions.push(eq(salesTransactions.noruen, filters.segment));
+    }
+
+    // Get totals for percentage calculations
+    const [totalResult] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
+      })
+      .from(salesTransactions)
+      .where(and(...conditions));
+
+    const grandTotalSales = Number(totalResult.totalSales);
+    const grandTotalUnits = Number(totalResult.totalUnits);
+
+    // Query for packaging metrics using CASE for SQL-based packaging type extraction
+    const results = await db
+      .select({
+        packagingType: sql<string>`
+          CASE 
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%BALDE%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%BALDES%' THEN 'BD'
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%4 GALONES%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%4 GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%4GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%CUARTO%' THEN 'Q4'
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%GL.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GL %' OR UPPER(${salesTransactions.nokoprct}) LIKE '% GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GALON%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GALONES%' THEN 'GL'
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%KIT%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%KT%' THEN 'KT'
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%UNIDAD%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% UN.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% UN %' OR UPPER(${salesTransactions.nokoprct}) LIKE '%UNITARIO%' THEN 'UN'
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%KG.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%KG %' OR UPPER(${salesTransactions.nokoprct}) LIKE '% KG%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%KILO%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%KILOGRAMO%' THEN 'KG'
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%LT.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%LT %' OR UPPER(${salesTransactions.nokoprct}) LIKE '% LT%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%LITRO%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%LITROS%' THEN 'LT'
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%GARRAFA%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%BIDÓN%' THEN 'GB'
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%ONZA%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%OZ%' THEN 'OD'
+            ELSE 'OT'
+          END`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(salesTransactions)
+      .where(and(...conditions))
+      .groupBy(sql`
+        CASE 
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%BALDE%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%BALDES%' THEN 'BD'
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%4 GALONES%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%4 GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%4GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%CUARTO%' THEN 'Q4'
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%GL.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GL %' OR UPPER(${salesTransactions.nokoprct}) LIKE '% GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GALON%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GALONES%' THEN 'GL'
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%KIT%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%KT%' THEN 'KT'
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%UNIDAD%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% UN.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% UN %' OR UPPER(${salesTransactions.nokoprct}) LIKE '%UNITARIO%' THEN 'UN'
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%KG.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%KG %' OR UPPER(${salesTransactions.nokoprct}) LIKE '% KG%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%KILO%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%KILOGRAMO%' THEN 'KG'
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%LT.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%LT %' OR UPPER(${salesTransactions.nokoprct}) LIKE '% LT%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%LITRO%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%LITROS%' THEN 'LT'
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%GARRAFA%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%BIDÓN%' THEN 'GB'
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%ONZA%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%OZ%' THEN 'OD'
+          ELSE 'OT'
+        END`)
+      .orderBy(sql`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0) DESC`);
+
+    return results.map((r: any) => ({
+      packagingType: r.packagingType,
+      totalSales: Number(r.totalSales),
+      totalUnits: Number(r.totalUnits),
+      transactionCount: Number(r.transactionCount),
+      salesPercentage: grandTotalSales > 0 ? (Number(r.totalSales) / grandTotalSales) * 100 : 0,
+      unitPercentage: grandTotalUnits > 0 ? (Number(r.totalUnits) / grandTotalUnits) * 100 : 0,
     }));
   }
 

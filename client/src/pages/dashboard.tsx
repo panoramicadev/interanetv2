@@ -12,6 +12,8 @@ import TopClientsPanel from "@/components/dashboard/top-clients-panel";
 import TopSalespeoplePanel from "@/components/dashboard/top-salespeople-panel";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import GoalsProgress from "@/components/dashboard/goals-progress";
+import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
+import PackagingUnitsMetrics from "@/components/dashboard/packaging-units-metrics";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -412,6 +414,26 @@ export default function Dashboard() {
               segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
               salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
             />
+          </div>
+
+          {/* Packaging Metrics - Two Columns */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <PackagingSalesMetrics 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+              />
+            </div>
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <PackagingUnitsMetrics 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+              />
+            </div>
           </div>
 
           {/* Client Analytics & Sales Team - Two Columns */}
