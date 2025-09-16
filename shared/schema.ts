@@ -1794,3 +1794,172 @@ export type InsertStoreConfigInput = z.infer<typeof insertStoreConfigSchema>;
 export type InsertStoreBannerInput = z.infer<typeof insertStoreBannerSchema>;
 export type InsertProductImageInput = z.infer<typeof insertProductImageSchema>;
 export type InsertStoreNavigationInput = z.infer<typeof insertStoreNavigationSchema>;
+
+// ================================
+// CART DATA MODEL & TYPES
+// ================================
+
+// Cart item interface - represents a product with selections in the cart
+export interface CartItem {
+  // Product identification
+  id: string; // Unique cart item ID (allows same product with different variations)
+  productId: string; // Product ID from products table
+  productCode: string; // KOPR code from products table
+  productName: string; // Product name
+  productSlug?: string; // For product page navigation
+  
+  // Product variations/selections
+  selectedPackaging?: string; // E.g., "Galón", "Balde 4 Galones", "1/4"
+  selectedColor?: string; // E.g., "BLANCO", "NEGRO", etc.
+  selectedFinish?: string; // E.g., "Mate", "Satinado", etc.
+  unit: string; // Base unit from ud02pr (GL, BD4, 1/4, etc.)
+  
+  // Pricing and quantity
+  unitPrice: number; // Price per unit in CLP
+  quantity: number; // Selected quantity (must follow validation rules)
+  subtotal: number; // unitPrice * quantity (calculated)
+  
+  // Product information for display
+  imageUrl?: string; // Primary product image
+  category?: string; // Product category
+  
+  // Metadata
+  addedAt: string; // ISO timestamp when added to cart
+  updatedAt: string; // ISO timestamp when last modified
+  
+  // Validation metadata
+  minQuantity: number; // Minimum quantity based on unit type
+  quantityStep: number; // Step increment (1 for BD, 4 for GL, 6 for 1/4)
+}
+
+// Cart state interface
+export interface CartState {
+  items: CartItem[];
+  
+  // Calculated totals
+  subtotal: number; // Sum of all item subtotals
+  taxAmount: number; // IVA (19% in Chile)
+  discountAmount: number; // Total discount amount
+  total: number; // Final total (subtotal + tax - discount)
+  
+  // Cart metrics
+  itemCount: number; // Total number of different items
+  unitCount: number; // Total number of units (sum of all quantities)
+  
+  // Applied discounts/coupons
+  appliedCoupons: Array<{
+    code: string;
+    discount: number; // Discount amount in CLP
+    type: 'percentage' | 'fixed'; // Discount type
+    description?: string;
+  }>;
+  
+  // Metadata
+  lastUpdated: string; // ISO timestamp
+  sessionId?: string; // For guest cart tracking
+  version: string; // Schema version for future migrations
+}
+
+// Cart action types
+export type CartAction =
+  | { type: 'ADD_ITEM'; payload: Omit<CartItem, 'id' | 'subtotal' | 'addedAt' | 'updatedAt'> }
+  | { type: 'REMOVE_ITEM'; payload: { id: string } }
+  | { type: 'UPDATE_QUANTITY'; payload: { id: string; quantity: number } }
+  | { type: 'UPDATE_ITEM'; payload: { id: string; updates: Partial<CartItem> } }
+  | { type: 'CLEAR_CART' }
+  | { type: 'APPLY_COUPON'; payload: { code: string; discount: number; type: 'percentage' | 'fixed'; description?: string } }
+  | { type: 'REMOVE_COUPON'; payload: { code: string } }
+  | { type: 'LOAD_CART'; payload: CartState }
+  | { type: 'CALCULATE_TOTALS' };
+
+// Quantity validation rules based on unit types
+export interface QuantityRules {
+  unit: string; // Unit identifier (GL, BD4, BD5, 1/4, etc.)
+  minQuantity: number; // Minimum order quantity
+  stepQuantity: number; // Increment step (1, 4, 6, etc.)
+  displayName: string; // Human readable unit name
+  description: string; // Help text for quantity rules
+}
+
+// Cart configuration constants
+export const CART_CONFIG = {
+  TAX_RATE: 0.19, // Chilean IVA rate (19%)
+  CURRENCY: 'CLP',
+  CURRENCY_SYMBOL: '$',
+  MAX_ITEMS: 50, // Maximum number of different items in cart
+  MAX_QUANTITY_PER_ITEM: 999,
+  
+  // Quantity rules by unit type
+  QUANTITY_RULES: {
+    // Baldes - individual units
+    BD4: { minQuantity: 1, stepQuantity: 1, displayName: 'Balde 4 Galones', description: 'Mínimo 1 unidad' },
+    BD5: { minQuantity: 1, stepQuantity: 1, displayName: 'Balde 5 Galones', description: 'Mínimo 1 unidad' },
+    
+    // Galones - multiples of 4
+    GL: { minQuantity: 4, stepQuantity: 4, displayName: 'Galón', description: 'Mínimo 4 galones' },
+    GAL: { minQuantity: 4, stepQuantity: 4, displayName: 'Galón', description: 'Mínimo 4 galones' },
+    
+    // Cuartos - multiples of 6
+    '1/4': { minQuantity: 6, stepQuantity: 6, displayName: '1/4 Galón', description: 'Mínimo 6 unidades' },
+    'CUARTO': { minQuantity: 6, stepQuantity: 6, displayName: '1/4 Galón', description: 'Mínimo 6 unidades' },
+    
+    // Default for other units
+    DEFAULT: { minQuantity: 1, stepQuantity: 1, displayName: 'Unidad', description: 'Mínimo 1 unidad' }
+  } as const
+} as const;
+
+// Helper functions for cart calculations
+export interface CartCalculations {
+  calculateItemSubtotal: (unitPrice: number, quantity: number) => number;
+  calculateCartSubtotal: (items: CartItem[]) => number;
+  calculateTax: (subtotal: number, taxRate?: number) => number;
+  calculateDiscount: (subtotal: number, coupons: CartState['appliedCoupons']) => number;
+  calculateTotal: (subtotal: number, taxAmount: number, discountAmount: number) => number;
+  validateQuantity: (quantity: number, unit: string) => { isValid: boolean; validQuantity: number; minQuantity: number; stepQuantity: number };
+  generateCartItemId: (productId: string, variations?: Record<string, string>) => string;
+}
+
+// Zod schemas for cart validation
+export const cartItemSchema = z.object({
+  id: z.string(),
+  productId: z.string(),
+  productCode: z.string(),
+  productName: z.string(),
+  productSlug: z.string().optional(),
+  selectedPackaging: z.string().optional(),
+  selectedColor: z.string().optional(), 
+  selectedFinish: z.string().optional(),
+  unit: z.string(),
+  unitPrice: z.number().min(0),
+  quantity: z.number().int().min(1),
+  subtotal: z.number().min(0),
+  imageUrl: z.string().optional(),
+  category: z.string().optional(),
+  addedAt: z.string(),
+  updatedAt: z.string(),
+  minQuantity: z.number().int().min(1),
+  quantityStep: z.number().int().min(1),
+});
+
+export const cartStateSchema = z.object({
+  items: z.array(cartItemSchema),
+  subtotal: z.number().min(0),
+  taxAmount: z.number().min(0),
+  discountAmount: z.number().min(0),
+  total: z.number().min(0),
+  itemCount: z.number().int().min(0),
+  unitCount: z.number().int().min(0),
+  appliedCoupons: z.array(z.object({
+    code: z.string(),
+    discount: z.number().min(0),
+    type: z.enum(['percentage', 'fixed']),
+    description: z.string().optional(),
+  })),
+  lastUpdated: z.string(),
+  sessionId: z.string().optional(),
+  version: z.string().default('1.0.0'),
+});
+
+// Export cart types for TypeScript inference
+export type CartItemType = z.infer<typeof cartItemSchema>;
+export type CartStateType = z.infer<typeof cartStateSchema>;
