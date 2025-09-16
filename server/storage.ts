@@ -58,7 +58,7 @@ import {
   type EcommerceProductFilters,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, lt, inArray, or, isNull } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
 
 // Utility function to normalize comuna names for consistent regional mapping
