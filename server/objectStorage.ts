@@ -169,13 +169,26 @@ export class ObjectStorageService {
     const bucket = objectStorageClient.bucket(bucketName);
     const file = bucket.file(objectName);
 
-    // Upload the file
+    // Upload the file without setting public access (to avoid 412 error)
     await file.save(imageBuffer, {
       metadata: {
         contentType,
       },
-      public: true, // Make the file publicly accessible
+      // Remove public: true to avoid GCS public access prevention error
     });
+
+    // Set ACL policy to make the object publicly readable via our custom ACL system
+    try {
+      const aclPolicy: ObjectAclPolicy = {
+        owner: 'system',
+        visibility: 'public',
+        aclRules: []
+      };
+      await setObjectAclPolicy(file, aclPolicy);
+    } catch (aclError) {
+      console.warn('Warning: Could not set ACL policy for uploaded image:', aclError);
+      // Continue anyway as the file is uploaded, just might not be publicly accessible via ACL
+    }
 
     // Return the public URL
     return `/public-objects/product-images/${fileName}`;

@@ -3529,6 +3529,36 @@ export class DatabaseStorage implements IStorage {
         };
       }
 
+      // If not found in ecommerceProducts, check priceList and auto-create ecommerce entry
+      const priceListProduct = await db
+        .select()
+        .from(priceList)
+        .where(eq(priceList.codigo, code))
+        .limit(1);
+
+      if (priceListProduct.length > 0) {
+        console.log(`[ZIP IMPORT] Auto-creating ecommerce product for code: ${code}`);
+        
+        // Create ecommerce product entry
+        const [newEcomProduct] = await db
+          .insert(ecommerceProducts)
+          .values({
+            priceListId: priceListProduct[0].id,
+            activo: true, // Make it active by default for ZIP import
+            precioEcommerce: priceListProduct[0].lista || priceListProduct[0].desc10 || null
+          })
+          .returning();
+
+        return {
+          id: newEcomProduct.id,
+          kopr: priceListProduct[0].codigo,
+          codigo: priceListProduct[0].codigo,
+          producto: priceListProduct[0].producto,
+          precio: newEcomProduct.precioEcommerce,
+          activo: newEcomProduct.activo
+        };
+      }
+
       return null;
     } catch (error) {
       console.error("Error getting ecommerce product by code:", error);
