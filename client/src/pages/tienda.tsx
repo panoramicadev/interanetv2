@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Search, 
-  ShoppingCart, 
+  ShoppingCart,
   Phone, 
   Mail, 
   MapPin, 
@@ -28,6 +28,9 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { useCart } from "@/hooks/useCart";
+import { validateQuantity as validateCartQuantity } from "@/contexts/CartContext";
+import { FloatingCart, CartToggle } from "@/components/cart";
 import bannerCopper from "@assets/Desktop Banner 02_1758045959229.png";
 import bannerStain from "@assets/Desktop Banner 03 (1)_1758047457407.png";
 import bannerDespacho from "@assets/Desktop Banner 01_1758047466193.png";
@@ -77,17 +80,6 @@ interface StoreProduct {
   orden?: number;
 }
 
-// Cart item interface
-interface CartItem {
-  productId: string;
-  productCode: string;
-  productName: string;
-  unitPrice: number;
-  quantity: number;
-  unit: string;
-  totalPrice: number;
-  imageUrl?: string;
-}
 
 const formatPrice = (price: number | string | null | undefined): string => {
   if (!price || price === 0 || price === "0") return "";
@@ -203,12 +195,10 @@ export default function TiendaPage() {
   ];
   
   // Cart state management
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [showFloatingCart, setShowFloatingCart] = useState(false);
   const { toast } = useToast();
-  
-  // Calculate cart count from cart items
-  const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+  const { addItem } = useCart();
   
   // Carousel auto-rotation effect
   useEffect(() => {
@@ -259,7 +249,7 @@ export default function TiendaPage() {
     const productName = getProductName(product);
     const unitPrice = getProductPrice(product);
     const unit = getProductUnit(product) || 'Unidad';
-    const quantity = getProductQuantity(product.id, getProductUnit(product));
+    const requestedQuantity = getProductQuantity(product.id, getProductUnit(product));
     
     // Validation
     if (unitPrice === 0) {
@@ -271,7 +261,7 @@ export default function TiendaPage() {
       return;
     }
     
-    if (quantity === 0) {
+    if (requestedQuantity === 0) {
       toast({
         title: "Error", 
         description: "Cantidad no válida",
@@ -280,55 +270,58 @@ export default function TiendaPage() {
       return;
     }
     
-    // Check if item already exists in cart
-    const existingItemIndex = cartItems.findIndex(item => item.productId === product.id);
+    // CRITICAL FIX: Validate quantity according to packaging rules
+    const validation = validateCartQuantity(requestedQuantity, unit);
+    const validatedQuantity = validation.validQuantity;
     
-    if (existingItemIndex >= 0) {
-      // Update existing item quantity
-      const updatedItems = [...cartItems];
-      const existingItem = updatedItems[existingItemIndex];
-      const newQuantity = existingItem.quantity + quantity;
-      
-      updatedItems[existingItemIndex] = {
-        ...existingItem,
-        quantity: newQuantity,
-        totalPrice: unitPrice * newQuantity
-      };
-      
-      setCartItems(updatedItems);
-      
-      toast({
-        title: "Producto actualizado",
-        description: `${productName} - Cantidad: ${newQuantity}`,
-        action: <Check className="h-4 w-4" />
-      });
-    } else {
-      // Add new item to cart
-      const newCartItem: CartItem = {
+    // Update local UI state to reflect the validated quantity
+    if (validatedQuantity !== requestedQuantity) {
+      setQuantities(prev => ({
+        ...prev,
+        [product.id]: validatedQuantity
+      }));
+    }
+    
+    // Use CartContext to add item with validated quantity
+    try {
+      addItem({
         productId: product.id,
         productCode,
         productName,
-        unitPrice,
-        quantity,
+        productSlug: product.slug,
         unit,
-        totalPrice: unitPrice * quantity,
-        imageUrl: getProductImageUrl(product)
-      };
+        unitPrice,
+        quantity: validatedQuantity, // Use validated quantity
+        imageUrl: getProductImageUrl(product),
+        category: getProductCategory(product),
+        minQuantity: validation.minQuantity,
+        quantityStep: validation.stepQuantity
+      });
       
-      setCartItems(prev => [...prev, newCartItem]);
+      // Show appropriate message based on validation
+      const message = validatedQuantity !== requestedQuantity ? 
+        `${productName} - Cantidad ajustada: ${validatedQuantity} (${validation.error || 'por reglas de empaque'})` :
+        `${productName} - Cantidad: ${validatedQuantity}`;
       
       toast({
         title: "Producto agregado al carrito",
-        description: `${productName} - Cantidad: ${quantity}`,
+        description: message,
         action: <Check className="h-4 w-4" />
       });
+      
+      // Reset quantity for this product to minimum valid quantity
+      setQuantities(prev => ({
+        ...prev,
+        [product.id]: validation.minQuantity
+      }));
+      
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el producto al carrito",
+        variant: "destructive"
+      });
     }
-    
-    // Reset quantity for this product
-    setQuantities(prev => ({
-      ...prev,
-      [product.id]: getMinimumQuantity(getProductUnit(product))
-    }));
   };
 
   // Fetch store configuration
@@ -390,6 +383,7 @@ export default function TiendaPage() {
   ];
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
@@ -445,18 +439,7 @@ export default function TiendaPage() {
             {/* Right section */}
             <div className="flex items-center gap-4">
               {/* Cart */}
-              <Button 
-                variant="ghost" 
-                className="relative p-2 hover:bg-[#FF6E23]/10"
-                data-testid="button-cart"
-              >
-                <ShoppingCart className="h-6 w-6 text-gray-700" />
-                {cartCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 bg-[#FF6E23] text-white text-xs w-5 h-5 rounded-full flex items-center justify-center p-0">
-                    {cartCount}
-                  </Badge>
-                )}
-              </Button>
+              <CartToggle onClick={() => setShowFloatingCart(true)} />
 
               {/* Mobile menu toggle */}
               <Button
@@ -1050,5 +1033,12 @@ export default function TiendaPage() {
         </div>
       </footer>
     </div>
+    
+    {/* Floating Cart */}
+    <FloatingCart 
+      isOpen={showFloatingCart} 
+      onClose={() => setShowFloatingCart(false)} 
+    />
+    </>
   );
 }
