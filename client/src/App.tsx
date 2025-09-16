@@ -8,6 +8,7 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Shop from "@/pages/shop";
+import Tienda from "@/pages/tienda";
 import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
 import SupervisorDashboard from "@/pages/supervisor-dashboard";
@@ -46,7 +47,7 @@ function Router() {
   return (
     <Switch>
       {/* Tienda pública accesible para todos */}
-      <Route path="/tienda" component={Shop} />
+      <Route path="/tienda" component={Tienda} />
       <Route path="/shop" component={Shop} />
       
       {!user ? (

@@ -3992,6 +3992,66 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Store API endpoints (public access)
+  
+  // Get store configuration
+  app.get('/api/store/config', async (req: any, res) => {
+    try {
+      const config = await storage.getStoreConfig();
+      res.json(config || {
+        siteName: "Pinturas Panorámica", 
+        logoUrl: "/panoramica-logo.png",
+        primaryColor: "#FF6B35"
+      });
+    } catch (error) {
+      console.error("Error fetching store config:", error);
+      res.status(500).json({ message: "Failed to fetch store configuration" });
+    }
+  });
+
+  // Get active store banners
+  app.get('/api/store/banners', async (req: any, res) => {
+    try {
+      const banners = await storage.getStoreBanners();
+      res.json(banners);
+    } catch (error) {
+      console.error("Error fetching store banners:", error);
+      res.status(500).json({ message: "Failed to fetch store banners" });
+    }
+  });
+
+  // Get ecommerce products with images and prices
+  app.get('/api/store/products', async (req: any, res) => {
+    try {
+      const { search, categoria, limit = 100, offset = 0 } = req.query;
+      
+      const filters = {
+        search: search || undefined,
+        categoria: categoria || undefined,
+        activo: true, // Only show active products
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      };
+
+      const products = await storage.getEcommerceProducts(filters);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching store products:", error);
+      res.status(500).json({ message: "Failed to fetch store products" });
+    }
+  });
+
+  // Get store categories
+  app.get('/api/store/categories', async (req: any, res) => {
+    try {
+      const categories = await storage.getEcommerceCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error("Error fetching store categories:", error);
+      res.status(500).json({ message: "Failed to fetch store categories" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

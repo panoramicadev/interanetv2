@@ -60,7 +60,7 @@ export default function ShopPage() {
   });
 
   // Get unique categories
-  const categories = Array.from(new Set(products.map((p: ShopProduct) => p.category).filter(Boolean)));
+  const categories = Array.from(new Set(products.map((p: ShopProduct) => p.category).filter(Boolean))) as string[];
 
   // Filter products
   const filteredProducts = products.filter((product) => {
