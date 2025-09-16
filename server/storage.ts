@@ -16,6 +16,8 @@ import {
   priceList,
   quotes,
   quoteItems,
+  storeConfig,
+  storeBanners,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -56,6 +58,8 @@ import {
   type EcommerceProduct,
   type UpdateEcommerceProduct,
   type EcommerceProductFilters,
+  type StoreConfig,
+  type StoreBanner,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray, or, isNull } from "drizzle-orm";
@@ -730,6 +734,18 @@ export interface IStorage {
   
   // Additional helper for quote items
   getQuoteItemById(id: string): Promise<QuoteItem | undefined>;
+
+  // Store operations
+  getStoreConfig(): Promise<any>;
+  getStoreBanners(): Promise<any[]>;
+  getEcommerceProducts(filters?: {
+    search?: string;
+    categoria?: string;
+    activo?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]>;
+  getEcommerceCategories(): Promise<string[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -6354,6 +6370,31 @@ export class DatabaseStorage implements IStorage {
     await this.updateQuote(quoteId, { status: 'converted' });
 
     return order;
+  }
+
+  // Store operations
+  async getStoreConfig(): Promise<StoreConfig | null> {
+    try {
+      const [config] = await db.select().from(storeConfig).limit(1);
+      return config || null;
+    } catch (error) {
+      console.error('Error fetching store config:', error);
+      return null;
+    }
+  }
+
+  async getStoreBanners(): Promise<StoreBanner[]> {
+    try {
+      const banners = await db
+        .select()
+        .from(storeBanners)
+        .where(eq(storeBanners.activo, true))
+        .orderBy(storeBanners.orden);
+      return banners;
+    } catch (error) {
+      console.error('Error fetching store banners:', error);
+      return [];
+    }
   }
 
 }
