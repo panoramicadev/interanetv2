@@ -96,13 +96,37 @@ export default function EcommerceAdmin() {
   // Mutación para actualizar producto
   const updateProductMutation = useMutation({
     mutationFn: async (data: { id: string; updates: Partial<ProductoEcommerce> }) => {
-      const response = await apiRequest(`/api/ecommerce/admin/productos/${data.id}`, {
-        method: 'PATCH',
-        data: data.updates
+      console.log('🔄 [FRONTEND] Iniciando actualización de producto:', {
+        id: data.id,
+        updates: data.updates,
+        url: `/api/ecommerce/admin/productos/${data.id}`
       });
-      return response.json();
+      
+      try {
+        const response = await apiRequest(`/api/ecommerce/admin/productos/${data.id}`, {
+          method: 'PATCH',
+          data: data.updates
+        });
+        
+        console.log('✅ [FRONTEND] Respuesta del servidor recibida:', {
+          status: response.status,
+          ok: response.ok
+        });
+        
+        const result = await response.json();
+        console.log('✅ [FRONTEND] Producto actualizado exitosamente:', result);
+        return result;
+      } catch (error) {
+        console.error('❌ [FRONTEND] Error en actualización de producto:', {
+          error,
+          id: data.id,
+          updates: data.updates
+        });
+        throw error;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('🎉 [FRONTEND] Mutación exitosa, invalidando queries...');
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/stats'] });
       setShowProductDialog(false);
@@ -112,10 +136,18 @@ export default function EcommerceAdmin() {
         description: "Los cambios se guardaron correctamente.",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('❌ [FRONTEND] Error en mutación:', error);
+      
+      // Extract more detailed error information
+      let errorMessage = "No se pudo actualizar el producto.";
+      if (error?.message) {
+        errorMessage += ` (${error.message})`;
+      }
+      
       toast({
         title: "Error",
-        description: "No se pudo actualizar el producto.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
