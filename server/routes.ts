@@ -4114,9 +4114,52 @@ export function registerRoutes(app: Express): Server {
         const MAX_TOTAL_UNCOMPRESSED = 100 * 1024 * 1024; // 100MB total uncompressed size
         
         const allFiles = Object.keys(zip.files);
-        const imageFiles = allFiles.filter(fileName => 
-          !zip.files[fileName].dir && isImageFile(fileName)
-        );
+        
+        // Enhanced debugging output
+        console.log(`[ZIP DEBUG] Total files in ZIP: ${allFiles.length}`);
+        console.log(`[ZIP DEBUG] All files list:`, allFiles.slice(0, 10), allFiles.length > 10 ? `... and ${allFiles.length - 10} more` : '');
+        
+        // Filter files more strictly
+        const imageFiles = allFiles.filter(fileName => {
+          const zipEntry = zip.files[fileName];
+          
+          // Skip directories
+          if (zipEntry.dir) {
+            console.log(`[ZIP DEBUG] Skipping directory: ${fileName}`);
+            return false;
+          }
+          
+          // Skip system/hidden files
+          const baseName = path.basename(fileName);
+          const isSystemFile = baseName.startsWith('.') || 
+                              baseName.toLowerCase().includes('thumbs.db') ||
+                              baseName.toLowerCase().includes('desktop.ini') ||
+                              baseName.toLowerCase() === '__macosx';
+          
+          if (isSystemFile) {
+            console.log(`[ZIP DEBUG] Skipping system/hidden file: ${fileName}`);
+            return false;
+          }
+          
+          // Check if it's an actual image file
+          const isImage = isImageFile(fileName);
+          if (!isImage) {
+            console.log(`[ZIP DEBUG] Skipping non-image file: ${fileName}`);
+            return false;
+          }
+          
+          // Additional check: file must have actual content
+          if (!zipEntry._data || zipEntry._data.uncompressedSize === 0) {
+            console.log(`[ZIP DEBUG] Skipping empty file: ${fileName}`);
+            return false;
+          }
+          
+          console.log(`[ZIP DEBUG] Including image file: ${fileName} (${zipEntry._data?.uncompressedSize || 0} bytes)`);
+          return true;
+        });
+        
+        console.log(`[ZIP DEBUG] Final image files count: ${imageFiles.length}`);
+        console.log(`[ZIP DEBUG] Image files list:`, imageFiles.slice(0, 10), imageFiles.length > 10 ? `... and ${imageFiles.length - 10} more` : '');
         
         // Check file count limit
         if (imageFiles.length > MAX_FILES) {

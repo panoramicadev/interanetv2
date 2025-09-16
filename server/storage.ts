@@ -18,6 +18,7 @@ import {
   quoteItems,
   storeConfig,
   storeBanners,
+  ecommerceProducts,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -3513,7 +3514,7 @@ export class DatabaseStorage implements IStorage {
       const result = await db
         .select()
         .from(ecommerceProducts)
-        .innerJoin(priceList, eq(ecommerceProducts.codigoProducto, priceList.codigo))
+        .innerJoin(priceList, eq(ecommerceProducts.priceListId, priceList.id))
         .where(eq(priceList.codigo, code))
         .limit(1);
 
@@ -3523,7 +3524,7 @@ export class DatabaseStorage implements IStorage {
           kopr: result[0].price_list.codigo,
           codigo: result[0].price_list.codigo,
           producto: result[0].price_list.producto,
-          precio: result[0].ecommerce_products.precio,
+          precio: result[0].ecommerce_products.precioEcommerce,
           activo: result[0].ecommerce_products.activo
         };
       }
