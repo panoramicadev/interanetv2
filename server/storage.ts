@@ -439,6 +439,7 @@ export interface IStorage {
   getEcommerceProduct(kopr: string): Promise<(Product & { displayPrice?: number }) | undefined>;
   createEcommerceProduct(product: EcommerceProduct): Promise<Product>;
   updateEcommerceProduct(kopr: string, product: UpdateEcommerceProduct): Promise<Product>;
+  getEcommerceProductByCode(code: string): Promise<any | null>;
   toggleEcommerceActive(kopr: string): Promise<Product>;
   getEcommerceCategories(): Promise<string[]>;
   validateProductSlug(slug: string, excludeKopr?: string): Promise<boolean>;
@@ -3504,6 +3505,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(products.kopr, kopr))
       .returning();
     return updatedProduct;
+  }
+
+  async getEcommerceProductByCode(code: string): Promise<any | null> {
+    try {
+      // Look for the product in ecommerceProducts table first (matches ZIP import use case)
+      const result = await db
+        .select()
+        .from(ecommerceProducts)
+        .innerJoin(priceList, eq(ecommerceProducts.codigoProducto, priceList.codigo))
+        .where(eq(priceList.codigo, code))
+        .limit(1);
+
+      if (result.length > 0) {
+        return {
+          id: result[0].ecommerce_products.id,
+          kopr: result[0].price_list.codigo,
+          codigo: result[0].price_list.codigo,
+          producto: result[0].price_list.producto,
+          precio: result[0].ecommerce_products.precio,
+          activo: result[0].ecommerce_products.activo
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error getting ecommerce product by code:", error);
+      return null;
+    }
   }
 
   async toggleEcommerceActive(kopr: string): Promise<Product> {

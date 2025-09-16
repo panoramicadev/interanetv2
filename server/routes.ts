@@ -1,11 +1,17 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import path from "path";
 import { storage } from "./storage";
 import { setupAuth, requireAuth, requireAdminOrSupervisor } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
 import { checkDbHealth } from "./db";
+import JSZip from "jszip";
+import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { db } from "./db";
+import { ecommerceProducts } from "../shared/schema";
+import { eq } from "drizzle-orm";
 
 // Database error handling middleware with secure logging
 function handleDatabaseError(error: any, operation: string) {
@@ -4051,6 +4057,187 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to fetch store categories" });
     }
   });
+
+  // Object Storage endpoints
+  
+  // Serve public objects from Object Storage
+  app.get("/public-objects/:filePath(*)", asyncHandler(async (req: any, res: any) => {
+    const filePath = req.params.filePath;
+    const objectStorageService = new ObjectStorageService();
+    try {
+      const file = await objectStorageService.searchPublicObject(filePath);
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      objectStorageService.downloadObject(file, res);
+    } catch (error) {
+      console.error("Error searching for public object:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }));
+
+  // ZIP image importer for eCommerce products
+  const uploadZip = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype === 'application/zip' || 
+          file.mimetype === 'application/x-zip-compressed' ||
+          file.originalname.toLowerCase().endsWith('.zip')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only ZIP files are allowed'));
+      }
+    }
+  });
+
+  app.post('/api/ecommerce/admin/upload-images', 
+    requireAuth, 
+    requireAdminOrSupervisor,
+    uploadZip.single('zipFile'),
+    asyncHandler(async (req: any, res: any) => {
+      if (!req.file) {
+        return res.status(400).json({ message: "No ZIP file provided" });
+      }
+
+      const zipBuffer = req.file.buffer;
+      const objectStorageService = new ObjectStorageService();
+      
+      try {
+        // Parse ZIP file
+        const zip = new JSZip();
+        await zip.loadAsync(zipBuffer);
+
+        // ZIP security controls
+        const MAX_FILES = 100; // Maximum number of files allowed
+        const MAX_ENTRY_SIZE = 10 * 1024 * 1024; // 10MB per individual file
+        const MAX_TOTAL_UNCOMPRESSED = 100 * 1024 * 1024; // 100MB total uncompressed size
+        
+        const allFiles = Object.keys(zip.files);
+        const imageFiles = allFiles.filter(fileName => 
+          !zip.files[fileName].dir && isImageFile(fileName)
+        );
+        
+        // Check file count limit
+        if (imageFiles.length > MAX_FILES) {
+          return res.status(400).json({
+            message: `ZIP contains too many image files (${imageFiles.length}). Maximum allowed: ${MAX_FILES}`
+          });
+        }
+        
+        // Check individual file sizes and total uncompressed size
+        let totalUncompressedSize = 0;
+        for (const fileName of imageFiles) {
+          const zipEntry = zip.files[fileName];
+          if (zipEntry._data && zipEntry._data.uncompressedSize > MAX_ENTRY_SIZE) {
+            return res.status(400).json({
+              message: `File '${fileName}' exceeds maximum size limit (${Math.round(zipEntry._data.uncompressedSize / (1024 * 1024))}MB > ${MAX_ENTRY_SIZE / (1024 * 1024)}MB)`
+            });
+          }
+          totalUncompressedSize += zipEntry._data?.uncompressedSize || 0;
+        }
+        
+        if (totalUncompressedSize > MAX_TOTAL_UNCOMPRESSED) {
+          return res.status(400).json({
+            message: `Total uncompressed size exceeds limit (${Math.round(totalUncompressedSize / (1024 * 1024))}MB > ${MAX_TOTAL_UNCOMPRESSED / (1024 * 1024)}MB)`
+          });
+        }
+
+        const results: Array<{ fileName: string; success: boolean; productCode?: string; error?: string }> = [];
+        let processed = 0;
+        const total = imageFiles.length;
+
+        // Process each image file in the ZIP
+        for (const fileName of imageFiles) {
+          const zipEntry = zip.files[fileName];
+
+          try {
+            // Extract product code from filename (handle nested ZIP structures and remove extension)
+            const baseName = path.basename(fileName);
+            const productCode = baseName.replace(/\.(png|jpg|jpeg|gif|webp)$/i, '');
+            
+            // Check if product exists in the database
+            const existingProduct = await storage.getEcommerceProductByCode(productCode);
+            
+            if (!existingProduct) {
+              results.push({
+                fileName,
+                success: false,
+                error: `Producto con código '${productCode}' no encontrado`
+              });
+              continue;
+            }
+
+            // Get image data
+            const imageBuffer = await zipEntry.async('nodebuffer');
+            
+            // Upload to Object Storage with unique filename
+            const timestamp = Date.now();
+            const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'png';
+            const uniqueFileName = `${productCode}_${timestamp}.${fileExtension}`;
+            
+            const imageUrl = await objectStorageService.uploadImage(
+              uniqueFileName,
+              imageBuffer,
+              getContentType(fileExtension)
+            );
+
+            // Update ecommerce product record with image URL using ecommerce products table
+            await db
+              .update(ecommerceProducts)
+              .set({ imagenUrl: imageUrl })
+              .where(eq(ecommerceProducts.id, existingProduct.id));
+
+            results.push({
+              fileName,
+              success: true,
+              productCode
+            });
+            processed++;
+
+          } catch (error) {
+            console.error(`Error processing image ${fileName}:`, error);
+            results.push({
+              fileName,
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            });
+          }
+        }
+
+        res.json({
+          processed,
+          total: results.length,
+          results
+        });
+
+      } catch (error) {
+        console.error("Error processing ZIP file:", error);
+        res.status(500).json({ 
+          message: "Failed to process ZIP file",
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    })
+  );
+
+  // Helper functions for ZIP processor
+  function isImageFile(fileName: string): boolean {
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+    const lowerFileName = fileName.toLowerCase();
+    return imageExtensions.some(ext => lowerFileName.endsWith(ext));
+  }
+
+  function getContentType(extension: string): string {
+    const contentTypes: { [key: string]: string } = {
+      'png': 'image/png',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'gif': 'image/gif',
+      'webp': 'image/webp'
+    };
+    return contentTypes[extension.toLowerCase()] || 'image/png';
+  }
 
   const httpServer = createServer(app);
   return httpServer;
