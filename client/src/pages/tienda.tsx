@@ -86,7 +86,18 @@ export default function TiendaPage() {
 
   // Fetch store products
   const { data: products = [], isLoading: productsLoading } = useQuery<StoreProduct[]>({
-    queryKey: ['/api/store/products', { search: searchTerm, categoria: selectedCategory }],
+    queryKey: ['/api/store/products', searchTerm, selectedCategory],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (selectedCategory && selectedCategory !== 'all') params.append('categoria', selectedCategory);
+      params.append('limit', '100');
+      
+      const url = `/api/store/products${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch products');
+      return response.json();
+    },
     retry: false,
   });
 
