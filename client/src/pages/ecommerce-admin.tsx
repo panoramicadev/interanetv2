@@ -490,7 +490,7 @@ export default function EcommerceAdmin() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas las categorías</SelectItem>
-            {categorias.map((categoria) => (
+            {categorias.filter(cat => cat.nombre?.trim()).map((categoria) => (
               <SelectItem key={categoria.id} value={categoria.nombre}>
                 {categoria.nombre} ({categoria.productoCount})
               </SelectItem>
@@ -614,8 +614,8 @@ export default function EcommerceAdmin() {
                     <SelectValue placeholder="Seleccionar categoría" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Sin categoría</SelectItem>
-                    {categorias.map((categoria) => (
+                    <SelectItem value="sin-categoria">Sin categoría</SelectItem>
+                    {categorias.filter(cat => cat.nombre?.trim()).map((categoria) => (
                       <SelectItem key={categoria.id} value={categoria.nombre}>
                         {categoria.nombre}
                       </SelectItem>

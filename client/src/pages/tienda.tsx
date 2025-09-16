@@ -64,7 +64,8 @@ interface StoreProduct {
   name: string; // Product name from API
   category?: string;
   ud02pr?: string; // Unit presentation from API
-  ecomPrice?: string; // Price field from API (string format)
+  precio?: number; // Price field from API (number format)
+  ecomPrice?: string; // Legacy field name
   primaryImageUrl?: string; // Primary image URL from API
   description?: string;
   active: boolean;
@@ -105,7 +106,10 @@ const getProductUnit = (product: StoreProduct): string | undefined => {
 };
 
 const getProductPrice = (product: StoreProduct): number => {
-  // Priority: ecomPrice -> canalDigital -> 0
+  // Priority: precio -> ecomPrice -> canalDigital -> 0
+  if (product.precio && product.precio > 0) {
+    return product.precio;
+  }
   if (product.ecomPrice) {
     const price = parseFloat(product.ecomPrice);
     return isNaN(price) ? 0 : price;
