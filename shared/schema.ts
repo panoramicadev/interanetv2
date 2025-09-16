@@ -1656,3 +1656,143 @@ export type EcommerceProduct = typeof ecommerceProducts.$inferSelect;
 export type InsertEcommerceProduct = typeof ecommerceProducts.$inferInsert;
 export type InsertEcommerceCategoryInput = z.infer<typeof insertEcommerceCategorySchema>;
 export type InsertEcommerceProductInput = z.infer<typeof insertEcommerceProductSchema>;
+
+// Store Configuration - Configuración general de la tienda
+export const storeConfig = pgTable("store_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  siteName: varchar("site_name").default("Pinturas Panoramica"),
+  logoUrl: varchar("logo_url"), // URL del logo principal
+  faviconUrl: varchar("favicon_url"), // Favicon
+  primaryColor: varchar("primary_color").default("#FF6B35"), // Color naranja principal
+  secondaryColor: varchar("secondary_color").default("#2C3E50"), // Color secundario
+  headerSearchPlaceholder: varchar("header_search_placeholder").default("Buscar productos..."),
+  contactInfo: jsonb("contact_info").$type<{
+    phone?: string;
+    email?: string;
+    address?: string;
+    whatsapp?: string;
+  }>(), // Información de contacto
+  socialMedia: jsonb("social_media").$type<{
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+  }>(), // Redes sociales
+  seoSettings: jsonb("seo_settings").$type<{
+    metaTitle?: string;
+    metaDescription?: string;
+    keywords?: string[];
+  }>(), // Configuración SEO
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Store Banners - Banners administrables para la tienda
+export const storeBanners = pgTable("store_banners", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  titulo: varchar("titulo").notNull(), // Ej: "OFERTA DEL MES"
+  subtitulo: varchar("subtitulo"), // Ej: "STAIN"
+  descripcion: text("descripcion"), // Ej: "IMPERMEANTE DE MADERA"
+  imagenDesktop: varchar("imagen_desktop").notNull(), // Imagen para escritorio
+  imagenMobile: varchar("imagen_mobile"), // Imagen específica para móvil
+  colorFondo: varchar("color_fondo").default("#FF6B35"), // Color de fondo del banner
+  colorTexto: varchar("color_texto").default("#FFFFFF"), // Color del texto
+  linkUrl: varchar("link_url"), // URL de destino del banner
+  orden: integer("orden").default(0), // Orden de visualización
+  activo: boolean("activo").default(true), // Si el banner está activo
+  tipoVisualizacion: varchar("tipo_visualizacion").default("hero"), // hero, secundario, lateral
+  fechaInicio: timestamp("fecha_inicio"), // Fecha de inicio (opcional)
+  fechaFin: timestamp("fecha_fin"), // Fecha de fin (opcional)
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Product Images - Múltiples imágenes por producto
+export const productImages = pgTable("product_images", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ecommerceProductId: varchar("ecommerce_product_id").notNull(), // FK to ecommerceProducts.id
+  imageUrl: varchar("image_url").notNull(), // URL de la imagen
+  altText: varchar("alt_text"), // Texto alternativo
+  orden: integer("orden").default(0), // Orden de visualización (0 = principal, 1 = segunda, etc.)
+  tipoImagen: varchar("tipo_imagen").default("producto"), // producto, detalle, ambiente, etc.
+  activa: boolean("activa").default(true), // Si la imagen está activa
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Índice para búsquedas rápidas por producto
+  productImageIndex: index("product_image_idx").on(table.ecommerceProductId, table.orden),
+}));
+
+// Store Categories - Categorías específicas para la navegación de la tienda
+export const storeNavigation = pgTable("store_navigation", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre").notNull(), // Nombre del menú
+  slug: varchar("slug").notNull().unique(), // URL amigable
+  icono: varchar("icono"), // Ícono opcional
+  descripcion: text("descripcion"), // Descripción
+  parentId: varchar("parent_id"), // Para submenús
+  orden: integer("orden").default(0), // Orden en el menú
+  activo: boolean("activo").default(true), // Si aparece en navegación
+  linkExterno: varchar("link_externo"), // Para enlaces externos
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Schemas for Store Config
+export const insertStoreConfigSchema = createInsertSchema(storeConfig, {
+  siteName: z.string().min(1, "Nombre del sitio es requerido"),
+  logoUrl: z.string().url("URL del logo inválida").optional().or(z.literal("")),
+  faviconUrl: z.string().url("URL del favicon inválida").optional().or(z.literal("")),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Schemas for Store Banners
+export const insertStoreBannerSchema = createInsertSchema(storeBanners, {
+  titulo: z.string().min(1, "Título del banner es requerido"),
+  imagenDesktop: z.string().url("URL de imagen de escritorio inválida"),
+  imagenMobile: z.string().url("URL de imagen móvil inválida").optional().or(z.literal("")),
+  linkUrl: z.string().url("URL de destino inválida").optional().or(z.literal("")),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Schemas for Product Images
+export const insertProductImageSchema = createInsertSchema(productImages, {
+  ecommerceProductId: z.string().min(1, "ID de producto es requerido"),
+  imageUrl: z.string().url("URL de imagen inválida"),
+  altText: z.string().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Schemas for Store Navigation
+export const insertStoreNavigationSchema = createInsertSchema(storeNavigation, {
+  nombre: z.string().min(1, "Nombre del menú es requerido"),
+  slug: z.string().min(1, "Slug es requerido"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type StoreConfig = typeof storeConfig.$inferSelect;
+export type InsertStoreConfig = typeof storeConfig.$inferInsert;
+export type StoreBanner = typeof storeBanners.$inferSelect;
+export type InsertStoreBanner = typeof storeBanners.$inferInsert;
+export type ProductImage = typeof productImages.$inferSelect;
+export type InsertProductImage = typeof productImages.$inferInsert;
+export type StoreNavigation = typeof storeNavigation.$inferSelect;
+export type InsertStoreNavigation = typeof storeNavigation.$inferInsert;
+
+export type InsertStoreConfigInput = z.infer<typeof insertStoreConfigSchema>;
+export type InsertStoreBannerInput = z.infer<typeof insertStoreBannerSchema>;
+export type InsertProductImageInput = z.infer<typeof insertProductImageSchema>;
+export type InsertStoreNavigationInput = z.infer<typeof insertStoreNavigationSchema>;
