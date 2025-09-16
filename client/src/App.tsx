@@ -29,6 +29,7 @@ import ClientDetail from "@/pages/client-detail";
 import ProductDetail from "@/pages/product-detail";
 import TomadorPedidos from "@/pages/tomador-pedidos";
 import EcommerceAdmin from "@/pages/ecommerce-admin";
+import Carrito from "@/pages/carrito";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -50,6 +51,7 @@ function Router() {
       {/* Tienda pública accesible para todos */}
       <Route path="/tienda" component={Tienda} />
       <Route path="/shop" component={Shop} />
+      <Route path="/carrito" component={Carrito} />
       
       {!user ? (
         <>
