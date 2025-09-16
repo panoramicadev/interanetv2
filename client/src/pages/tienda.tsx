@@ -467,7 +467,7 @@ export default function TiendaPage() {
                 <a
                   key={item.name}
                   href={item.href}
-                  className="text-white hover:text-white/80 px-3 py-2 text-sm font-medium transition-colors duration-200"
+                  className="text-white hover:text-white/80 px-3 py-2 text-sm font-medium transition-colors duration-200 pl-[12px] pr-[12px] pt-[0px] pb-[0px]"
                   data-testid={`link-nav-${item.name.toLowerCase()}`}
                 >
                   {item.name}
