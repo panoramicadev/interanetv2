@@ -16,9 +16,13 @@ import {
   Star,
   ChevronDown,
   Menu,
-  X
+  X,
+  Plus,
+  Minus,
+  Check
 } from "lucide-react";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 // Types for store data
 interface StoreConfig {
@@ -45,23 +49,130 @@ interface StoreBanner {
 
 interface StoreProduct {
   id: string;
-  codigo: string;
-  producto: string;
-  categoria?: string;
+  kopr: string; // Product code from API
+  name: string; // Product name from API
+  category?: string;
+  ud02pr?: string; // Unit presentation from API
+  ecomPrice?: string; // Price field from API (string format)
+  primaryImageUrl?: string; // Primary image URL from API
+  description?: string;
+  active: boolean;
+  slug?: string;
+  // Legacy compatibility fields
+  codigo?: string;
+  producto?: string;
   unidad?: string;
   canalDigital?: number;
   imagenUrl?: string;
   descripcion?: string;
-  activo: boolean;
+  activo?: boolean;
   orden?: number;
 }
 
-const formatPrice = (price: number | null | undefined): string => {
-  if (!price || price === 0) return "";
+// Cart item interface
+interface CartItem {
+  productId: string;
+  productCode: string;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+  unit: string;
+  totalPrice: number;
+  imageUrl?: string;
+}
+
+const formatPrice = (price: number | string | null | undefined): string => {
+  if (!price || price === 0 || price === "0") return "";
+  const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+  if (isNaN(numPrice) || numPrice === 0) return "";
   return `$${new Intl.NumberFormat('es-CL', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(price)}`;
+  }).format(numPrice)}`;
+};
+
+// Compatibility helper functions to map between old and new field names
+const getProductCode = (product: StoreProduct): string => {
+  return product.kopr || product.codigo || '';
+};
+
+const getProductName = (product: StoreProduct): string => {
+  return product.name || product.producto || '';
+};
+
+const getProductUnit = (product: StoreProduct): string | undefined => {
+  return product.ud02pr || product.unidad;
+};
+
+const getProductPrice = (product: StoreProduct): number => {
+  // Priority: ecomPrice -> canalDigital -> 0
+  if (product.ecomPrice) {
+    const price = parseFloat(product.ecomPrice);
+    return isNaN(price) ? 0 : price;
+  }
+  return product.canalDigital || 0;
+};
+
+const getProductImageUrl = (product: StoreProduct): string | undefined => {
+  return product.primaryImageUrl || product.imagenUrl;
+};
+
+const getProductCategory = (product: StoreProduct): string | undefined => {
+  return product.category;
+};
+
+const isProductActive = (product: StoreProduct): boolean => {
+  return product.active !== undefined ? product.active : (product.activo || false);
+};
+
+const getProductDescription = (product: StoreProduct): string | undefined => {
+  return product.description || product.descripcion;
+};
+
+// Improved quantity logic functions with precise regex patterns
+const getQuantityJumpRule = (unidad: string | undefined): number => {
+  if (!unidad) return 1;
+  
+  const unit = unidad.toUpperCase().trim();
+  
+  // BD4 and BD5 (Baldes) - individual units - Check this FIRST to avoid conflicts
+  // More robust pattern to handle various formats: BD4, BD-4, BD 4, /BD4, BD4/, etc.
+  if (/BD\s*[-\s]?\s*[45]|BALDE\s*[45]?|\bBD[45]\b/i.test(unit)) {
+    return 1;
+  }
+  
+  // GL (Galones) - multiples of 4 - Use precise word boundary matching
+  if (/\bGL\b|\bGAL[ÓO]N/i.test(unit)) {
+    return 4;
+  }
+  
+  // 1/4 (1/4 de Galón) - multiples of 6 - Precise fraction matching
+  if (/1\s*\/\s*4|\bCUARTO\b/i.test(unit)) {
+    return 6;
+  }
+  
+  // Default to individual units
+  return 1;
+};
+
+const getMinimumQuantity = (unidad: string | undefined): number => {
+  return getQuantityJumpRule(unidad);
+};
+
+const getQuantityLabel = (unidad: string | undefined): string => {
+  const jump = getQuantityJumpRule(unidad);
+  if (jump === 1) return "Mín: 1 unidad";
+  return `Mín: ${jump} unidades`;
+};
+
+const validateQuantity = (quantity: number, unidad: string | undefined): number => {
+  const jump = getQuantityJumpRule(unidad);
+  const minQuantity = getMinimumQuantity(unidad);
+  
+  if (quantity < minQuantity) return minQuantity;
+  
+  // Round to nearest valid quantity
+  return Math.max(minQuantity, Math.floor(quantity / jump) * jump);
 };
 
 export default function TiendaPage() {
@@ -70,7 +181,125 @@ export default function TiendaPage() {
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [cartCount] = useState(0);
+  
+  // Cart state management
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const { toast } = useToast();
+  
+  // Calculate cart count from cart items
+  const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+
+  // Quantity management functions
+  const getProductQuantity = (productId: string, unidad: string | undefined): number => {
+    return quantities[productId] || getMinimumQuantity(unidad);
+  };
+
+  const updateQuantity = (productId: string, newQuantity: number, unidad: string | undefined) => {
+    const validQuantity = validateQuantity(newQuantity, unidad);
+    setQuantities(prev => ({
+      ...prev,
+      [productId]: validQuantity
+    }));
+  };
+
+  const incrementQuantity = (productId: string, unidad: string | undefined) => {
+    const currentQuantity = getProductQuantity(productId, unidad);
+    const jump = getQuantityJumpRule(unidad);
+    updateQuantity(productId, currentQuantity + jump, unidad);
+  };
+
+  const decrementQuantity = (productId: string, unidad: string | undefined) => {
+    const currentQuantity = getProductQuantity(productId, unidad);
+    const jump = getQuantityJumpRule(unidad);
+    const newQuantity = Math.max(getMinimumQuantity(unidad), currentQuantity - jump);
+    updateQuantity(productId, newQuantity, unidad);
+  };
+
+  const calculateTotalPrice = (basePrice: number | string | null | undefined, quantity: number): number => {
+    if (!basePrice) return 0;
+    const numPrice = typeof basePrice === 'string' ? parseFloat(basePrice) : basePrice;
+    if (isNaN(numPrice)) return 0;
+    return numPrice * quantity;
+  };
+
+  // Add to cart functionality
+  const addToCart = (product: StoreProduct) => {
+    const productCode = getProductCode(product);
+    const productName = getProductName(product);
+    const unitPrice = getProductPrice(product);
+    const unit = getProductUnit(product) || 'Unidad';
+    const quantity = getProductQuantity(product.id, getProductUnit(product));
+    
+    // Validation
+    if (unitPrice === 0) {
+      toast({
+        title: "Error",
+        description: "Producto sin precio disponible",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (quantity === 0) {
+      toast({
+        title: "Error", 
+        description: "Cantidad no válida",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Check if item already exists in cart
+    const existingItemIndex = cartItems.findIndex(item => item.productId === product.id);
+    
+    if (existingItemIndex >= 0) {
+      // Update existing item quantity
+      const updatedItems = [...cartItems];
+      const existingItem = updatedItems[existingItemIndex];
+      const newQuantity = existingItem.quantity + quantity;
+      
+      updatedItems[existingItemIndex] = {
+        ...existingItem,
+        quantity: newQuantity,
+        totalPrice: unitPrice * newQuantity
+      };
+      
+      setCartItems(updatedItems);
+      
+      toast({
+        title: "Producto actualizado",
+        description: `${productName} - Cantidad: ${newQuantity}`,
+        action: <Check className="h-4 w-4" />
+      });
+    } else {
+      // Add new item to cart
+      const newCartItem: CartItem = {
+        productId: product.id,
+        productCode,
+        productName,
+        unitPrice,
+        quantity,
+        unit,
+        totalPrice: unitPrice * quantity,
+        imageUrl: getProductImageUrl(product)
+      };
+      
+      setCartItems(prev => [...prev, newCartItem]);
+      
+      toast({
+        title: "Producto agregado al carrito",
+        description: `${productName} - Cantidad: ${quantity}`,
+        action: <Check className="h-4 w-4" />
+      });
+    }
+    
+    // Reset quantity for this product
+    setQuantities(prev => ({
+      ...prev,
+      [product.id]: getMinimumQuantity(getProductUnit(product))
+    }));
+  };
 
   // Fetch store configuration
   const { data: storeConfig } = useQuery<StoreConfig>({
@@ -113,12 +342,12 @@ export default function TiendaPage() {
   // Filter products
   const filteredProducts = products.filter((product) => {
     const matchesSearch = !searchTerm || 
-      product.producto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.codigo.toLowerCase().includes(searchTerm.toLowerCase());
+      getProductName(product).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getProductCode(product).toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesCategory = selectedCategory === "all" || product.categoria === selectedCategory;
+    const matchesCategory = selectedCategory === "all" || getProductCategory(product) === selectedCategory;
     
-    return matchesSearch && matchesCategory && product.activo;
+    return matchesSearch && matchesCategory && isProductActive(product);
   });
 
   const openProductDetail = (product: StoreProduct) => {
@@ -155,7 +384,7 @@ export default function TiendaPage() {
                 <span>{storeConfig?.address || "Santiago, Chile"}</span>
               </div>
             </div>
-            <div className="text-orange-600 font-medium">
+            <div className="text-[#FF8401] font-medium">
               ¡Envío gratis en compras sobre $50.000!
             </div>
           </div>
@@ -181,7 +410,7 @@ export default function TiendaPage() {
                   placeholder="¿Qué estás buscando?"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 pr-4 py-3 text-base rounded-full border-2 border-gray-200 focus:border-orange-500 focus:ring-orange-500"
+                  className="pl-12 pr-4 py-3 text-base rounded-full border-2 border-gray-200 focus:border-[#FF8401] focus:ring-[#FF8401]"
                   data-testid="input-search-tienda"
                 />
               </div>
@@ -192,12 +421,12 @@ export default function TiendaPage() {
               {/* Cart */}
               <Button 
                 variant="ghost" 
-                className="relative p-2 hover:bg-orange-50"
+                className="relative p-2 hover:bg-[#FF8401]/10"
                 data-testid="button-cart"
               >
                 <ShoppingCart className="h-6 w-6 text-gray-700" />
                 {cartCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center p-0">
+                  <Badge className="absolute -top-2 -right-2 bg-[#FF8401] text-white text-xs w-5 h-5 rounded-full flex items-center justify-center p-0">
                     {cartCount}
                   </Badge>
                 )}
@@ -231,14 +460,14 @@ export default function TiendaPage() {
         </div>
 
         {/* Navigation Bar */}
-        <nav className={`bg-orange-600 ${showMobileMenu ? 'block' : 'hidden'} md:block`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <nav className={`bg-[#FF8401] ${showMobileMenu ? 'block' : 'hidden'} md:block`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 bg-[#000000]">
             <div className="flex flex-col md:flex-row md:space-x-8 py-3">
               {navigationItems.map((item) => (
                 <a
                   key={item.name}
                   href={item.href}
-                  className="text-white hover:text-orange-100 px-3 py-2 text-sm font-medium transition-colors duration-200"
+                  className="text-white hover:text-white/80 px-3 py-2 text-sm font-medium transition-colors duration-200"
                   data-testid={`link-nav-${item.name.toLowerCase()}`}
                 >
                   {item.name}
@@ -248,7 +477,6 @@ export default function TiendaPage() {
           </div>
         </nav>
       </header>
-
       {/* Hero Banner */}
       {heroBanner && (
         <section 
@@ -263,7 +491,7 @@ export default function TiendaPage() {
               {/* Content */}
               <div className="text-center lg:text-left">
                 <div className="mb-4">
-                  <Badge className="bg-white text-orange-600 px-4 py-2 text-sm font-bold mb-4">
+                  <Badge className="bg-white text-[#FF8401] px-4 py-2 text-sm font-bold mb-4">
                     {heroBanner.titulo}
                   </Badge>
                 </div>
@@ -279,7 +507,7 @@ export default function TiendaPage() {
                     <div className="text-3xl md:text-4xl font-bold">$12.990</div>
                   </div>
                   <Button 
-                    className="bg-white text-orange-600 hover:bg-gray-100 px-8 py-3 rounded-full font-semibold text-lg"
+                    className="bg-white text-[#FF8401] hover:bg-gray-100 px-8 py-3 rounded-full font-semibold text-lg"
                     data-testid="button-ver-ofertas"
                   >
                     Ver Ofertas
@@ -308,7 +536,6 @@ export default function TiendaPage() {
           </div>
         </section>
       )}
-
       {/* Filters Section */}
       <section className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -317,7 +544,7 @@ export default function TiendaPage() {
               <h2 className="text-lg font-semibold text-gray-900">
                 Nuestros Productos
               </h2>
-              <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+              <Badge variant="secondary" className="bg-[#FF8401]/10 text-[#FF8401]">
                 {filteredProducts.length} productos
               </Badge>
             </div>
@@ -341,7 +568,6 @@ export default function TiendaPage() {
           </div>
         </div>
       </section>
-
       {/* Products Grid */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {productsLoading ? (
@@ -373,7 +599,7 @@ export default function TiendaPage() {
                   key={product.id} 
                   className="relative bg-white hover:shadow-xl transition-all duration-300 overflow-hidden border-gray-200 h-full flex flex-col group cursor-pointer"
                   onClick={() => openProductDetail(product)}
-                  data-testid={`card-product-${product.codigo}`}
+                  data-testid={`card-product-${getProductCode(product)}`}
                 >
                   {/* Badges */}
                   <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
@@ -392,10 +618,10 @@ export default function TiendaPage() {
                   <CardContent className="p-0 flex flex-col h-full">
                     {/* Product Image */}
                     <div className="h-48 bg-gray-100 flex items-center justify-center border-b relative overflow-hidden">
-                      {product.imagenUrl ? (
+                      {getProductImageUrl(product) ? (
                         <img 
-                          src={product.imagenUrl}
-                          alt={product.producto}
+                          src={getProductImageUrl(product)}
+                          alt={getProductName(product)}
                           className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
@@ -421,39 +647,85 @@ export default function TiendaPage() {
                     <div className="p-6 flex flex-col flex-grow">
                       {/* Product Name */}
                       <h3 className="font-bold text-lg text-gray-900 mb-2 leading-tight line-clamp-2">
-                        {product.producto}
+                        {getProductName(product)}
                       </h3>
                       
                       {/* Product SKU */}
-                      <p className="text-gray-400 text-xs mb-3 font-mono tracking-wide">{product.codigo}</p>
+                      <p className="text-gray-400 text-xs mb-3 font-mono tracking-wide">{getProductCode(product)}</p>
 
 
                       {/* Price */}
                       <div className="mb-4">
-                        <div className="text-2xl font-bold text-gray-900">
-                          {formatPrice(product.canalDigital)}
-                          <span className="text-sm text-gray-500 font-normal">
-                            {product.unidad || 'Unidad'}
-                          </span>
+                        <div className="text-xl font-bold text-gray-900">
+                          {formatPrice(getProductPrice(product))}
+                          <Badge variant="secondary" className="ml-2 text-xs bg-gray-100 text-gray-600 font-normal px-2 py-1">
+                            {getProductUnit(product) || 'Unidad'}
+                          </Badge>
                         </div>
                         {isOffer && (
                           <div className="text-sm text-gray-500 line-through">
-                            {formatPrice((product.canalDigital || 0) * 1.2)}
+                            {formatPrice(getProductPrice(product) * 1.2)}
                           </div>
                         )}
+                        
+                        {/* Total Price Display */}
+                        <div className="text-lg font-semibold text-[#FF8401] mt-1">
+                          Total: {formatPrice(calculateTotalPrice(getProductPrice(product), getProductQuantity(product.id, getProductUnit(product))))}
+                        </div>
                       </div>
 
-                      {/* Action Button */}
-                      <div className="mt-auto">
+                      {/* Quantity Controls */}
+                      <div className="mt-auto space-y-3">
+                        {/* Minimum quantity label */}
+                        <div className="text-xs text-gray-500 text-center">
+                          {getQuantityLabel(getProductUnit(product))}
+                        </div>
+                        
+                        {/* Quantity Stepper */}
+                        <div className="flex items-center justify-center gap-2 mb-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 border-gray-300"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              decrementQuantity(product.id, getProductUnit(product));
+                            }}
+                            disabled={getProductQuantity(product.id, getProductUnit(product)) <= getMinimumQuantity(getProductUnit(product))}
+                            data-testid={`button-decrement-${getProductCode(product)}`}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          
+                          <div className="min-w-[3rem] text-center font-semibold text-lg">
+                            {getProductQuantity(product.id, getProductUnit(product))}
+                          </div>
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 border-gray-300"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              incrementQuantity(product.id, getProductUnit(product));
+                            }}
+                            data-testid={`button-increment-${getProductCode(product)}`}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        {/* Add to Cart Button */}
                         <Button 
-                          className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 rounded-lg transition-colors duration-200"
+                          className="w-full bg-[#FF8401] hover:bg-[#FF8401]/90 text-white font-semibold py-3 rounded-lg transition-colors duration-200"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openProductDetail(product);
+                            addToCart(product);
                           }}
-                          data-testid={`button-select-${product.codigo}`}
+                          data-testid={`button-add-cart-${getProductCode(product)}`}
                         >
-                          {index === 0 ? "Seleccionar" : "Agregar al Carrito"}
+                          <ShoppingCart className="h-4 w-4 mr-2" />
+                          Agregar al Carrito
                         </Button>
                       </div>
                     </div>
@@ -484,7 +756,6 @@ export default function TiendaPage() {
           </div>
         )}
       </section>
-
       {/* Product Detail Dialog */}
       <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -492,7 +763,7 @@ export default function TiendaPage() {
             <>
               <DialogHeader>
                 <DialogTitle className="text-2xl mb-4">
-                  {selectedProduct.producto}
+                  {getProductName(selectedProduct)}
                 </DialogTitle>
               </DialogHeader>
               
@@ -500,10 +771,10 @@ export default function TiendaPage() {
                 {/* Product Image */}
                 <div className="space-y-4">
                   <div className="h-96 bg-gray-100 flex items-center justify-center rounded-lg">
-                    {selectedProduct.imagenUrl ? (
+                    {getProductImageUrl(selectedProduct) ? (
                       <img 
-                        src={selectedProduct.imagenUrl}
-                        alt={selectedProduct.producto}
+                        src={getProductImageUrl(selectedProduct)}
+                        alt={getProductName(selectedProduct)}
                         className="max-w-full max-h-full object-contain"
                       />
                     ) : (
@@ -518,21 +789,21 @@ export default function TiendaPage() {
                 {/* Product Details */}
                 <div className="space-y-6">
                   {/* Price */}
-                  <div className="bg-orange-50 rounded-lg p-6">
+                  <div className="bg-[#FF8401]/5 rounded-lg p-6">
                     <h4 className="font-semibold mb-2 text-gray-700">Precio</h4>
-                    <div className="text-3xl font-bold text-orange-600">
-                      {formatPrice(selectedProduct.canalDigital)}
-                      <span className="text-lg text-gray-500 font-normal">
-                        /{selectedProduct.unidad || 'Unidad'}
-                      </span>
+                    <div className="text-3xl font-bold text-[#FF8401]">
+                      {formatPrice(getProductPrice(selectedProduct))}
+                      <Badge variant="secondary" className="ml-3 text-sm bg-gray-100 text-gray-600 font-normal px-3 py-1">
+                        {getProductUnit(selectedProduct) || 'Unidad'}
+                      </Badge>
                     </div>
                   </div>
 
                   {/* Description */}
-                  {selectedProduct.descripcion && (
+                  {getProductDescription(selectedProduct) && (
                     <div>
                       <h4 className="font-semibold mb-2 text-gray-700">Descripción</h4>
-                      <p className="text-gray-600">{selectedProduct.descripcion}</p>
+                      <p className="text-gray-600">{getProductDescription(selectedProduct)}</p>
                     </div>
                   )}
 
@@ -540,20 +811,20 @@ export default function TiendaPage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
                       <h4 className="font-semibold mb-1 text-gray-700">Código</h4>
-                      <p className="text-gray-600 font-mono text-sm">{selectedProduct.codigo}</p>
+                      <p className="text-gray-600 font-mono text-sm">{getProductCode(selectedProduct)}</p>
                     </div>
                     
-                    {selectedProduct.categoria && (
+                    {getProductCategory(selectedProduct) && (
                       <div>
                         <h4 className="font-semibold mb-1 text-gray-700">Categoría</h4>
-                        <p className="text-gray-600">{selectedProduct.categoria}</p>
+                        <p className="text-gray-600">{getProductCategory(selectedProduct)}</p>
                       </div>
                     )}
                     
-                    {selectedProduct.unidad && (
+                    {getProductUnit(selectedProduct) && (
                       <div>
                         <h4 className="font-semibold mb-1 text-gray-700">Presentación</h4>
-                        <p className="text-gray-600">{selectedProduct.unidad}</p>
+                        <p className="text-gray-600">{getProductUnit(selectedProduct)}</p>
                       </div>
                     )}
 
@@ -566,7 +837,8 @@ export default function TiendaPage() {
                   {/* Action Buttons */}
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Button 
-                      className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-3"
+                      className="flex-1 bg-[#FF8401] hover:bg-[#FF8401]/90 text-white py-3"
+                      onClick={() => selectedProduct && addToCart(selectedProduct)}
                       data-testid="button-add-cart-dialog"
                     >
                       <ShoppingCart className="h-5 w-5 mr-2" />
@@ -574,7 +846,7 @@ export default function TiendaPage() {
                     </Button>
                     <Button 
                       variant="outline" 
-                      className="flex-1 border-orange-600 text-orange-600 hover:bg-orange-50 py-3"
+                      className="flex-1 border-[#FF8401] text-[#FF8401] hover:bg-[#FF8401]/10 py-3"
                     >
                       Ver más productos
                     </Button>
@@ -585,7 +857,6 @@ export default function TiendaPage() {
           )}
         </DialogContent>
       </Dialog>
-
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

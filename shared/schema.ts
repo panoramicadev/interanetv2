@@ -921,8 +921,6 @@ export const toggleEcommerceActiveSchema = z.object({
 });
 
 // eCommerce type exports
-export type ProductImage = z.infer<typeof productImageSchema>;
-export type EcommerceProduct = z.infer<typeof ecommerceProductSchema>;
 export type UpdateEcommerceProduct = z.infer<typeof updateEcommerceProductSchema>;
 export type EcommerceProductFilters = z.infer<typeof ecommerceProductFiltersSchema>;
 export type ValidateSlugInput = z.infer<typeof validateSlugSchema>;
