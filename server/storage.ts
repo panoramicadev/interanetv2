@@ -61,6 +61,15 @@ import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
 
+// Utility function to normalize comuna names for consistent regional mapping
+function normalizeComunaName(name: string | null): string | null {
+  if (!name) return null;
+  return name.trim().toUpperCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '') // strip diacritics
+    .replace(/\s+/g, ' '); // collapse spaces
+}
+
 export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
@@ -4214,9 +4223,7 @@ export class DatabaseStorage implements IStorage {
     transactionCount: number;
     percentage: number;
   }>> {
-    const conditions = [
-      sql`${clients.comuna} IS NOT NULL AND ${clients.comuna} != ''`
-    ];
+    const conditions = [];
 
     // Add date filters
     if (filters?.startDate) {
@@ -4240,36 +4247,62 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(salesTransactions.noruen, filters.segment));
     }
 
-    // Get total sales for percentage calculation
+    // Get total sales for percentage calculation (includes ALL transactions)
     const [totalSalesResult] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions)
-      .innerJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
-      .where(and(...conditions));
+      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
 
     const totalSales = Number(totalSalesResult.total);
 
-    // Get sales grouped by comuna
+    // Get sales grouped by normalized comuna using fallback data source
     const results = await db
       .select({
-        comuna: clients.comuna,
+        rawComuna: sql<string>`COALESCE(
+          NULLIF(TRIM(${clients.comuna}), ''), 
+          NULLIF(TRIM(${salesTransactions.zona}), ''),
+          'Sin comuna'
+        )`,
         totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(salesTransactions)
-      .innerJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
-      .where(and(...conditions))
-      .groupBy(clients.comuna)
+      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .groupBy(sql`COALESCE(
+        NULLIF(TRIM(${clients.comuna}), ''), 
+        NULLIF(TRIM(${salesTransactions.zona}), ''),
+        'Sin comuna'
+      )`)
       .orderBy(sql`SUM(${salesTransactions.monto}) DESC`);
 
-    return results.map(r => ({
-      comuna: r.comuna || '',
-      totalSales: Number(r.totalSales),
-      transactionCount: Number(r.transactionCount),
-      percentage: totalSales > 0 ? (Number(r.totalSales) / totalSales) * 100 : 0,
-    }));
+    // Normalize and group by normalized comuna names
+    const normalizedMap = new Map<string, { totalSales: number; transactionCount: number }>();
+    
+    for (const result of results) {
+      const normalizedComuna = normalizeComunaName(result.rawComuna) || 'Sin comuna';
+      const existing = normalizedMap.get(normalizedComuna) || { totalSales: 0, transactionCount: 0 };
+      
+      normalizedMap.set(normalizedComuna, {
+        totalSales: existing.totalSales + Number(result.totalSales),
+        transactionCount: existing.transactionCount + Number(result.transactionCount)
+      });
+    }
+
+    // Convert to array and sort by total sales
+    const normalizedResults = Array.from(normalizedMap.entries())
+      .map(([comuna, data]) => ({
+        comuna,
+        totalSales: data.totalSales,
+        transactionCount: data.transactionCount,
+        percentage: totalSales > 0 ? (data.totalSales / totalSales) * 100 : 0,
+      }))
+      .sort((a, b) => b.totalSales - a.totalSales);
+
+    return normalizedResults;
   }
 
   // Region analysis - sales by region (grouped from comunas) with filters
@@ -4284,9 +4317,7 @@ export class DatabaseStorage implements IStorage {
     transactionCount: number;
     percentage: number;
   }>> {
-    const conditions = [
-      sql`${clients.comuna} IS NOT NULL AND ${clients.comuna} != ''`
-    ];
+    const conditions = [];
 
     // Add date filters
     if (filters?.startDate) {
@@ -4310,44 +4341,66 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(salesTransactions.noruen, filters.segment));
     }
 
-    // Get total sales for percentage calculation
+    // Get total sales for percentage calculation (includes ALL transactions)
     const [totalSalesResult] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions)
-      .innerJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
-      .where(and(...conditions));
+      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
 
     const totalSales = Number(totalSalesResult.total);
 
-    // Get sales grouped by comuna first, then we'll aggregate by region
+    // Get sales grouped by normalized comuna using fallback data source
     const comunaResults = await db
       .select({
-        comuna: clients.comuna,
+        rawComuna: sql<string>`COALESCE(
+          NULLIF(TRIM(${clients.comuna}), ''), 
+          NULLIF(TRIM(${salesTransactions.zona}), ''),
+          'Sin comuna'
+        )`,
         totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(salesTransactions)
-      .innerJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
-      .where(and(...conditions))
-      .groupBy(clients.comuna);
+      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .groupBy(sql`COALESCE(
+        NULLIF(TRIM(${clients.comuna}), ''), 
+        NULLIF(TRIM(${salesTransactions.zona}), ''),
+        'Sin comuna'
+      )`);
 
-    // Group by region using the mapping function
+    // Normalize comunas and group by region using the mapping function
     const regionMap = new Map<string, { totalSales: number; transactionCount: number }>();
+    let unknownRegionSales = 0;
+    let unknownRegionCount = 0;
     
     for (const comunaData of comunaResults) {
-      const region = getComunaRegion(comunaData.comuna || '');
-      const existing = regionMap.get(region) || { totalSales: 0, transactionCount: 0 };
+      const normalizedComuna = normalizeComunaName(comunaData.rawComuna) || 'Sin comuna';
+      const region = getComunaRegion(normalizedComuna);
       
-      regionMap.set(region, {
+      // Handle unmapped/unknown regions
+      const finalRegion = (region === 'Región Desconocida' || normalizedComuna === 'Sin comuna') 
+        ? 'Sin región' 
+        : region;
+      
+      if (finalRegion === 'Sin región') {
+        unknownRegionSales += Number(comunaData.totalSales);
+        unknownRegionCount += Number(comunaData.transactionCount);
+      }
+      
+      const existing = regionMap.get(finalRegion) || { totalSales: 0, transactionCount: 0 };
+      
+      regionMap.set(finalRegion, {
         totalSales: existing.totalSales + Number(comunaData.totalSales),
-        transactionCount: existing.transactionCount + Number(comunaData.transactionCount),
+        transactionCount: existing.transactionCount + Number(comunaData.transactionCount)
       });
     }
 
-    // Convert map to array and sort by sales
-    const results = Array.from(regionMap.entries())
+    // Convert to array and sort by total sales
+    const regionResults = Array.from(regionMap.entries())
       .map(([region, data]) => ({
         region,
         totalSales: data.totalSales,
@@ -4356,7 +4409,12 @@ export class DatabaseStorage implements IStorage {
       }))
       .sort((a, b) => b.totalSales - a.totalSales);
 
-    return results;
+    // Log unknown region stats for observability
+    if (unknownRegionSales > 0) {
+      console.log(`📊 Regional analysis: ${unknownRegionCount} transactions (${(unknownRegionSales / totalSales * 100).toFixed(2)}%) mapped to 'Sin región'`);
+    }
+
+    return regionResults;
   }
 
   // Client operations implementation
