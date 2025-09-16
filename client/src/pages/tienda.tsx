@@ -19,7 +19,10 @@ import {
   X,
   Plus,
   Minus,
-  Check
+  Check,
+  Grid3X3,
+  Percent,
+  Award
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -141,14 +144,15 @@ const getQuantityJumpRule = (unidad: string | undefined): number => {
     return 1;
   }
   
+  // 1/4 (1/4 de Galón) - multiples of 6 - Check this BEFORE GL to avoid conflicts
+  // Precise fraction matching for various formats: 1/4, 1 / 4, CUARTO
+  if (/1\s*\/\s*4|\bCUARTO\b/i.test(unit)) {
+    return 6;
+  }
+  
   // GL (Galones) - multiples of 4 - Use precise word boundary matching
   if (/\bGL\b|\bGAL[ÓO]N/i.test(unit)) {
     return 4;
-  }
-  
-  // 1/4 (1/4 de Galón) - multiples of 6 - Precise fraction matching
-  if (/1\s*\/\s*4|\bCUARTO\b/i.test(unit)) {
-    return 6;
   }
   
   // Default to individual units
@@ -181,6 +185,7 @@ export default function TiendaPage() {
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
   
   // Cart state management
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -358,7 +363,6 @@ export default function TiendaPage() {
   const navigationItems = [
     { name: "Experiencia/Especialidad", href: "#experiencia" },
     { name: "Recomendación", href: "#recomendacion" },
-    { name: "Ofertas", href: "#ofertas" },
     { name: "Productos", href: "#productos" },
     { name: "Contacto", href: "#contacto" },
   ];
@@ -461,21 +465,125 @@ export default function TiendaPage() {
 
         {/* Navigation Bar */}
         <nav className={`bg-[#FF8401] ${showMobileMenu ? 'block' : 'hidden'} md:block`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 bg-[#000000]">
-            <div className="flex flex-col md:flex-row md:space-x-8 py-3">
-              {navigationItems.map((item) => (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center py-3">
+              {/* Left Section - Main categories with icons */}
+              <div className="flex flex-col md:flex-row md:items-center md:space-x-6">
+                {/* Categories Dropdown */}
+                <div className="relative group">
+                  <button 
+                    className="flex items-center text-white hover:text-white/80 px-3 py-2 text-sm font-medium transition-colors duration-200"
+                    onClick={() => setShowCategoriesDropdown(!showCategoriesDropdown)}
+                    onMouseEnter={() => setShowCategoriesDropdown(true)}
+                    data-testid="button-nav-categories"
+                    aria-expanded={showCategoriesDropdown}
+                    aria-haspopup="true"
+                  >
+                    <Grid3X3 className="h-4 w-4 mr-2" />
+                    Categorías de Producto
+                    <ChevronDown className={`h-4 w-4 ml-1 transition-transform duration-200 ${showCategoriesDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+                  {/* Dropdown menu - works on both hover (desktop) and click (mobile) */}
+                  <div 
+                    className={`absolute left-0 mt-1 w-64 bg-white rounded-md shadow-lg z-50 transition-all duration-200 ${showCategoriesDropdown ? 'opacity-100 visible' : 'opacity-0 invisible'} md:group-hover:opacity-100 md:group-hover:visible`}
+                    onMouseLeave={() => setShowCategoriesDropdown(false)}
+                  >
+                    <div className="py-2">
+                      <button
+                        onClick={() => {
+                          setSelectedCategory('all');
+                          setShowCategoriesDropdown(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Todas las categorías
+                      </button>
+                      {categories.map((category) => (
+                        <button
+                          key={category}
+                          onClick={() => {
+                            setSelectedCategory(category);
+                            setShowCategoriesDropdown(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recommended Products */}
                 <a
-                  key={item.name}
-                  href={item.href}
-                  className="text-white hover:text-white/80 px-3 py-2 text-sm font-medium transition-colors duration-200 pl-[12px] pr-[12px] pt-[0px] pb-[0px]"
-                  data-testid={`link-nav-${item.name.toLowerCase()}`}
+                  href="#productos"
+                  className="flex items-center text-white hover:text-white/80 px-3 py-2 text-sm font-medium transition-colors duration-200"
+                  data-testid="link-nav-recomendados"
                 >
-                  {item.name}
+                  <Award className="h-4 w-4 mr-2" />
+                  Recomendados
                 </a>
-              ))}
+
+                {/* Special Offers */}
+                <a
+                  href="#ofertas"
+                  className="flex items-center text-white hover:text-white/80 px-3 py-2 text-sm font-medium transition-colors duration-200"
+                  data-testid="link-nav-ofertas"
+                >
+                  <Percent className="h-4 w-4 mr-2" />
+                  Ofertas
+                </a>
+              </div>
+
+              {/* Right Section - Existing navigation items */}
+              <div className="flex flex-col md:flex-row md:items-center md:space-x-6 mt-3 md:mt-0">
+                {navigationItems.map((item) => (
+                  <a
+                    key={item.name}
+                    href={item.href}
+                    className="text-white hover:text-white/80 px-3 py-2 text-sm font-medium transition-colors duration-200"
+                    data-testid={`link-nav-${item.name.toLowerCase()}`}
+                  >
+                    {item.name}
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </nav>
+
+        {/* Navigation Banner Section */}
+        <section className="bg-gradient-to-r from-[#FF8401] to-[#ff9533] border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between py-4">
+              {/* Banner content - placeholder for now, will be configurable from admin */}
+              <div className="flex items-center space-x-4">
+                <div className="hidden md:block">
+                  <img 
+                    src="/panoramica-logo.png" 
+                    alt="Banner" 
+                    className="h-12 w-auto opacity-80"
+                  />
+                </div>
+                <div className="text-white">
+                  <h2 className="text-lg font-semibold">Productos de Calidad Premium</h2>
+                  <p className="text-sm opacity-90">Encuentra las mejores soluciones para tus proyectos</p>
+                </div>
+              </div>
+              
+              {/* Call to action */}
+              <div className="hidden md:block">
+                <Button 
+                  variant="secondary"
+                  className="bg-white text-[#FF8401] hover:bg-gray-100 font-semibold px-6"
+                  data-testid="button-nav-banner-cta"
+                >
+                  Ver Catálogo
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
       </header>
       {/* Hero Banner */}
       {heroBanner && (
