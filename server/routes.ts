@@ -2392,6 +2392,94 @@ export function registerRoutes(app: Express): Server {
 
   // ===================== End eCommerce API Routes =====================
 
+  // ===================== eCommerce Admin API Routes (Simple) =====================
+  
+  // Get products for eCommerce admin panel (imports from priceList)
+  app.get('/api/ecommerce/admin/productos', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { search, categoria, activo } = req.query;
+    
+    const products = await storage.getEcommerceAdminProducts({
+      search,
+      categoria: categoria !== 'all' ? categoria : undefined,
+      activo: activo !== 'all' ? (activo === 'true') : undefined
+    });
+    
+    res.json(products);
+  }));
+
+  // Get categories for eCommerce admin panel
+  app.get('/api/ecommerce/admin/categorias', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const categories = await storage.getEcommerceAdminCategories();
+    res.json(categories);
+  }));
+
+  // Get stats for eCommerce admin panel
+  app.get('/api/ecommerce/admin/stats', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const stats = await storage.getEcommerceAdminStats();
+    res.json(stats);
+  }));
+
+  // Update eCommerce product in admin panel
+  app.patch('/api/ecommerce/admin/productos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { categoria, descripcion, imagenUrl, precio, activo } = req.body;
+    
+    try {
+      const product = await storage.updateEcommerceAdminProduct(id, {
+        categoria,
+        descripcion,
+        imagenUrl,
+        precioEcommerce: precio,
+        activo
+      });
+      res.json(product);
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
+      throw error;
+    }
+  }));
+
+  // Toggle product active status in admin panel
+  app.patch('/api/ecommerce/admin/productos/:id/toggle', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    
+    try {
+      const product = await storage.toggleEcommerceAdminProduct(id);
+      res.json(product);
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ message: 'Product not found' });
+      }
+      throw error;
+    }
+  }));
+
+  // Create new category in admin panel
+  app.post('/api/ecommerce/admin/categorias', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { nombre, descripcion } = req.body;
+    
+    if (!nombre || nombre.trim() === '') {
+      return res.status(400).json({ message: 'Nombre de categoría es requerido' });
+    }
+    
+    try {
+      const category = await storage.createEcommerceAdminCategory({
+        nombre: nombre.trim(),
+        descripcion: descripcion?.trim()
+      });
+      res.json(category);
+    } catch (error: any) {
+      if (error.message.includes('already exists') || error.message.includes('unique')) {
+        return res.status(400).json({ message: 'Ya existe una categoría con ese nombre' });
+      }
+      throw error;
+    }
+  }));
+
+  // ===================== End eCommerce Admin API Routes =====================
+
   // Preview CSV endpoint - Analyze sales CSV without importing
   app.post('/api/sales/preview', requireAuth, upload.single('file'), async (req, res) => {
     try {

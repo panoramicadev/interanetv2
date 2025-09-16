@@ -26,6 +26,7 @@ import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
 import ProductDetail from "@/pages/product-detail";
 import TomadorPedidos from "@/pages/tomador-pedidos";
+import EcommerceAdmin from "@/pages/ecommerce-admin";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -77,6 +78,7 @@ function Router() {
             <Route path="/usuarios" component={Users} />
             <Route path="/productos" component={Products} />
             <Route path="/lista-precios" component={ListaPrecios} />
+            <Route path="/ecommerce" component={EcommerceAdmin} />
             <Route path="/clientes" component={Clients} />
             <Route path="/ordenes" component={OrdenesPage} />
             <Route path="/products" component={() => {

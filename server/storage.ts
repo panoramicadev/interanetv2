@@ -439,6 +439,65 @@ export interface IStorage {
   getEcommerceCategories(): Promise<string[]>;
   validateProductSlug(slug: string, excludeKopr?: string): Promise<boolean>;
   
+  // eCommerce Admin operations (Simple approach using priceList)
+  getEcommerceAdminProducts(filters?: {
+    search?: string;
+    categoria?: string;
+    activo?: boolean;
+  }): Promise<Array<{
+    id: string;
+    codigo: string;
+    producto: string;
+    unidad?: string;
+    precio: number;
+    precioOriginal?: number;
+    categoria?: string;
+    descripcion?: string;
+    activo: boolean;
+    imagenUrl?: string;
+    stock?: number;
+  }>>;
+  getEcommerceAdminCategories(): Promise<Array<{
+    id: string;
+    nombre: string;
+    descripcion?: string;
+    activa: boolean;
+    productoCount: number;
+  }>>;
+  getEcommerceAdminStats(): Promise<{
+    totalProductos: number;
+    productosActivos: number;
+    totalCategorias: number;
+    ventasMes: number;
+  }>;
+  updateEcommerceAdminProduct(id: string, updates: {
+    categoria?: string;
+    descripcion?: string;
+    imagenUrl?: string;
+    precioEcommerce?: number;
+    activo?: boolean;
+  }): Promise<{
+    id: string;
+    codigo: string;
+    producto: string;
+    categoria?: string;
+    descripcion?: string;
+    activo: boolean;
+  }>;
+  toggleEcommerceAdminProduct(id: string): Promise<{
+    id: string;
+    activo: boolean;
+  }>;
+  createEcommerceAdminCategory(data: {
+    nombre: string;
+    descripcion?: string;
+  }): Promise<{
+    id: string;
+    nombre: string;
+    descripcion?: string;
+    activa: boolean;
+  }>;
+  
   // Product stock operations (KOPR-based)
   getProductStock(kopr: string): Promise<ProductStock[]>;
   getProductStockByWarehouse(kopr: string, kobo: string, kosu?: string): Promise<ProductStock[]>;
@@ -3475,6 +3534,314 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     return !existingProduct; // Return true if slug is available (not found)
+  }
+
+  // eCommerce Admin operations (Simple approach using priceList)
+  async getEcommerceAdminProducts(filters?: {
+    search?: string;
+    categoria?: string;
+    activo?: boolean;
+  }): Promise<Array<{
+    id: string;
+    codigo: string;
+    producto: string;
+    unidad?: string;
+    precio: number;
+    precioOriginal?: number;
+    categoria?: string;
+    descripcion?: string;
+    activo: boolean;
+    imagenUrl?: string;
+    stock?: number;
+  }>> {
+    const { priceList, ecommerceProducts } = await import('@shared/schema');
+    
+    // Base query: get all products from priceList
+    let baseQuery = db
+      .select({
+        id: priceList.id,
+        codigo: priceList.codigo,
+        producto: priceList.producto,
+        unidad: priceList.unidad,
+        precio: priceList.canalDigital, // Use canal digital as default ecommerce price
+        precioOriginal: priceList.lista,
+        // eCommerce fields from join
+        ecomId: ecommerceProducts.id,
+        categoria: ecommerceProducts.categoria,
+        descripcion: ecommerceProducts.descripcion,
+        activo: ecommerceProducts.activo,
+        imagenUrl: ecommerceProducts.imagenUrl,
+        precioEcommerce: ecommerceProducts.precioEcommerce,
+      })
+      .from(priceList)
+      .leftJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId));
+
+    const conditions = [];
+
+    // Apply filters
+    if (filters?.search) {
+      const searchTerm = `%${filters.search.toLowerCase()}%`;
+      conditions.push(or(
+        sql`LOWER(${priceList.codigo}) LIKE ${searchTerm}`,
+        sql`LOWER(${priceList.producto}) LIKE ${searchTerm}`
+      ));
+    }
+
+    if (filters?.categoria) {
+      conditions.push(eq(ecommerceProducts.categoria, filters.categoria));
+    }
+
+    if (filters?.activo !== undefined) {
+      if (filters.activo) {
+        conditions.push(eq(ecommerceProducts.activo, true));
+      } else {
+        conditions.push(or(
+          eq(ecommerceProducts.activo, false),
+          isNull(ecommerceProducts.activo)
+        ));
+      }
+    }
+
+    if (conditions.length > 0) {
+      baseQuery = baseQuery.where(and(...conditions));
+    }
+
+    const results = await baseQuery.orderBy(priceList.producto);
+
+    return results.map(row => ({
+      id: row.ecomId || row.id, // Use ecommerce ID if exists, otherwise priceList ID
+      codigo: row.codigo,
+      producto: row.producto,
+      unidad: row.unidad || undefined,
+      precio: Number(row.precioEcommerce) || Number(row.precio) || 0,
+      precioOriginal: Number(row.precioOriginal) || undefined,
+      categoria: row.categoria || undefined,
+      descripcion: row.descripcion || undefined,
+      activo: row.activo || false,
+      imagenUrl: row.imagenUrl || undefined,
+      stock: undefined, // TODO: Add stock integration if needed
+    }));
+  }
+
+  async getEcommerceAdminCategories(): Promise<Array<{
+    id: string;
+    nombre: string;
+    descripcion?: string;
+    activa: boolean;
+    productoCount: number;
+  }>> {
+    const { ecommerceCategories, ecommerceProducts } = await import('@shared/schema');
+    
+    const results = await db
+      .select({
+        id: ecommerceCategories.id,
+        nombre: ecommerceCategories.nombre,
+        descripcion: ecommerceCategories.descripcion,
+        activa: ecommerceCategories.activa,
+        productoCount: sql<number>`COUNT(${ecommerceProducts.id})`
+      })
+      .from(ecommerceCategories)
+      .leftJoin(ecommerceProducts, eq(ecommerceCategories.nombre, ecommerceProducts.categoria))
+      .groupBy(ecommerceCategories.id, ecommerceCategories.nombre, ecommerceCategories.descripcion, ecommerceCategories.activa)
+      .orderBy(ecommerceCategories.nombre);
+
+    return results.map(row => ({
+      id: row.id,
+      nombre: row.nombre,
+      descripcion: row.descripcion || undefined,
+      activa: row.activa,
+      productoCount: Number(row.productoCount) || 0,
+    }));
+  }
+
+  async getEcommerceAdminStats(): Promise<{
+    totalProductos: number;
+    productosActivos: number;
+    totalCategorias: number;
+    ventasMes: number;
+  }> {
+    const { priceList, ecommerceProducts, ecommerceCategories, salesTransactions } = await import('@shared/schema');
+    
+    // Get current month boundaries
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    const [productStats] = await db
+      .select({
+        totalProductos: sql<number>`COUNT(${priceList.id})`,
+        productosActivos: sql<number>`COUNT(CASE WHEN ${ecommerceProducts.activo} = true THEN 1 END)`
+      })
+      .from(priceList)
+      .leftJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId));
+
+    const [categoryStats] = await db
+      .select({
+        totalCategorias: sql<number>`COUNT(${ecommerceCategories.id})`
+      })
+      .from(ecommerceCategories)
+      .where(eq(ecommerceCategories.activa, true));
+
+    const [salesStats] = await db
+      .select({
+        ventasMes: sql<number>`COALESCE(SUM(${salesTransactions.vanedo}), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(
+        gte(salesTransactions.feemdo, startOfMonth.toISOString().split('T')[0]),
+        lte(salesTransactions.feemdo, endOfMonth.toISOString().split('T')[0])
+      ));
+
+    return {
+      totalProductos: Number(productStats.totalProductos) || 0,
+      productosActivos: Number(productStats.productosActivos) || 0,
+      totalCategorias: Number(categoryStats.totalCategorias) || 0,
+      ventasMes: Number(salesStats.ventasMes) || 0,
+    };
+  }
+
+  async updateEcommerceAdminProduct(id: string, updates: {
+    categoria?: string;
+    descripcion?: string;
+    imagenUrl?: string;
+    precioEcommerce?: number;
+    activo?: boolean;
+  }): Promise<{
+    id: string;
+    codigo: string;
+    producto: string;
+    categoria?: string;
+    descripcion?: string;
+    activo: boolean;
+  }> {
+    const { priceList, ecommerceProducts } = await import('@shared/schema');
+
+    // First check if this is a priceList ID or ecommerce product ID
+    const [priceListProduct] = await db
+      .select({ id: priceList.id, codigo: priceList.codigo, producto: priceList.producto })
+      .from(priceList)
+      .where(eq(priceList.id, id))
+      .limit(1);
+
+    if (!priceListProduct) {
+      throw new Error('Product not found');
+    }
+
+    // Check if ecommerce record exists
+    const [existingEcomProduct] = await db
+      .select()
+      .from(ecommerceProducts)
+      .where(eq(ecommerceProducts.priceListId, id))
+      .limit(1);
+
+    let ecomProduct;
+    
+    if (existingEcomProduct) {
+      // Update existing ecommerce record
+      [ecomProduct] = await db
+        .update(ecommerceProducts)
+        .set({
+          ...updates,
+          updatedAt: new Date()
+        })
+        .where(eq(ecommerceProducts.id, existingEcomProduct.id))
+        .returning();
+    } else {
+      // Create new ecommerce record
+      [ecomProduct] = await db
+        .insert(ecommerceProducts)
+        .values({
+          priceListId: id,
+          ...updates,
+        })
+        .returning();
+    }
+
+    return {
+      id: ecomProduct.id,
+      codigo: priceListProduct.codigo,
+      producto: priceListProduct.producto,
+      categoria: ecomProduct.categoria || undefined,
+      descripcion: ecomProduct.descripcion || undefined,
+      activo: ecomProduct.activo,
+    };
+  }
+
+  async toggleEcommerceAdminProduct(id: string): Promise<{
+    id: string;
+    activo: boolean;
+  }> {
+    const { priceList, ecommerceProducts } = await import('@shared/schema');
+
+    // Check if ecommerce record exists
+    const [existingEcomProduct] = await db
+      .select()
+      .from(ecommerceProducts)
+      .where(eq(ecommerceProducts.priceListId, id))
+      .limit(1);
+
+    let ecomProduct;
+
+    if (existingEcomProduct) {
+      // Toggle existing record
+      [ecomProduct] = await db
+        .update(ecommerceProducts)
+        .set({
+          activo: !existingEcomProduct.activo,
+          updatedAt: new Date()
+        })
+        .where(eq(ecommerceProducts.id, existingEcomProduct.id))
+        .returning();
+    } else {
+      // Create new record as active
+      [ecomProduct] = await db
+        .insert(ecommerceProducts)
+        .values({
+          priceListId: id,
+          activo: true,
+        })
+        .returning();
+    }
+
+    return {
+      id: ecomProduct.id,
+      activo: ecomProduct.activo,
+    };
+  }
+
+  async createEcommerceAdminCategory(data: {
+    nombre: string;
+    descripcion?: string;
+  }): Promise<{
+    id: string;
+    nombre: string;
+    descripcion?: string;
+    activa: boolean;
+  }> {
+    const { ecommerceCategories } = await import('@shared/schema');
+
+    try {
+      const [newCategory] = await db
+        .insert(ecommerceCategories)
+        .values({
+          nombre: data.nombre,
+          descripcion: data.descripcion,
+          activa: true,
+        })
+        .returning();
+
+      return {
+        id: newCategory.id,
+        nombre: newCategory.nombre,
+        descripcion: newCategory.descripcion || undefined,
+        activa: newCategory.activa,
+      };
+    } catch (error: any) {
+      if (error.code === '23505') { // Unique constraint violation
+        throw new Error('Ya existe una categoría con ese nombre');
+      }
+      throw error;
+    }
   }
 
   async getProductStock(sku: string): Promise<ProductStock[]> {
