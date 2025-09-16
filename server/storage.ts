@@ -52,6 +52,7 @@ import {
   type InsertQuote,
   type QuoteItem,
   type InsertQuoteItem,
+  type InsertQuoteItemInput,
   type EcommerceProduct,
   type UpdateEcommerceProduct,
   type EcommerceProductFilters,
@@ -578,7 +579,7 @@ export interface IStorage {
   getPriceListCount(search?: string, unidad?: string, tipoProducto?: string, color?: string): Promise<number>;
   getAvailableUnits(): Promise<string[]>;
   getProductTypes(): Promise<string[]>;
-  getProductColors(): Promise<string[]>;
+  getAllProductColors(): Promise<string[]>;
   getPriceListById(id: string): Promise<PriceList | undefined>;
   getPriceListByCodigo(codigo: string): Promise<PriceList | undefined>;
   createPriceListItem(item: InsertPriceListInput): Promise<PriceList>;
@@ -601,7 +602,7 @@ export interface IStorage {
   deleteQuote(id: string): Promise<void>;
   
   // Quote items operations
-  createQuoteItem(quoteItem: InsertQuoteItem): Promise<QuoteItem>;
+  createQuoteItem(quoteItem: InsertQuoteItemInput): Promise<QuoteItem>;
   getQuoteItems(quoteId: string): Promise<QuoteItem[]>;
   updateQuoteItem(id: string, quoteItem: Partial<InsertQuoteItem>): Promise<QuoteItem>;
   deleteQuoteItem(id: string): Promise<void>;
@@ -865,6 +866,28 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  // Helper function for date range normalization  
+  private normalizeDateForSQL(startDate?: string, endDate?: string): {
+    startDateCondition?: any;
+    endDateCondition?: any;
+  } {
+    const conditions: any = {};
+    
+    if (startDate) {
+      conditions.startDateCondition = gte(salesTransactions.feemdo, startDate);
+    }
+    
+    if (endDate) {
+      // Create exclusive end date by adding 1 day for proper inclusive range
+      const endDateObj = new Date(endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+      conditions.endDateCondition = lt(salesTransactions.feemdo, endDateExclusive);
+    }
+    
+    return conditions;
+  }
+
   async getSalesMetrics(filters: {
     startDate?: string;
     endDate?: string;
@@ -882,11 +905,14 @@ export class DatabaseStorage implements IStorage {
     const { startDate, endDate, salesperson, segment, client, supplier } = filters;
     const conditions = [];
     
-    if (startDate) {
-      conditions.push(gte(salesTransactions.feemdo, startDate));
+    // Use proper date boundaries for inclusive range
+    const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(startDate, endDate);
+    
+    if (startDateCondition) {
+      conditions.push(startDateCondition);
     }
-    if (endDate) {
-      conditions.push(lte(salesTransactions.feemdo, endDate));
+    if (endDateCondition) {
+      conditions.push(endDateCondition);
     }
     if (salesperson) {
       conditions.push(eq(salesTransactions.nokofu, salesperson));
@@ -1005,11 +1031,14 @@ export class DatabaseStorage implements IStorage {
   }> {
     const conditions = [];
     
-    if (startDate) {
-      conditions.push(gte(salesTransactions.feemdo, startDate));
+    // Use proper date boundaries for inclusive range
+    const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(startDate, endDate);
+    
+    if (startDateCondition) {
+      conditions.push(startDateCondition);
     }
-    if (endDate) {
-      conditions.push(lte(salesTransactions.feemdo, endDate));
+    if (endDateCondition) {
+      conditions.push(endDateCondition);
     }
     if (salesperson) {
       conditions.push(eq(salesTransactions.nokofu, salesperson));
@@ -1129,12 +1158,15 @@ export class DatabaseStorage implements IStorage {
     totalSales: number;
     percentage: number;
   }>> {
+    // Use proper date boundaries for inclusive range
+    const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(startDate, endDate);
+    
     const dateConditions = [];
-    if (startDate) {
-      dateConditions.push(gte(salesTransactions.feemdo, startDate));
+    if (startDateCondition) {
+      dateConditions.push(startDateCondition);
     }
-    if (endDate) {
-      dateConditions.push(lte(salesTransactions.feemdo, endDate));
+    if (endDateCondition) {
+      dateConditions.push(endDateCondition);
     }
     const dateFilter = dateConditions.length > 0 ? and(...dateConditions) : undefined;
 
@@ -1150,11 +1182,11 @@ export class DatabaseStorage implements IStorage {
     const conditions = [
       sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`
     ];
-    if (startDate) {
-      conditions.push(gte(salesTransactions.feemdo, startDate));
+    if (startDateCondition) {
+      conditions.push(startDateCondition);
     }
-    if (endDate) {
-      conditions.push(lte(salesTransactions.feemdo, endDate));
+    if (endDateCondition) {
+      conditions.push(endDateCondition);
     }
 
     const results = await db
@@ -1180,11 +1212,14 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [sql`${salesTransactions.feemdo} IS NOT NULL`];
     
-    if (startDate) {
-      conditions.push(gte(salesTransactions.feemdo, startDate));
+    // Use proper date boundaries for inclusive range
+    const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(startDate, endDate);
+    
+    if (startDateCondition) {
+      conditions.push(startDateCondition);
     }
-    if (endDate) {
-      conditions.push(lte(salesTransactions.feemdo, endDate));
+    if (endDateCondition) {
+      conditions.push(endDateCondition);
     }
     if (salesperson) {
       conditions.push(eq(salesTransactions.nokofu, salesperson));
@@ -1261,7 +1296,11 @@ export class DatabaseStorage implements IStorage {
       conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
-      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+      // Create exclusive end date by adding 1 day for proper inclusive range
+      const endDateObj = new Date(filters.endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
     
     const whereClause = and(...conditions);
@@ -1329,7 +1368,11 @@ export class DatabaseStorage implements IStorage {
       conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
-      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+      // Create exclusive end date by adding 1 day for proper inclusive range
+      const endDateObj = new Date(filters.endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
     
     const whereClause = and(...conditions);
@@ -1419,7 +1462,11 @@ export class DatabaseStorage implements IStorage {
       conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
-      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+      // Create exclusive end date by adding 1 day for proper inclusive range
+      const endDateObj = new Date(filters.endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
     
     const whereClause = and(...conditions);
@@ -2875,6 +2922,9 @@ export class DatabaseStorage implements IStorage {
       seoDescription: products.seoDescription,
       active: products.active,
       ecomActive: products.ecomActive,
+      slug: products.slug,
+      ecomPrice: products.ecomPrice,
+      ogImageUrl: products.ogImageUrl,
       createdAt: products.createdAt,
       updatedAt: products.updatedAt
       // No incluir campos de precio para acceso público
@@ -4123,7 +4173,13 @@ export class DatabaseStorage implements IStorage {
   async getSegmentAnalysisByUniqueClients(startDate?: string, endDate?: string) {
     const whereConditions = [];
     if (startDate) whereConditions.push(gte(salesTransactions.feemdo, startDate));
-    if (endDate) whereConditions.push(lte(salesTransactions.feemdo, endDate));
+    if (endDate) {
+      // Create exclusive end date by adding 1 day for proper inclusive range
+      const endDateObj = new Date(endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+      whereConditions.push(lt(salesTransactions.feemdo, endDateExclusive));
+    }
 
     const query = db
       .select({
@@ -4167,7 +4223,11 @@ export class DatabaseStorage implements IStorage {
       conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
-      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+      // Create exclusive end date by adding 1 day for proper inclusive range
+      const endDateObj = new Date(filters.endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
 
     // Add salesperson filter
@@ -4233,7 +4293,11 @@ export class DatabaseStorage implements IStorage {
       conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
-      conditions.push(lte(salesTransactions.feemdo, filters.endDate));
+      // Create exclusive end date by adding 1 day for proper inclusive range
+      const endDateObj = new Date(filters.endDate);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
 
     // Add salesperson filter
@@ -4393,7 +4457,7 @@ export class DatabaseStorage implements IStorage {
         .innerJoin(salesTransactions, eq(clients.nokoen, salesTransactions.nokoen))
         .where(and(...salespersonConditions)) as any;
     } else {
-      query = conditions.length > 0 ? query.where(and(...conditions)) : query;
+      query = conditions.length > 0 ? query.where(and(...conditions)) as any : query;
     }
 
     const clientsData = await query
@@ -5191,10 +5255,10 @@ export class DatabaseStorage implements IStorage {
   async createOrder(order: InsertOrder): Promise<Order> {
     // Generate unique order number
     const orderCount = await db
-      .select({ count: sql`count(*)`.as('count') })
+      .select({ count: sql<number>`count(*)` })
       .from(orders);
     
-    const orderNumber = `ORD-${new Date().getFullYear()}-${String(orderCount[0].count + 1).padStart(6, '0')}`;
+    const orderNumber = `ORD-${new Date().getFullYear()}-${String((Number(orderCount[0]?.count) || 0) + 1).padStart(6, '0')}`;
     
     const [newOrder] = await db
       .insert(orders)
@@ -5370,7 +5434,7 @@ export class DatabaseStorage implements IStorage {
       for (let i = 1; i < conditions.length; i++) {
         combinedCondition = sql`${combinedCondition} AND ${conditions[i]}`;
       }
-      query = query.where(combinedCondition);
+      query = query.where(combinedCondition) as any;
     }
     
     const items = await query
@@ -5413,7 +5477,7 @@ export class DatabaseStorage implements IStorage {
       for (let i = 1; i < conditions.length; i++) {
         combinedCondition = sql`${combinedCondition} AND ${conditions[i]}`;
       }
-      query = query.where(combinedCondition);
+      query = query.where(combinedCondition) as any;
     }
     
     const [result] = await query;
@@ -5453,7 +5517,7 @@ export class DatabaseStorage implements IStorage {
     return Array.from(productTypes).sort();
   }
 
-  async getProductColors(): Promise<string[]> {
+  async getAllProductColors(): Promise<string[]> {
     // Extract colors from product names using common color keywords
     const result = await db
       .select({ producto: priceList.producto })
@@ -5574,7 +5638,7 @@ export class DatabaseStorage implements IStorage {
     }
     
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      query = query.where(and(...conditions)) as any;
     }
     
     const result = await query
@@ -5613,7 +5677,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Quote items operations
-  async createQuoteItem(quoteItem: InsertQuoteItem): Promise<QuoteItem> {
+  async createQuoteItem(quoteItem: InsertQuoteItemInput): Promise<QuoteItem> {
     // Calculate totalPrice from quantity and unitPrice to ensure data consistency
     const quantity = typeof quoteItem.quantity === 'string' ? parseFloat(quoteItem.quantity) : quoteItem.quantity;
     const unitPrice = typeof quoteItem.unitPrice === 'string' ? parseFloat(quoteItem.unitPrice) : quoteItem.unitPrice;

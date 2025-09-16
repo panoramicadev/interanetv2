@@ -61,6 +61,45 @@ function asyncHandler(fn: Function) {
   };
 }
 
+// Timezone-safe date formatting function
+function formatDateLocal(date: Date): string {
+  if (!date || isNaN(date.getTime())) {
+    throw new Error('Invalid date provided');
+  }
+  
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+}
+
+// Helper function to normalize date range for SQL queries
+function normalizeDateRange(startDate?: string, endDate?: string): { 
+  startDate?: string; 
+  endDate?: string; 
+  endDateExclusive?: string; 
+} {
+  if (!startDate && !endDate) {
+    return {};
+  }
+  
+  let endDateExclusive: string | undefined;
+  
+  if (endDate) {
+    // For inclusive endDate, create exclusive endDate by adding 1 day
+    const endDateObj = new Date(endDate);
+    endDateObj.setDate(endDateObj.getDate() + 1);
+    endDateExclusive = formatDateLocal(endDateObj);
+  }
+  
+  return {
+    startDate,
+    endDate,
+    endDateExclusive
+  };
+}
+
 // Helper function to convert period and filterType to date range
 function getDateRange(period?: string, filterType?: string): { startDate?: string; endDate?: string } {
   if (!period || !filterType) return {};
@@ -74,7 +113,6 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
       // period format: "2025-09-05"
       startDate = new Date(period);
       endDate = new Date(period);
-      // Don't add extra day, we'll handle inclusive range in the query
       break;
     case 'month':
       // period format: "2025-09" 
@@ -98,7 +136,6 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
         const [start, end] = period.split('_');
         startDate = new Date(start);
         endDate = new Date(end);
-        // Don't add extra day, we'll handle inclusive range in the query
       } else {
         // Handle predefined ranges
         switch (period) {
@@ -124,8 +161,8 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   }
 
   return {
-    startDate: startDate && !isNaN(startDate.getTime()) ? startDate.toISOString().split('T')[0] : undefined,
-    endDate: endDate && !isNaN(endDate.getTime()) ? endDate.toISOString().split('T')[0] : undefined
+    startDate: startDate && !isNaN(startDate.getTime()) ? formatDateLocal(startDate) : undefined,
+    endDate: endDate && !isNaN(endDate.getTime()) ? formatDateLocal(endDate) : undefined
   };
 }
 
@@ -193,8 +230,8 @@ export function registerRoutes(app: Express): Server {
         previousEnd.setDate(0);
       }
       
-      const previousStartFormatted = previousStart.toISOString().split('T')[0];
-      const previousEndFormatted = previousEnd.toISOString().split('T')[0];
+      const previousStartFormatted = formatDateLocal(previousStart);
+      const previousEndFormatted = formatDateLocal(previousEnd);
       
       console.log(`[DEBUG] Periodo actual: ${currentStartDate} a ${currentEndDate}`);
       console.log(`[DEBUG] Periodo anterior: ${previousStartFormatted} a ${previousEndFormatted}`);
@@ -3356,8 +3393,7 @@ export function registerRoutes(app: Express): Server {
       
       const itemData = insertQuoteItemSchema.parse({
         ...req.body,
-        quoteId,
-        totalPrice: (parseFloat(req.body.quantity) * parseFloat(req.body.unitPrice)).toString()
+        quoteId
       });
       
       const item = await storage.createQuoteItem(itemData);
@@ -3491,7 +3527,7 @@ export function registerRoutes(app: Express): Server {
   // Get available colors for filtering
   app.get('/api/price-list/colors', requireAuth, async (req, res) => {
     try {
-      const colors = await storage.getProductColors();
+      const colors = await storage.getAllProductColors();
       res.json(colors);
     } catch (error) {
       console.error("Error fetching product colors:", error);
