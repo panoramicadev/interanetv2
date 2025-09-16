@@ -3663,18 +3663,22 @@ export class DatabaseStorage implements IStorage {
       ));
     }
 
+    // Only filter by categoria if it's specified AND we want to show only categorized products
     if (filters?.categoria) {
       conditions.push(eq(ecommerceProducts.categoria, filters.categoria));
     }
 
+    // Only apply activo filter if explicitly specified
     if (filters?.activo !== undefined) {
       if (filters.activo) {
-        conditions.push(eq(ecommerceProducts.activo, true));
-      } else {
+        // Show products that are either explicitly active in ecommerceProducts OR not in ecommerceProducts at all (default active)
         conditions.push(or(
-          eq(ecommerceProducts.activo, false),
+          eq(ecommerceProducts.activo, true),
           isNull(ecommerceProducts.activo)
         ));
+      } else {
+        // Show only products that are explicitly inactive
+        conditions.push(eq(ecommerceProducts.activo, false));
       }
     }
 
@@ -3693,7 +3697,7 @@ export class DatabaseStorage implements IStorage {
       precioOriginal: Number(row.precioOriginal) || undefined,
       categoria: row.categoria || undefined,
       descripcion: row.descripcion || undefined,
-      activo: row.activo || false,
+      activo: row.activo ?? true, // Default to active if not specified in ecommerceProducts
       imagenUrl: row.imagenUrl || undefined,
       stock: undefined, // TODO: Add stock integration if needed
     }));
