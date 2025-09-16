@@ -11,6 +11,7 @@ import {
   integer,
   boolean,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -247,7 +248,7 @@ export const products = pgTable("products", {
   showInStore: boolean("show_in_store").default(false), // Mostrar en tienda
   
   // eCommerce fields
-  slug: varchar("slug").unique(), // SEO-friendly URL slug
+  slug: varchar("slug"), // SEO-friendly URL slug
   ecomActive: boolean("ecom_active").default(false), // Show in eCommerce store
   ecomPrice: numeric("ecom_price", { precision: 15, scale: 2 }), // eCommerce-specific price
   category: varchar("category"), // Product category for eCommerce
@@ -260,7 +261,10 @@ export const products = pgTable("products", {
   active: boolean("active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Partial unique index for slug to avoid truncation prompt
+  uniqueSlugIndex: uniqueIndex('products_slug_unique').on(table.slug).where(sql`${table.slug} is not null`)
+}));
 
 // Warehouses table - Master data for warehouses
 export const warehouses = pgTable("warehouses", {
