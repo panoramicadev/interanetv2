@@ -4109,7 +4109,7 @@ export function registerRoutes(app: Express): Server {
         await zip.loadAsync(zipBuffer);
 
         // ZIP security controls
-        const MAX_FILES = 100; // Maximum number of files allowed
+        const MAX_FILES = 300; // Maximum number of files allowed
         const MAX_ENTRY_SIZE = 10 * 1024 * 1024; // 10MB per individual file
         const MAX_TOTAL_UNCOMPRESSED = 100 * 1024 * 1024; // 100MB total uncompressed size
         
