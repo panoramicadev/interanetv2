@@ -424,23 +424,16 @@ export default function TiendaPage() {
                         {product.producto}
                       </h3>
                       
-                      {/* Brand */}
-                      <p className="text-gray-500 text-sm mb-3">Pinturas Panorámica</p>
+                      {/* Product SKU */}
+                      <p className="text-gray-400 text-xs mb-3 font-mono tracking-wide">{product.codigo}</p>
 
-                      {/* Rating */}
-                      <div className="flex items-center gap-1 mb-4">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        ))}
-                        <span className="text-sm text-gray-500 ml-1">(4.8)</span>
-                      </div>
 
                       {/* Price */}
                       <div className="mb-4">
                         <div className="text-2xl font-bold text-gray-900">
                           {formatPrice(product.canalDigital)}
                           <span className="text-sm text-gray-500 font-normal">
-                            /{product.unidad || 'Unidad'}
+                            {product.unidad || 'Unidad'}
                           </span>
                         </div>
                         {isOffer && (
