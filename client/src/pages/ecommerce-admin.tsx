@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,7 +70,7 @@ export default function EcommerceAdmin() {
       if (selectedCategory !== 'all') params.append('categoria', selectedCategory);
       if (selectedStatus !== 'all') params.append('activo', selectedStatus);
       
-      const response = await apiRequest('GET', `/api/ecommerce/admin/productos?${params.toString()}`);
+      const response = await apiRequest(`/api/ecommerce/admin/productos?${params.toString()}`);
       return response.json();
     }
   });
@@ -79,7 +79,7 @@ export default function EcommerceAdmin() {
   const { data: categorias = [] } = useQuery<CategoriaEcommerce[]>({
     queryKey: ['/api/ecommerce/admin/categorias'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/ecommerce/admin/categorias');
+      const response = await apiRequest('/api/ecommerce/admin/categorias');
       return response.json();
     }
   });
@@ -88,7 +88,7 @@ export default function EcommerceAdmin() {
   const { data: stats } = useQuery({
     queryKey: ['/api/ecommerce/admin/stats'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/ecommerce/admin/stats');
+      const response = await apiRequest('/api/ecommerce/admin/stats');
       return response.json();
     }
   });
@@ -96,7 +96,10 @@ export default function EcommerceAdmin() {
   // Mutación para actualizar producto
   const updateProductMutation = useMutation({
     mutationFn: async (data: { id: string; updates: Partial<ProductoEcommerce> }) => {
-      const response = await apiRequest('PATCH', `/api/ecommerce/admin/productos/${data.id}`, data.updates);
+      const response = await apiRequest(`/api/ecommerce/admin/productos/${data.id}`, {
+        method: 'PATCH',
+        data: data.updates
+      });
       return response.json();
     },
     onSuccess: () => {
@@ -121,7 +124,9 @@ export default function EcommerceAdmin() {
   // Mutación para alternar estado activo del producto
   const toggleProductMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest('PATCH', `/api/ecommerce/admin/productos/${id}/toggle`);
+      const response = await apiRequest(`/api/ecommerce/admin/productos/${id}/toggle`, {
+        method: 'PATCH'
+      });
       return response.json();
     },
     onSuccess: () => {
@@ -137,7 +142,10 @@ export default function EcommerceAdmin() {
   // Mutación para crear categoría
   const createCategoryMutation = useMutation({
     mutationFn: async (data: { nombre: string; descripcion?: string }) => {
-      const response = await apiRequest('POST', '/api/ecommerce/admin/categorias', data);
+      const response = await apiRequest('/api/ecommerce/admin/categorias', {
+        method: 'POST',
+        data
+      });
       return response.json();
     },
     onSuccess: () => {
@@ -595,6 +603,9 @@ export default function EcommerceAdmin() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Editar Producto</DialogTitle>
+            <DialogDescription>
+              Configura las propiedades del producto para la tienda online.
+            </DialogDescription>
           </DialogHeader>
           
           {editingProduct && (
@@ -690,6 +701,9 @@ export default function EcommerceAdmin() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Nueva Categoría</DialogTitle>
+            <DialogDescription>
+              Crea una nueva categoría para organizar tus productos.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
