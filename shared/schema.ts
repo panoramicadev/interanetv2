@@ -1599,3 +1599,60 @@ export type QuoteItem = typeof quoteItems.$inferSelect;
 export type InsertQuoteItem = typeof quoteItems.$inferInsert;
 export type InsertQuoteInput = z.infer<typeof insertQuoteSchema>;
 export type InsertQuoteItemInput = z.infer<typeof insertQuoteItemSchema>;
+
+// eCommerce Categories - Categorías para organizar productos en la tienda
+export const ecommerceCategories = pgTable("ecommerce_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre").notNull().unique(), // Category name
+  descripcion: text("descripcion"), // Category description
+  activa: boolean("activa").default(true), // Is category active
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// eCommerce Products - Vinculación de productos de priceList con configuración ecommerce
+export const ecommerceProducts = pgTable("ecommerce_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  priceListId: varchar("price_list_id").notNull(), // FK to priceList.id
+  activo: boolean("activo").default(false), // Si aparece en la tienda
+  categoria: varchar("categoria"), // Categoría asignada
+  descripcion: text("descripcion"), // Descripción para la tienda
+  imagenUrl: varchar("imagen_url"), // URL de imagen del producto
+  precioEcommerce: numeric("precio_ecommerce", { precision: 15, scale: 2 }), // Precio específico para ecommerce
+  orden: integer("orden").default(0), // Orden de visualización
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Constraint único para un producto por priceList
+  uniquePriceListProduct: unique("unique_price_list_product").on(table.priceListId),
+}));
+
+// Schemas for eCommerce Categories
+export const insertEcommerceCategorySchema = createInsertSchema(ecommerceCategories, {
+  nombre: z.string().min(1, "Nombre de categoría es requerido"),
+  descripcion: z.string().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Schemas for eCommerce Products  
+export const insertEcommerceProductSchema = createInsertSchema(ecommerceProducts, {
+  priceListId: z.string().min(1, "ID de producto de lista de precios es requerido"),
+  categoria: z.string().optional(),
+  descripcion: z.string().optional(),
+  imagenUrl: z.string().url("URL de imagen inválida").optional().or(z.literal("")),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Types
+export type EcommerceCategory = typeof ecommerceCategories.$inferSelect;
+export type InsertEcommerceCategory = typeof ecommerceCategories.$inferInsert;
+export type EcommerceProduct = typeof ecommerceProducts.$inferSelect;
+export type InsertEcommerceProduct = typeof ecommerceProducts.$inferInsert;
+export type InsertEcommerceCategoryInput = z.infer<typeof insertEcommerceCategorySchema>;
+export type InsertEcommerceProductInput = z.infer<typeof insertEcommerceProductSchema>;
