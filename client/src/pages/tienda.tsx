@@ -22,11 +22,15 @@ import {
   Check,
   Grid3X3,
   Percent,
-  Award
+  Award,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import bannerImage from "@assets/Desktop Banner 02_1758045959229.png";
+import bannerCopper from "@assets/Desktop Banner 02_1758045959229.png";
+import bannerStain from "@assets/Desktop Banner 03 (1)_1758047457407.png";
+import bannerDespacho from "@assets/Desktop Banner 01_1758047466193.png";
 
 // Types for store data
 interface StoreConfig {
@@ -188,6 +192,16 @@ export default function TiendaPage() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
   
+  // Banner carousel state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  
+  const banners = [
+    { src: bannerCopper, alt: "Oferta del Mes - Esmalte Copper" },
+    { src: bannerStain, alt: "Oferta del Mes - Stain Impregnante" },
+    { src: bannerDespacho, alt: "Despacho Gratis - 3% OFF" }
+  ];
+  
   // Cart state management
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -195,6 +209,16 @@ export default function TiendaPage() {
   
   // Calculate cart count from cart items
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+  
+  // Carousel auto-rotation effect
+  useEffect(() => {
+    if (!isHovered) {
+      const interval = setInterval(() => {
+        setCurrentSlide(prev => (prev + 1) % banners.length);
+      }, 4000); // 4 seconds
+      return () => clearInterval(interval);
+    }
+  }, [isHovered, banners.length]);
 
   // Quantity management functions
   const getProductQuantity = (productId: string, unidad: string | undefined): number => {
@@ -314,7 +338,7 @@ export default function TiendaPage() {
   });
 
   // Fetch store banners
-  const { data: banners = [] } = useQuery<StoreBanner[]>({
+  const { data: storeBanners = [] } = useQuery<StoreBanner[]>({
     queryKey: ['/api/store/banners'],
     retry: false,
   });
@@ -343,7 +367,7 @@ export default function TiendaPage() {
   });
 
   // Get active hero banner
-  const heroBanner = banners.find(b => b.activo && b.titulo.includes("OFERTA"));
+  const heroBanner = storeBanners.find(b => b.activo && b.titulo.includes("OFERTA"));
 
   // Filter products
   const filteredProducts = products.filter((product) => {
@@ -552,14 +576,42 @@ export default function TiendaPage() {
 
       </header>
       
-      {/* Main Banner - Full Width */}
-      <section className="w-screen">
-        <img 
-          src={bannerImage}
-          alt="Oferta del Mes - Esmalte Copper"
-          className="w-full h-auto object-cover min-h-[120px] max-h-[160px] sm:max-h-[200px] md:max-h-[240px] lg:max-h-[280px]"
-          data-testid="banner-oferta-mes"
-        />
+      {/* Banner Carousel - Full Width */}
+      <section 
+        className="w-screen relative overflow-hidden"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        data-testid="banner-carousel"
+      >
+        {/* Image container with transitions */}
+        <div className="relative w-full min-h-[120px] max-h-[160px] sm:max-h-[200px] md:max-h-[240px] lg:max-h-[280px]">
+          {banners.map((banner, index) => (
+            <img
+              key={index}
+              src={banner.src}
+              alt={banner.alt}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                index === currentSlide ? 'opacity-100' : 'opacity-0'
+              }`}
+              data-testid={`banner-slide-${index}`}
+            />
+          ))}
+        </div>
+        
+        {/* Navigation dots */}
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-10">
+          {banners.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentSlide(index)}
+              className={`w-3 h-3 rounded-full transition-all duration-300 hover:scale-110 ${
+                index === currentSlide ? 'bg-white shadow-lg' : 'bg-white/60 hover:bg-white/80'
+              }`}
+              data-testid={`banner-dot-${index}`}
+              aria-label={`Ir a slide ${index + 1}`}
+            />
+          ))}
+        </div>
       </section>
 
       {/* Hero Banner - Hidden when static banner is present */}
