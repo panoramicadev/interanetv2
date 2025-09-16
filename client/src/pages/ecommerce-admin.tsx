@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle } from "lucide-react";
 
 interface ProductoEcommerce {
   id: string;
@@ -54,6 +54,10 @@ export default function EcommerceAdmin() {
   // Estados para nueva categoría
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryDescription, setNewCategoryDescription] = useState("");
+  
+  // Estados para importador ZIP
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ processed: 0, total: 0, results: [] as any[] });
   
   const { toast } = useToast();
 
@@ -153,6 +157,43 @@ export default function EcommerceAdmin() {
     }
   });
 
+  // Mutación para importar imágenes desde ZIP
+  const uploadZipMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('zipFile', file);
+      
+      const response = await fetch('/api/ecommerce/admin/upload-images', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Error al procesar ZIP');
+      }
+      
+      return response.json() as { processed: number; total: number; results: any[] };
+    },
+    onSuccess: (data) => {
+      setUploadProgress(data);
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      toast({
+        title: "Importación completada",
+        description: `Se procesaron ${data.processed}/${data.total} imágenes correctamente.`,
+      });
+      setIsUploading(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error en la importación",
+        description: error.message || "No se pudo procesar el archivo ZIP.",
+        variant: "destructive",
+      });
+      setIsUploading(false);
+    }
+  });
+
   // Filtrar productos
   const filteredProducts = productos.filter(product => {
     if (searchTerm) {
@@ -212,6 +253,43 @@ export default function EcommerceAdmin() {
 
   const formatPrice = (price: number) => {
     return `$${price.toLocaleString()}`;
+  };
+
+  // Funciones para importador ZIP
+  const handleFileUpload = (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      toast({
+        title: "Archivo inválido",
+        description: "Solo se permiten archivos ZIP.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      toast({
+        title: "Archivo muy grande",
+        description: "El archivo ZIP no debe exceder 50MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsUploading(true);
+    setUploadProgress({ processed: 0, total: 0, results: [] });
+    uploadZipMutation.mutate(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
   };
 
   if (isLoading) {
@@ -291,6 +369,110 @@ export default function EcommerceAdmin() {
           </Card>
         </div>
       )}
+
+      {/* Importador ZIP de Imágenes */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileArchive className="h-5 w-5 text-primary" />
+            Importador de Imágenes ZIP
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Sube un archivo ZIP con imágenes. Los archivos deben llamarse igual que el código del producto (ej: PCA106BLANC02.png)
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Zona de Drag & Drop */}
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                isUploading 
+                  ? 'border-yellow-300 bg-yellow-50' 
+                  : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/20'
+              }`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              data-testid="dropzone-images"
+            >
+              {isUploading ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                  <div>
+                    <p className="font-medium">Procesando imágenes ZIP...</p>
+                    {uploadProgress.total > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {uploadProgress.processed} de {uploadProgress.total} procesadas
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Upload className="h-12 w-12 text-muted-foreground mx-auto" />
+                  <div>
+                    <p className="text-lg font-medium">Arrastra tu archivo ZIP aquí</p>
+                    <p className="text-sm text-muted-foreground">
+                      o haz clic para seleccionar (máximo 50MB)
+                    </p>
+                  </div>
+                  <input
+                    type="file"
+                    id="zip-upload"
+                    accept=".zip"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(file);
+                    }}
+                    data-testid="input-zip-file"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => document.getElementById('zip-upload')?.click()}
+                    data-testid="button-select-zip"
+                  >
+                    Seleccionar Archivo
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Resultados de la última importación */}
+            {uploadProgress.results.length > 0 && (
+              <div className="border rounded-lg p-4 space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  Última Importación ({uploadProgress.processed}/{uploadProgress.total})
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                  {uploadProgress.results.map((result, index) => (
+                    <div
+                      key={index}
+                      className={`flex items-center gap-2 text-sm p-2 rounded ${
+                        result.success 
+                          ? 'bg-green-50 text-green-800' 
+                          : 'bg-red-50 text-red-800'
+                      }`}
+                    >
+                      {result.success ? (
+                        <CheckCircle className="h-3 w-3" />
+                      ) : (
+                        <AlertCircle className="h-3 w-3" />
+                      )}
+                      <span className="font-mono text-xs">{result.fileName}</span>
+                      {result.success && (
+                        <span>→ {result.productCode}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-4">
