@@ -3440,29 +3440,15 @@ export class DatabaseStorage implements IStorage {
     return product;
   }
 
-  async createEcommerceProduct(productData: {
-    kopr: string;
-    name: string;
-    slug: string;
-    ecomActive: boolean;
-    ecomPrice?: number;
-    category?: string;
-    tags?: string[];
-    images?: Array<{id: string, url: string, alt: string, primary: boolean, sort: number}>;
-    seoTitle?: string;
-    seoDescription?: string;
-    ogImageUrl?: string;
-    ud02pr?: string;
-    priceProduct?: number;
-    priceOffer?: number;
-    showInStore?: boolean;
-    active?: boolean;
-  }): Promise<Product> {
+  async createEcommerceProduct(product: EcommerceProduct): Promise<Product> {
     const [newProduct] = await db.insert(products).values({
-      ...productData,
-      ecomPrice: productData.ecomPrice?.toString(),
-      priceProduct: productData.priceProduct?.toString(),
-      priceOffer: productData.priceOffer?.toString(),
+      kopr: product.id, // Use the EcommerceProduct id as kopr
+      name: product.descripcion || '',
+      slug: product.id, // Use id as slug
+      ecomActive: product.activo ?? false,
+      ecomPrice: product.precioEcommerce,
+      category: product.categoria,
+      // Map other fields as needed
     }).returning();
     return newProduct;
   }
@@ -3800,59 +3786,107 @@ export class DatabaseStorage implements IStorage {
     descripcion?: string;
     activo: boolean;
   }> {
+    console.log('🏪 [STORAGE] Iniciando updateEcommerceAdminProduct:', {
+      id,
+      updates,
+      timestamp: new Date().toISOString()
+    });
+
     const { priceList, ecommerceProducts } = await import('@shared/schema');
 
-    // First check if this is a priceList ID or ecommerce product ID
-    const [priceListProduct] = await db
-      .select({ id: priceList.id, codigo: priceList.codigo, producto: priceList.producto })
-      .from(priceList)
-      .where(eq(priceList.id, id))
-      .limit(1);
+    try {
+      // First check if this is a priceList ID or ecommerce product ID
+      console.log('🔍 [STORAGE] Buscando producto en priceList con ID:', id);
+      const [priceListProduct] = await db
+        .select({ id: priceList.id, codigo: priceList.codigo, producto: priceList.producto })
+        .from(priceList)
+        .where(eq(priceList.id, id))
+        .limit(1);
 
-    if (!priceListProduct) {
-      throw new Error('Product not found');
-    }
+      console.log('📦 [STORAGE] Producto encontrado en priceList:', priceListProduct);
 
-    // Check if ecommerce record exists
-    const [existingEcomProduct] = await db
-      .select()
-      .from(ecommerceProducts)
-      .where(eq(ecommerceProducts.priceListId, id))
-      .limit(1);
+      if (!priceListProduct) {
+        console.error('❌ [STORAGE] Producto no encontrado en priceList con ID:', id);
+        throw new Error('Product not found');
+      }
 
-    let ecomProduct;
-    
-    if (existingEcomProduct) {
-      // Update existing ecommerce record
-      [ecomProduct] = await db
-        .update(ecommerceProducts)
-        .set({
-          ...updates,
-          precioEcommerce: updates.precioEcommerce?.toString(),
-          updatedAt: new Date()
-        })
-        .where(eq(ecommerceProducts.id, existingEcomProduct.id))
-        .returning();
-    } else {
-      // Create new ecommerce record
-      [ecomProduct] = await db
-        .insert(ecommerceProducts)
-        .values({
+      // Check if ecommerce record exists
+      console.log('🔍 [STORAGE] Buscando registro ecommerce existente para priceListId:', id);
+      const [existingEcomProduct] = await db
+        .select()
+        .from(ecommerceProducts)
+        .where(eq(ecommerceProducts.priceListId, id))
+        .limit(1);
+
+      console.log('🛒 [STORAGE] Registro ecommerce existente:', existingEcomProduct);
+
+      let ecomProduct;
+      
+      if (existingEcomProduct) {
+        // Update existing ecommerce record
+        console.log('🔄 [STORAGE] Actualizando registro ecommerce existente:', {
+          existingId: existingEcomProduct.id,
+          updates: {
+            ...updates,
+            precioEcommerce: updates.precioEcommerce?.toString(),
+            updatedAt: new Date()
+          }
+        });
+
+        [ecomProduct] = await db
+          .update(ecommerceProducts)
+          .set({
+            ...updates,
+            precioEcommerce: updates.precioEcommerce?.toString(),
+            updatedAt: new Date()
+          })
+          .where(eq(ecommerceProducts.id, existingEcomProduct.id))
+          .returning();
+
+        console.log('✅ [STORAGE] Registro ecommerce actualizado:', ecomProduct);
+      } else {
+        // Create new ecommerce record
+        console.log('➕ [STORAGE] Creando nuevo registro ecommerce:', {
           priceListId: id,
-          ...updates,
-          precioEcommerce: updates.precioEcommerce?.toString(),
-        })
-        .returning();
-    }
+          updates: {
+            ...updates,
+            precioEcommerce: updates.precioEcommerce?.toString(),
+          }
+        });
 
-    return {
-      id: ecomProduct.id,
-      codigo: priceListProduct.codigo,
-      producto: priceListProduct.producto,
-      categoria: ecomProduct.categoria || undefined,
-      descripcion: ecomProduct.descripcion || undefined,
-      activo: ecomProduct.activo ?? false,
-    };
+        [ecomProduct] = await db
+          .insert(ecommerceProducts)
+          .values({
+            priceListId: id,
+            ...updates,
+            precioEcommerce: updates.precioEcommerce?.toString(),
+          })
+          .returning();
+
+        console.log('✅ [STORAGE] Nuevo registro ecommerce creado:', ecomProduct);
+      }
+
+      const result = {
+        id: ecomProduct.id,
+        codigo: priceListProduct.codigo,
+        producto: priceListProduct.producto,
+        categoria: ecomProduct.categoria || undefined,
+        descripcion: ecomProduct.descripcion || undefined,
+        activo: ecomProduct.activo ?? false,
+      };
+
+      console.log('🎉 [STORAGE] Resultado final de updateEcommerceAdminProduct:', result);
+      return result;
+
+    } catch (error: any) {
+      console.error('❌ [STORAGE] Error en updateEcommerceAdminProduct:', {
+        error: error.message,
+        stack: error.stack,
+        id,
+        updates
+      });
+      throw error;
+    }
   }
 
   async toggleEcommerceAdminProduct(id: string): Promise<{
@@ -3922,7 +3956,7 @@ export class DatabaseStorage implements IStorage {
         id: newCategory.id,
         nombre: newCategory.nombre,
         descripcion: newCategory.descripcion || undefined,
-        activa: newCategory.activa,
+        activa: newCategory.activa ?? false,
       };
     } catch (error: any) {
       if (error.code === '23505') { // Unique constraint violation

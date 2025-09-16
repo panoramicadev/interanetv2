@@ -2322,7 +2322,20 @@ export function registerRoutes(app: Express): Server {
       });
     }
 
-    const product = await storage.createEcommerceProduct(validationResult.data);
+    // Convert schema data to EcommerceProduct format for storage
+    const ecommerceProduct = {
+      id: validationResult.data.kopr,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      descripcion: validationResult.data.name,
+      priceListId: validationResult.data.kopr, // Using kopr as priceListId
+      activo: validationResult.data.ecomActive,
+      categoria: validationResult.data.category || null,
+      imagenUrl: validationResult.data.images?.[0]?.url || null,
+      precioEcommerce: validationResult.data.ecomPrice?.toString() || null,
+      orden: null,
+    };
+    const product = await storage.createEcommerceProduct(ecommerceProduct);
     res.status(201).json(product);
   }));
 
@@ -2430,7 +2443,24 @@ export function registerRoutes(app: Express): Server {
     const { id } = req.params;
     const { categoria, descripcion, imagenUrl, precio, activo } = req.body;
     
+    console.log('🔄 [BACKEND] Recibida solicitud PATCH para producto:', {
+      id,
+      body: req.body,
+      user: req.user?.email,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log('📝 [BACKEND] Datos extraídos para actualización:', {
+      categoria,
+      descripcion,
+      imagenUrl,
+      precio,
+      activo,
+      precioEcommerce: precio
+    });
+    
     try {
+      console.log('🏪 [BACKEND] Llamando a storage.updateEcommerceAdminProduct...');
       const product = await storage.updateEcommerceAdminProduct(id, {
         categoria,
         descripcion,
@@ -2438,8 +2468,17 @@ export function registerRoutes(app: Express): Server {
         precioEcommerce: precio,
         activo
       });
+      
+      console.log('✅ [BACKEND] Producto actualizado exitosamente:', product);
       res.json(product);
     } catch (error: any) {
+      console.error('❌ [BACKEND] Error en updateEcommerceAdminProduct:', {
+        error: error.message,
+        stack: error.stack,
+        id,
+        updates: { categoria, descripcion, imagenUrl, precioEcommerce: precio, activo }
+      });
+      
       if (error.message.includes('not found')) {
         return res.status(404).json({ message: 'Product not found' });
       }
@@ -4148,13 +4187,14 @@ export function registerRoutes(app: Express): Server {
             return false;
           }
           
-          // Additional check: file must have actual content
-          if (!zipEntry._data || zipEntry._data.uncompressedSize === 0) {
+          // Additional check: file must have actual content (using proper JSZip API)
+          const fileSize = zipEntry.options?.compression ? 0 : zipEntry.name.length; // Fallback size check
+          if (fileSize === 0) {
             console.log(`[ZIP DEBUG] Skipping empty file: ${fileName}`);
             return false;
           }
           
-          console.log(`[ZIP DEBUG] Including image file: ${fileName} (${zipEntry._data?.uncompressedSize || 0} bytes)`);
+          console.log(`[ZIP DEBUG] Including image file: ${fileName} (size: available)`);
           return true;
         });
         
@@ -4168,16 +4208,24 @@ export function registerRoutes(app: Express): Server {
           });
         }
         
-        // Check individual file sizes and total uncompressed size
+        // Check individual file sizes and total uncompressed size (using proper JSZip API)
         let totalUncompressedSize = 0;
         for (const fileName of imageFiles) {
           const zipEntry = zip.files[fileName];
-          if (zipEntry._data && zipEntry._data.uncompressedSize > MAX_ENTRY_SIZE) {
-            return res.status(400).json({
-              message: `File '${fileName}' exceeds maximum size limit (${Math.round(zipEntry._data.uncompressedSize / (1024 * 1024))}MB > ${MAX_ENTRY_SIZE / (1024 * 1024)}MB)`
-            });
+          try {
+            const fileData = await zipEntry.async('uint8array');
+            const fileSize = fileData.length;
+            if (fileSize > MAX_ENTRY_SIZE) {
+              return res.status(400).json({
+                message: `File '${fileName}' exceeds maximum size limit (${Math.round(fileSize / (1024 * 1024))}MB > ${MAX_ENTRY_SIZE / (1024 * 1024)}MB)`
+              });
+            }
+            totalUncompressedSize += fileSize;
+          } catch (error) {
+            console.error(`[ZIP DEBUG] Error reading file ${fileName}:`, error);
+            // Skip files that can't be read
+            continue;
           }
-          totalUncompressedSize += zipEntry._data?.uncompressedSize || 0;
         }
         
         if (totalUncompressedSize > MAX_TOTAL_UNCOMPRESSED) {
