@@ -362,9 +362,6 @@ export default function TiendaPage() {
   };
 
   const navigationItems = [
-    { name: "Experiencia/Especialidad", href: "#experiencia" },
-    { name: "Recomendación", href: "#recomendacion" },
-    { name: "Productos", href: "#productos" },
     { name: "Contacto", href: "#contacto" },
   ];
 
@@ -389,8 +386,8 @@ export default function TiendaPage() {
                 <span>{storeConfig?.address || "Santiago, Chile"}</span>
               </div>
             </div>
-            <div className="text-[#FF8401] font-medium">
-              ¡Envío gratis en compras sobre $50.000!
+            <div className="text-[#FF6E23] font-medium">
+              ¡Envío gratis en compras sobre $250.000!
             </div>
           </div>
 
@@ -415,7 +412,7 @@ export default function TiendaPage() {
                   placeholder="¿Qué estás buscando?"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 pr-4 py-3 text-base rounded-full border-2 border-gray-200 focus:border-[#FF8401] focus:ring-[#FF8401]"
+                  className="pl-12 pr-4 py-3 text-base rounded-full border-2 border-gray-200 focus:border-[#FF6E23] focus:ring-[#FF6E23]"
                   data-testid="input-search-tienda"
                 />
               </div>
@@ -426,12 +423,12 @@ export default function TiendaPage() {
               {/* Cart */}
               <Button 
                 variant="ghost" 
-                className="relative p-2 hover:bg-[#FF8401]/10"
+                className="relative p-2 hover:bg-[#FF6E23]/10"
                 data-testid="button-cart"
               >
                 <ShoppingCart className="h-6 w-6 text-gray-700" />
                 {cartCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 bg-[#FF8401] text-white text-xs w-5 h-5 rounded-full flex items-center justify-center p-0">
+                  <Badge className="absolute -top-2 -right-2 bg-[#FF6E23] text-white text-xs w-5 h-5 rounded-full flex items-center justify-center p-0">
                     {cartCount}
                   </Badge>
                 )}
@@ -465,7 +462,7 @@ export default function TiendaPage() {
         </div>
 
         {/* Navigation Bar */}
-        <nav className={`bg-[#FF8401] ${showMobileMenu ? 'block' : 'hidden'} md:block`}>
+        <nav className={`bg-black ${showMobileMenu ? 'block' : 'hidden'} md:block`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col md:flex-row md:justify-between md:items-center py-3">
               {/* Left Section - Main categories with icons */}
@@ -553,16 +550,18 @@ export default function TiendaPage() {
           </div>
         </nav>
 
-        {/* Navigation Banner Section - Desktop Banner */}
-        <section className="w-full">
-          <img 
-            src={bannerImage}
-            alt="Oferta del Mes - Esmalte Copper"
-            className="w-full h-auto object-cover max-h-48 md:max-h-64"
-            data-testid="banner-oferta-mes"
-          />
-        </section>
       </header>
+      
+      {/* Main Banner - Full Width */}
+      <section className="w-screen">
+        <img 
+          src={bannerImage}
+          alt="Oferta del Mes - Esmalte Copper"
+          className="w-full h-auto object-cover min-h-[120px] max-h-[160px] sm:max-h-[200px] md:max-h-[240px] lg:max-h-[280px]"
+          data-testid="banner-oferta-mes"
+        />
+      </section>
+
       {/* Hero Banner - Hidden when static banner is present */}
       {false && heroBanner && (
         <section 
@@ -577,7 +576,7 @@ export default function TiendaPage() {
               {/* Content */}
               <div className="text-center lg:text-left">
                 <div className="mb-4">
-                  <Badge className="bg-white text-[#FF8401] px-4 py-2 text-sm font-bold mb-4">
+                  <Badge className="bg-white text-[#FF6E23] px-4 py-2 text-sm font-bold mb-4">
                     {heroBanner?.titulo}
                   </Badge>
                 </div>
@@ -593,7 +592,7 @@ export default function TiendaPage() {
                     <div className="text-3xl md:text-4xl font-bold">$12.990</div>
                   </div>
                   <Button 
-                    className="bg-white text-[#FF8401] hover:bg-gray-100 px-8 py-3 rounded-full font-semibold text-lg"
+                    className="bg-white text-[#FF6E23] hover:bg-gray-100 px-8 py-3 rounded-full font-semibold text-lg"
                     data-testid="button-ver-ofertas"
                   >
                     Ver Ofertas
@@ -630,7 +629,7 @@ export default function TiendaPage() {
               <h2 className="text-lg font-semibold text-gray-900">
                 Nuestros Productos
               </h2>
-              <Badge variant="secondary" className="bg-[#FF8401]/10 text-[#FF8401]">
+              <Badge variant="secondary" className="bg-[#FF6E23]/10 text-[#FF6E23]">
                 {filteredProducts.length} productos
               </Badge>
             </div>
@@ -755,7 +754,7 @@ export default function TiendaPage() {
                         )}
                         
                         {/* Total Price Display */}
-                        <div className="text-lg font-semibold text-[#FF8401] mt-1">
+                        <div className="text-lg font-semibold text-[#FF6E23] mt-1">
                           Total: {formatPrice(calculateTotalPrice(getProductPrice(product), getProductQuantity(product.id, getProductUnit(product))))}
                         </div>
                       </div>
@@ -803,7 +802,7 @@ export default function TiendaPage() {
                         
                         {/* Add to Cart Button */}
                         <Button 
-                          className="w-full bg-[#FF8401] hover:bg-[#FF8401]/90 text-white font-semibold py-3 rounded-lg transition-colors duration-200"
+                          className="w-full bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white font-semibold py-3 rounded-lg transition-colors duration-200"
                           onClick={(e) => {
                             e.stopPropagation();
                             addToCart(product);
@@ -875,9 +874,9 @@ export default function TiendaPage() {
                 {/* Product Details */}
                 <div className="space-y-6">
                   {/* Price */}
-                  <div className="bg-[#FF8401]/5 rounded-lg p-6">
+                  <div className="bg-[#FF6E23]/5 rounded-lg p-6">
                     <h4 className="font-semibold mb-2 text-gray-700">Precio</h4>
-                    <div className="text-3xl font-bold text-[#FF8401]">
+                    <div className="text-3xl font-bold text-[#FF6E23]">
                       {formatPrice(getProductPrice(selectedProduct))}
                       <Badge variant="secondary" className="ml-3 text-sm bg-gray-100 text-gray-600 font-normal px-3 py-1">
                         {getProductUnit(selectedProduct) || 'Unidad'}
@@ -923,7 +922,7 @@ export default function TiendaPage() {
                   {/* Action Buttons */}
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Button 
-                      className="flex-1 bg-[#FF8401] hover:bg-[#FF8401]/90 text-white py-3"
+                      className="flex-1 bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white py-3"
                       onClick={() => selectedProduct && addToCart(selectedProduct)}
                       data-testid="button-add-cart-dialog"
                     >
@@ -932,7 +931,7 @@ export default function TiendaPage() {
                     </Button>
                     <Button 
                       variant="outline" 
-                      className="flex-1 border-[#FF8401] text-[#FF8401] hover:bg-[#FF8401]/10 py-3"
+                      className="flex-1 border-[#FF6E23] text-[#FF6E23] hover:bg-[#FF6E23]/10 py-3"
                     >
                       Ver más productos
                     </Button>
