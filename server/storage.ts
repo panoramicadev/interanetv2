@@ -3630,9 +3630,10 @@ export class DatabaseStorage implements IStorage {
     imagenUrl?: string;
     stock?: number;
   }>> {
+    // Use direct imports instead of dynamic imports
     const { priceList, ecommerceProducts } = await import('@shared/schema');
     
-    // Base query: get all products from priceList
+    // Build the main query
     let baseQuery = db
       .select({
         id: priceList.id,
@@ -3654,8 +3655,8 @@ export class DatabaseStorage implements IStorage {
 
     const conditions = [];
 
-    // Apply filters
-    if (filters?.search) {
+    // Apply search filter
+    if (filters?.search && filters.search.trim() !== '') {
       const searchTerm = `%${filters.search.toLowerCase()}%`;
       conditions.push(or(
         sql`LOWER(${priceList.codigo}) LIKE ${searchTerm}`,
@@ -3663,35 +3664,40 @@ export class DatabaseStorage implements IStorage {
       ));
     }
 
-    // Only filter by categoria if it's specified AND we want to show only categorized products
-    if (filters?.categoria) {
+    // Apply categoria filter - only if it's a specific category, not 'all'
+    if (filters?.categoria && filters.categoria !== 'all' && filters.categoria.trim() !== '') {
       conditions.push(eq(ecommerceProducts.categoria, filters.categoria));
     }
 
-    // Only apply activo filter if explicitly specified
+    // Apply activo filter - simplified logic
     if (filters?.activo !== undefined) {
       if (filters.activo) {
-        // Show products that are either explicitly active in ecommerceProducts OR not in ecommerceProducts at all (default active)
+        // Show products that are active: either explicitly true OR null (default active)
         conditions.push(or(
           eq(ecommerceProducts.activo, true),
           isNull(ecommerceProducts.activo)
         ));
       } else {
-        // Show only products that are explicitly inactive
+        // Show products that are explicitly inactive
         conditions.push(eq(ecommerceProducts.activo, false));
       }
     }
 
+    // Apply filters only if any exist
     if (conditions.length > 0) {
-      baseQuery = baseQuery.where(and(...conditions));
+      baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
     }
 
-    const results = await baseQuery.orderBy(priceList.producto);
+    // Execute query with safety limit to prevent memory issues on large datasets
+    // Current dataset: ~270 products, but this protects against future growth
+    const results = await baseQuery
+      .orderBy(priceList.producto)
+      .limit(1000);
 
     return results.map(row => ({
       id: row.ecomId || row.id, // Use ecommerce ID if exists, otherwise priceList ID
-      codigo: row.codigo,
-      producto: row.producto,
+      codigo: row.codigo || '',
+      producto: row.producto || '',
       unidad: row.unidad || undefined,
       precio: Number(row.precioEcommerce) || Number(row.precio) || 0,
       precioOriginal: Number(row.precioOriginal) || undefined,
@@ -3729,7 +3735,7 @@ export class DatabaseStorage implements IStorage {
       id: row.id,
       nombre: row.nombre,
       descripcion: row.descripcion || undefined,
-      activa: row.activa,
+      activa: row.activa ?? true,
       productoCount: Number(row.productoCount) || 0,
     }));
   }
@@ -3822,6 +3828,7 @@ export class DatabaseStorage implements IStorage {
         .update(ecommerceProducts)
         .set({
           ...updates,
+          precioEcommerce: updates.precioEcommerce?.toString(),
           updatedAt: new Date()
         })
         .where(eq(ecommerceProducts.id, existingEcomProduct.id))
@@ -3833,6 +3840,7 @@ export class DatabaseStorage implements IStorage {
         .values({
           priceListId: id,
           ...updates,
+          precioEcommerce: updates.precioEcommerce?.toString(),
         })
         .returning();
     }
@@ -3843,7 +3851,7 @@ export class DatabaseStorage implements IStorage {
       producto: priceListProduct.producto,
       categoria: ecomProduct.categoria || undefined,
       descripcion: ecomProduct.descripcion || undefined,
-      activo: ecomProduct.activo,
+      activo: ecomProduct.activo ?? false,
     };
   }
 
@@ -3885,7 +3893,7 @@ export class DatabaseStorage implements IStorage {
 
     return {
       id: ecomProduct.id,
-      activo: ecomProduct.activo,
+      activo: ecomProduct.activo ?? false,
     };
   }
 

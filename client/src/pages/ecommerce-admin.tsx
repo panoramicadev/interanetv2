@@ -39,7 +39,7 @@ interface CategoriaEcommerce {
 export default function EcommerceAdmin() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("true");
   const [editingProduct, setEditingProduct] = useState<ProductoEcommerce | null>(null);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
@@ -71,7 +71,7 @@ export default function EcommerceAdmin() {
       if (selectedStatus !== 'all') params.append('activo', selectedStatus);
       
       const response = await apiRequest('GET', `/api/ecommerce/admin/productos?${params.toString()}`);
-      return response.json() as ProductoEcommerce[];
+      return response.json();
     }
   });
 
@@ -80,7 +80,7 @@ export default function EcommerceAdmin() {
     queryKey: ['/api/ecommerce/admin/categorias'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/ecommerce/admin/categorias');
-      return response.json() as CategoriaEcommerce[];
+      return response.json();
     }
   });
 
@@ -89,12 +89,7 @@ export default function EcommerceAdmin() {
     queryKey: ['/api/ecommerce/admin/stats'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/ecommerce/admin/stats');
-      return response.json() as {
-        totalProductos: number;
-        productosActivos: number;
-        totalCategorias: number;
-        ventasMes: number;
-      };
+      return response.json();
     }
   });
 
@@ -173,7 +168,7 @@ export default function EcommerceAdmin() {
         throw new Error(error.message || 'Error al procesar ZIP');
       }
       
-      return response.json() as { processed: number; total: number; results: any[] };
+      return response.json();
     },
     onSuccess: (data) => {
       setUploadProgress(data);
