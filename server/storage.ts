@@ -69,6 +69,7 @@ import {
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray, or, isNull } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
+import { comunaRegionService } from "./comunaRegionService";
 
 // Utility function to normalize comuna names for consistent regional mapping
 function normalizeComunaName(name: string | null): string | null {
@@ -5155,19 +5156,19 @@ export class DatabaseStorage implements IStorage {
         'Sin comuna'
       )`);
 
-    // Normalize comunas and group by region using the mapping function
+    // Map comunas to regions using the new intelligent matching service
     const regionMap = new Map<string, { totalSales: number; transactionCount: number }>();
     let unknownRegionSales = 0;
     let unknownRegionCount = 0;
     
     for (const comunaData of comunaResults) {
-      const normalizedComuna = normalizeComunaName(comunaData.rawComuna) || 'Sin comuna';
-      const region = getComunaRegion(normalizedComuna);
+      // Use the new ComunaRegionService for intelligent matching
+      const regionMatch = await comunaRegionService.findRegion(comunaData.rawComuna);
       
-      // Handle unmapped/unknown regions
-      const finalRegion = (region === 'Región Desconocida' || normalizedComuna === 'Sin comuna') 
+      // Map regions with confidence-based handling
+      const finalRegion = regionMatch.region === 'Sin región' || regionMatch.confidence < 0.6
         ? 'Sin región' 
-        : region;
+        : regionMatch.region;
       
       if (finalRegion === 'Sin región') {
         unknownRegionSales += Number(comunaData.totalSales);
