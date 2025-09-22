@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { 
   DollarSign, 
   ShoppingCart, 
@@ -25,11 +26,18 @@ interface KPICardsProps {
   filterType: "day" | "month" | "year" | "range";
   segment?: string;
   salesperson?: string;
+  comparePeriod?: string;
 }
 
-export default function KPICards({ selectedPeriod, filterType, segment, salesperson }: KPICardsProps) {
+export default function KPICards({ selectedPeriod, filterType, segment, salesperson, comparePeriod }: KPICardsProps) {
   const { data: metrics, isLoading } = useQuery<SalesMetrics>({
     queryKey: [`/api/sales/metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+  });
+
+  // Query for comparison data if comparePeriod is set
+  const { data: comparisonMetrics } = useQuery<SalesMetrics>({
+    queryKey: [`/api/sales/metrics?period=${comparePeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    enabled: !!comparePeriod && comparePeriod !== "none", // Only run if comparePeriod is set and not "none"
   });
 
   const formatCurrency = (amount: number) => {
@@ -74,10 +82,33 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     };
   };
 
+  // Calculate percentage changes vs comparison period
+  const calculateComparisonChange = (current: number, comparison: number | undefined) => {
+    if (!comparePeriod || comparePeriod === "none" || comparison === undefined || comparison === null || comparison === 0) {
+      return null;
+    }
+    
+    const change = ((current - comparison) / comparison) * 100;
+    const sign = change >= 0 ? "+" : "";
+    const bgColor = change >= 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
+    
+    return {
+      text: `${sign}${change.toFixed(1)}%`,
+      bgColor,
+      value: change
+    };
+  };
+
   const salesChange = calculateChange(metrics?.totalSales || 0, metrics?.previousMonthSales);
   const ordersChange = calculateChange(metrics?.totalOrders || 0, metrics?.previousMonthOrders);
   const unitsChange = calculateChange(metrics?.totalUnits || 0, metrics?.previousMonthUnits);
   const customersChange = calculateChange(metrics?.activeCustomers || 0, metrics?.previousMonthCustomers);
+
+  // Calculate comparison changes
+  const salesComparison = calculateComparisonChange(metrics?.totalSales || 0, comparisonMetrics?.totalSales);
+  const ordersComparison = calculateComparisonChange(metrics?.totalOrders || 0, comparisonMetrics?.totalOrders);
+  const unitsComparison = calculateComparisonChange(metrics?.totalUnits || 0, comparisonMetrics?.totalUnits);
+  const customersComparison = calculateComparisonChange(metrics?.activeCustomers || 0, comparisonMetrics?.activeCustomers);
 
   const kpis = [
     {
@@ -85,6 +116,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       value: formatCurrency(metrics?.totalSales || 0),
       change: salesChange.text,
       changeColor: salesChange.color,
+      comparison: salesComparison,
       icon: DollarSign,
       bgColor: "bg-green-100 dark:bg-green-900/20",
       iconColor: "text-green-600",
@@ -95,6 +127,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       value: formatNumber(metrics?.totalOrders || 0),
       change: ordersChange.text,
       changeColor: ordersChange.color,
+      comparison: ordersComparison,
       icon: ShoppingCart,
       bgColor: "bg-blue-100 dark:bg-blue-900/20",
       iconColor: "text-blue-600",
@@ -105,6 +138,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       value: formatNumber(metrics?.totalUnits || 0),
       change: unitsChange.text,
       changeColor: unitsChange.color,
+      comparison: unitsComparison,
       icon: Package,
       bgColor: "bg-orange-100 dark:bg-orange-900/20",
       iconColor: "text-orange-600",
@@ -115,6 +149,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       value: formatNumber(metrics?.activeCustomers || 0),
       change: customersChange.text,
       changeColor: customersChange.color,
+      comparison: customersComparison,
       icon: Users,
       bgColor: "bg-purple-100 dark:bg-purple-900/20",
       iconColor: "text-purple-600",
@@ -131,12 +166,22 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
                 {kpi.title}
               </p>
-              <p 
-                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 break-all lg:break-normal"
-                data-testid={kpi.testId}
-              >
-                {kpi.value}
-              </p>
+              <div className="relative">
+                <p 
+                  className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 break-all lg:break-normal"
+                  data-testid={kpi.testId}
+                >
+                  {kpi.value}
+                </p>
+                {kpi.comparison && (
+                  <Badge 
+                    className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
+                    data-testid={`${kpi.testId}-comparison-badge`}
+                  >
+                    {kpi.comparison.text}
+                  </Badge>
+                )}
+              </div>
               <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
                 {kpi.change}
               </p>
