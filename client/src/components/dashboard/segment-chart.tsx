@@ -41,22 +41,30 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
     queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
   });
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
   // Prepare chart data
   const chartData = {
     labels: segmentData?.map(segment => segment.segment) || [],
     datasets: [
       {
-        label: 'Ventas (Millones CLP)',
-        data: segmentData?.map(segment => Math.round(segment.totalSales / 1000000)) || [],
+        label: 'Ventas CLP',
+        data: segmentData?.map(segment => segment.totalSales) || [],
         datalabels: {
           display: true,
           color: 'white',
           font: {
             weight: 'bold' as const,
-            size: 12
+            size: 11
           },
           formatter: function(value: number) {
-            return value + 'M';
+            return formatCurrency(value);
           },
           anchor: 'center' as const,
           align: 'center' as const
@@ -104,7 +112,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
         cornerRadius: 8,
         callbacks: {
           label: function(context: any) {
-            return `${context.parsed.x}M CLP`;
+            return formatCurrency(context.parsed.x);
           }
         }
       }
@@ -117,11 +125,11 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
         },
         ticks: {
           callback: function(value: any) {
-            return value + 'M';
+            return formatCurrency(value);
           },
           color: 'rgba(0, 0, 0, 0.6)',
           font: {
-            size: 12,
+            size: 10,
           }
         }
       },
