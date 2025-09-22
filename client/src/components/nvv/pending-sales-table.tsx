@@ -127,42 +127,42 @@ export function PendingSalesTable({
           <Card className="p-4" data-testid="metric-total-amount">
             <div className="text-sm font-medium text-gray-600">Monto Total</div>
             <div className="text-2xl font-bold text-gray-900">
-              {formatCurrency(metrics.totalAmount || 0)}
+              {formatCurrency((metrics as any).totalAmount || 0)}
             </div>
           </Card>
           
           <Card className="p-4" data-testid="metric-total-quantity">
             <div className="text-sm font-medium text-gray-600">Cantidad Total</div>
             <div className="text-2xl font-bold text-gray-900">
-              {(metrics.totalQuantity || 0).toLocaleString('es-CL')}
+              {((metrics as any).totalQuantity || 0).toLocaleString('es-CL')}
             </div>
           </Card>
 
           <Card className="p-4" data-testid="metric-pending">
             <div className="text-sm font-medium text-gray-600">Pendientes</div>
             <div className="text-2xl font-bold text-yellow-600">
-              {metrics.pendingCount || 0}
+              {(metrics as any).pendingCount || 0}
             </div>
           </Card>
 
           <Card className="p-4" data-testid="metric-confirmed">
             <div className="text-sm font-medium text-gray-600">Confirmados</div>
             <div className="text-2xl font-bold text-blue-600">
-              {metrics.confirmedCount || 0}
+              {(metrics as any).confirmedCount || 0}
             </div>
           </Card>
 
           <Card className="p-4" data-testid="metric-delivered">
             <div className="text-sm font-medium text-gray-600">Entregados</div>
             <div className="text-2xl font-bold text-green-600">
-              {metrics.deliveredCount || 0}
+              {(metrics as any).deliveredCount || 0}
             </div>
           </Card>
 
           <Card className="p-4" data-testid="metric-cancelled">
             <div className="text-sm font-medium text-gray-600">Cancelados</div>
             <div className="text-2xl font-bold text-red-600">
-              {metrics.cancelledCount || 0}
+              {(metrics as any).cancelledCount || 0}
             </div>
           </Card>
         </div>
@@ -243,22 +243,22 @@ export function PendingSalesTable({
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          {sale.quantity.toLocaleString('es-CL')}
+                          {(sale.quantity || 0).toLocaleString('es-CL')}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {formatCurrency(sale.totalAmount)}
+                          {formatCurrency(Number(sale.totalAmount) || 0)}
                         </TableCell>
                         <TableCell>
                           {formatDate(sale.commitmentDate)}
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={sale.status}
+                            value={sale.status || 'pending'}
                             onValueChange={(value) => updateStatus(sale.id, value)}
                           >
                             <SelectTrigger className="w-32">
-                              <Badge className={statusColors[sale.status] || "bg-gray-100 text-gray-800"}>
-                                {statusLabels[sale.status] || sale.status}
+                              <Badge className={statusColors[sale.status || 'pending'] || "bg-gray-100 text-gray-800"}>
+                                {statusLabels[sale.status || 'pending'] || sale.status}
                               </Badge>
                             </SelectTrigger>
                             <SelectContent>

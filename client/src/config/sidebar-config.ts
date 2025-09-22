@@ -32,7 +32,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/nvv",
-      label: "NVV - Análisis de Ventas",
+      label: "Notas de Venta (NVV)",
       icon: TrendingUp,
     },
     {
@@ -100,7 +100,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/nvv",
-      label: "NVV - Análisis de Ventas",
+      label: "Notas de Venta (NVV)",
       icon: TrendingUp,
     },
     {
