@@ -20,6 +20,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Filter, Target, Building, Users, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
+import type { DateRange } from "react-day-picker";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -34,8 +35,7 @@ export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   
   // Date range state for custom range selection
-  const [startDate, setStartDate] = useState<Date | undefined>();
-  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   
   // Global filter state for goals/segments/salespeople
   const [globalFilter, setGlobalFilter] = useState<{
@@ -84,14 +84,14 @@ export default function Dashboard() {
         setSelectedPeriod(selectedYear.toString());
         break;
       case "range":
-        if (startDate && endDate) {
-          setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
+        if (dateRange?.from && dateRange?.to) {
+          setSelectedPeriod(`${format(dateRange.from, "yyyy-MM-dd")}_${format(dateRange.to, "yyyy-MM-dd")}`);
         } else {
           setSelectedPeriod("last-30-days");
         }
         break;
     }
-  }, [filterType, selectedDate, selectedYear, startDate, endDate]);
+  }, [filterType, selectedDate, selectedYear, dateRange]);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -178,60 +178,34 @@ export default function Dashboard() {
                     </PopoverContent>
                   </Popover>
                 ) : filterType === "range" ? (
-                  <div className="flex items-center space-x-1 sm:space-x-2 flex-1 min-w-0">
-                    {/* Fecha Inicio */}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="flex-1 min-w-0 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
-                          data-testid="start-date-trigger"
-                        >
-                          <CalendarIcon className="mr-1 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-                          <span className="truncate">
-                            {startDate ? format(startDate, "dd/MM") : "Inicio"}
-                          </span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={startDate}
-                          onSelect={setStartDate}
-                          initialFocus
-                          data-testid="start-date-calendar"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    
-                    <span className="text-gray-500 text-xs sm:text-sm shrink-0">-</span>
-                    
-                    {/* Fecha Final */}
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="flex-1 min-w-0 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm"
-                          data-testid="end-date-trigger"
-                        >
-                          <CalendarIcon className="mr-1 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-                          <span className="truncate">
-                            {endDate ? format(endDate, "dd/MM") : "Final"}
-                          </span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={endDate}
-                          onSelect={setEndDate}
-                          initialFocus
-                          data-testid="end-date-calendar"
-                          disabled={(date) => startDate ? date < startDate : false}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="flex-1 lg:w-80 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0"
+                        data-testid="date-range-trigger"
+                      >
+                        <CalendarIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                        <span className="truncate">
+                          {dateRange?.from && dateRange?.to
+                            ? `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`
+                            : dateRange?.from
+                            ? `${format(dateRange.from, "dd/MM")} - Seleccionar fin`
+                            : "Seleccionar rango"}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                      <Calendar
+                        mode="range"
+                        selected={dateRange}
+                        onSelect={setDateRange}
+                        initialFocus
+                        data-testid="date-range-calendar"
+                        numberOfMonths={2}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 ) : filterType === "year" ? (
                   <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
                     <SelectTrigger className="flex-1 lg:w-52 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0" data-testid="select-year">
