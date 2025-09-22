@@ -23,10 +23,11 @@ interface TopSalespeoplePanelProps {
 }
 
 export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson }: TopSalespeoplePanelProps) {
-  const displayLimit = 5000; // Show all salespeople
+  const [displayedCount, setDisplayedCount] = useState(10); // Start with 10 salespeople
+  const apiLimit = 5000; // Get all data from API
   
   const { data: topSalespeopleResponse, isLoading } = useQuery<TopSalespeopleResponse>({
-    queryKey: [`/api/sales/top-salespeople?limit=${displayLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/top-salespeople?limit=${apiLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const topSalespeople = topSalespeopleResponse?.items;
@@ -85,7 +86,7 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
           </div>
         ) : (
           <div className="space-y-4">
-            {salespeopleWithPercentage?.map((salesperson, index) => (
+            {salespeopleWithPercentage?.slice(0, displayedCount).map((salesperson, index) => (
               <Link 
                 key={salesperson.salesperson} 
                 href={`/salesperson/${encodeURIComponent(salesperson.salesperson)}`}
@@ -160,6 +161,21 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
                 </div>
               </Link>
             ))}
+            
+            {/* Ver más button */}
+            {salespeopleWithPercentage && displayedCount < salespeopleWithPercentage.length && (
+              <div className="text-center pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDisplayedCount(prev => Math.min(prev + 10, salespeopleWithPercentage.length))}
+                  className="text-xs px-4 py-2"
+                  data-testid="button-see-more-salespeople"
+                >
+                  Ver más ({displayedCount} de {salespeopleWithPercentage.length})
+                </Button>
+              </div>
+            )}
             
             {/* Total Row */}
             {salespeopleWithPercentage && salespeopleWithPercentage.length > 0 && (

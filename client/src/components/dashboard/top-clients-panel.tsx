@@ -23,10 +23,11 @@ interface TopClientsPanelProps {
 }
 
 export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson }: TopClientsPanelProps) {
-  const displayLimit = 5000; // Show all clients
+  const [displayedCount, setDisplayedCount] = useState(10); // Start with 10 clients
+  const apiLimit = 5000; // Get all data from API
   
   const { data: topClientsResponse, isLoading } = useQuery<TopClientsResponse>({
-    queryKey: [`/api/sales/top-clients?limit=${displayLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/top-clients?limit=${apiLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const topClients = topClientsResponse?.items;
@@ -56,7 +57,7 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Clientes</h2>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/clientes">
+          <Link href="/mis-clientes">
             <Button
               variant="ghost"
               size="sm"
@@ -85,7 +86,7 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
           </div>
         ) : (
           <div className="space-y-4">
-            {clientsWithPercentage?.map((client, index) => (
+            {clientsWithPercentage?.slice(0, displayedCount).map((client, index) => (
               <Link 
                 key={client.clientName} 
                 href={`/client/${encodeURIComponent(client.clientName)}`}
@@ -160,6 +161,21 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
                 </div>
               </Link>
             ))}
+            
+            {/* Ver más button */}
+            {clientsWithPercentage && displayedCount < clientsWithPercentage.length && (
+              <div className="text-center pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDisplayedCount(prev => Math.min(prev + 10, clientsWithPercentage.length))}
+                  className="text-xs px-4 py-2"
+                  data-testid="button-see-more-clients"
+                >
+                  Ver más ({displayedCount} de {clientsWithPercentage.length})
+                </Button>
+              </div>
+            )}
             
             {/* Total Row */}
             {clientsWithPercentage && clientsWithPercentage.length > 0 && (
