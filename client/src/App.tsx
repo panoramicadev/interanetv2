@@ -18,6 +18,7 @@ import ClientsDashboard from "@/pages/clients-dashboard";
 import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
 import TareasPage from "@/pages/tareas";
+import NVVPage from "@/pages/nvv";
 import Users from "@/pages/users";
 import Products from "@/pages/products";
 import Clients from "@/pages/clients";
@@ -79,6 +80,7 @@ function Router() {
             }} />
             
             {/* Rutas específicas de admin */}
+            <Route path="/nvv" component={NVVPage} />
             <Route path="/usuarios" component={Users} />
             <Route path="/productos" component={Products} />
             <Route path="/lista-precios" component={ListaPrecios} />
