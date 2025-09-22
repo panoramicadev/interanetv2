@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
 
 interface ProductoEcommerce {
   id: string;
@@ -351,14 +351,26 @@ export default function EcommerceAdmin() {
           </p>
         </div>
         
-        <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2" data-testid="button-new-category">
-              <Plus className="h-4 w-4" />
-              Nueva Categoría
-            </Button>
-          </DialogTrigger>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="flex items-center gap-2"
+            onClick={() => window.open('/tienda', '_blank')}
+            data-testid="button-view-store"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Ver la Tienda
+          </Button>
+          
+          <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2" data-testid="button-new-category">
+                <Plus className="h-4 w-4" />
+                Nueva Categoría
+              </Button>
+            </DialogTrigger>
+          </Dialog>
+        </div>
       </div>
 
       {/* Estadísticas */}
