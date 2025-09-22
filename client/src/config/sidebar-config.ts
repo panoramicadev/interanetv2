@@ -83,13 +83,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       disabled: true,
       comingSoon: true,
     },
-    {
-      href: "#stock",
-      label: "Revisión de Stock",
-      icon: Package,
-      disabled: true,
-      comingSoon: true,
-    },
 
   ],
   
@@ -153,13 +146,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       disabled: true,
       comingSoon: true,
     },
-    {
-      href: "#stock",
-      label: "Revisión de Stock",
-      icon: Package,
-      disabled: true,
-      comingSoon: true,
-    },
 
   ],
   
@@ -198,13 +184,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       disabled: true,
       comingSoon: true,
     },
-    {
-      href: "#stock",
-      label: "Revisión de Stock",
-      icon: Package,
-      disabled: true,
-      comingSoon: true,
-    },
 
   ],
   
@@ -229,13 +208,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "#tintometria",
       label: "Calcular Tintometría",
       icon: Palette,
-      disabled: true,
-      comingSoon: true,
-    },
-    {
-      href: "#stock",
-      label: "Revisión de Stock",
-      icon: Package,
       disabled: true,
       comingSoon: true,
     },
