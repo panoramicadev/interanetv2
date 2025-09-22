@@ -958,6 +958,21 @@ export function registerRoutes(app: Express): Server {
     res.json(packagingMetrics);
   }));
 
+  // NVV Packaging breakdown endpoint
+  app.get('/api/nvv/packaging-breakdown', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { period, filterType, salesperson, segment } = req.query;
+    const dateRange = getDateRange(period as string, filterType as string);
+    
+    const packagingMetrics = await storage.getPackagingMetrics({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+      salesperson: salesperson as string,
+      segment: segment as string,
+    });
+    
+    res.json(packagingMetrics);
+  }));
+
   // Comunas analysis endpoint
   app.get('/api/sales/comunas', requireAuth, async (req, res) => {
     try {
