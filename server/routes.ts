@@ -876,21 +876,54 @@ export function registerRoutes(app: Express): Server {
               blovenex: 'BLOVENEX'
             };
             
-            // Apply all available mappings with proper typing
+            // Apply all available mappings with PROPER TYPE HANDLING
             for (const [dbField, csvColumn] of Object.entries(columnMappings)) {
               if (row[csvColumn] !== undefined && row[csvColumn] !== null && row[csvColumn] !== '') {
-                (client as any)[dbField] = row[csvColumn].toString();
+                const rawValue = row[csvColumn];
+                
+                // 🔍 CRITICAL: Handle numeric fields properly
+                if (['crsd', 'crch', 'crlt', 'crpa', 'crto', 'cren', 'nuvecr', 'dccr', 'incr', 'popicr', 'koplcr', 'porprefen'].includes(dbField)) {
+                  // These are numeric fields in the database
+                  const numValue = parseFloat(String(rawValue));
+                  if (!isNaN(numValue)) {
+                    (client as any)[dbField] = numValue.toString(); // Store as string representation of number
+                  } else {
+                    console.warn(`⚠️  SKIPPING INVALID NUMERIC VALUE: ${dbField} = "${rawValue}"`);
+                    // Skip non-numeric values for numeric fields
+                  }
+                } else if (['bloqueado', 'actien', 'habilita', 'bloqencom', 'blovenex'].includes(dbField)) {
+                  // These are boolean/integer fields
+                  const intValue = parseInt(String(rawValue));
+                  if (!isNaN(intValue)) {
+                    (client as any)[dbField] = intValue.toString();
+                  } else {
+                    console.warn(`⚠️  SKIPPING INVALID INTEGER VALUE: ${dbField} = "${rawValue}"`);
+                  }
+                } else {
+                  // Text fields - safe to convert to string
+                  (client as any)[dbField] = rawValue.toString();
+                }
               }
             }
             
-            // Handle ANY additional columns not in mapping (up to 500 columns total)
+            // Handle ANY additional columns not in mapping (up to 500 columns total) with TYPE SAFETY
             for (const [csvColumn, value] of Object.entries(row)) {
               if (value !== undefined && value !== null && value !== '') {
                 const dbField = csvColumn.toLowerCase();
                 if (!(client as any)[dbField] && !Object.values(columnMappings).includes(csvColumn)) {
                   // Only add if it's a valid client schema field
                   if (validClientSchemaFields.has(dbField)) {
-                    (client as any)[dbField] = value.toString();
+                    
+                    // 🔍 SAFE TYPE CONVERSION for additional fields
+                    const fieldValue = value.toString();
+                    
+                    // Skip obviously invalid values for numeric-like fields
+                    if (dbField.includes('cr') && /[A-Za-z]/.test(fieldValue)) {
+                      console.warn(`⚠️  SKIPPING INVALID VALUE FOR FIELD ${dbField}: "${fieldValue}"`);
+                      continue;
+                    }
+                    
+                    (client as any)[dbField] = fieldValue;
                   }
                 }
               }
@@ -918,6 +951,28 @@ export function registerRoutes(app: Express): Server {
 
       // MASSIVE IMPORT with optimized batch processing
       console.log(`💾 STARTING MASSIVE DATABASE IMPORT: ${clientsToInsert.length} clients...`);
+      
+      // 🔍 DETAILED LOGGING - Sample data inspection before import
+      if (clientsToInsert.length > 0) {
+        const sampleClient = clientsToInsert[0];
+        console.log(`📋 SAMPLE CLIENT DATA:`, {
+          fields: Object.keys(sampleClient).length,
+          sample: JSON.stringify(sampleClient, null, 2).substring(0, 500) + '...',
+          types: Object.entries(sampleClient).slice(0, 10).map(([key, value]) => `${key}: ${typeof value} = "${value}"`)
+        });
+        
+        // Check for problematic values
+        const problemFields = [];
+        for (const [field, value] of Object.entries(sampleClient)) {
+          if (value && typeof value === 'string' && /[A-Za-z]/.test(value) && field.toLowerCase().includes('cr')) {
+            problemFields.push(`${field} = "${value}"`);
+          }
+        }
+        if (problemFields.length > 0) {
+          console.warn(`⚠️  POTENTIAL NUMERIC FIELD ISSUES:`, problemFields);
+        }
+      }
+      
       const importResult = await storage.insertMultipleClientsOptimized(clientsToInsert);
 
       const totalTime = Date.now() - importStartTime;

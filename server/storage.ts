@@ -5532,9 +5532,36 @@ export class DatabaseStorage implements IStorage {
           const batchNumber = Math.floor(i/MASSIVE_BATCH_SIZE) + 1;
           
           try {
+            // 🔍 DETAILED LOGGING - Inspect batch data before insertion
+            console.log(`📈 BATCH ${batchNumber} DATA INSPECTION:`, {
+              batchSize: batch.length,
+              sampleFields: Object.keys(batch[0] || {}).length,
+              firstRecord: batch[0] ? {
+                nokoen: batch[0].nokoen,
+                koen: batch[0].koen,
+                hasNumericFields: ['crsd', 'crch', 'crlt'].some(field => batch[0][field] !== undefined)
+              } : 'NO DATA'
+            });
+            
+            // 🔍 Check for problematic values in the batch
+            const problemValues = [];
+            for (let i = 0; i < Math.min(batch.length, 3); i++) {
+              const client = batch[i];
+              for (const [field, value] of Object.entries(client)) {
+                if (value && typeof value === 'string' && field.toLowerCase().includes('cr') && /[A-Za-z]/.test(value)) {
+                  problemValues.push(`Client ${i}: ${field}="${value}"`);
+                }
+              }
+            }
+            if (problemValues.length > 0) {
+              console.warn(`⚠️  BATCH ${batchNumber} PROBLEM VALUES:`, problemValues);
+            }
+            
             // Use database transaction for better performance on large inserts
             await db.transaction(async (tx) => {
+              console.log(`💾 INSERTING BATCH ${batchNumber}: ${batch.length} clients...`);
               await tx.insert(clients).values(batch);
+              console.log(`✅ BATCH ${batchNumber} INSERT SUCCESS`);
             });
             
             inserted += batch.length;
@@ -5542,7 +5569,38 @@ export class DatabaseStorage implements IStorage {
             console.log(`✅ MASSIVE BATCH ${batchNumber}/${totalBatches}: ${batch.length} clients (${progress}% complete)`);
           } catch (error) {
             console.error(`❌ MASSIVE BATCH ${batchNumber} FAILED:`, error);
-            skipped += batch.length;
+            
+            // 🔍 DETAILED ERROR ANALYSIS
+            if (error instanceof Error) {
+              console.error(`📝 ERROR DETAILS:`, {
+                message: error.message,
+                batchSize: batch.length,
+                firstClientFields: Object.keys(batch[0] || {}).length,
+                sampleData: batch[0] ? JSON.stringify(batch[0], null, 2).substring(0, 300) + '...' : 'NO DATA'
+              });
+              
+              // Attempt individual inserts to identify problematic records
+              if (batch.length <= 10) {
+                console.log(`🔍 ATTEMPTING INDIVIDUAL INSERTS FOR SMALL BATCH...`);
+                for (let i = 0; i < batch.length; i++) {
+                  try {
+                    await db.insert(clients).values([batch[i]]);
+                    console.log(`✅ Individual insert ${i+1}/${batch.length} success`);
+                    inserted++;
+                  } catch (individualError) {
+                    console.error(`❌ Individual insert ${i+1}/${batch.length} failed:`, {
+                      error: individualError instanceof Error ? individualError.message : 'Unknown error',
+                      clientData: JSON.stringify(batch[i], null, 2).substring(0, 200) + '...'
+                    });
+                    skipped++;
+                  }
+                }
+              } else {
+                skipped += batch.length;
+              }
+            } else {
+              skipped += batch.length;
+            }
           }
         }
         
@@ -5594,6 +5652,15 @@ export class DatabaseStorage implements IStorage {
     console.log(`🎉 MASSIVE IMPORT COMPLETE: ${totalTime}ms total`);
     console.log(`📊 FINAL STATS: ${inserted} inserted, ${updated} updated, ${skipped} errors`);
     console.log(`⚡ PERFORMANCE: ${throughput} clients/second`);
+    
+    // 🔍 DETAILED COMPLETION ANALYSIS
+    if (skipped > 0) {
+      console.warn(`⚠️  IMPORT ISSUES DETECTED:`, {
+        successRate: `${((inserted + updated) / clientsData.length * 100).toFixed(1)}%`,
+        errorRate: `${(skipped / clientsData.length * 100).toFixed(1)}%`,
+        recommendation: skipped > clientsData.length * 0.5 ? 'CHECK DATA TYPES AND VALIDATION' : 'Minor issues detected'
+      });
+    }
     
     return { inserted, updated, skipped };
   }
