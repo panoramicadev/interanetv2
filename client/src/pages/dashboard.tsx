@@ -46,6 +46,9 @@ export default function Dashboard() {
   // Filter selector state
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   
+  // Comparison period state
+  const [comparePeriod, setComparePeriod] = useState<string>("");
+  
   // Fetch segments and salespeople for the filter dropdown
   const { data: segments } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
@@ -349,6 +352,32 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
+              
+              {/* Comparison Period Selector */}
+              <div className="flex items-center space-x-2 flex-none">
+                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Comparar con:
+                </label>
+                <Select value={comparePeriod} onValueChange={setComparePeriod}>
+                  <SelectTrigger className="w-32 sm:w-40 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm" data-testid="select-compare-period">
+                    <SelectValue placeholder="Ninguno" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-gray-200">
+                    <SelectItem value="">Ninguno</SelectItem>
+                    <SelectItem value="previous-month">Mes anterior</SelectItem>
+                    <SelectItem value="previous-year">Año anterior</SelectItem>
+                    <SelectItem value="same-month-last-year">Mismo mes año anterior</SelectItem>
+                    {filterType === "month" && (
+                      <>
+                        <SelectItem value="2025-08">Agosto 2025</SelectItem>
+                        <SelectItem value="2025-07">Julio 2025</SelectItem>
+                        <SelectItem value="2025-06">Junio 2025</SelectItem>
+                        <SelectItem value="2024-09">Septiembre 2024</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
           </div>
         </header>
 
@@ -361,6 +390,7 @@ export default function Dashboard() {
               filterType={filterType}
               segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
               salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+              comparePeriod={comparePeriod}
             />
           </div>
           
