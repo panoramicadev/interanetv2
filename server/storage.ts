@@ -6859,6 +6859,46 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Get unique comunas that don't match any region (for diagnostics)
+  async getUnmatchedComunas(): Promise<Array<{
+    comuna: string;
+    transactionCount: number;
+    totalSales: number;
+  }>> {
+    try {
+      // Get sales grouped by comuna with fallback data source
+      const comunaResults = await db
+        .select({
+          rawComuna: sql<string>`COALESCE(
+            NULLIF(TRIM(${clients.comuna}), ''), 
+            NULLIF(TRIM(${salesTransactions.zona}), ''),
+            'Sin comuna'
+          )`,
+          totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+          transactionCount: sql<number>`COUNT(*)`,
+        })
+        .from(salesTransactions)
+        .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
+        .groupBy(sql`COALESCE(
+          NULLIF(TRIM(${clients.comuna}), ''), 
+          NULLIF(TRIM(${salesTransactions.zona}), ''),
+          'Sin comuna'
+        )`)
+        .orderBy(sql`COUNT(*) DESC`); // Sort by transaction count
+
+      // Return only the raw data without normalization
+      // The actual region matching will be done by the ComunaRegionService
+      return comunaResults.map(result => ({
+        comuna: result.rawComuna,
+        transactionCount: Number(result.transactionCount),
+        totalSales: Number(result.totalSales)
+      }));
+    } catch (error) {
+      console.error('Error getting unmatched comunas:', error);
+      return [];
+    }
+  }
+
 }
 
 export const storage = new DatabaseStorage();
