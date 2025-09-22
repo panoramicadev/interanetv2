@@ -58,16 +58,16 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
         data: segmentData?.map(segment => segment.totalSales) || [],
         datalabels: {
           display: true,
-          color: 'white',
+          color: 'rgba(0, 0, 0, 0.8)',
           font: {
             weight: 'bold' as const,
-            size: 11
+            size: 12
           },
           formatter: function(value: number) {
             return formatCurrency(value);
           },
-          anchor: 'center' as const,
-          align: 'center' as const
+          anchor: 'end' as const,
+          align: 'right' as const
         },
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
@@ -119,19 +119,8 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
     },
     scales: {
       x: {
-        beginAtZero: true,
-        grid: {
-          color: 'rgba(0, 0, 0, 0.05)',
-        },
-        ticks: {
-          callback: function(value: any) {
-            return formatCurrency(value);
-          },
-          color: 'rgba(0, 0, 0, 0.6)',
-          font: {
-            size: 10,
-          }
-        }
+        display: false,
+        beginAtZero: true
       },
       y: {
         grid: {
