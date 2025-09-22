@@ -108,6 +108,9 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
       legend: {
         display: false
       },
+      datalabels: {
+        display: false
+      },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
         titleColor: '#ffffff',
