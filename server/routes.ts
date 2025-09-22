@@ -4301,7 +4301,7 @@ export function registerRoutes(app: Express): Server {
           });
         }
 
-        const results: Array<{ fileName: string; success: boolean; productCode?: string; error?: string }> = [];
+        const results: Array<{ fileName: string; success: boolean; productCode?: string; error?: string; errorType?: string }> = [];
         let processed = 0;
         const total = imageFiles.length;
 
@@ -4367,12 +4367,12 @@ export function registerRoutes(app: Express): Server {
                   id: `ecom-${productCode}-${Date.now()}`,
                   createdAt: new Date(),
                   updatedAt: new Date(),
-                  descripcion: pricingProduct.nombre,
+                  descripcion: pricingProduct.producto, // Corrected: use 'producto' not 'nombre'
                   priceListId: pricingProduct.id,
                   activo: true,
-                  categoria: pricingProduct.familia || 'Sin categoría',
+                  categoria: 'Sin categoría', // Removed 'familia' as it doesn't exist
                   imagenUrl: imageUrl, // Can be null if upload failed
-                  precioEcommerce: pricingProduct.precio?.toString() || '0',
+                  precioEcommerce: pricingProduct.lista?.toString() || '0', // Corrected: use 'lista' not 'precio'
                   orden: 0
                 };
                 
@@ -4469,7 +4469,7 @@ export function registerRoutes(app: Express): Server {
             results.push({
               fileName,
               success: false,
-              productCode,
+              productCode: productCode,
               error: errorMessage,
               errorType: errorType
             });
