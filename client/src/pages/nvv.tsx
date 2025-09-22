@@ -77,9 +77,9 @@ export default function NVVPage() {
   
   // NVV Filters
   const [nvvFilters, setNvvFilters] = useState({
-    status: '',
-    salesperson: '',
-    segment: '',
+    status: 'all',
+    salesperson: 'all',
+    segment: 'all',
     startDate: undefined as Date | undefined,
     endDate: undefined as Date | undefined,
   });
@@ -597,7 +597,7 @@ export default function NVVPage() {
                   <SelectValue placeholder="Todos los estados" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos los estados</SelectItem>
+                  <SelectItem value="all">Todos los estados</SelectItem>
                   <SelectItem value="pending">Pendiente</SelectItem>
                   <SelectItem value="confirmed">Confirmado</SelectItem>
                   <SelectItem value="delivered">Entregado</SelectItem>
@@ -613,7 +613,7 @@ export default function NVVPage() {
                   <SelectValue placeholder="Todos los vendedores" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos los vendedores</SelectItem>
+                  <SelectItem value="all">Todos los vendedores</SelectItem>
                   {/* Add salesperson options dynamically */}
                 </SelectContent>
               </Select>
@@ -626,7 +626,7 @@ export default function NVVPage() {
                   <SelectValue placeholder="Todos los segmentos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos los segmentos</SelectItem>
+                  <SelectItem value="all">Todos los segmentos</SelectItem>
                   <SelectItem value="FERRETERIAS">Ferreterías</SelectItem>
                   <SelectItem value="CONSTRUCCION">Construcción</SelectItem>
                   <SelectItem value="MCT">MCT</SelectItem>
@@ -673,9 +673,9 @@ export default function NVVPage() {
           <PendingSalesTable
             startDate={nvvFilters.startDate}
             endDate={nvvFilters.endDate}
-            selectedStatus={nvvFilters.status}
-            selectedSalesperson={nvvFilters.salesperson}
-            selectedSegment={nvvFilters.segment}
+            selectedStatus={nvvFilters.status === 'all' ? '' : nvvFilters.status}
+            selectedSalesperson={nvvFilters.salesperson === 'all' ? '' : nvvFilters.salesperson}
+            selectedSegment={nvvFilters.segment === 'all' ? '' : nvvFilters.segment}
           />
         </TabsContent>
 
