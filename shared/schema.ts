@@ -2113,8 +2113,39 @@ export const nvvImportResultSchema = z.object({
   importBatch: z.string(),
 });
 
+// Comuna-Region mapping table for intelligent geographic analysis
+export const comunaRegionMapping = pgTable("comuna_region_mapping", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  comuna: varchar("comuna").notNull(), // Comuna name as it appears in original data
+  region: varchar("region").notNull(), // Official region name
+  comunaNormalized: varchar("comuna_normalized").notNull(), // Normalized for matching
+  regionNormalized: varchar("region_normalized").notNull(), // Normalized region name
+  isActive: boolean("is_active").default(true), // For soft deletes/deactivation
+  matchingStrategy: varchar("matching_strategy").default("exact"), // exact, partial, manual
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Index for fast lookup by normalized comuna
+  comunaNormalizedIdx: index("IDX_comuna_normalized").on(table.comunaNormalized),
+  // Index for queries by region
+  regionIdx: index("IDX_region").on(table.region),
+  // Unique constraint to prevent duplicates
+  uniqueComunaRegion: unique("unique_comuna_region").on(table.comunaNormalized),
+}));
+
+// Insert schema for comuna-region mapping
+export const insertComunaRegionMappingSchema = createInsertSchema(comunaRegionMapping).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Export NVV Pending Sales types
 export type NvvPendingSales = typeof nvvPendingSales.$inferSelect;
 export type InsertNvvPendingSales = z.infer<typeof insertNvvPendingSalesSchema>;
 export type NvvCsvImport = z.infer<typeof nvvCsvImportSchema>;
 export type NvvImportResult = z.infer<typeof nvvImportResultSchema>;
+
+// Export Comuna-Region Mapping types
+export type ComunaRegionMapping = typeof comunaRegionMapping.$inferSelect;
+export type InsertComunaRegionMapping = z.infer<typeof insertComunaRegionMappingSchema>;
