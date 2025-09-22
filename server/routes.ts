@@ -107,6 +107,48 @@ function normalizeDateRange(startDate?: string, endDate?: string): {
 }
 
 // Helper function to convert period and filterType to date range
+// Helper function to resolve comparison periods like "previous-month", "previous-year", etc.
+function resolveComparisonPeriod(comparePeriod: string, currentPeriod: string, filterType: string): string {
+  if (!comparePeriod || comparePeriod === "none") return "";
+  
+  // If it's already a specific period like "2025-08", return as is
+  if (comparePeriod.match(/^\d{4}-\d{2}$/) || comparePeriod.match(/^\d{4}$/)) {
+    return comparePeriod;
+  }
+  
+  // Parse current period to determine comparison period
+  switch (comparePeriod) {
+    case "previous-month": {
+      if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
+        const [year, month] = currentPeriod.split('-').map(Number);
+        const date = new Date(year, month - 1, 1);
+        date.setMonth(date.getMonth() - 1);
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      }
+      break;
+    }
+    case "previous-year": {
+      if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
+        const [year, month] = currentPeriod.split('-');
+        return `${parseInt(year) - 1}-${month}`;
+      }
+      if (filterType === "year" && currentPeriod.match(/^\d{4}$/)) {
+        return `${parseInt(currentPeriod) - 1}`;
+      }
+      break;
+    }
+    case "same-month-last-year": {
+      if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
+        const [year, month] = currentPeriod.split('-');
+        return `${parseInt(year) - 1}-${month}`;
+      }
+      break;
+    }
+  }
+  
+  return comparePeriod; // Return as is if no pattern matches
+}
+
 function getDateRange(period?: string, filterType?: string): { startDate?: string; endDate?: string } {
   if (!period || !filterType) return {};
   
@@ -209,7 +251,16 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/sales/metrics', requireAuth, async (req, res) => {
     try {
       const { startDate, endDate, salesperson, segment, client, supplier, period, filterType } = req.query;
-      const dateRange = getDateRange(period as string, filterType as string);
+      
+      // Check if this is a comparison period query and resolve it
+      let resolvedPeriod = period as string;
+      if (period && typeof period === 'string' && (period.startsWith('previous-') || period.startsWith('same-month-'))) {
+        // For comparison periods, we need the original period context
+        // Since we don't have it in this query, we'll handle it in getDateRange
+        resolvedPeriod = period;
+      }
+      
+      const dateRange = getDateRange(resolvedPeriod, filterType as string);
       
       const currentStartDate = (startDate as string) || dateRange.startDate;
       const currentEndDate = (endDate as string) || dateRange.endDate;
