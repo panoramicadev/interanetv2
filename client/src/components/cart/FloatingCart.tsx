@@ -1,12 +1,11 @@
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
 import { X, ShoppingCart, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 import { useCart } from "@/hooks/useCart";
+import { useIsMobile } from "@/hooks/use-mobile";
 import CartItem from "./CartItem";
 
 interface FloatingCartProps {
@@ -24,23 +23,16 @@ const formatPrice = (price: number): string => {
 
 export default function FloatingCart({ isOpen, onClose, trigger }: FloatingCartProps) {
   const { state } = useCart();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
+  const isMobile = useIsMobile();
+  
   const isEmpty = state.items.length === 0;
 
-  // Mobile view - use Sheet as modal
-  const MobileCart = () => (
-    <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
-      <SheetContent side="right" className="w-full sm:max-w-md p-0">
-        <div className="flex flex-col h-full">
-          {/* Header */}
+  // Mobile view using Sheet component
+  if (isMobile) {
+    return (
+      <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+        {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
+        <SheetContent side="right" className="w-full sm:max-w-md p-0">
           <SheetHeader className="border-b border-gray-200 p-4">
             <div className="flex items-center justify-between">
               <SheetTitle className="text-lg font-semibold text-gray-900" data-testid="text-cart-header">
@@ -56,10 +48,12 @@ export default function FloatingCart({ isOpen, onClose, trigger }: FloatingCartP
                 <X className="h-5 w-5" />
               </Button>
             </div>
+            <SheetDescription className="sr-only">
+              Carrito de compras con {state.itemCount} productos
+            </SheetDescription>
           </SheetHeader>
 
-          {/* Cart Content */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex flex-col h-full">
             {isEmpty ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -145,13 +139,13 @@ export default function FloatingCart({ isOpen, onClose, trigger }: FloatingCartP
               </>
             )}
           </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
-  // Desktop view - custom sliding panel
-  const DesktopCart = () => (
+  // Desktop view using fixed positioned panel
+  return (
     <>
       {/* Backdrop */}
       {isOpen && (
@@ -274,18 +268,6 @@ export default function FloatingCart({ isOpen, onClose, trigger }: FloatingCartP
             </>
           )}
         </div>
-      </div>
-    </>
-  );
-
-  // Render different views based on screen size
-  return (
-    <>
-      <div className="md:hidden">
-        <MobileCart />
-      </div>
-      <div className="hidden md:block">
-        <DesktopCart />
       </div>
     </>
   );
