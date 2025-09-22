@@ -2,7 +2,7 @@ import { db } from './db';
 import { comunaRegionMapping, type ComunaRegionMapping, type InsertComunaRegionMapping } from '@shared/schema';
 import { eq, sql, ilike, or } from 'drizzle-orm';
 import { readFileSync } from 'fs';
-import { parse } from 'papaparse';
+import Papa from 'papaparse';
 
 export interface RegionMatchResult {
   region: string;
@@ -60,7 +60,7 @@ export class ComunaRegionService {
       const csvPath = 'attached_assets/regiones por comunas - Hoja 2_1758560241633.csv';
       const csvContent = readFileSync(csvPath, 'utf-8');
       
-      const parseResult = parse(csvContent, {
+      const parseResult = Papa.parse(csvContent, {
         header: true,
         skipEmptyLines: true,
         transformHeader: (header: string) => header.trim(),

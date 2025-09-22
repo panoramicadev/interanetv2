@@ -11,6 +11,7 @@ import { checkDbHealth } from "./db";
 import JSZip from "jszip";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { localImageStorage } from "./localImageStorage";
+import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
 import { ecommerceProducts } from "../shared/schema";
 import { eq } from "drizzle-orm";
@@ -4695,6 +4696,144 @@ export function registerRoutes(app: Express): Server {
       res.json({ success: true, message: 'Lote eliminado' });
     } else {
       res.status(404).json({ message: 'Lote no encontrado' });
+    }
+  }));
+
+  // Region Management Endpoints
+  // Load Comuna-Region mapping from CSV
+  app.post('/api/admin/regions/load', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      console.log('🗺️ Loading comuna-region mapping from CSV...');
+      await comunaRegionService.initialize();
+      
+      const stats = await comunaRegionService.getMappingStats();
+      res.json({
+        success: true,
+        message: 'Comuna-region mapping loaded successfully',
+        stats
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to load comuna-region mapping:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to load comuna-region mapping',
+        error: error.message
+      });
+    }
+  }));
+
+  // Reload Comuna-Region mapping from CSV
+  app.post('/api/admin/regions/reload', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      console.log('🔄 Reloading comuna-region mapping...');
+      await comunaRegionService.reloadMapping();
+      
+      const stats = await comunaRegionService.getMappingStats();
+      res.json({
+        success: true,
+        message: 'Comuna-region mapping reloaded successfully',
+        stats
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to reload comuna-region mapping:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to reload comuna-region mapping',
+        error: error.message
+      });
+    }
+  }));
+
+  // Get Comuna-Region mapping statistics
+  app.get('/api/admin/regions/stats', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const stats = await comunaRegionService.getMappingStats();
+      res.json(stats);
+    } catch (error: any) {
+      console.error('❌ Failed to get mapping stats:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get mapping statistics',
+        error: error.message
+      });
+    }
+  }));
+
+  // Test Comuna region mapping for specific comunas
+  app.post('/api/admin/regions/test', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { comunas } = req.body;
+      
+      if (!Array.isArray(comunas)) {
+        return res.status(400).json({
+          success: false,
+          message: 'comunas parameter must be an array'
+        });
+      }
+
+      const results = [];
+      for (const comuna of comunas) {
+        const result = await comunaRegionService.findRegion(comuna);
+        results.push({
+          input: comuna,
+          ...result
+        });
+      }
+
+      res.json({
+        success: true,
+        results
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to test comuna mapping:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to test comuna mapping',
+        error: error.message
+      });
+    }
+  }));
+
+  // Get diagnostics about unmatched comunas from actual transaction data
+  app.get('/api/admin/regions/diagnostics', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      // Get unique comunas from current transaction data
+      const unmatchedComunas = await storage.getUnmatchedComunas();
+      
+      // Test each one with the mapping service
+      const diagnostics = [];
+      for (const comunaData of unmatchedComunas) {
+        const result = await comunaRegionService.findRegion(comunaData.comuna);
+        diagnostics.push({
+          comuna: comunaData.comuna,
+          transactionCount: comunaData.transactionCount,
+          totalSales: comunaData.totalSales,
+          mappingResult: result
+        });
+      }
+
+      // Sort by transaction count (highest impact first)
+      diagnostics.sort((a, b) => b.transactionCount - a.transactionCount);
+
+      const stats = await comunaRegionService.getMappingStats();
+      
+      res.json({
+        success: true,
+        diagnostics,
+        summary: {
+          totalUnmatchedComunas: diagnostics.length,
+          totalUnmatchedTransactions: diagnostics.reduce((sum, d) => sum + d.transactionCount, 0),
+          totalUnmatchedSales: diagnostics.reduce((sum, d) => sum + d.totalSales, 0),
+          mappingStats: stats
+        }
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to get region diagnostics:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get region diagnostics',
+        error: error.message
+      });
     }
   }));
 
