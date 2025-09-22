@@ -4396,6 +4396,167 @@ export function registerRoutes(app: Express): Server {
     return contentTypes[extension.toLowerCase()] || 'image/png';
   }
 
+  // ==============================================
+  // NVV (Notas de Ventas Pendientes) Endpoints
+  // ==============================================
+
+  // NVV CSV Import endpoint
+  app.post('/api/nvv/import', requireAuth, 
+    upload.single('file'),
+    asyncHandler(async (req: any, res: any) => {
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No se encontró archivo CSV'
+        });
+      }
+
+      try {
+        const Papa = require('papaparse');
+        const { nanoid } = require('nanoid');
+        
+        // Parse CSV file
+        const csvContent = file.buffer.toString('utf-8');
+        const parseResult = Papa.parse(csvContent, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header: string) => header.trim(),
+        });
+
+        if (parseResult.errors.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Error al procesar CSV',
+            errors: parseResult.errors
+          });
+        }
+
+        const rawData = parseResult.data as Record<string, any>[];
+        const importBatch = nanoid();
+        const processedData = [];
+
+        // Process each row
+        for (let i = 0; i < rawData.length; i++) {
+          const row = rawData[i];
+          
+          try {
+            // Map CSV columns to database fields (adjust based on actual CSV structure)
+            const processedRow = {
+              documentNumber: row['Documento'] || row['document_number'] || `DOC-${Date.now()}-${i}`,
+              documentType: row['Tipo'] || row['document_type'] || 'NVV',
+              clientCode: row['Codigo_Cliente'] || row['client_code'] || '',
+              clientName: row['Cliente'] || row['client_name'] || 'Cliente sin nombre',
+              productCode: row['Codigo_Producto'] || row['product_code'] || '',
+              productName: row['Producto'] || row['product_name'] || 'Producto sin nombre',
+              salesperson: row['Vendedor'] || row['salesperson'] || '',
+              segment: row['Segmento'] || row['segment'] || '',
+              quantity: parseFloat(row['Cantidad'] || row['quantity'] || '0'),
+              unitPrice: parseFloat(row['Precio_Unitario'] || row['unit_price'] || '0'),
+              totalAmount: parseFloat(row['Monto_Total'] || row['total_amount'] || '0'),
+              currency: row['Moneda'] || row['currency'] || 'CLP',
+              commitmentDate: row['Fecha_Compromiso'] ? new Date(row['Fecha_Compromiso']) : null,
+              expectedDeliveryDate: row['Fecha_Entrega'] ? new Date(row['Fecha_Entrega']) : null,
+              orderDate: row['Fecha_Pedido'] ? new Date(row['Fecha_Pedido']) : null,
+              status: row['Estado'] || row['status'] || 'pending',
+              priority: row['Prioridad'] || row['priority'] || 'normal',
+              warehouse: row['Bodega'] || row['warehouse'] || '',
+              region: row['Region'] || row['region'] || '',
+              commune: row['Comuna'] || row['commune'] || '',
+              notes: row['Observaciones'] || row['notes'] || '',
+              originalData: row, // Store original CSV row for reference
+            };
+
+            processedData.push(processedRow);
+          } catch (error) {
+            console.error(`Error processing row ${i + 1}:`, error);
+            // Continue processing other rows
+          }
+        }
+
+        // Import to database
+        const result = await storage.importNvvFromCsv(processedData, importBatch);
+        
+        res.json(result);
+
+      } catch (error) {
+        console.error('Error importing NVV CSV:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Error interno del servidor',
+          error: error instanceof Error ? error.message : 'Error desconocido'
+        });
+      }
+    })
+  );
+
+  // Get NVV pending sales data
+  app.get('/api/nvv/pending', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { status, salesperson, segment, startDate, endDate, limit = 100, offset = 0 } = req.query;
+    
+    const options: any = {
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    };
+
+    if (status) options.status = status;
+    if (salesperson) options.salesperson = salesperson;
+    if (segment) options.segment = segment;
+    if (startDate) options.startDate = new Date(startDate);
+    if (endDate) options.endDate = new Date(endDate);
+
+    const pendingSales = await storage.getNvvPendingSales(options);
+    res.json(pendingSales);
+  }));
+
+  // Get NVV summary metrics
+  app.get('/api/nvv/metrics', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { salesperson, segment, startDate, endDate } = req.query;
+    
+    const options: any = {};
+    if (salesperson) options.salesperson = salesperson;
+    if (segment) options.segment = segment;
+    if (startDate) options.startDate = new Date(startDate);
+    if (endDate) options.endDate = new Date(endDate);
+
+    const metrics = await storage.getNvvSummaryMetrics(options);
+    res.json(metrics);
+  }));
+
+  // Update NVV status
+  app.patch('/api/nvv/:id/status', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || !['pending', 'confirmed', 'delivered', 'cancelled'].includes(status)) {
+      return res.status(400).json({
+        message: 'Estado inválido'
+      });
+    }
+
+    const success = await storage.updateNvvStatus(id, status);
+    
+    if (success) {
+      res.json({ success: true, message: 'Estado actualizado' });
+    } else {
+      res.status(404).json({ message: 'Registro no encontrado' });
+    }
+  }));
+
+  // Delete NVV batch
+  app.delete('/api/nvv/batch/:batchId', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { batchId } = req.params;
+
+    const success = await storage.deleteNvvBatch(batchId);
+    
+    if (success) {
+      res.json({ success: true, message: 'Lote eliminado' });
+    } else {
+      res.status(404).json({ message: 'Lote no encontrado' });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
