@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 interface SegmentData {
   segment: string;
@@ -30,7 +31,8 @@ ChartJS.register(
   BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ChartDataLabels
 );
 
 export default function SegmentChart({ selectedPeriod, filterType }: SegmentChartProps) {
@@ -46,6 +48,19 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
       {
         label: 'Ventas (Millones CLP)',
         data: segmentData?.map(segment => Math.round(segment.totalSales / 1000000)) || [],
+        datalabels: {
+          display: true,
+          color: 'white',
+          font: {
+            weight: 'bold' as const,
+            size: 12
+          },
+          formatter: function(value: number) {
+            return value + 'M';
+          },
+          anchor: 'center' as const,
+          align: 'center' as const
+        },
         backgroundColor: [
           'rgba(59, 130, 246, 0.8)',
           'rgba(16, 185, 129, 0.8)', 
@@ -70,6 +85,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
   };
 
   const chartOptions = {
+    indexAxis: 'y' as const,
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -88,13 +104,13 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
         cornerRadius: 8,
         callbacks: {
           label: function(context: any) {
-            return `${context.parsed.y}M CLP`;
+            return `${context.parsed.x}M CLP`;
           }
         }
       }
     },
     scales: {
-      y: {
+      x: {
         beginAtZero: true,
         grid: {
           color: 'rgba(0, 0, 0, 0.05)',
@@ -109,7 +125,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
           }
         }
       },
-      x: {
+      y: {
         grid: {
           display: false,
         },
@@ -117,8 +133,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
           color: 'rgba(0, 0, 0, 0.6)',
           font: {
             size: 12,
-          },
-          maxRotation: 45,
+          }
         }
       }
     },
