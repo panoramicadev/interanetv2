@@ -10,6 +10,7 @@ import { nanoid } from "nanoid";
 import { checkDbHealth } from "./db";
 import JSZip from "jszip";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { localImageStorage } from "./localImageStorage";
 import { db } from "./db";
 import { ecommerceProducts } from "../shared/schema";
 import { eq } from "drizzle-orm";
@@ -4329,7 +4330,7 @@ export function registerRoutes(app: Express): Server {
             // Get image data
             const imageBuffer = await zipEntry.async('nodebuffer');
             
-            // Upload to Object Storage with unique filename
+            // Upload to Local Storage with unique filename
             const timestamp = Date.now();
             const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'png';
             const uniqueFileName = `${productCode}_${timestamp}.${fileExtension}`;
@@ -4340,14 +4341,14 @@ export function registerRoutes(app: Express): Server {
             let uploadError: string | null = null;
             
             try {
-              imageUrl = await objectStorageService.uploadImage(
+              imageUrl = await localImageStorage.uploadImage(
                 uniqueFileName,
                 imageBuffer,
                 getContentType(fileExtension)
               );
-              console.log(`✅ [ZIP IMPORT] Successfully uploaded ${uniqueFileName} to cloud storage`);
+              console.log(`✅ [ZIP IMPORT] Successfully uploaded ${uniqueFileName} to local storage`);
             } catch (uploadErr) {
-              console.error(`⚠️ [ZIP IMPORT] Failed to upload ${uniqueFileName} to cloud storage:`, uploadErr);
+              console.error(`⚠️ [ZIP IMPORT] Failed to upload ${uniqueFileName} to local storage:`, uploadErr);
               uploadError = uploadErr instanceof Error ? uploadErr.message : 'Unknown upload error';
               
               // Continue processing in degraded mode (product without image)
