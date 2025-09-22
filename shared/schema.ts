@@ -1963,3 +1963,44 @@ export const cartStateSchema = z.object({
 // Export cart types for TypeScript inference
 export type CartItemType = z.infer<typeof cartItemSchema>;
 export type CartStateType = z.infer<typeof cartStateSchema>;
+
+// ==============================================
+// NVV (Nivel de Venta y Variación) Schemas
+// ==============================================
+
+// NVV Summary KPIs
+export const nvvSummarySchema = z.object({
+  totalSales: z.number(),
+  salesVarianceVsTarget: z.number().nullable(), // Percentage variance vs goal
+  salesVarianceVsPrevious: z.number().nullable(), // Percentage variance vs previous period
+  totalUnits: z.number(),
+  averageTicket: z.number(),
+  period: z.string(),
+  periodLabel: z.string(),
+});
+
+// NVV Trend data points
+export const nvvTrendPointSchema = z.object({
+  period: z.string(), // Date string or period identifier
+  periodLabel: z.string(), // Human readable period label
+  sales: z.number(),
+  units: z.number(),
+  target: z.number().nullable(), // Goal for this period if available
+});
+
+// NVV Breakdown items (by segment or salesperson)
+export const nvvBreakdownItemSchema = z.object({
+  name: z.string(), // Segment name or salesperson name
+  type: z.enum(['segment', 'salesperson']),
+  sales: z.number(),
+  units: z.number(),
+  target: z.number().nullable(),
+  varianceVsTarget: z.number().nullable(), // Percentage variance vs target
+  varianceVsPrevious: z.number().nullable(), // Percentage variance vs previous period
+  previousSales: z.number().nullable(),
+});
+
+// Export NVV types for TypeScript inference
+export type NVVSummary = z.infer<typeof nvvSummarySchema>;
+export type NVVTrendPoint = z.infer<typeof nvvTrendPointSchema>;
+export type NVVBreakdownItem = z.infer<typeof nvvBreakdownItemSchema>;
