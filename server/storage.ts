@@ -5156,15 +5156,20 @@ export class DatabaseStorage implements IStorage {
         'Sin comuna'
       )`);
 
-    // Map comunas to regions using the new intelligent matching service
+    // Map comunas to regions using the new intelligent matching service (parallel processing)
     const regionMap = new Map<string, { totalSales: number; transactionCount: number }>();
     let unknownRegionSales = 0;
     let unknownRegionCount = 0;
     
-    for (const comunaData of comunaResults) {
-      // Use the new ComunaRegionService for intelligent matching
-      const regionMatch = await comunaRegionService.findRegion(comunaData.rawComuna);
-      
+    // Process all comunas in parallel for better performance
+    const regionMatches = await Promise.all(
+      comunaResults.map(async (comunaData) => {
+        const regionMatch = await comunaRegionService.findRegion(comunaData.rawComuna);
+        return { comunaData, regionMatch };
+      })
+    );
+    
+    for (const { comunaData, regionMatch } of regionMatches) {
       // Map regions with confidence-based handling
       const finalRegion = regionMatch.region === 'Sin región' || regionMatch.confidence < 0.6
         ? 'Sin región' 
