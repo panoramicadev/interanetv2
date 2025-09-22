@@ -23,8 +23,7 @@ interface TopSalespeoplePanelProps {
 }
 
 export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson }: TopSalespeoplePanelProps) {
-  const [showMore, setShowMore] = useState(false);
-  const displayLimit = showMore ? 50 : 10;
+  const displayLimit = 1000; // Show all salespeople
   
   const { data: topSalespeopleResponse, isLoading } = useQuery<TopSalespeopleResponse>({
     queryKey: [`/api/sales/top-salespeople?limit=${displayLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
@@ -54,20 +53,10 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
           <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Top Vendedores</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Vendedores</h2>
         </div>
         <div className="flex items-center gap-2">
-          {topSalespeople && topSalespeople.length >= 10 && !showMore && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowMore(true)}
-              className="text-xs px-3 py-1"
-              data-testid="button-see-more-salespeople"
-            >
-              Ver más
-            </Button>
-          )}
+          {/* Removed "Ver más" button since we show all salespeople */}
         </div>
       </div>
       
@@ -162,6 +151,60 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
                 </div>
               </Link>
             ))}
+            
+            {/* Total Row */}
+            {salespeopleWithPercentage && salespeopleWithPercentage.length > 0 && (
+              <div className="border-t-2 border-gray-300 pt-3 mt-4">
+                <div 
+                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0 bg-green-50 rounded-lg px-3"
+                  data-testid="salespeople-total"
+                >
+                  {/* Total Mobile */}
+                  <div className="flex justify-between items-center sm:hidden">
+                    <p className="text-sm text-green-900 font-bold">
+                      TOTAL ({salespeopleWithPercentage.length} vendedores)
+                    </p>
+                    <div className="flex items-center space-x-2 shrink-0">
+                      <span className="text-xs text-green-700">
+                        100.0%
+                      </span>
+                      <span className="text-sm font-bold text-green-900">
+                        {formatCurrency(periodTotal)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Total Desktop */}
+                  <div className="hidden sm:flex sm:items-center w-full">
+                    <div className="w-32 lg:w-48 flex-shrink-0">
+                      <p className="text-sm text-green-900 font-bold">
+                        TOTAL ({salespeopleWithPercentage.length} vendedores)
+                      </p>
+                    </div>
+                    
+                    <div className="w-12 flex-shrink-0 text-center">
+                      <span className="text-sm text-green-700 font-semibold">
+                        100.0%
+                      </span>
+                    </div>
+                    
+                    <div className="flex-1 mx-2 lg:mx-4">
+                      <div className="relative">
+                        <div className="h-6 bg-green-200 rounded-lg overflow-hidden">
+                          <div className="h-full bg-green-600 rounded-lg w-full"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="w-20 flex-shrink-0 text-right">
+                      <span className="text-sm font-bold text-green-900">
+                        {formatCurrency(periodTotal)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
