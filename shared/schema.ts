@@ -1965,6 +1965,60 @@ export type CartItemType = z.infer<typeof cartItemSchema>;
 export type CartStateType = z.infer<typeof cartStateSchema>;
 
 // ==============================================
+// NVV (Notas de Ventas Pendientes) Table
+// ==============================================
+
+// Notas de Ventas Pendientes table for committed orders
+export const nvvPendingSales = pgTable("nvv_pending_sales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Core NVV fields (adaptable based on CSV structure)
+  documentNumber: varchar("document_number").notNull(), // Número de documento/nota
+  documentType: varchar("document_type"), // Tipo de documento
+  clientCode: varchar("client_code"), // Código de cliente  
+  clientName: text("client_name"), // Nombre del cliente
+  productCode: varchar("product_code"), // Código del producto
+  productName: text("product_name"), // Nombre del producto
+  salesperson: varchar("salesperson"), // Vendedor responsable
+  segment: varchar("segment"), // Segmento del cliente
+  
+  // Quantity and amounts
+  quantity: numeric("quantity", { precision: 10, scale: 2 }), // Cantidad comprometida
+  unitPrice: numeric("unit_price", { precision: 15, scale: 2 }), // Precio unitario
+  totalAmount: numeric("total_amount", { precision: 15, scale: 2 }), // Monto total
+  currency: varchar("currency").default("CLP"), // Moneda
+  
+  // Important dates
+  commitmentDate: date("commitment_date"), // Fecha de compromiso
+  expectedDeliveryDate: date("expected_delivery_date"), // Fecha esperada de entrega
+  orderDate: date("order_date"), // Fecha del pedido
+  
+  // Status and tracking
+  status: varchar("status").default("pending"), // Estado: pending, confirmed, delivered, cancelled
+  priority: varchar("priority").default("normal"), // Prioridad: low, normal, high, urgent
+  warehouse: varchar("warehouse"), // Bodega/almacén
+  region: varchar("region"), // Región
+  commune: varchar("commune"), // Comuna
+  
+  // Additional fields for flexible CSV import
+  originalData: jsonb("original_data"), // Store original CSV row for reference
+  notes: text("notes"), // Observaciones adicionales
+  
+  // System fields
+  importedAt: timestamp("imported_at").defaultNow(), // Fecha de importación
+  importBatch: varchar("import_batch"), // Lote de importación para tracking
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Indexes for performance
+  documentNumberIdx: index("nvv_pending_sales_document_number_idx").on(table.documentNumber),
+  clientCodeIdx: index("nvv_pending_sales_client_code_idx").on(table.clientCode),
+  statusIdx: index("nvv_pending_sales_status_idx").on(table.status),
+  commitmentDateIdx: index("nvv_pending_sales_commitment_date_idx").on(table.commitmentDate),
+  importBatchIdx: index("nvv_pending_sales_import_batch_idx").on(table.importBatch),
+}));
+
+// ==============================================
 // NVV (Nivel de Venta y Variación) Schemas
 // ==============================================
 
@@ -2004,3 +2058,63 @@ export const nvvBreakdownItemSchema = z.object({
 export type NVVSummary = z.infer<typeof nvvSummarySchema>;
 export type NVVTrendPoint = z.infer<typeof nvvTrendPointSchema>;
 export type NVVBreakdownItem = z.infer<typeof nvvBreakdownItemSchema>;
+
+// ==============================================
+// NVV Pending Sales Schemas
+// ==============================================
+
+// NVV Pending Sales insert schema (for CSV import)
+export const insertNvvPendingSalesSchema = createInsertSchema(nvvPendingSales).omit({
+  id: true,
+  importedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// NVV Pending Sales CSV import schema (flexible for different CSV formats)
+export const nvvCsvImportSchema = z.object({
+  // Core required fields
+  documentNumber: z.string().min(1, "Número de documento requerido"),
+  clientName: z.string().min(1, "Nombre del cliente requerido"),
+  productName: z.string().min(1, "Nombre del producto requerido"),
+  quantity: z.number().positive("Cantidad debe ser positiva"),
+  totalAmount: z.number().positive("Monto total debe ser positivo"),
+  
+  // Optional fields with defaults
+  documentType: z.string().optional(),
+  clientCode: z.string().optional(),
+  productCode: z.string().optional(),
+  salesperson: z.string().optional(),
+  segment: z.string().optional(),
+  unitPrice: z.number().optional(),
+  currency: z.string().default("CLP"),
+  commitmentDate: z.date().optional(),
+  expectedDeliveryDate: z.date().optional(),
+  orderDate: z.date().optional(),
+  status: z.enum(["pending", "confirmed", "delivered", "cancelled"]).default("pending"),
+  priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
+  warehouse: z.string().optional(),
+  region: z.string().optional(),
+  commune: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+// NVV Import result schema
+export const nvvImportResultSchema = z.object({
+  success: z.boolean(),
+  totalRows: z.number(),
+  successfulImports: z.number(),
+  errors: z.array(z.object({
+    row: z.number(),
+    field: z.string().optional(),
+    message: z.string(),
+    data: z.record(z.any()).optional(),
+  })),
+  importBatch: z.string(),
+});
+
+// Export NVV Pending Sales types
+export type NvvPendingSales = typeof nvvPendingSales.$inferSelect;
+export type InsertNvvPendingSales = z.infer<typeof insertNvvPendingSalesSchema>;
+export type NvvCsvImport = z.infer<typeof nvvCsvImportSchema>;
+export type NvvImportResult = z.infer<typeof nvvImportResultSchema>;
