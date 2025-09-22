@@ -10,7 +10,8 @@ import {
   Palette,
   ClipboardList,
   ClipboardCheck,
-  DollarSign
+  DollarSign,
+  TrendingUp
 } from "lucide-react";
 
 interface SidebarItem {
@@ -28,6 +29,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
+    },
+    {
+      href: "/nvv",
+      label: "NVV - Análisis de Ventas",
+      icon: TrendingUp,
     },
     {
       href: "/metas",
@@ -91,6 +97,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,
+    },
+    {
+      href: "/nvv",
+      label: "NVV - Análisis de Ventas",
+      icon: TrendingUp,
     },
     {
       href: "/metas",
