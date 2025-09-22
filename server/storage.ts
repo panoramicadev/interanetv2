@@ -2626,7 +2626,38 @@ export class DatabaseStorage implements IStorage {
 
   // Salesperson users management
   async getSalespeopleUsers(): Promise<SalespersonUser[]> {
-    return await db.select().from(salespeopleUsers).orderBy(salespeopleUsers.salespersonName);
+    // Get salespeople/supervisors from salespeopleUsers table
+    const salespeople = await db.select().from(salespeopleUsers).orderBy(salespeopleUsers.salespersonName);
+    
+    // Get admin users from users table and map to SalespersonUser format
+    const adminUsers = await db.select().from(users).where(eq(users.role, 'admin'));
+    
+    // Remove password from salespeople responses
+    const safeSalespeople = salespeople.map(user => ({
+      ...user,
+      password: '' // Never expose password hashes
+    }));
+    
+    const mappedAdmins: SalespersonUser[] = adminUsers.map(admin => ({
+      id: admin.id,
+      salespersonName: `${admin.firstName || ''} ${admin.lastName || ''}`.trim() || admin.email,
+      username: admin.email, // Use email as username for admins
+      email: admin.email,
+      password: '', // Never expose password hashes
+      isActive: true,
+      role: admin.role as 'admin' | 'supervisor' | 'salesperson' | 'client',
+      supervisorId: null, // Admins don't have supervisors
+      assignedSegment: null, // Admins don't have assigned segments
+      createdAt: admin.createdAt,
+      updatedAt: admin.updatedAt,
+    }));
+    
+    // Combine both arrays, deduplicate by id, and sort by salespersonName
+    const allUsers = [...safeSalespeople, ...mappedAdmins];
+    const deduplicatedUsers = allUsers.filter((user, index, arr) => 
+      arr.findIndex(u => u.id === user.id) === index
+    );
+    return deduplicatedUsers.sort((a, b) => (a.salespersonName || '').localeCompare(b.salespersonName || ''));
   }
 
   async createSalespersonUser(user: InsertSalespersonUser): Promise<SalespersonUser> {
@@ -2638,12 +2669,99 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSalespersonUser(id: string, user: Partial<InsertSalespersonUser>): Promise<SalespersonUser> {
-    const [result] = await db
-      .update(salespeopleUsers)
-      .set({ ...user, updatedAt: new Date() })
-      .where(eq(salespeopleUsers.id, id))
-      .returning();
-    return result;
+    const bcrypt = await import('bcryptjs');
+    
+    // Hash password if provided and not already hashed (robust bcrypt detection)
+    let hashedPassword: string | undefined;
+    const bcryptHashRegex = /^\$2[aby]\$\d{2}\$/;
+    if (user.password && !bcryptHashRegex.test(user.password)) {
+      hashedPassword = await bcrypt.hash(user.password, 12);
+    } else if (user.password) {
+      hashedPassword = user.password; // Already hashed
+    }
+    
+    // Track if we need to invalidate sessions
+    const needsSessionInvalidation = hashedPassword || user.isActive === false;
+    
+    // First check if it's a salesperson/supervisor user
+    const [existingSalesperson] = await db
+      .select({ id: salespeopleUsers.id })
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.id, id));
+    
+    if (existingSalesperson) {
+      // Update in salespeopleUsers table
+      const updateData = { ...user, updatedAt: new Date() };
+      if (hashedPassword) updateData.password = hashedPassword;
+      
+      const [result] = await db
+        .update(salespeopleUsers)
+        .set(updateData)
+        .where(eq(salespeopleUsers.id, id))
+        .returning();
+      
+      // Invalidate sessions if password changed or user deactivated
+      if (needsSessionInvalidation) {
+        await this.invalidateUserSessions(id);
+      }
+      
+      // Return without password hash
+      return {
+        ...result,
+        password: '' // Never expose password hashes
+      };
+    }
+    
+    // Check if it's an admin user
+    const [existingAdmin] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, id), eq(users.role, 'admin')));
+    
+    if (existingAdmin) {
+      // Map SalespersonUser fields back to User fields for admin users
+      const adminUpdate: Partial<typeof users.$inferInsert> = {};
+      
+      if (user.salespersonName) {
+        const nameParts = user.salespersonName.split(' ');
+        adminUpdate.firstName = nameParts[0] || '';
+        adminUpdate.lastName = nameParts.slice(1).join(' ') || '';
+      }
+      
+      if (user.email) adminUpdate.email = user.email;
+      if (hashedPassword) adminUpdate.password = hashedPassword;
+      
+      adminUpdate.updatedAt = new Date();
+      
+      // Update in users table
+      const [updatedAdmin] = await db
+        .update(users)
+        .set(adminUpdate)
+        .where(eq(users.id, id))
+        .returning();
+      
+      // Invalidate sessions if password changed or user deactivated
+      if (needsSessionInvalidation) {
+        await this.invalidateUserSessions(id);
+      }
+      
+      // Return in SalespersonUser format without password hash
+      return {
+        id: updatedAdmin.id,
+        salespersonName: `${updatedAdmin.firstName || ''} ${updatedAdmin.lastName || ''}`.trim() || updatedAdmin.email,
+        username: updatedAdmin.email,
+        email: updatedAdmin.email,
+        password: '', // Never expose password hashes
+        isActive: true,
+        role: updatedAdmin.role as 'admin' | 'supervisor' | 'salesperson' | 'client',
+        supervisorId: null,
+        assignedSegment: null,
+        createdAt: updatedAdmin.createdAt,
+        updatedAt: updatedAdmin.updatedAt,
+      };
+    }
+    
+    throw new Error(`User with id ${id} not found`);
   }
 
   async deleteSalespersonUser(id: string): Promise<void> {
@@ -2657,11 +2775,42 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSalespersonUser(id: string): Promise<SalespersonUser | undefined> {
-    const [user] = await db
+    // First try to find in salespeopleUsers table
+    const [salespersonUser] = await db
       .select()
       .from(salespeopleUsers)
       .where(eq(salespeopleUsers.id, id));
-    return user;
+    
+    if (salespersonUser) {
+      return {
+        ...salespersonUser,
+        password: '' // Never expose password hashes
+      };
+    }
+    
+    // If not found, try to find in admin users table
+    const [adminUser] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, id), eq(users.role, 'admin')));
+    
+    if (adminUser) {
+      return {
+        id: adminUser.id,
+        salespersonName: `${adminUser.firstName || ''} ${adminUser.lastName || ''}`.trim() || adminUser.email,
+        username: adminUser.email,
+        email: adminUser.email,
+        password: '', // Never expose password hashes
+        isActive: true,
+        role: adminUser.role as 'admin' | 'supervisor' | 'salesperson' | 'client',
+        supervisorId: null,
+        assignedSegment: null,
+        createdAt: adminUser.createdAt,
+        updatedAt: adminUser.updatedAt,
+      };
+    }
+    
+    return undefined;
   }
 
   async getSalespersonUserByEmail(email: string): Promise<SalespersonUser | undefined> {
