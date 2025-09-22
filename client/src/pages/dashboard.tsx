@@ -49,6 +49,11 @@ export default function Dashboard() {
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
   
+  // Reset comparison period when filter type changes
+  useEffect(() => {
+    setComparePeriod("none");
+  }, [filterType]);
+  
   // Fetch segments and salespeople for the filter dropdown
   const { data: segments } = useQuery<string[]>({
     queryKey: ["/api/goals/data/segments"],
@@ -92,6 +97,77 @@ export default function Dashboard() {
         break;
     }
   }, [filterType, selectedDate, selectedYear, dateRange]);
+
+  // Generate dynamic comparison options based on current filter type
+  const generateComparisonOptions = () => {
+    const options = [{ value: "none", label: "Ninguno" }];
+    
+    switch (filterType) {
+      case "day":
+        options.push(
+          { value: "previous-day", label: "Día anterior" },
+          { value: "previous-week", label: "Semana anterior" },
+          { value: "same-day-last-week", label: "Mismo día semana anterior" },
+          { value: "same-day-last-month", label: "Mismo día mes anterior" }
+        );
+        break;
+        
+      case "month":
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        
+        options.push(
+          { value: "previous-month", label: "Mes anterior" },
+          { value: "same-month-last-year", label: "Mismo mes año anterior" }
+        );
+        
+        // Helper function to get month name in Spanish
+        const getMonthName = (month: number, year: number) => {
+          const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                             "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+          return `${monthNames[month]} ${year}`;
+        };
+        
+        // Generate last 6 months
+        for (let i = 1; i <= 6; i++) {
+          const date = new Date(currentYear, currentMonth - i, 1);
+          const yearMonth = format(date, "yyyy-MM");
+          const monthName = getMonthName(date.getMonth(), date.getFullYear());
+          options.push({ value: yearMonth, label: monthName });
+        }
+        
+        // Add same month from previous years
+        for (let i = 1; i <= 3; i++) {
+          const date = new Date(currentYear - i, currentMonth, 1);
+          const yearMonth = format(date, "yyyy-MM");
+          const monthName = getMonthName(date.getMonth(), date.getFullYear());
+          options.push({ value: yearMonth, label: monthName });
+        }
+        break;
+        
+      case "year":
+        options.push({ value: "previous-year", label: "Año anterior" });
+        
+        // Generate last 5 years
+        for (let i = 1; i <= 5; i++) {
+          const year = selectedYear - i;
+          options.push({ value: year.toString(), label: year.toString() });
+        }
+        break;
+        
+      case "range":
+        options.push(
+          { value: "previous-30-days", label: "30 días anteriores" },
+          { value: "previous-90-days", label: "90 días anteriores" },
+          { value: "same-period-last-year", label: "Mismo período año anterior" },
+          { value: "custom-range", label: "Rango personalizado..." }
+        );
+        break;
+    }
+    
+    return options;
+  };
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -336,19 +412,12 @@ export default function Dashboard() {
                   <SelectTrigger className="w-32 sm:w-40 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm" data-testid="select-compare-period">
                     <SelectValue placeholder="Ninguno" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200">
-                    <SelectItem value="none">Ninguno</SelectItem>
-                    <SelectItem value="previous-month">Mes anterior</SelectItem>
-                    <SelectItem value="previous-year">Año anterior</SelectItem>
-                    <SelectItem value="same-month-last-year">Mismo mes año anterior</SelectItem>
-                    {filterType === "month" && (
-                      <>
-                        <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                        <SelectItem value="2025-07">Julio 2025</SelectItem>
-                        <SelectItem value="2025-06">Junio 2025</SelectItem>
-                        <SelectItem value="2024-09">Septiembre 2024</SelectItem>
-                      </>
-                    )}
+                  <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
+                    {generateComparisonOptions().map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
