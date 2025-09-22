@@ -47,7 +47,7 @@ export default function Dashboard() {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   
   // Comparison period state
-  const [comparePeriod, setComparePeriod] = useState<string>("");
+  const [comparePeriod, setComparePeriod] = useState<string>("none");
   
   // Fetch segments and salespeople for the filter dropdown
   const { data: segments } = useQuery<string[]>({
@@ -363,7 +363,7 @@ export default function Dashboard() {
                     <SelectValue placeholder="Ninguno" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
-                    <SelectItem value="">Ninguno</SelectItem>
+                    <SelectItem value="none">Ninguno</SelectItem>
                     <SelectItem value="previous-month">Mes anterior</SelectItem>
                     <SelectItem value="previous-year">Año anterior</SelectItem>
                     <SelectItem value="same-month-last-year">Mismo mes año anterior</SelectItem>
