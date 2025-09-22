@@ -27,7 +27,7 @@ import {
 } from "chart.js";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import type { NVVSummary, NVVTrendPoint, NVVBreakdownItem } from "@shared/schema";
-import { NvvCsvImport } from "@/components/nvv/csv-import";
+import { CsvImport } from "@/components/nvv/csv-import";
 import { PendingSalesTable } from "@/components/nvv/pending-sales-table";
 
 interface PackagingMetric {
@@ -573,7 +573,7 @@ export default function NVVPage() {
 
         {/* Import Tab */}
         <TabsContent value="import" className="space-y-6">
-          <NvvCsvImport 
+          <CsvImport 
             onImportComplete={() => {
               toast({
                 title: "Importación completada",
