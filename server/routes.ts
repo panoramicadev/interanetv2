@@ -4336,39 +4336,62 @@ export function registerRoutes(app: Express): Server {
             
             console.log(`🔄 [ZIP IMPORT] Uploading image ${fileName} as ${uniqueFileName} for product ${productCode}`);
             
-            const imageUrl = await objectStorageService.uploadImage(
-              uniqueFileName,
-              imageBuffer,
-              getContentType(fileExtension)
-            );
+            let imageUrl: string | null = null;
+            let uploadError: string | null = null;
             
-            console.log(`✅ [ZIP IMPORT] Successfully uploaded ${uniqueFileName} to cloud storage`);
+            try {
+              imageUrl = await objectStorageService.uploadImage(
+                uniqueFileName,
+                imageBuffer,
+                getContentType(fileExtension)
+              );
+              console.log(`✅ [ZIP IMPORT] Successfully uploaded ${uniqueFileName} to cloud storage`);
+            } catch (uploadErr) {
+              console.error(`⚠️ [ZIP IMPORT] Failed to upload ${uniqueFileName} to cloud storage:`, uploadErr);
+              uploadError = uploadErr instanceof Error ? uploadErr.message : 'Unknown upload error';
+              
+              // Continue processing in degraded mode (product without image)
+              console.log(`🔄 [ZIP IMPORT] Continuing in degraded mode for ${productCode} without image`);
+            }
             
             // Auto-create ecommerce product if it doesn't exist
             if (!existingProduct) {
               console.log(`🏗️ [ZIP IMPORT] Auto-creating ecommerce product for code: ${productCode}`);
               
-              // Create new ecommerce product based on pricing table
-              const pricingProduct = await storage.getProductByCode(productCode);
+              // Get price list product to use as base
+              const priceListProducts = await storage.getPriceList();
+              const pricingProduct = priceListProducts.find(p => p.codigo === productCode);
+              
               if (pricingProduct) {
-                const newEcommerceProduct = await storage.createEcommerceProduct({
-                  codigo: productCode,
-                  nombre: pricingProduct.nombre,
-                  categoria: pricingProduct.familia || 'Sin categoría',
+                const newEcommerceProduct = {
+                  id: `ecom-${productCode}-${Date.now()}`,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
                   descripcion: pricingProduct.nombre,
-                  precio: pricingProduct.precio || 0,
-                  imagenUrl: imageUrl,
-                  disponible: true
-                });
+                  priceListId: pricingProduct.id,
+                  activo: true,
+                  categoria: pricingProduct.familia || 'Sin categoría',
+                  imagenUrl: imageUrl, // Can be null if upload failed
+                  precioEcommerce: pricingProduct.precio?.toString() || '0',
+                  orden: 0
+                };
                 
-                console.log(`✅ [ZIP IMPORT] Created ecommerce product: ${productCode} with image`);
+                // Insert the new ecommerce product
+                await db.insert(ecommerceProducts).values(newEcommerceProduct);
+                
+                const statusMessage = imageUrl 
+                  ? 'Producto creado automáticamente con imagen'
+                  : 'Producto creado automáticamente (imagen falló, se puede reintentar)';
+                
+                console.log(`✅ [ZIP IMPORT] Created ecommerce product: ${productCode} ${imageUrl ? 'with' : 'without'} image`);
                 
                 results.push({
                   fileName,
                   success: true,
                   productCode,
-                  message: 'Producto creado automáticamente'
-                });
+                  error: uploadError || undefined,
+                  errorType: uploadError ? 'storage_warning' : undefined
+                } as any);
                 processed++;
                 continue;
               } else {
@@ -4377,23 +4400,41 @@ export function registerRoutes(app: Express): Server {
                   fileName,
                   success: false,
                   productCode,
-                  error: `Producto '${productCode}' no existe en la lista de precios`
-                });
+                  error: `Producto '${productCode}' no existe en la lista de precios`,
+                  errorType: 'product_not_found'
+                } as any);
                 continue;
               }
             }
 
-            // Update ecommerce product record with image URL using ecommerce products table
-            await db
-              .update(ecommerceProducts)
-              .set({ imagenUrl: imageUrl })
-              .where(eq(ecommerceProducts.id, existingProduct.id));
-
-            results.push({
-              fileName,
-              success: true,
-              productCode
-            });
+            // Update ecommerce product record with image URL (or null if upload failed)
+            if (imageUrl) {
+              await db
+                .update(ecommerceProducts)
+                .set({ imagenUrl: imageUrl })
+                .where(eq(ecommerceProducts.id, existingProduct.id));
+                
+              console.log(`✅ [ZIP IMPORT] Updated existing product ${productCode} with image URL`);
+              
+              results.push({
+                fileName,
+                success: true,
+                productCode,
+                error: undefined,
+                errorType: undefined
+              } as any);
+            } else {
+              // Product exists but image upload failed - log warning but continue
+              console.log(`⚠️ [ZIP IMPORT] Product ${productCode} exists but image upload failed - keeping existing image`);
+              
+              results.push({
+                fileName,
+                success: false,
+                productCode,
+                error: uploadError || 'Error de almacenamiento - producto conserva imagen anterior',
+                errorType: 'storage_warning'
+              } as any);
+            }
             processed++;
 
           } catch (error) {
