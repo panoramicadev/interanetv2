@@ -4334,11 +4334,54 @@ export function registerRoutes(app: Express): Server {
             const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'png';
             const uniqueFileName = `${productCode}_${timestamp}.${fileExtension}`;
             
+            console.log(`🔄 [ZIP IMPORT] Uploading image ${fileName} as ${uniqueFileName} for product ${productCode}`);
+            
             const imageUrl = await objectStorageService.uploadImage(
               uniqueFileName,
               imageBuffer,
               getContentType(fileExtension)
             );
+            
+            console.log(`✅ [ZIP IMPORT] Successfully uploaded ${uniqueFileName} to cloud storage`);
+            
+            // Auto-create ecommerce product if it doesn't exist
+            if (!existingProduct) {
+              console.log(`🏗️ [ZIP IMPORT] Auto-creating ecommerce product for code: ${productCode}`);
+              
+              // Create new ecommerce product based on pricing table
+              const pricingProduct = await storage.getProductByCode(productCode);
+              if (pricingProduct) {
+                const newEcommerceProduct = await storage.createEcommerceProduct({
+                  codigo: productCode,
+                  nombre: pricingProduct.nombre,
+                  categoria: pricingProduct.familia || 'Sin categoría',
+                  descripcion: pricingProduct.nombre,
+                  precio: pricingProduct.precio || 0,
+                  imagenUrl: imageUrl,
+                  disponible: true
+                });
+                
+                console.log(`✅ [ZIP IMPORT] Created ecommerce product: ${productCode} with image`);
+                
+                results.push({
+                  fileName,
+                  success: true,
+                  productCode,
+                  message: 'Producto creado automáticamente'
+                });
+                processed++;
+                continue;
+              } else {
+                console.log(`⚠️ [ZIP IMPORT] Product ${productCode} not found in pricing table`);
+                results.push({
+                  fileName,
+                  success: false,
+                  productCode,
+                  error: `Producto '${productCode}' no existe en la lista de precios`
+                });
+                continue;
+              }
+            }
 
             // Update ecommerce product record with image URL using ecommerce products table
             await db
@@ -4354,26 +4397,84 @@ export function registerRoutes(app: Express): Server {
             processed++;
 
           } catch (error) {
-            console.error(`Error processing image ${fileName}:`, error);
+            console.error(`❌ [ZIP IMPORT] Error processing image ${fileName}:`, error);
+            
+            // Determine the type of error for better user feedback
+            let errorMessage = 'Error desconocido';
+            let errorType = 'unknown';
+            
+            if (error instanceof Error) {
+              const errorString = error.message.toLowerCase();
+              
+              if (errorString.includes('no allowed resources') || errorString.includes('unauthorized') || error.message.includes('401')) {
+                errorType = 'auth';
+                errorMessage = '❌ Error de autenticación en almacenamiento en la nube (Google Cloud Storage no autorizado)';
+              } else if (errorString.includes('network') || errorString.includes('timeout') || errorString.includes('econnreset')) {
+                errorType = 'network';
+                errorMessage = '🌐 Error de conexión de red al almacenamiento';
+              } else if (errorString.includes('quota') || errorString.includes('limit')) {
+                errorType = 'quota';
+                errorMessage = '💾 Cuota de almacenamiento excedida';
+              } else if (errorString.includes('permission') || errorString.includes('access')) {
+                errorType = 'permission';
+                errorMessage = '🔒 Error de permisos en almacenamiento';
+              } else {
+                errorMessage = `💥 Error: ${error.message}`;
+              }
+            }
+            
+            console.error(`🏷️ [ZIP IMPORT] Error categorized as: ${errorType} - ${errorMessage}`);
+            
             results.push({
               fileName,
               success: false,
-              error: error instanceof Error ? error.message : 'Unknown error'
+              productCode,
+              error: errorMessage,
+              errorType: errorType
             });
           }
         }
 
+        // Generate summary for response
+        const successCount = results.filter(r => r.success).length;
+        const errorCount = results.filter(r => !r.success).length;
+        const authErrors = results.filter(r => r.errorType === 'auth').length;
+        
+        console.log(`📊 [ZIP IMPORT] Processing complete: ${successCount} success, ${errorCount} errors (${authErrors} auth errors)`);
+        
         res.json({
-          processed,
+          processed: successCount,
           total: results.length,
-          results
+          results,
+          summary: {
+            success: successCount,
+            errors: errorCount,
+            authenticationErrors: authErrors,
+            networkErrors: results.filter(r => r.errorType === 'network').length,
+            otherErrors: results.filter(r => r.errorType === 'unknown').length
+          }
         });
 
       } catch (error) {
-        console.error("Error processing ZIP file:", error);
+        console.error("💥 [ZIP IMPORT] Critical error processing ZIP file:", error);
+        
+        // Categorize main processing errors
+        let mainErrorMessage = "Error crítico procesando archivo ZIP";
+        if (error instanceof Error) {
+          const errorString = error.message.toLowerCase();
+          if (errorString.includes('zip') || errorString.includes('corrupt')) {
+            mainErrorMessage = "Archivo ZIP corrupto o inválido";
+          } else if (errorString.includes('memory') || errorString.includes('size')) {
+            mainErrorMessage = "Archivo ZIP demasiado grande para procesar";
+          } else if (errorString.includes('unauthorized') || errorString.includes('401')) {
+            mainErrorMessage = "Error de autenticación en servicios de almacenamiento";
+          }
+        }
+        
         res.status(500).json({ 
-          message: "Failed to process ZIP file",
-          error: error instanceof Error ? error.message : 'Unknown error'
+          message: mainErrorMessage,
+          error: error instanceof Error ? error.message : 'Error desconocido',
+          type: 'critical_processing_error'
         });
       }
     })
