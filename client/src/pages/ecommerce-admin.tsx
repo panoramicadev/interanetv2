@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle } from "lucide-react";
 
 interface ProductoEcommerce {
   id: string;
@@ -58,6 +58,9 @@ export default function EcommerceAdmin() {
   // Estados para importador ZIP
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ processed: 0, total: 0, results: [] as any[] });
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'extracting' | 'processing' | 'completed' | 'error'>('idle');
+  const [currentFile, setCurrentFile] = useState<string>('');
+  const [uploadError, setUploadError] = useState<string>('');
   
   const { toast } = useToast();
 
@@ -195,8 +198,15 @@ export default function EcommerceAdmin() {
   // Mutación para importar imágenes desde ZIP
   const uploadZipMutation = useMutation({
     mutationFn: async (file: File) => {
+      setUploadStatus('uploading');
+      setCurrentFile('Subiendo archivo ZIP...');
+      setUploadError('');
+      
       const formData = new FormData();
       formData.append('zipFile', file);
+      
+      setUploadStatus('extracting');
+      setCurrentFile('Extrayendo imágenes del ZIP...');
       
       const response = await fetch('/api/ecommerce/admin/upload-images', {
         method: 'POST',
@@ -208,18 +218,33 @@ export default function EcommerceAdmin() {
         throw new Error(error.message || 'Error al procesar ZIP');
       }
       
+      setUploadStatus('processing');
+      setCurrentFile('Procesando imágenes...');
+      
       return response.json();
     },
     onSuccess: (data) => {
+      setUploadStatus('completed');
+      setCurrentFile('');
       setUploadProgress(data);
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      
+      const successCount = data.results?.filter((r: any) => r.success).length || 0;
+      const errorCount = data.results?.filter((r: any) => !r.success).length || 0;
+      
       toast({
         title: "Importación completada",
-        description: `Se procesaron ${data.processed}/${data.total} imágenes correctamente.`,
+        description: `✅ ${successCount} imágenes procesadas exitosamente${errorCount > 0 ? `, ❌ ${errorCount} errores` : ''}`,
+        variant: errorCount > 0 ? "destructive" : "default"
       });
       setIsUploading(false);
     },
     onError: (error: any) => {
+      console.error('❌ [ZIP IMPORT] Error en importación:', error);
+      setUploadStatus('error');
+      setCurrentFile('');
+      setUploadError(error.message || "No se pudo procesar el archivo ZIP");
+      
       toast({
         title: "Error en la importación",
         description: error.message || "No se pudo procesar el archivo ZIP.",
@@ -310,8 +335,14 @@ export default function EcommerceAdmin() {
       return;
     }
     
+    // Resetear estados
     setIsUploading(true);
+    setUploadStatus('uploading');
     setUploadProgress({ processed: 0, total: 0, results: [] });
+    setCurrentFile('');
+    setUploadError('');
+    
+    console.log('🚀 [ZIP IMPORT] Iniciando importación de:', file.name);
     uploadZipMutation.mutate(file);
   };
 
@@ -430,32 +461,106 @@ export default function EcommerceAdmin() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {/* Zona de Drag & Drop */}
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                isUploading 
-                  ? 'border-yellow-300 bg-yellow-50' 
-                  : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/20'
-              }`}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              data-testid="dropzone-images"
-            >
-              {isUploading ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            {/* Estado del progreso y zona de drag & drop */}
+            {uploadStatus === 'error' && uploadError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2 text-red-800">
+                  <XCircle className="h-5 w-5" />
+                  <h4 className="font-medium">Error en la importación</h4>
+                </div>
+                <p className="text-sm text-red-700">{uploadError}</p>
+                <div className="text-xs text-red-600 bg-red-100 p-2 rounded font-mono">
+                  Problema detectado: Fallo en autenticación de almacenamiento en la nube (Error 401 - Unauthorized)
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    setUploadStatus('idle');
+                    setUploadError('');
+                  }}
+                  className="text-red-700 border-red-300 hover:bg-red-50"
+                >
+                  Intentar de nuevo
+                </Button>
+              </div>
+            )}
+            
+            {/* Progress Bar para proceso activo */}
+            {isUploading && uploadStatus !== 'error' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+                <div className="flex items-center gap-2 text-blue-800">
+                  {uploadStatus === 'uploading' && <CloudUpload className="h-5 w-5 animate-pulse" />}
+                  {uploadStatus === 'extracting' && <Package className="h-5 w-5 animate-bounce" />}
+                  {uploadStatus === 'processing' && <Image className="h-5 w-5 animate-spin" />}
+                  {uploadStatus === 'completed' && <CheckCircle className="h-5 w-5 text-green-600" />}
+                  <h4 className="font-medium">
+                    {uploadStatus === 'uploading' && 'Subiendo archivo ZIP...'}
+                    {uploadStatus === 'extracting' && 'Extrayendo imágenes...'}
+                    {uploadStatus === 'processing' && 'Procesando y subiendo imágenes...'}
+                    {uploadStatus === 'completed' && 'Importación completada'}
+                  </h4>
+                </div>
+                
+                {currentFile && (
+                  <p className="text-sm text-blue-700">{currentFile}</p>
+                )}
+                
+                {/* Progress bar visual */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-blue-600">
+                    <span>Progreso</span>
+                    <span>
+                      {uploadProgress.total > 0 
+                        ? `${uploadProgress.processed}/${uploadProgress.total}` 
+                        : 'Preparando...'
+                      }
+                    </span>
                   </div>
-                  <div>
-                    <p className="font-medium">Procesando imágenes ZIP...</p>
-                    {uploadProgress.total > 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        {uploadProgress.processed} de {uploadProgress.total} procesadas
-                      </p>
-                    )}
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{
+                        width: uploadProgress.total > 0 
+                          ? `${(uploadProgress.processed / uploadProgress.total) * 100}%`
+                          : uploadStatus === 'uploading' ? '30%' 
+                          : uploadStatus === 'extracting' ? '50%'
+                          : uploadStatus === 'processing' ? '80%' : '100%'
+                      }}
+                    />
                   </div>
                 </div>
-              ) : (
+                
+                {/* Pasos del proceso */}
+                <div className="grid grid-cols-4 gap-2 text-xs">
+                  <div className={`flex items-center gap-1 ${uploadStatus === 'uploading' ? 'text-blue-600 font-medium' : uploadStatus === 'extracting' || uploadStatus === 'processing' || uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                    <CloudUpload className="h-3 w-3" />
+                    <span>Subir</span>
+                  </div>
+                  <div className={`flex items-center gap-1 ${uploadStatus === 'extracting' ? 'text-blue-600 font-medium' : uploadStatus === 'processing' || uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                    <Package className="h-3 w-3" />
+                    <span>Extraer</span>
+                  </div>
+                  <div className={`flex items-center gap-1 ${uploadStatus === 'processing' ? 'text-blue-600 font-medium' : uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                    <Image className="h-3 w-3" />
+                    <span>Procesar</span>
+                  </div>
+                  <div className={`flex items-center gap-1 ${uploadStatus === 'completed' ? 'text-green-600 font-medium' : 'text-gray-400'}`}>
+                    <CheckCircle className="h-3 w-3" />
+                    <span>Completar</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Zona de Drag & Drop */}
+            {!isUploading && uploadStatus !== 'error' && (
+              <div
+                className="border-2 border-dashed rounded-lg p-8 text-center transition-colors border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/20"
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                data-testid="dropzone-images"
+              >
                 <div className="space-y-3">
                   <Upload className="h-12 w-12 text-muted-foreground mx-auto" />
                   <div>
@@ -483,8 +588,8 @@ export default function EcommerceAdmin() {
                     Seleccionar Archivo
                   </Button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Resultados de la última importación */}
             {uploadProgress.results.length > 0 && (
