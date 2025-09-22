@@ -6,6 +6,7 @@ import { setupAuth, requireAuth, requireAdminOrSupervisor } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
+import { nanoid } from "nanoid";
 import { checkDbHealth } from "./db";
 import JSZip from "jszip";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -4414,9 +4415,6 @@ export function registerRoutes(app: Express): Server {
       }
 
       try {
-        const Papa = require('papaparse');
-        const { nanoid } = require('nanoid');
-        
         // Parse CSV file
         const csvContent = file.buffer.toString('utf-8');
         const parseResult = Papa.parse(csvContent, {
