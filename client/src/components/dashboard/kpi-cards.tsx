@@ -30,14 +30,58 @@ interface KPICardsProps {
 }
 
 export default function KPICards({ selectedPeriod, filterType, segment, salesperson, comparePeriod }: KPICardsProps) {
+  // Helper function to resolve comparison periods to actual period strings
+  const resolveComparisonPeriod = (comparePeriod: string, currentPeriod: string, filterType: string): string => {
+    if (!comparePeriod || comparePeriod === "none") return "";
+    
+    // If it's already a specific period like "2025-08", return as is
+    if (comparePeriod.match(/^\d{4}-\d{2}$/) || comparePeriod.match(/^\d{4}$/)) {
+      return comparePeriod;
+    }
+    
+    // Parse current period to determine comparison period
+    switch (comparePeriod) {
+      case "previous-month": {
+        if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
+          const [year, month] = currentPeriod.split('-').map(Number);
+          const date = new Date(year, month - 1, 1);
+          date.setMonth(date.getMonth() - 1);
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }
+        break;
+      }
+      case "previous-year": {
+        if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
+          const [year, month] = currentPeriod.split('-');
+          return `${parseInt(year) - 1}-${month}`;
+        }
+        if (filterType === "year" && currentPeriod.match(/^\d{4}$/)) {
+          return `${parseInt(currentPeriod) - 1}`;
+        }
+        break;
+      }
+      case "same-month-last-year": {
+        if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
+          const [year, month] = currentPeriod.split('-');
+          return `${parseInt(year) - 1}-${month}`;
+        }
+        break;
+      }
+    }
+    
+    return comparePeriod; // Return as is if no pattern matches
+  };
+
+  const resolvedComparePeriod = resolveComparisonPeriod(comparePeriod || "", selectedPeriod, filterType);
+
   const { data: metrics, isLoading } = useQuery<SalesMetrics>({
     queryKey: [`/api/sales/metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   // Query for comparison data if comparePeriod is set
   const { data: comparisonMetrics } = useQuery<SalesMetrics>({
-    queryKey: [`/api/sales/metrics?period=${comparePeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
-    enabled: !!comparePeriod && comparePeriod !== "none", // Only run if comparePeriod is set and not "none"
+    queryKey: [`/api/sales/metrics?period=${resolvedComparePeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    enabled: !!resolvedComparePeriod, // Only run if resolved period is set
   });
 
   const formatCurrency = (amount: number) => {
