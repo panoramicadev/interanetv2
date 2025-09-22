@@ -34,8 +34,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const resolveComparisonPeriod = (comparePeriod: string, currentPeriod: string, filterType: string): string => {
     if (!comparePeriod || comparePeriod === "none") return "";
     
+    // Debug logging
+    console.log('[DEBUG] Resolving comparison period:', { comparePeriod, currentPeriod, filterType });
+    
     // If it's already a specific period like "2025-08", return as is
     if (comparePeriod.match(/^\d{4}-\d{2}$/) || comparePeriod.match(/^\d{4}$/)) {
+      console.log('[DEBUG] Already specific period, returning as-is:', comparePeriod);
       return comparePeriod;
     }
     
@@ -46,30 +50,41 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const [year, month] = currentPeriod.split('-').map(Number);
           const date = new Date(year, month - 1, 1);
           date.setMonth(date.getMonth() - 1);
-          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          const result = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          console.log('[DEBUG] Previous month resolved to:', result);
+          return result;
         }
         break;
       }
       case "previous-year": {
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
           const [year, month] = currentPeriod.split('-');
-          return `${parseInt(year) - 1}-${month}`;
+          const result = `${parseInt(year) - 1}-${month}`;
+          console.log('[DEBUG] Previous year resolved to:', result);
+          return result;
         }
         if (filterType === "year" && currentPeriod.match(/^\d{4}$/)) {
-          return `${parseInt(currentPeriod) - 1}`;
+          const result = `${parseInt(currentPeriod) - 1}`;
+          console.log('[DEBUG] Previous year (year filter) resolved to:', result);
+          return result;
         }
         break;
       }
       case "same-month-last-year": {
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
           const [year, month] = currentPeriod.split('-');
-          return `${parseInt(year) - 1}-${month}`;
+          const result = `${parseInt(year) - 1}-${month}`;
+          console.log('[DEBUG] Same month last year resolved to:', result);
+          return result;
+        } else {
+          console.warn('[DEBUG] Could not resolve same-month-last-year - invalid format:', { currentPeriod, filterType });
         }
         break;
       }
     }
     
-    return comparePeriod; // Return as is if no pattern matches
+    console.warn('[DEBUG] No pattern matched, returning original:', comparePeriod);
+    return ""; // Return empty string instead of original if no pattern matches to prevent errors
   };
 
   const resolvedComparePeriod = resolveComparisonPeriod(comparePeriod || "", selectedPeriod, filterType);
