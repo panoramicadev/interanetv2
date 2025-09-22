@@ -19,6 +19,7 @@ import {
   storeConfig,
   storeBanners,
   ecommerceProducts,
+  nvvPendingSales,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -61,6 +62,9 @@ import {
   type EcommerceProductFilters,
   type StoreConfig,
   type StoreBanner,
+  type NvvPendingSales,
+  type InsertNvvPendingSales,
+  type NvvImportResult,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray, or, isNull } from "drizzle-orm";
@@ -6500,6 +6504,209 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error fetching store banners:', error);
       return [];
+    }
+  }
+
+  // ==============================================
+  // NVV (Notas de Ventas Pendientes) Operations
+  // ==============================================
+
+  async importNvvFromCsv(nvvData: InsertNvvPendingSales[], importBatch: string): Promise<NvvImportResult> {
+    const result: NvvImportResult = {
+      success: true,
+      totalRows: nvvData.length,
+      successfulImports: 0,
+      errors: [],
+      importBatch,
+    };
+
+    try {
+      for (let i = 0; i < nvvData.length; i++) {
+        const data = nvvData[i];
+        try {
+          await db.insert(nvvPendingSales).values({
+            ...data,
+            importBatch,
+            importedAt: new Date(),
+          });
+          result.successfulImports++;
+        } catch (error) {
+          console.error(`Error importing NVV row ${i + 1}:`, error);
+          result.errors.push({
+            row: i + 1,
+            message: error instanceof Error ? error.message : 'Error desconocido',
+            data: data,
+          });
+        }
+      }
+
+      if (result.errors.length > 0) {
+        result.success = result.successfulImports > 0;
+      }
+
+    } catch (error) {
+      console.error('Error during NVV import:', error);
+      result.success = false;
+      result.errors.push({
+        row: 0,
+        message: 'Error general durante la importación',
+      });
+    }
+
+    return result;
+  }
+
+  async getNvvPendingSales(options: {
+    status?: string;
+    salesperson?: string;
+    segment?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<NvvPendingSales[]> {
+    try {
+      let query = db.select().from(nvvPendingSales);
+
+      const conditions = [];
+
+      if (options.status) {
+        conditions.push(eq(nvvPendingSales.status, options.status));
+      }
+
+      if (options.salesperson) {
+        conditions.push(eq(nvvPendingSales.salesperson, options.salesperson));
+      }
+
+      if (options.segment) {
+        conditions.push(eq(nvvPendingSales.segment, options.segment));
+      }
+
+      if (options.startDate) {
+        conditions.push(gte(nvvPendingSales.commitmentDate, options.startDate.toISOString().split('T')[0]));
+      }
+
+      if (options.endDate) {
+        conditions.push(lte(nvvPendingSales.commitmentDate, options.endDate.toISOString().split('T')[0]));
+      }
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+
+      query = query.orderBy(desc(nvvPendingSales.commitmentDate));
+
+      if (options.limit) {
+        query = query.limit(options.limit);
+      }
+
+      if (options.offset) {
+        query = query.offset(options.offset);
+      }
+
+      const results = await query;
+      return results;
+    } catch (error) {
+      console.error('Error fetching NVV pending sales:', error);
+      return [];
+    }
+  }
+
+  async getNvvSummaryMetrics(options: {
+    startDate?: Date;
+    endDate?: Date;
+    salesperson?: string;
+    segment?: string;
+  } = {}): Promise<{
+    totalAmount: number;
+    totalQuantity: number;
+    pendingCount: number;
+    confirmedCount: number;
+    deliveredCount: number;
+    cancelledCount: number;
+  }> {
+    try {
+      const conditions = [];
+
+      if (options.startDate) {
+        conditions.push(gte(nvvPendingSales.commitmentDate, options.startDate.toISOString().split('T')[0]));
+      }
+
+      if (options.endDate) {
+        conditions.push(lte(nvvPendingSales.commitmentDate, options.endDate.toISOString().split('T')[0]));
+      }
+
+      if (options.salesperson) {
+        conditions.push(eq(nvvPendingSales.salesperson, options.salesperson));
+      }
+
+      if (options.segment) {
+        conditions.push(eq(nvvPendingSales.segment, options.segment));
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const results = await db
+        .select({
+          totalAmount: sql<number>`COALESCE(SUM(${nvvPendingSales.totalAmount}), 0)`,
+          totalQuantity: sql<number>`COALESCE(SUM(${nvvPendingSales.quantity}), 0)`,
+          pendingCount: sql<number>`COALESCE(SUM(CASE WHEN ${nvvPendingSales.status} = 'pending' THEN 1 ELSE 0 END), 0)`,
+          confirmedCount: sql<number>`COALESCE(SUM(CASE WHEN ${nvvPendingSales.status} = 'confirmed' THEN 1 ELSE 0 END), 0)`,
+          deliveredCount: sql<number>`COALESCE(SUM(CASE WHEN ${nvvPendingSales.status} = 'delivered' THEN 1 ELSE 0 END), 0)`,
+          cancelledCount: sql<number>`COALESCE(SUM(CASE WHEN ${nvvPendingSales.status} = 'cancelled' THEN 1 ELSE 0 END), 0)`,
+        })
+        .from(nvvPendingSales)
+        .where(whereClause);
+
+      return results[0] || {
+        totalAmount: 0,
+        totalQuantity: 0,
+        pendingCount: 0,
+        confirmedCount: 0,
+        deliveredCount: 0,
+        cancelledCount: 0,
+      };
+    } catch (error) {
+      console.error('Error fetching NVV summary metrics:', error);
+      return {
+        totalAmount: 0,
+        totalQuantity: 0,
+        pendingCount: 0,
+        confirmedCount: 0,
+        deliveredCount: 0,
+        cancelledCount: 0,
+      };
+    }
+  }
+
+  async updateNvvStatus(id: string, status: string): Promise<boolean> {
+    try {
+      const [updated] = await db
+        .update(nvvPendingSales)
+        .set({ 
+          status, 
+          updatedAt: new Date() 
+        })
+        .where(eq(nvvPendingSales.id, id))
+        .returning();
+
+      return !!updated;
+    } catch (error) {
+      console.error('Error updating NVV status:', error);
+      return false;
+    }
+  }
+
+  async deleteNvvBatch(importBatch: string): Promise<boolean> {
+    try {
+      await db
+        .delete(nvvPendingSales)
+        .where(eq(nvvPendingSales.importBatch, importBatch));
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting NVV batch:', error);
+      return false;
     }
   }
 
