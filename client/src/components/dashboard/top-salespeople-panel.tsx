@@ -23,7 +23,7 @@ interface TopSalespeoplePanelProps {
 }
 
 export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson }: TopSalespeoplePanelProps) {
-  const displayLimit = 1000; // Show all salespeople
+  const displayLimit = 5000; // Show all salespeople
   
   const { data: topSalespeopleResponse, isLoading } = useQuery<TopSalespeopleResponse>({
     queryKey: [`/api/sales/top-salespeople?limit=${displayLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
@@ -56,7 +56,16 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Vendedores</h2>
         </div>
         <div className="flex items-center gap-2">
-          {/* Removed "Ver más" button since we show all salespeople */}
+          <Link href="/mis-vendedores">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs px-3 py-1"
+              data-testid="button-view-all-salespeople"
+            >
+              Ver todos
+            </Button>
+          </Link>
         </div>
       </div>
       

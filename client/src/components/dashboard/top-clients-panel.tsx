@@ -23,7 +23,7 @@ interface TopClientsPanelProps {
 }
 
 export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson }: TopClientsPanelProps) {
-  const displayLimit = 1000; // Show all clients
+  const displayLimit = 5000; // Show all clients
   
   const { data: topClientsResponse, isLoading } = useQuery<TopClientsResponse>({
     queryKey: [`/api/sales/top-clients?limit=${displayLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
