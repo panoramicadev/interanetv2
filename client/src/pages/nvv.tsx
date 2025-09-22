@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, TrendingUp, Target, BarChart3, Users, Building } from "lucide-react";
+import { CalendarIcon, TrendingUp, Target, BarChart3, Users, Building, Package } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { Bar, Line } from "react-chartjs-2";
@@ -298,7 +298,7 @@ export default function NVVPage() {
     }
   };
 
-  // Packaging Breakdown Table Component
+  // Packaging Breakdown Table Component - Unified View
   function PackagingBreakdownTable({ selectedPeriod, filterType }: {
     selectedPeriod: string;
     filterType: "day" | "month" | "year" | "range";
@@ -307,108 +307,118 @@ export default function NVVPage() {
       queryKey: [`/api/nvv/packaging-breakdown?period=${selectedPeriod}&filterType=${filterType}`],
     });
 
-    // Mapping packaging codes to friendly names
+    // Mapping packaging codes to friendly names (as requested by user)
     const packagingNames: Record<string, string> = {
-      'BD': 'Baldes',
-      'GL': 'Galones', 
-      'Q4': '1/4 Galón',
-      'KT': 'Kits',
-      'UN': 'Unidades',
-      'KG': 'Kilogramos',
-      'LT': 'Litros',
-      'GB': 'Garrafas/Bidón',
-      'OD': 'Onzas',
-      'OT': 'Otros'
+      'BD': 'Baldes de 4 o 5 galones',
+      'GL': 'Solo galones', 
+      '04': '1/4 de galón'
     };
 
-    // Sort by total sales descending
-    const sortedData = packagingData?.sort((a, b) => b.totalSales - a.totalSales) || [];
+    // Filter and sort data to show only BD, GL, and 04 (convert Q4 to 04)
+    const processedData = packagingData?.map(item => ({
+      ...item,
+      packagingType: item.packagingType === 'Q4' ? '04' : item.packagingType
+    })).filter(item => ['BD', 'GL', '04'].includes(item.packagingType))
+    .sort((a, b) => b.totalSales - a.totalSales) || [];
     
     // Calculate totals
-    const totalSales = sortedData.reduce((sum, item) => sum + item.totalSales, 0);
-    const totalUnits = sortedData.reduce((sum, item) => sum + item.totalUnits, 0);
+    const totalSales = processedData.reduce((sum, item) => sum + item.totalSales, 0);
+    const totalUnits = processedData.reduce((sum, item) => sum + item.totalUnits, 0);
 
     return (
       <Card className="p-6">
         <div className="mb-6">
           <div className="flex items-center space-x-3 mb-2">
-            <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-              <Building className="h-5 w-5 text-orange-600" />
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Package className="h-5 w-5 text-blue-600" />
             </div>
             <h2 className="text-xl font-bold text-gray-900">Breakdown por Tipo de Envase</h2>
           </div>
-          <p className="text-sm text-gray-600">Distribución de ventas y unidades por formato de empaque</p>
+          <p className="text-sm text-gray-600">BD: Baldes 4-5 galones | GL: Solo galones | 04: 1/4 de galón</p>
         </div>
         
         {isLoading ? (
           <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(3)].map((_, i) => (
               <div key={i} className="flex items-center justify-between animate-pulse">
                 <div className="flex items-center space-x-3">
-                  <div className="w-6 h-6 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                  <div className="w-8 h-8 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded w-32"></div>
                 </div>
-                <div className="flex space-x-4">
-                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                <div className="flex space-x-8">
                   <div className="h-4 bg-gray-200 rounded w-20"></div>
-                  <div className="h-4 bg-gray-200 rounded w-12"></div>
+                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm" data-testid="packaging-breakdown-table">
+            <table className="w-full" data-testid="packaging-breakdown-table">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-medium text-gray-900">Tipo de Envase</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-900">Cantidad Vendida</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-900">Monto</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-900">% Venta</th>
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-left py-4 px-4 font-bold text-gray-900 text-base">Tipo de Envase</th>
+                  <th className="text-right py-4 px-4 font-bold text-gray-900 text-base">Cantidad Vendida</th>
+                  <th className="text-right py-4 px-4 font-bold text-gray-900 text-base">Monto</th>
+                  <th className="text-right py-4 px-4 font-bold text-gray-900 text-base">% de la Venta</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedData.map((item, index) => (
+                {processedData.map((item, index) => (
                   <tr key={index} className="border-b border-gray-100 hover:bg-gray-50" data-testid={`packaging-row-${index}`}>
-                    <td className="py-3 px-4 font-medium text-gray-900" data-testid={`text-packaging-${item.packagingType}`}>
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-white ${
+                    <td className="py-4 px-4" data-testid={`text-packaging-${item.packagingType}`}>
+                      <div className="flex items-center space-x-4">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white ${
                           item.packagingType === 'BD' ? 'bg-green-500' :
                           item.packagingType === 'GL' ? 'bg-blue-500' :
-                          item.packagingType === 'Q4' ? 'bg-orange-500' :
+                          item.packagingType === '04' ? 'bg-orange-500' :
                           'bg-gray-500'
                         }`}>
                           {item.packagingType}
                         </div>
-                        <span>{packagingNames[item.packagingType] || item.packagingType}</span>
+                        <div>
+                          <div className="font-semibold text-gray-900 text-base">{item.packagingType}</div>
+                          <div className="text-sm text-gray-600">{packagingNames[item.packagingType]}</div>
+                        </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-right text-gray-900" data-testid={`text-units-${item.packagingType}`}>
-                      <div className="text-base font-semibold">{formatNumber(item.totalUnits)}</div>
-                      <div className="text-xs text-gray-500">unidades</div>
+                    <td className="py-4 px-4 text-right" data-testid={`text-units-${item.packagingType}`}>
+                      <div className="text-lg font-bold text-gray-900">{formatNumber(item.totalUnits)}</div>
+                      <div className="text-sm text-gray-500">unidades</div>
                     </td>
-                    <td className="py-3 px-4 text-right text-gray-900" data-testid={`text-sales-${item.packagingType}`}>
-                      <div className="text-base font-semibold">{formatCurrency(item.totalSales)}</div>
-                      <div className="text-xs text-gray-500">{item.transactionCount} transacciones</div>
+                    <td className="py-4 px-4 text-right" data-testid={`text-sales-${item.packagingType}`}>
+                      <div className="text-lg font-bold text-gray-900">{formatCurrency(item.totalSales)}</div>
+                      <div className="text-sm text-gray-500">{item.transactionCount} transacciones</div>
                     </td>
-                    <td className="py-3 px-4 text-right font-semibold text-gray-900" data-testid={`text-perc-${item.packagingType}`}>
-                      <div className="text-base">{item.salesPercentage.toFixed(1)}%</div>
+                    <td className="py-4 px-4 text-right" data-testid={`text-perc-${item.packagingType}`}>
+                      <div className="text-lg font-bold text-blue-600">{item.salesPercentage.toFixed(1)}%</div>
                     </td>
                   </tr>
                 ))}
                 
                 {/* Total Row */}
-                <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold" data-testid="packaging-total-row">
-                  <td className="py-3 px-4 text-gray-900">Total General</td>
-                  <td className="py-3 px-4 text-right text-gray-900">
-                    <div className="text-base font-bold">{formatNumber(totalUnits)}</div>
-                    <div className="text-xs text-gray-500">unidades</div>
+                <tr className="border-t-2 border-gray-300 bg-blue-50" data-testid="packaging-total-row">
+                  <td className="py-4 px-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm font-bold">Σ</span>
+                      </div>
+                      <div>
+                        <div className="font-bold text-gray-900 text-base">Total General</div>
+                        <div className="text-sm text-gray-600">Todos los envases</div>
+                      </div>
+                    </div>
                   </td>
-                  <td className="py-3 px-4 text-right text-gray-900">
-                    <div className="text-base font-bold">{formatCurrency(totalSales)}</div>
+                  <td className="py-4 px-4 text-right">
+                    <div className="text-lg font-bold text-blue-600">{formatNumber(totalUnits)}</div>
+                    <div className="text-sm text-gray-500">unidades</div>
                   </td>
-                  <td className="py-3 px-4 text-right text-gray-900">
-                    <div className="text-base font-bold">100.0%</div>
+                  <td className="py-4 px-4 text-right">
+                    <div className="text-lg font-bold text-blue-600">{formatCurrency(totalSales)}</div>
+                  </td>
+                  <td className="py-4 px-4 text-right">
+                    <div className="text-lg font-bold text-blue-600">100.0%</div>
                   </td>
                 </tr>
               </tbody>
