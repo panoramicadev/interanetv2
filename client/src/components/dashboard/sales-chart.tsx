@@ -137,7 +137,30 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
             size: 12,
             weight: 500
           },
-          padding: 10
+          padding: 10,
+          callback: function(value: any, index: number) {
+            const label = chartData?.[index]?.period;
+            if (!label) return '';
+            
+            if (chartPeriod === 'daily') {
+              // Para diario, mostrar solo el día
+              const date = new Date(label);
+              return date.getDate().toString();
+            } else if (chartPeriod === 'weekly') {
+              // Para semanal, mostrar número de semana
+              return (index + 1).toString();
+            } else if (chartPeriod === 'monthly') {
+              // Para mensual, mostrar nombre del mes
+              if (label.includes('-')) {
+                const [year, month] = label.split('-');
+                const date = new Date(parseInt(year), parseInt(month) - 1);
+                return date.toLocaleString('es-ES', { month: 'short' });
+              }
+              return label;
+            }
+            
+            return label;
+          }
         }
       },
       y: {
@@ -149,19 +172,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
           display: false
         },
         ticks: {
-          color: '#9ca3af',
-          font: {
-            size: 12
-          },
-          padding: 10,
-          callback: (value: any) => {
-            if (value >= 1000000) {
-              return (value / 1000000).toFixed(0) + 'M';
-            } else if (value >= 1000) {
-              return (value / 1000).toFixed(0) + 'k';
-            }
-            return value.toString();
-          }
+          display: false
         }
       }
     },
