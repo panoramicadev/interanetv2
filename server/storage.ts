@@ -533,6 +533,9 @@ export interface IStorage {
   getClientByKoen(koen: string): Promise<Client | undefined>;
   insertClient(client: InsertClient): Promise<Client>;
   insertMultipleClients(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number } | undefined>;
+  // OPTIMIZED functions for massive client imports (20,000 rows x 500 columns)
+  getClientsForDuplicateCheck(): Promise<Array<{ id: string; koen: string | null; nokoen: string }>>;
+  insertMultipleClientsOptimized(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number } | undefined>;
   updateClient(koen: string, client: Partial<InsertClient>): Promise<Client>;
   deleteClient(koen: string): Promise<void>;
 
@@ -5359,6 +5362,17 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getClientsForDuplicateCheck(): Promise<Array<{ id: string; koen: string | null; nokoen: string }>> {
+    // ULTRA-FAST: Only select the minimal columns needed for duplicate checking
+    const result = await db.select({
+      id: clients.id,
+      koen: clients.koen,
+      nokoen: clients.nokoen
+    }).from(clients);
+    
+    return result;
+  }
+
   async insertMultipleClients(clientsData: InsertClient[]) {
     if (clientsData.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
     
@@ -5370,11 +5384,7 @@ export class DatabaseStorage implements IStorage {
     
     try {
       // Get ALL existing clients in ONE query for super fast lookup (only needed columns)
-      const existingClients = await db.select({
-        id: clients.id,
-        koen: clients.koen,
-        nokoen: clients.nokoen
-      }).from(clients);
+      const existingClients = await this.getClientsForDuplicateCheck();
       const existingByKoen = new Map(existingClients.filter(c => c.koen).map(c => [c.koen!, c]));
       const existingByName = new Map(existingClients.filter(c => c.nokoen).map(c => [c.nokoen, c]));
       
@@ -5448,6 +5458,143 @@ export class DatabaseStorage implements IStorage {
     }
     
     console.log(`🎉 FAST import completed in seconds: ${inserted} new, ${updated} updated, ${skipped} errors`);
+    return { inserted, updated, skipped };
+  }
+
+  // OPTIMIZED VERSION for MASSIVE files (20,000 rows x 500 columns)
+  async insertMultipleClientsOptimized(clientsData: InsertClient[]) {
+    if (clientsData.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
+    
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    
+    const startTime = Date.now();
+    console.log(`🚀 MASSIVE CLIENT IMPORT: Starting optimized import of ${clientsData.length} clients`);
+    
+    try {
+      // STEP 1: Ultra-fast duplicate checking with minimal data
+      const duplicateCheckStart = Date.now();
+      const existingClients = await this.getClientsForDuplicateCheck();
+      const existingByKoen = new Map(existingClients.filter(c => c.koen).map(c => [c.koen!, c]));
+      const existingByName = new Map(existingClients.filter(c => c.nokoen).map(c => [c.nokoen, c]));
+      
+      const duplicateCheckTime = Date.now() - duplicateCheckStart;
+      console.log(`⚡ DUPLICATE CHECK: ${existingClients.length} existing clients processed in ${duplicateCheckTime}ms`);
+      
+      // STEP 2: Memory-efficient batch analysis
+      const analysisStart = Date.now();
+      const toInsert: InsertClient[] = [];
+      const toUpdate: Array<{ id: string; data: InsertClient }> = [];
+      
+      const ANALYSIS_BATCH_SIZE = 2000; // Process analysis in chunks for memory efficiency
+      console.log(`📊 MASSIVE ANALYSIS: Processing ${clientsData.length} clients in chunks of ${ANALYSIS_BATCH_SIZE}...`);
+      
+      for (let i = 0; i < clientsData.length; i += ANALYSIS_BATCH_SIZE) {
+        const chunk = clientsData.slice(i, i + ANALYSIS_BATCH_SIZE);
+        const chunkNumber = Math.floor(i / ANALYSIS_BATCH_SIZE) + 1;
+        const totalChunks = Math.ceil(clientsData.length / ANALYSIS_BATCH_SIZE);
+        
+        console.log(`🔍 Processing analysis chunk ${chunkNumber}/${totalChunks} (${chunk.length} clients)`);
+        
+        for (const client of chunk) {
+          try {
+            // Ultra-fast lookup using Maps (no database queries)
+            const existingByKoenMatch = client.koen ? existingByKoen.get(client.koen) : null;
+            const existingByNameMatch = !existingByKoenMatch && client.nokoen ? existingByName.get(client.nokoen) : null;
+            const existing = existingByKoenMatch || existingByNameMatch;
+            
+            if (existing) {
+              toUpdate.push({ id: existing.id, data: client });
+            } else {
+              toInsert.push(client);
+            }
+          } catch (error) {
+            console.error(`❌ Analysis error for client ${client.nokoen}:`, error);
+            skipped++;
+          }
+        }
+      }
+      
+      const analysisTime = Date.now() - analysisStart;
+      console.log(`⚡ ANALYSIS COMPLETE: ${toInsert.length} new, ${toUpdate.length} existing in ${analysisTime}ms`);
+      
+      // STEP 3: MASSIVE batch inserts with database transactions for performance
+      if (toInsert.length > 0) {
+        const insertStart = Date.now();
+        const MASSIVE_BATCH_SIZE = 1000; // Larger batches for massive imports
+        const totalBatches = Math.ceil(toInsert.length / MASSIVE_BATCH_SIZE);
+        
+        console.log(`📦 MASSIVE INSERT: ${toInsert.length} clients in ${totalBatches} batches of ${MASSIVE_BATCH_SIZE}`);
+        
+        for (let i = 0; i < toInsert.length; i += MASSIVE_BATCH_SIZE) {
+          const batch = toInsert.slice(i, i + MASSIVE_BATCH_SIZE);
+          const batchNumber = Math.floor(i/MASSIVE_BATCH_SIZE) + 1;
+          
+          try {
+            // Use database transaction for better performance on large inserts
+            await db.transaction(async (tx) => {
+              await tx.insert(clients).values(batch);
+            });
+            
+            inserted += batch.length;
+            const progress = ((inserted / toInsert.length) * 100).toFixed(1);
+            console.log(`✅ MASSIVE BATCH ${batchNumber}/${totalBatches}: ${batch.length} clients (${progress}% complete)`);
+          } catch (error) {
+            console.error(`❌ MASSIVE BATCH ${batchNumber} FAILED:`, error);
+            skipped += batch.length;
+          }
+        }
+        
+        const insertTime = Date.now() - insertStart;
+        console.log(`⚡ MASSIVE INSERTS COMPLETE: ${inserted} clients in ${insertTime}ms (${Math.round(inserted/(insertTime/1000))} clients/sec)`);
+      }
+      
+      // STEP 4: Efficient batch updates
+      if (toUpdate.length > 0) {
+        const updateStart = Date.now();
+        console.log(`🔄 MASSIVE UPDATES: Processing ${toUpdate.length} existing clients...`);
+        
+        const UPDATE_BATCH_SIZE = 100; // Smaller batches for updates
+        const updateBatches = Math.ceil(toUpdate.length / UPDATE_BATCH_SIZE);
+        
+        for (let i = 0; i < toUpdate.length; i += UPDATE_BATCH_SIZE) {
+          const batch = toUpdate.slice(i, i + UPDATE_BATCH_SIZE);
+          const batchNumber = Math.floor(i/UPDATE_BATCH_SIZE) + 1;
+          
+          try {
+            // Process updates in parallel for better performance
+            await Promise.all(batch.map(async ({ id, data }) => {
+              await db
+                .update(clients)
+                .set({ ...data, updatedAt: new Date() })
+                .where(eq(clients.id, id));
+            }));
+            
+            updated += batch.length;
+            console.log(`✅ UPDATE BATCH ${batchNumber}/${updateBatches}: ${batch.length} clients`);
+          } catch (error) {
+            console.error(`❌ UPDATE BATCH ${batchNumber} FAILED:`, error);
+            skipped += batch.length;
+          }
+        }
+        
+        const updateTime = Date.now() - updateStart;
+        console.log(`⚡ MASSIVE UPDATES COMPLETE: ${updated} clients in ${updateTime}ms`);
+      }
+      
+    } catch (error) {
+      console.error(`💥 CRITICAL ERROR in MASSIVE client import:`, error);
+      throw error;
+    }
+    
+    const totalTime = Date.now() - startTime;
+    const throughput = Math.round(clientsData.length / (totalTime / 1000));
+    
+    console.log(`🎉 MASSIVE IMPORT COMPLETE: ${totalTime}ms total`);
+    console.log(`📊 FINAL STATS: ${inserted} inserted, ${updated} updated, ${skipped} errors`);
+    console.log(`⚡ PERFORMANCE: ${throughput} clients/second`);
+    
     return { inserted, updated, skipped };
   }
 
