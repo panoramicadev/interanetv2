@@ -27,6 +27,15 @@ import {
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import type { NVVSummary, NVVTrendPoint, NVVBreakdownItem } from "@shared/schema";
 
+interface PackagingMetric {
+  packagingType: string;
+  totalSales: number;
+  totalUnits: number;
+  transactionCount: number;
+  salesPercentage: number;
+  unitPercentage: number;
+}
+
 // Register ChartJS components
 ChartJS.register(
   CategoryScale,
@@ -289,6 +298,127 @@ export default function NVVPage() {
     }
   };
 
+  // Packaging Breakdown Table Component
+  function PackagingBreakdownTable({ selectedPeriod, filterType }: {
+    selectedPeriod: string;
+    filterType: "day" | "month" | "year" | "range";
+  }) {
+    const { data: packagingData, isLoading } = useQuery<PackagingMetric[]>({
+      queryKey: [`/api/nvv/packaging-breakdown?period=${selectedPeriod}&filterType=${filterType}`],
+    });
+
+    // Mapping packaging codes to friendly names
+    const packagingNames: Record<string, string> = {
+      'BD': 'Baldes',
+      'GL': 'Galones', 
+      'Q4': '1/4 Galón',
+      'KT': 'Kits',
+      'UN': 'Unidades',
+      'KG': 'Kilogramos',
+      'LT': 'Litros',
+      'GB': 'Garrafas/Bidón',
+      'OD': 'Onzas',
+      'OT': 'Otros'
+    };
+
+    // Sort by total sales descending
+    const sortedData = packagingData?.sort((a, b) => b.totalSales - a.totalSales) || [];
+    
+    // Calculate totals
+    const totalSales = sortedData.reduce((sum, item) => sum + item.totalSales, 0);
+    const totalUnits = sortedData.reduce((sum, item) => sum + item.totalUnits, 0);
+
+    return (
+      <Card className="p-6">
+        <div className="mb-6">
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+              <Building className="h-5 w-5 text-orange-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">Breakdown por Tipo de Envase</h2>
+          </div>
+          <p className="text-sm text-gray-600">Distribución de ventas y unidades por formato de empaque</p>
+        </div>
+        
+        {isLoading ? (
+          <div className="space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center justify-between animate-pulse">
+                <div className="flex items-center space-x-3">
+                  <div className="w-6 h-6 bg-gray-200 rounded"></div>
+                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                </div>
+                <div className="flex space-x-4">
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                  <div className="h-4 bg-gray-200 rounded w-12"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" data-testid="packaging-breakdown-table">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 font-medium text-gray-900">Tipo de Envase</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-900">Cantidad Vendida</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-900">Monto</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-900">% Venta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedData.map((item, index) => (
+                  <tr key={index} className="border-b border-gray-100 hover:bg-gray-50" data-testid={`packaging-row-${index}`}>
+                    <td className="py-3 px-4 font-medium text-gray-900" data-testid={`text-packaging-${item.packagingType}`}>
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold text-white ${
+                          item.packagingType === 'BD' ? 'bg-green-500' :
+                          item.packagingType === 'GL' ? 'bg-blue-500' :
+                          item.packagingType === 'Q4' ? 'bg-orange-500' :
+                          'bg-gray-500'
+                        }`}>
+                          {item.packagingType}
+                        </div>
+                        <span>{packagingNames[item.packagingType] || item.packagingType}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-right text-gray-900" data-testid={`text-units-${item.packagingType}`}>
+                      <div className="text-base font-semibold">{formatNumber(item.totalUnits)}</div>
+                      <div className="text-xs text-gray-500">unidades</div>
+                    </td>
+                    <td className="py-3 px-4 text-right text-gray-900" data-testid={`text-sales-${item.packagingType}`}>
+                      <div className="text-base font-semibold">{formatCurrency(item.totalSales)}</div>
+                      <div className="text-xs text-gray-500">{item.transactionCount} transacciones</div>
+                    </td>
+                    <td className="py-3 px-4 text-right font-semibold text-gray-900" data-testid={`text-perc-${item.packagingType}`}>
+                      <div className="text-base">{item.salesPercentage.toFixed(1)}%</div>
+                    </td>
+                  </tr>
+                ))}
+                
+                {/* Total Row */}
+                <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold" data-testid="packaging-total-row">
+                  <td className="py-3 px-4 text-gray-900">Total General</td>
+                  <td className="py-3 px-4 text-right text-gray-900">
+                    <div className="text-base font-bold">{formatNumber(totalUnits)}</div>
+                    <div className="text-xs text-gray-500">unidades</div>
+                  </td>
+                  <td className="py-3 px-4 text-right text-gray-900">
+                    <div className="text-base font-bold">{formatCurrency(totalSales)}</div>
+                  </td>
+                  <td className="py-3 px-4 text-right text-gray-900">
+                    <div className="text-base font-bold">100.0%</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6 p-4 sm:p-6">
       {/* Header */}
@@ -410,7 +540,7 @@ export default function NVVPage() {
               {formatCurrency(mockSummary.totalSales)}
             </div>
             <p className="text-xs text-red-600 font-medium">
-              {mockSummary.salesVarianceVsPrevious.toFixed(1)}% vs anterior
+              {mockSummary.salesVarianceVsPrevious ? mockSummary.salesVarianceVsPrevious.toFixed(1) : '0.0'}% vs anterior
             </p>
           </CardContent>
         </Card>
@@ -421,7 +551,7 @@ export default function NVVPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="text-2xl font-bold text-red-600">
-              {mockSummary.salesVarianceVsTarget.toFixed(1)}%
+              {mockSummary.salesVarianceVsTarget ? mockSummary.salesVarianceVsTarget.toFixed(1) : '0.0'}%
             </div>
             <p className="text-xs text-gray-500">Bajo objetivo</p>
           </CardContent>
@@ -520,6 +650,12 @@ export default function NVVPage() {
           <Bar data={breakdownChartData} options={breakdownChartOptions} />
         </div>
       </Card>
+
+      {/* Packaging Breakdown Table */}
+      <PackagingBreakdownTable 
+        selectedPeriod={selectedPeriod}
+        filterType={filterType}
+      />
 
       {/* Detailed Table */}
       <Card className="p-6">
