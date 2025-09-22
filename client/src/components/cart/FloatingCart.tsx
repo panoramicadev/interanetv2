@@ -36,7 +36,7 @@ export default function FloatingCart({ isOpen, onClose, trigger }: FloatingCartP
 
   // Mobile view - use Sheet as modal
   const MobileCart = () => (
-    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
       <SheetContent side="right" className="w-full sm:max-w-md p-0">
         <div className="flex flex-col h-full">

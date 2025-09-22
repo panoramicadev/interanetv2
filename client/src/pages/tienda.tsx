@@ -312,6 +312,9 @@ export default function TiendaPage() {
         description: message,
         action: <Check className="h-4 w-4" />
       });
+
+      // 🛒 ABRIR AUTOMÁTICAMENTE EL CARRITO después de agregar producto
+      setShowFloatingCart(true);
       
       // Reset quantity for this product to minimum valid quantity
       setQuantities(prev => ({
