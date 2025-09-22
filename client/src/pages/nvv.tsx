@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, TrendingUp, Target, BarChart3, Users, Building, Package } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CalendarIcon, TrendingUp, Target, BarChart3, Users, Building, Package, Upload, Database } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { Bar, Line } from "react-chartjs-2";
@@ -26,6 +27,8 @@ import {
 } from "chart.js";
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import type { NVVSummary, NVVTrendPoint, NVVBreakdownItem } from "@shared/schema";
+import { NvvCsvImport } from "@/components/nvv/csv-import";
+import { PendingSalesTable } from "@/components/nvv/pending-sales-table";
 
 interface PackagingMetric {
   packagingType: string;
@@ -55,6 +58,9 @@ export default function NVVPage() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
   
+  // Tab state
+  const [activeTab, setActiveTab] = useState("import");
+  
   // Filter states - following dashboard pattern
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
     return format(new Date(), "yyyy-MM");
@@ -68,6 +74,15 @@ export default function NVVPage() {
   const [viewMode, setViewMode] = useState<"sales" | "units">("sales");
   const [trendPeriod, setTrendPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
   const [breakdownBy, setBreakdownBy] = useState<"segment" | "salesperson">("segment");
+  
+  // NVV Filters
+  const [nvvFilters, setNvvFilters] = useState({
+    status: '',
+    salesperson: '',
+    segment: '',
+    startDate: undefined as Date | undefined,
+    endDate: undefined as Date | undefined,
+  });
 
   // Update selected period when filter type changes
   useEffect(() => {
@@ -439,10 +454,10 @@ export default function NVVPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900" data-testid="page-title">
-              NVV - Nivel de Venta y Variación
+              NVV - Notas de Ventas Pendientes
             </h1>
             <p className="text-sm text-gray-600">
-              Análisis de ventas, variaciones y cumplimiento de metas
+              Gestión de notas de ventas pendientes y comprometidas
             </p>
           </div>
         </div>
@@ -539,7 +554,134 @@ export default function NVVPage() {
         </div>
       </div>
 
-      {/* KPI Summary Cards */}
+      {/* Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="import" className="flex items-center space-x-2" data-testid="tab-import">
+            <Upload className="h-4 w-4" />
+            <span>Importar CSV</span>
+          </TabsTrigger>
+          <TabsTrigger value="data" className="flex items-center space-x-2" data-testid="tab-data">
+            <Database className="h-4 w-4" />
+            <span>Datos Importados</span>
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center space-x-2" data-testid="tab-analytics">
+            <BarChart3 className="h-4 w-4" />
+            <span>Análisis</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Import Tab */}
+        <TabsContent value="import" className="space-y-6">
+          <NvvCsvImport 
+            onImportComplete={() => {
+              toast({
+                title: "Importación completada",
+                description: "Los datos se han importado correctamente",
+              });
+              setActiveTab("data");
+            }}
+          />
+        </TabsContent>
+
+        {/* Data Tab */}
+        <TabsContent value="data" className="space-y-6">
+          {/* Filters for NVV Data */}
+          <Card className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <Select 
+                value={nvvFilters.status} 
+                onValueChange={(value) => setNvvFilters(prev => ({ ...prev, status: value }))}
+              >
+                <SelectTrigger data-testid="filter-status">
+                  <SelectValue placeholder="Todos los estados" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Todos los estados</SelectItem>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="confirmed">Confirmado</SelectItem>
+                  <SelectItem value="delivered">Entregado</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select 
+                value={nvvFilters.salesperson} 
+                onValueChange={(value) => setNvvFilters(prev => ({ ...prev, salesperson: value }))}
+              >
+                <SelectTrigger data-testid="filter-salesperson">
+                  <SelectValue placeholder="Todos los vendedores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Todos los vendedores</SelectItem>
+                  {/* Add salesperson options dynamically */}
+                </SelectContent>
+              </Select>
+
+              <Select 
+                value={nvvFilters.segment} 
+                onValueChange={(value) => setNvvFilters(prev => ({ ...prev, segment: value }))}
+              >
+                <SelectTrigger data-testid="filter-segment">
+                  <SelectValue placeholder="Todos los segmentos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Todos los segmentos</SelectItem>
+                  <SelectItem value="FERRETERIAS">Ferreterías</SelectItem>
+                  <SelectItem value="CONSTRUCCION">Construcción</SelectItem>
+                  <SelectItem value="MCT">MCT</SelectItem>
+                  <SelectItem value="PANORAMICA STORE">Panorámica Store</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" data-testid="filter-start-date">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {nvvFilters.startDate ? format(nvvFilters.startDate, "dd/MM/yyyy") : "Fecha inicio"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={nvvFilters.startDate}
+                    onSelect={(date) => setNvvFilters(prev => ({ ...prev, startDate: date }))}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" data-testid="filter-end-date">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {nvvFilters.endDate ? format(nvvFilters.endDate, "dd/MM/yyyy") : "Fecha fin"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={nvvFilters.endDate}
+                    onSelect={(date) => setNvvFilters(prev => ({ ...prev, endDate: date }))}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </Card>
+
+          <PendingSalesTable
+            startDate={nvvFilters.startDate}
+            endDate={nvvFilters.endDate}
+            selectedStatus={nvvFilters.status}
+            selectedSalesperson={nvvFilters.salesperson}
+            selectedSegment={nvvFilters.segment}
+          />
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="space-y-6">
+          {/* KPI Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="p-4" data-testid="kpi-total-sales">
           <CardHeader className="p-0 pb-2">
@@ -712,6 +854,8 @@ export default function NVVPage() {
           </table>
         </div>
       </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
