@@ -5546,10 +5546,12 @@ export class DatabaseStorage implements IStorage {
             // 🔍 Check for problematic values in the batch
             const problemValues = [];
             for (let i = 0; i < Math.min(batch.length, 3); i++) {
-              const client = batch[i];
-              for (const [field, value] of Object.entries(client)) {
-                if (value && typeof value === 'string' && field.toLowerCase().includes('cr') && /[A-Za-z]/.test(value)) {
-                  problemValues.push(`Client ${i}: ${field}="${value}"`);
+              const client = batch[i] as any;
+              if (client) {
+                for (const [field, value] of Object.entries(client)) {
+                  if (value && typeof value === 'string' && field.toLowerCase().includes('cr') && /[A-Za-z]/.test(value)) {
+                    problemValues.push(`Client ${i}: ${field}="${value}"`);
+                  }
                 }
               }
             }
