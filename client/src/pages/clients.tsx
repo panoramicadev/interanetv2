@@ -80,7 +80,7 @@ export default function Clients() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: clients, isLoading, error } = useQuery({
+  const { data: clientsData, isLoading, error } = useQuery({
     queryKey: ['/api/clients', debouncedSearch, currentPage, selectedSegment, selectedSalesperson, selectedCreditStatus, selectedBusinessType, selectedDebtStatus, selectedEntityType],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -98,9 +98,18 @@ export default function Clients() {
       if (!response.ok) {
         throw new Error('Error al cargar clientes');
       }
-      return response.json() as Promise<Client[]>;
+      return response.json() as Promise<{
+        clients: Client[];
+        totalCount: number;
+        currentPage: number;
+        totalPages: number;
+      }>;
     },
   });
+
+  // Extract clients and total count from the response
+  const clients = clientsData?.clients;
+  const totalCount = clientsData?.totalCount || 0;
 
   // Fetch filter data
   const { data: segments } = useQuery<string[]>({
@@ -325,7 +334,7 @@ export default function Clients() {
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Gestión de Clientes</h1>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                {clients?.length || 0} clientes registrados
+                {totalCount} clientes registrados
               </p>
             </div>
           </div>

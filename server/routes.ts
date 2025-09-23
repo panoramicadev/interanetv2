@@ -586,8 +586,18 @@ export function registerRoutes(app: Express): Server {
       
       console.log('GET /api/clients - Filtros:', filters);
       
-      const clients = await storage.getClients(filters);
-      res.json(clients);
+      // Get both clients and total count in parallel for better performance
+      const [clients, totalCount] = await Promise.all([
+        storage.getClients(filters),
+        storage.getClientsCount(filters)
+      ]);
+      
+      res.json({
+        clients,
+        totalCount,
+        currentPage: Math.floor((filters.offset || 0) / (filters.limit || 50)) + 1,
+        totalPages: Math.ceil(totalCount / (filters.limit || 50))
+      });
     } catch (error) {
       console.error('Error fetching clients:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
