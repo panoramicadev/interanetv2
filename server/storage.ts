@@ -5342,6 +5342,87 @@ export class DatabaseStorage implements IStorage {
     return clientsWithMetrics;
   }
 
+  async getClientsCount(filters?: {
+    search?: string;
+    segment?: string;
+    salesperson?: string;
+    creditStatus?: string;
+    businessType?: string;
+    debtStatus?: string;
+    entityType?: string;
+  }): Promise<number> {
+    const conditions = [];
+    
+    if (filters?.search) {
+      conditions.push(
+        sql`(${clients.nokoen} ILIKE ${`%${filters.search}%`} OR ${clients.rten} ILIKE ${`%${filters.search}%`} OR ${clients.koen} ILIKE ${`%${filters.search}%`})`
+      );
+    }
+
+    if (filters?.segment) {
+      conditions.push(eq(clients.ruen, filters.segment));
+    }
+
+    if (filters?.businessType) {
+      conditions.push(sql`${clients.gien} ILIKE ${`%${filters.businessType}%`}`);
+    }
+
+    if (filters?.debtStatus) {
+      switch (filters.debtStatus) {
+        case 'con_deuda':
+          conditions.push(sql`${clients.crsd} > 0`);
+          break;
+        case 'sin_deuda':
+          conditions.push(sql`${clients.crsd} <= 0 OR ${clients.crsd} IS NULL`);
+          break;
+      }
+    }
+
+    if (filters?.entityType) {
+      conditions.push(eq(clients.tien, filters.entityType));
+    }
+
+    if (filters?.creditStatus) {
+      switch (filters.creditStatus) {
+        case 'excellent':
+          conditions.push(sql`${clients.cren} > ${clients.crlt} * 0.8`);
+          break;
+        case 'good':
+          conditions.push(sql`${clients.cren} BETWEEN ${clients.crlt} * 0.5 AND ${clients.crlt} * 0.8`);
+          break;
+        case 'limited':
+          conditions.push(sql`${clients.cren} BETWEEN ${clients.crlt} * 0.1 AND ${clients.crlt} * 0.5`);
+          break;
+        case 'blocked':
+          conditions.push(sql`${clients.cren} >= ${clients.crlt} OR ${clients.crsd} = 'S'`);
+          break;
+      }
+    }
+
+    // Count query
+    let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(clients);
+
+    // If filtering by salesperson, we need to join with sales transactions
+    if (filters?.salesperson) {
+      const salespersonConditions = conditions.length > 0 
+        ? [...conditions, eq(salesTransactions.nokofu, filters.salesperson)]
+        : [eq(salesTransactions.nokofu, filters.salesperson)];
+
+      const [result] = await db
+        .select({ count: sql<number>`COUNT(DISTINCT ${clients.id})` })
+        .from(clients)
+        .innerJoin(salesTransactions, eq(clients.nokoen, salesTransactions.nokoen))
+        .where(and(...salespersonConditions));
+      
+      return Number(result?.count || 0);
+    } else {
+      countQuery = conditions.length > 0 ? countQuery.where(and(...conditions)) as any : countQuery;
+    }
+
+    const [result] = await countQuery;
+    return Number(result?.count || 0);
+  }
+
   async getClientByKoen(koen: string) {
     const result = await db
       .select()
