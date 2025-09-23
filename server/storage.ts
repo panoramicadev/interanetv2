@@ -533,9 +533,8 @@ export interface IStorage {
   getClientByKoen(koen: string): Promise<Client | undefined>;
   insertClient(client: InsertClient): Promise<Client>;
   insertMultipleClients(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number } | undefined>;
-  // OPTIMIZED functions for massive client imports (20,000 rows x 500 columns)
-  getClientsForDuplicateCheck(): Promise<Array<{ id: string; koen: string | null; nokoen: string }>>;
-  insertMultipleClientsOptimized(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number } | undefined>;
+  // SIMPLE and RELIABLE client import - identical to order system
+  insertMultipleClientsSimple(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number }>;
   updateClient(koen: string, client: Partial<InsertClient>): Promise<Client>;
   deleteClient(koen: string): Promise<void>;
 
@@ -5362,31 +5361,58 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async getClientsForDuplicateCheck(): Promise<Array<{ id: string; koen: string | null; nokoen: string }>> {
-    try {
-      // ULTRA-FAST: Only select the minimal columns needed for duplicate checking
-      const result = await db.select({
-        id: clients.id,
-        koen: clients.koen,
-        nokoen: clients.nokoen
-      }).from(clients);
+  // SIMPLE CLIENT IMPORT - Identical to successful order system
+  async insertMultipleClientsSimple(clientsData: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number }> {
+    if (clientsData.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
+    
+    const BATCH_SIZE = 100;
+    let totalInserted = 0;
+    let totalSkipped = 0;
+    
+    console.log(`📊 Starting import of ${clientsData.length} clients in batches of ${BATCH_SIZE}`);
+    
+    // Process clients in batches to avoid memory issues
+    for (let i = 0; i < clientsData.length; i += BATCH_SIZE) {
+      const batch = clientsData.slice(i, i + BATCH_SIZE);
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(clientsData.length / BATCH_SIZE);
       
-      console.log(`🔍 DUPLICATE CHECK DEBUG: Found ${result.length} existing clients in database`);
+      // Get unique KOEN values from this batch
+      const batchKoens = Array.from(new Set(batch.map(c => c.koen)));
       
-      if (result.length > 0) {
-        const sampleClients = result.slice(0, 5);
-        console.log(`📋 SAMPLE EXISTING CLIENTS:`, sampleClients.map(c => ({
-          id: c.id.substring(0, 8) + '...',
-          koen: c.koen,
-          nokoen: c.nokoen?.substring(0, 30) + '...'
-        })));
+      // Check which KOEN values already exist in database
+      const validBatchKoens = batchKoens.filter(koen => koen != null && koen !== '').map(koen => koen!.toString());
+      
+      const existingKoens = validBatchKoens.length > 0 ? await db
+        .select({ koen: clients.koen })
+        .from(clients)
+        .where(inArray(clients.koen, validBatchKoens)) : [];
+      
+      const existingKoenSet = new Set(existingKoens.map(row => row.koen?.toString()));
+      
+      // Filter out clients with existing KOEN
+      const newClients = batch.filter(client => 
+        !existingKoenSet.has(client.koen?.toString() || '')
+      );
+      
+      const batchSkipped = batch.length - newClients.length;
+      
+      // Insert only new clients from this batch
+      if (newClients.length > 0) {
+        await db
+          .insert(clients)
+          .values(newClients);
       }
       
-      return result;
-    } catch (error) {
-      console.error(`❌ ERROR in getClientsForDuplicateCheck:`, error);
-      return [];
+      totalInserted += newClients.length;
+      totalSkipped += batchSkipped;
+      
+      console.log(`📦 Batch ${batchNumber}/${totalBatches}: Inserted ${newClients.length}, Skipped ${batchSkipped} duplicates`);
     }
+    
+    console.log(`✅ Import completed: ${totalInserted} new clients imported, ${totalSkipped} duplicates skipped`);
+    
+    return { inserted: totalInserted, updated: 0, skipped: totalSkipped };
   }
 
   async insertMultipleClients(clientsData: InsertClient[]) {
