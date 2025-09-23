@@ -5363,14 +5363,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClientsForDuplicateCheck(): Promise<Array<{ id: string; koen: string | null; nokoen: string }>> {
-    // ULTRA-FAST: Only select the minimal columns needed for duplicate checking
-    const result = await db.select({
-      id: clients.id,
-      koen: clients.koen,
-      nokoen: clients.nokoen
-    }).from(clients);
-    
-    return result;
+    try {
+      // ULTRA-FAST: Only select the minimal columns needed for duplicate checking
+      const result = await db.select({
+        id: clients.id,
+        koen: clients.koen,
+        nokoen: clients.nokoen
+      }).from(clients);
+      
+      console.log(`🔍 DUPLICATE CHECK DEBUG: Found ${result.length} existing clients in database`);
+      
+      if (result.length > 0) {
+        const sampleClients = result.slice(0, 5);
+        console.log(`📋 SAMPLE EXISTING CLIENTS:`, sampleClients.map(c => ({
+          id: c.id.substring(0, 8) + '...',
+          koen: c.koen,
+          nokoen: c.nokoen?.substring(0, 30) + '...'
+        })));
+      }
+      
+      return result;
+    } catch (error) {
+      console.error(`❌ ERROR in getClientsForDuplicateCheck:`, error);
+      return [];
+    }
   }
 
   async insertMultipleClients(clientsData: InsertClient[]) {
@@ -5482,6 +5498,12 @@ export class DatabaseStorage implements IStorage {
       const duplicateCheckTime = Date.now() - duplicateCheckStart;
       console.log(`⚡ DUPLICATE CHECK: ${existingClients.length} existing clients processed in ${duplicateCheckTime}ms`);
       
+      // 🔍 DEBUG: Show sample existing client keys to verify data format
+      if (existingClients.length > 0) {
+        const sampleKeys = existingClients.filter(c => c.koen).slice(0, 10).map(c => c.koen);
+        console.log(`🔑 SAMPLE EXISTING KOEN KEYS:`, sampleKeys);
+      }
+      
       // STEP 2: Memory-efficient batch analysis
       const analysisStart = Date.now();
       const toInsert: InsertClient[] = [];
@@ -5503,6 +5525,16 @@ export class DatabaseStorage implements IStorage {
             const existingByKoenMatch = client.koen ? existingByKoen.get(client.koen) : null;
             const existingByNameMatch = !existingByKoenMatch && client.nokoen ? existingByName.get(client.nokoen) : null;
             const existing = existingByKoenMatch || existingByNameMatch;
+            
+            // 🔍 DEBUG: Log first few duplicate checks to verify logic
+            if (chunkNumber === 1 && toInsert.length + toUpdate.length < 5) {
+              console.log(`🔍 DUPLICATE CHECK SAMPLE for "${client.nokoen}":`, {
+                clientKoen: client.koen,
+                existingByKoenMatch: existingByKoenMatch ? 'FOUND' : 'NOT_FOUND',
+                existingByNameMatch: existingByNameMatch ? 'FOUND' : 'NOT_FOUND',
+                decision: existing ? 'UPDATE' : 'INSERT'
+              });
+            }
             
             if (existing) {
               toUpdate.push({ id: existing.id, data: client });
