@@ -906,12 +906,6 @@ export function registerRoutes(app: Express): Server {
             
             // Skip additional columns to limit parameters and avoid SQL parameter limit errors
             // Only process essential core fields for reliable import
-                    
-                    (client as any)[dbField] = fieldValue;
-                  }
-                }
-              }
-            }
 
             clientsToInsert.push(client);
           } catch (error) {
