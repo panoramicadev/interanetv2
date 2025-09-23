@@ -5390,11 +5390,22 @@ export class DatabaseStorage implements IStorage {
       
       const existingKoenSet = new Set(existingKoens.map(row => row.koen).filter(Boolean));
       
-      // Filter out clients with existing KOEN (including null/empty check)
+      // Filter out clients with existing KOEN + handle within-batch duplicates
+      const batchKoensSeen = new Set<string>();
       const newClients = batch.filter(client => {
         const clientKoen = client.koen;
-        if (!clientKoen || clientKoen === '') return false; // Skip clients without KOEN
-        return !existingKoenSet.has(clientKoen);
+        // If client has no KOEN, allow it (unique constraint handles this)
+        if (!clientKoen || clientKoen === '') return true;
+        
+        // Check if KOEN already exists in database
+        if (existingKoenSet.has(clientKoen)) return false;
+        
+        // Check if KOEN already seen in this batch
+        if (batchKoensSeen.has(clientKoen)) return false;
+        
+        // Mark this KOEN as seen in this batch
+        batchKoensSeen.add(clientKoen);
+        return true;
       });
       
       const batchSkipped = batch.length - newClients.length;
