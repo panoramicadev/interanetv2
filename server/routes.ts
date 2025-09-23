@@ -876,52 +876,36 @@ export function registerRoutes(app: Express): Server {
               blovenex: 'BLOVENEX'
             };
             
-            // Apply all available mappings with PROPER TYPE HANDLING
+            // Apply CORE FIELDS ONLY with strict type validation to avoid parameter limit
             for (const [dbField, csvColumn] of Object.entries(columnMappings)) {
               if (row[csvColumn] !== undefined && row[csvColumn] !== null && row[csvColumn] !== '') {
                 const rawValue = row[csvColumn];
                 
-                // 🔍 CRITICAL: Handle numeric fields properly
-                if (['crsd', 'crch', 'crlt', 'crpa', 'crto', 'cren', 'nuvecr', 'dccr', 'incr', 'popicr', 'koplcr', 'porprefen'].includes(dbField)) {
-                  // These are numeric fields in the database
-                  const numValue = parseFloat(String(rawValue));
-                  if (!isNaN(numValue)) {
-                    (client as any)[dbField] = numValue.toString(); // Store as string representation of number
-                  } else {
-                    console.warn(`⚠️  SKIPPING INVALID NUMERIC VALUE: ${dbField} = "${rawValue}"`);
-                    // Skip non-numeric values for numeric fields
+                // Only process core fields to limit parameters
+                if (!coreClientFields.has(dbField) && !numericClientFields.has(dbField) && !integerClientFields.has(dbField)) {
+                  continue; // Skip non-essential fields to reduce parameter count
+                }
+                
+                // Apply strict type validation
+                if (numericClientFields.has(dbField)) {
+                  const numValue = safeNumericConvert(rawValue, dbField);
+                  if (numValue !== null) {
+                    (client as any)[dbField] = numValue;
                   }
-                } else if (['bloqueado', 'actien', 'habilita', 'bloqencom', 'blovenex'].includes(dbField)) {
-                  // These are boolean/integer fields
-                  const intValue = parseInt(String(rawValue));
-                  if (!isNaN(intValue)) {
-                    (client as any)[dbField] = intValue.toString();
-                  } else {
-                    console.warn(`⚠️  SKIPPING INVALID INTEGER VALUE: ${dbField} = "${rawValue}"`);
+                } else if (integerClientFields.has(dbField)) {
+                  const intValue = safeIntegerConvert(rawValue, dbField);
+                  if (intValue !== null) {
+                    (client as any)[dbField] = intValue;
                   }
                 } else {
                   // Text fields - safe to convert to string
-                  (client as any)[dbField] = rawValue.toString();
+                  (client as any)[dbField] = rawValue.toString().trim();
                 }
               }
             }
             
-            // Handle ANY additional columns not in mapping (up to 500 columns total) with TYPE SAFETY
-            for (const [csvColumn, value] of Object.entries(row)) {
-              if (value !== undefined && value !== null && value !== '') {
-                const dbField = csvColumn.toLowerCase();
-                if (!(client as any)[dbField] && !Object.values(columnMappings).includes(csvColumn)) {
-                  // Only add if it's a valid client schema field
-                  if (validClientSchemaFields.has(dbField)) {
-                    
-                    // 🔍 SAFE TYPE CONVERSION for additional fields
-                    const fieldValue = value.toString();
-                    
-                    // Skip obviously invalid values for numeric-like fields
-                    if (dbField.includes('cr') && /[A-Za-z]/.test(fieldValue)) {
-                      console.warn(`⚠️  SKIPPING INVALID VALUE FOR FIELD ${dbField}: "${fieldValue}"`);
-                      continue;
-                    }
+            // Skip additional columns to limit parameters and avoid SQL parameter limit errors
+            // Only process essential core fields for reliable import
                     
                     (client as any)[dbField] = fieldValue;
                   }
@@ -1008,27 +992,70 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Valid client schema fields for dynamic column mapping (supports up to 500 columns)
-  const validClientSchemaFields = new Set([
-    'idmaeen', 'koen', 'nokoen', 'rten', 'tien', 'suen', 'tiposuc', 'sien', 'gien', 
-    'paen', 'cien', 'cmen', 'dien', 'zoen', 'comuna', 'provincia', 'departame', 'distrito', 
-    'codubigeo', 'urbaniz', 'cpostal', 'foen', 'faen', 'email', 'emailcomer', 'cnen', 'cnen2',
-    'crsd', 'crch', 'crlt', 'crpa', 'crto', 'cren', 'fevecren', 'feultr', 'nuvecr', 'dccr', 
-    'incr', 'popicr', 'koplcr', 'kofuen', 'lcen', 'lven', 'prefen', 'porprefen', 'contab',
-    'subauxi', 'contabvta', 'subauxivta', 'codcc', 'nutransmi', 'ruen', 'cpen', 'cobrador',
-    'diacobra', 'rutalun', 'rutamar', 'rutamie', 'rutajue', 'rutavie', 'rutasab', 'rutadom',
-    'bloqueado', 'actien', 'habilita', 'bloqencom', 'blovenex', 'dimoper', 'tipoen', 'tamaen',
-    'claveen', 'acteco', 'cattrib', 'agretiva', 'agretiibb', 'agretgan', 'agperiva', 'agperiibb',
-    'catlegret', 'catlegmer', 'imptoret', 'tiporuc', 'podetrac', 'proteacum', 'protevige',
-    'diasvenci', 'nvvpidepie', 'recepelect', 'nvvobli', 'occobli', 'extenxml', 'codconve',
-    'notraedeud', 'nokoenamp', 'transpoen', 'oben', 'diprve', 'valivenpag', 'tipocontr',
-    'ferefauto', 'cuentabco', 'koendpen', 'suendpen', 'koenal', 'kofuweb', 'secuecom',
-    'secueven', 'avisadpven', 'entiliga', 'porceliga', 'gpslat', 'gpslon', 'fecreen', 'femoen',
-    'feemdo', 'firma', 'nodocum', 'moctaen', 'ctasdelaen', 'nacionen', 'dirparen', 'fecnacen',
-    'estciven', 'profecen', 'conyugen', 'rutconen', 'rutsocen', 'sexoen', 'relacien', 'anexen1',
-    'anexen2', 'anexen3', 'anexen4', 'dten', 'uren', 'actecobco', 'deudaven', 'chvnocan',
-    'ltvnocan', 'pagnocan', 'anticipos'
+  // Core client fields for reliable import (essential fields only to avoid parameter limit)
+  const coreClientFields = new Set([
+    'koen', 'nokoen', 'rten', 'tien', 'gien', 'paen', 'cien', 'cmen', 'dien', 'comuna',
+    'foen', 'email', 'kofuen', 'lcen', 'contab', 'ruen', 'cobrador', 'bloqueado', 'actien'
   ]);
+
+  // Numeric fields that require strict validation 
+  const numericClientFields = new Set([
+    'idmaeen', 'crsd', 'crch', 'crlt', 'crpa', 'crto', 'cren', 'nuvecr', 'dccr', 'incr', 
+    'popicr', 'porprefen', 'cpen', 'diacobra', 'dimoper', 'imptoret', 'podetrac', 'proteacum', 
+    'protevige', 'diasvenci', 'diprve', 'valivenpag', 'porceliga', 'gpslat', 'gpslon'
+  ]);
+
+  // Integer fields that require strict validation
+  const integerClientFields = new Set([
+    'rutalun', 'rutamar', 'rutamie', 'rutajue', 'rutavie', 'rutasab', 'rutadom',
+    'bloqueado', 'actien', 'bloqencom', 'blovenex', 'agretiva', 'agretiibb', 'agretgan',
+    'agperiva', 'agperiibb', 'podetrac', 'nvvpidepie', 'recepelect', 'nvvobli', 'occobli',
+    'secuecom', 'secueven', 'avisadpven'
+  ]);
+
+  // Function to safely convert and validate numeric values
+  const safeNumericConvert = (value: any, fieldName: string): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    
+    const strValue = value.toString().trim();
+    
+    // Skip obvious text values
+    if (/[A-Za-z]/.test(strValue) && !strValue.match(/^-?\d+\.?\d*$/)) {
+      console.warn(`⚠️  SKIPPING NON-NUMERIC VALUE for ${fieldName}: "${strValue}"`);
+      return null;
+    }
+    
+    // Try to parse as number
+    const numValue = parseFloat(strValue.replace(/[^\d.-]/g, ''));
+    if (isNaN(numValue)) {
+      console.warn(`⚠️  INVALID NUMERIC VALUE for ${fieldName}: "${strValue}"`);
+      return null;
+    }
+    
+    return numValue;
+  };
+
+  // Function to safely convert and validate integer values
+  const safeIntegerConvert = (value: any, fieldName: string): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    
+    const strValue = value.toString().trim();
+    
+    // Skip text values
+    if (/[A-Za-z]/.test(strValue)) {
+      console.warn(`⚠️  SKIPPING NON-INTEGER VALUE for ${fieldName}: "${strValue}"`);
+      return null;
+    }
+    
+    // Try to parse as integer
+    const intValue = parseInt(strValue.replace(/[^\d-]/g, ''));
+    if (isNaN(intValue)) {
+      console.warn(`⚠️  INVALID INTEGER VALUE for ${fieldName}: "${strValue}"`);
+      return null;
+    }
+    
+    return intValue;
+  };
 
   // Sales transactions endpoint
   app.get('/api/sales/transactions', requireAuth, async (req, res) => {
