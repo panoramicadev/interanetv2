@@ -951,7 +951,7 @@ export function registerRoutes(app: Express): Server {
         }
       }
       
-      const importResult = await storage.insertMultipleClientsOptimized(clientsToInsert);
+      const importResult = await storage.insertMultipleClientsSimple(clientsToInsert);
 
       const totalTime = Date.now() - importStartTime;
       console.log(`🎉 MASSIVE IMPORT COMPLETED: ${totalTime}ms total`);
