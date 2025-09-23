@@ -5377,23 +5377,25 @@ export class DatabaseStorage implements IStorage {
       const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
       const totalBatches = Math.ceil(clientsData.length / BATCH_SIZE);
       
-      // Get unique KOEN values from this batch
-      const batchKoens = Array.from(new Set(batch.map(c => c.koen)));
+      // Get unique KOEN values from this batch, filtering out nulls/empty
+      const batchKoens = Array.from(new Set(
+        batch.map(c => c.koen).filter(koen => koen != null && koen !== '')
+      ));
       
-      // Check which KOEN values already exist in database
-      const validBatchKoens = batchKoens.filter(koen => koen != null && koen !== '').map(koen => koen!.toString());
-      
-      const existingKoens = validBatchKoens.length > 0 ? await db
+      // Check which KOEN values already exist in database  
+      const existingKoens = batchKoens.length > 0 ? await db
         .select({ koen: clients.koen })
         .from(clients)
-        .where(inArray(clients.koen, validBatchKoens)) : [];
+        .where(inArray(clients.koen, batchKoens)) : [];
       
-      const existingKoenSet = new Set(existingKoens.map(row => row.koen?.toString()));
+      const existingKoenSet = new Set(existingKoens.map(row => row.koen).filter(Boolean));
       
-      // Filter out clients with existing KOEN
-      const newClients = batch.filter(client => 
-        !existingKoenSet.has(client.koen?.toString() || '')
-      );
+      // Filter out clients with existing KOEN (including null/empty check)
+      const newClients = batch.filter(client => {
+        const clientKoen = client.koen;
+        if (!clientKoen || clientKoen === '') return false; // Skip clients without KOEN
+        return !existingKoenSet.has(clientKoen);
+      });
       
       const batchSkipped = batch.length - newClients.length;
       
