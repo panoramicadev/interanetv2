@@ -1722,19 +1722,280 @@ export default function TomadorPedidos() {
                 </TabsContent>
 
                 <TabsContent value="products" className="p-4 space-y-4 m-0">
-                  {/* Mobile Product Search will be added here */}
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Búsqueda de productos en desarrollo</p>
+                  {/* Mobile Product Search */}
+                  <div className="space-y-4">
+                    <div className="sticky top-0 bg-background z-10 pb-4">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar productos por nombre o SKU..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10 h-12 text-base"
+                          style={{ fontSize: '16px' }}
+                          data-testid="mobile-search-products"
+                        />
+                      </div>
+                      
+                      {/* Mobile Filter Chips */}
+                      <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                        <Button
+                          variant={selectedCategory === 'all' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedCategory('all')}
+                          className="whitespace-nowrap h-9"
+                          data-testid="mobile-category-all"
+                        >
+                          Todos
+                        </Button>
+                        <Button
+                          variant={selectedCategory === 'pinturas' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedCategory('pinturas')}
+                          className="whitespace-nowrap h-9"
+                          data-testid="mobile-category-pinturas"
+                        >
+                          Pinturas
+                        </Button>
+                        <Button
+                          variant={selectedCategory === 'accesorios' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedCategory('accesorios')}
+                          className="whitespace-nowrap h-9"
+                          data-testid="mobile-category-accesorios"
+                        >
+                          Accesorios
+                        </Button>
+                        <Button
+                          variant={selectedCategory === 'barnices' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedCategory('barnices')}
+                          className="whitespace-nowrap h-9"
+                          data-testid="mobile-category-barnices"
+                        >
+                          Barnices
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Mobile Product Results */}
+                    <div className="space-y-3">
+                      {filteredProducts.length > 0 ? (
+                        filteredProducts.map((product) => (
+                          <Card key={product.id} className="p-3">
+                            <div className="space-y-3">
+                              <div>
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-medium text-sm leading-5 truncate">
+                                      {product.name}
+                                    </h4>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      SKU: {product.sku}
+                                    </p>
+                                  </div>
+                                  <div className="text-right ml-2">
+                                    <p className="font-bold text-green-600">
+                                      {formatCurrency(product.price)}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Stock: {product.stock}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Mobile Add to Cart */}
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center space-x-1 flex-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      const qty = (productQuantities[product.id] || 1) - 1;
+                                      setProductQuantities(prev => ({
+                                        ...prev,
+                                        [product.id]: Math.max(1, qty)
+                                      }));
+                                    }}
+                                    className="h-8 w-8 p-0"
+                                    data-testid={`mobile-decrease-${product.id}`}
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </Button>
+                                  <span className="text-sm font-medium w-8 text-center">
+                                    {productQuantities[product.id] || 1}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      const qty = (productQuantities[product.id] || 1) + 1;
+                                      setProductQuantities(prev => ({
+                                        ...prev,
+                                        [product.id]: Math.min(product.stock, qty)
+                                      }));
+                                    }}
+                                    className="h-8 w-8 p-0"
+                                    disabled={(productQuantities[product.id] || 1) >= product.stock}
+                                    data-testid={`mobile-increase-${product.id}`}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                <Button
+                                  onClick={() => addToCart(product, productQuantities[product.id] || 1)}
+                                  size="sm"
+                                  className="h-8 px-4 bg-orange-500 hover:bg-orange-600"
+                                  data-testid={`mobile-add-to-cart-${product.id}`}
+                                >
+                                  <ShoppingCart className="w-3 h-3 mr-1" />
+                                  Agregar
+                                </Button>
+                              </div>
+                            </div>
+                          </Card>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                          <p className="text-sm">No se encontraron productos</p>
+                          <p className="text-xs mt-1">Intenta ajustar la búsqueda o categoría</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Mobile Quick Add Custom Product */}
+                    <Card className="border-dashed border-2 border-orange-200">
+                      <CardContent className="p-4">
+                        <Button
+                          variant="ghost"
+                          onClick={() => setShowCustomProductModal(true)}
+                          className="w-full h-12 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          data-testid="mobile-button-custom-product"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Producto Personalizado
+                        </Button>
+                      </CardContent>
+                    </Card>
                   </div>
                 </TabsContent>
 
                 <TabsContent value="cart" className="p-4 space-y-4 m-0">
-                  {/* Mobile Cart will be added here */}
-                  <div className="text-center py-8 text-muted-foreground">
-                    <ShoppingCart className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Carrito: {cart.length} productos</p>
-                  </div>
+                  {/* Mobile Cart */}
+                  {cart.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <ShoppingCart className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-base font-medium">Carrito vacío</p>
+                      <p className="text-sm mt-1">Agrega productos para crear un presupuesto</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Mobile Cart Items */}
+                      <div className="space-y-3">
+                        {cart.map((item) => (
+                          <Card key={item.id} className="p-3">
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-medium text-sm leading-5">
+                                    {item.productName}
+                                  </h4>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    SKU: {item.sku}
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeFromCart(item.id)}
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  data-testid={`mobile-remove-cart-${item.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
+                                    className="h-9 w-9 p-0"
+                                    data-testid={`mobile-cart-decrease-${item.id}`}
+                                  >
+                                    <Minus className="w-4 h-4" />
+                                  </Button>
+                                  <span className="text-base font-medium w-12 text-center bg-muted/50 h-9 flex items-center justify-center rounded">
+                                    {item.quantity}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
+                                    className="h-9 w-9 p-0"
+                                    data-testid={`mobile-cart-increase-${item.id}`}
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatCurrency(item.unitPrice)} c/u
+                                  </p>
+                                  <p className="text-base font-bold text-green-600">
+                                    {formatCurrency(item.totalPrice)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+
+                      {/* Mobile Cart Summary */}
+                      <Card className="bg-muted/20">
+                        <CardContent className="p-4">
+                          <div className="space-y-3">
+                            <div className="flex justify-between text-sm">
+                              <span>Subtotal:</span>
+                              <span className="font-medium" data-testid="mobile-cart-subtotal">
+                                {formatCurrency(subtotal)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>IVA (19%):</span>
+                              <span className="font-medium" data-testid="mobile-cart-tax">
+                                {formatCurrency(tax)}
+                              </span>
+                            </div>
+                            <Separator />
+                            <div className="flex justify-between font-bold text-lg">
+                              <span>Total:</span>
+                              <span className="text-green-600" data-testid="mobile-cart-total">
+                                {formatCurrency(total)}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Mobile Cart Actions */}
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setCart([])}
+                          className="w-full h-11 text-red-600 border-red-200 hover:bg-red-50"
+                          data-testid="mobile-clear-cart"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Limpiar Carrito
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </div>
