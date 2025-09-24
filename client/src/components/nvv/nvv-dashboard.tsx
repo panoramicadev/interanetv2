@@ -158,22 +158,22 @@ export function NvvDashboard() {
               No hay datos de notas de venta disponibles
             </div>
           ) : (
-            <ScrollArea className="h-96">
-              <Table>
-                <TableHeader>
+            <div className="h-96 w-full overflow-auto border rounded-lg">
+              <Table className="min-w-max">
+                <TableHeader className="sticky top-0 bg-white z-10">
                   <TableRow>
-                    <TableHead>Mes NVV</TableHead>
-                    <TableHead>Vendedor</TableHead>
-                    <TableHead>Cliente (NOKOEN)</TableHead>
-                    <TableHead>SKU (KOPRCT)</TableHead>
-                    <TableHead>Producto (NOKOPR)</TableHead>
-                    <TableHead>Cant. Confirmada</TableHead>
-                    <TableHead>Cant. Requerida</TableHead>
-                    <TableHead>Precio Unit.</TableHead>
-                    <TableHead>Monto Pendiente</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Fecha Compromiso</TableHead>
-                    <TableHead>Región</TableHead>
+                    <TableHead className="min-w-[120px]">Mes NVV</TableHead>
+                    <TableHead className="min-w-[100px]">Vendedor</TableHead>
+                    <TableHead className="min-w-[150px]">Cliente (NOKOEN)</TableHead>
+                    <TableHead className="min-w-[120px]">SKU (KOPRCT)</TableHead>
+                    <TableHead className="min-w-[200px]">Producto (NOKOPR)</TableHead>
+                    <TableHead className="min-w-[100px] text-right">Cant. Confirmada</TableHead>
+                    <TableHead className="min-w-[100px] text-right">Cant. Requerida</TableHead>
+                    <TableHead className="min-w-[100px] text-right">Precio Unit.</TableHead>
+                    <TableHead className="min-w-[120px] text-right">Monto Pendiente</TableHead>
+                    <TableHead className="min-w-[100px]">Estado</TableHead>
+                    <TableHead className="min-w-[120px]">Fecha Compromiso</TableHead>
+                    <TableHead className="min-w-[100px]">Región</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -191,42 +191,42 @@ export function NvvDashboard() {
                     
                     return (
                       <TableRow key={record.id} data-testid={`row-nvv-${record.id}`}>
-                        <TableCell data-testid={`text-month-${record.id}`}>
+                        <TableCell className="min-w-[120px]" data-testid={`text-month-${record.id}`}>
                           {getMonthFromDate(record.commitmentDate)}
                         </TableCell>
-                        <TableCell className="font-medium" data-testid={`text-salesperson-${record.id}`}>
+                        <TableCell className="font-medium min-w-[100px]" data-testid={`text-salesperson-${record.id}`}>
                           {kofulido}
                         </TableCell>
-                        <TableCell data-testid={`text-client-${record.id}`}>
+                        <TableCell className="min-w-[150px]" data-testid={`text-client-${record.id}`}>
                           {nokoen}
                         </TableCell>
-                        <TableCell className="font-mono text-xs" data-testid={`text-sku-${record.id}`}>
+                        <TableCell className="font-mono text-xs min-w-[120px]" data-testid={`text-sku-${record.id}`}>
                           {koprct}
                         </TableCell>
-                        <TableCell data-testid={`text-product-${record.id}`}>
+                        <TableCell className="min-w-[200px]" data-testid={`text-product-${record.id}`}>
                           {nokopr}
                         </TableCell>
-                        <TableCell className="text-right" data-testid={`text-confirmed-${record.id}`}>
+                        <TableCell className="text-right min-w-[100px]" data-testid={`text-confirmed-${record.id}`}>
                           {formatNumber(caprco2)}
                         </TableCell>
-                        <TableCell className="text-right" data-testid={`text-required-${record.id}`}>
+                        <TableCell className="text-right min-w-[100px]" data-testid={`text-required-${record.id}`}>
                           {formatNumber(caprex2)}
                         </TableCell>
-                        <TableCell className="text-right" data-testid={`text-unitprice-${record.id}`}>
+                        <TableCell className="text-right min-w-[100px]" data-testid={`text-unitprice-${record.id}`}>
                           {formatCurrency(ppprne)}
                         </TableCell>
-                        <TableCell className="text-right font-medium" data-testid={`text-pending-${record.id}`}>
+                        <TableCell className="text-right font-medium min-w-[120px]" data-testid={`text-pending-${record.id}`}>
                           {formatCurrency(pendingAmount)}
                         </TableCell>
-                        <TableCell data-testid={`text-status-${record.id}`}>
+                        <TableCell className="min-w-[100px]" data-testid={`text-status-${record.id}`}>
                           <Badge className={statusColors[record.status] || "bg-gray-100 text-gray-800"}>
                             {statusLabels[record.status] || record.status}
                           </Badge>
                         </TableCell>
-                        <TableCell data-testid={`text-date-${record.id}`}>
+                        <TableCell className="min-w-[120px]" data-testid={`text-date-${record.id}`}>
                           {formatDate(record.commitmentDate)}
                         </TableCell>
-                        <TableCell data-testid={`text-region-${record.id}`}>
+                        <TableCell className="min-w-[100px]" data-testid={`text-region-${record.id}`}>
                           {record.region || 'Sin región'}
                         </TableCell>
                       </TableRow>
@@ -234,7 +234,7 @@ export function NvvDashboard() {
                   })}
                 </TableBody>
               </Table>
-            </ScrollArea>
+            </div>
           )}
           <div className="mt-4 text-sm text-gray-600">
             Mostrando hasta 100 registros más recientes
