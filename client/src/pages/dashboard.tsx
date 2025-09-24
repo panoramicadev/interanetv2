@@ -203,15 +203,16 @@ export default function Dashboard() {
   return (
     <div>
         {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
-          <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-4 w-full lg:w-auto">
+        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
+          {/* Mobile: Grid 2x2 Layout, Desktop: Single Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row lg:items-center gap-4 lg:gap-6 w-full">
               {/* Filter Type Selector */}
-              <div className="flex items-center space-x-2 flex-none">
-                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
+              <div className="flex items-center justify-between sm:justify-start space-x-3">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
                   Filtrar:
                 </label>
                 <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="w-20 sm:w-32 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm" data-testid="select-filter-type">
+                  <SelectTrigger className="h-11 w-28 sm:w-32 lg:w-28 rounded-xl border-gray-200 shadow-sm text-sm" data-testid="select-filter-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
@@ -224,8 +225,8 @@ export default function Dashboard() {
               </div>
 
               {/* Period Selector */}
-              <div className="flex items-center space-x-2 sm:space-x-3 flex-1 lg:flex-none min-w-0">
-                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
+              <div className="flex items-center justify-between sm:justify-start space-x-3 min-w-0">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
                   Período:
                 </label>
                 
@@ -234,10 +235,10 @@ export default function Dashboard() {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="flex-1 lg:w-52 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0"
+                        className="h-11 w-40 sm:w-44 lg:w-52 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm min-w-0"
                         data-testid="calendar-trigger"
                       >
-                        <CalendarIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                         <span className="truncate">
                           {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar fecha"}
                         </span>
@@ -258,10 +259,10 @@ export default function Dashboard() {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="flex-1 lg:w-80 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0"
+                        className="h-11 w-40 sm:w-44 lg:w-80 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm min-w-0"
                         data-testid="date-range-trigger"
                       >
-                        <CalendarIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                         <span className="truncate">
                           {dateRange?.from && dateRange?.to
                             ? `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`
@@ -284,7 +285,7 @@ export default function Dashboard() {
                   </Popover>
                 ) : filterType === "year" ? (
                   <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                    <SelectTrigger className="flex-1 lg:w-52 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0" data-testid="select-year">
+                    <SelectTrigger className="h-11 w-40 sm:w-44 lg:w-52 rounded-xl border-gray-200 shadow-sm text-sm min-w-0" data-testid="select-year">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-gray-200">
@@ -297,7 +298,7 @@ export default function Dashboard() {
                   </Select>
                 ) : (
                   <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger className="flex-1 lg:w-52 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm min-w-0" data-testid="select-period">
+                    <SelectTrigger className="h-11 w-40 sm:w-44 lg:w-52 rounded-xl border-gray-200 shadow-sm text-sm min-w-0" data-testid="select-period">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-gray-200">
@@ -313,61 +314,68 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Dashboard Filter */}
-              <div className="flex items-center space-x-2 flex-none">
-                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Vista:
-                </label>
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <Filter className="h-4 w-4 text-gray-500 hidden sm:block" />
-                  <Select 
-                    value={selectedFilter} 
-                    onValueChange={(value) => {
-                      setSelectedFilter(value);
-                      if (value === "all") {
-                        setGlobalFilter({ type: "all" });
-                      } else if (value === "global") {
-                        setGlobalFilter({ type: "global" });
-                      } else if (value === "segment") {
-                        setGlobalFilter({ type: "segment" });
-                      } else if (value === "salesperson") {
-                        setGlobalFilter({ type: "salesperson" });
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-full sm:w-48 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm">
-                      <SelectValue placeholder="Filtrar dashboard" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200">
-                      <SelectItem value="all">
-                        <div className="flex items-center space-x-2">
-                          <TrendingUp className="h-4 w-4 text-gray-500" />
-                          <span>Todo el dashboard</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="global">
-                        <div className="flex items-center space-x-2">
-                          <Target className="h-4 w-4 text-blue-500" />
-                          <span>Solo metas globales</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="segment">
-                        <div className="flex items-center space-x-2">
-                          <Building className="h-4 w-4 text-green-500" />
-                          <span>Por segmento</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="salesperson">
-                        <div className="flex items-center space-x-2">
-                          <Users className="h-4 w-4 text-purple-500" />
-                          <span>Por vendedor</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  {/* Secondary selector for specific segment/salesperson */}
-                  {(selectedFilter === "segment" || selectedFilter === "salesperson") && (
+              {/* Dashboard Filter - Spans full width on mobile */}
+              <div className="col-span-1 sm:col-span-2 lg:col-span-1 space-y-3">
+                <div className="flex items-center justify-between sm:justify-start space-x-3">
+                  <label className="text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
+                    Vista:
+                  </label>
+                  <div className="flex items-center space-x-3 flex-1 lg:flex-none">
+                    <Filter className="h-4 w-4 text-gray-500 hidden sm:block" />
+                    <Select 
+                      value={selectedFilter} 
+                      onValueChange={(value) => {
+                        setSelectedFilter(value);
+                        if (value === "all") {
+                          setGlobalFilter({ type: "all" });
+                        } else if (value === "global") {
+                          setGlobalFilter({ type: "global" });
+                        } else if (value === "segment") {
+                          setGlobalFilter({ type: "segment" });
+                        } else if (value === "salesperson") {
+                          setGlobalFilter({ type: "salesperson" });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-11 w-44 sm:w-48 lg:w-48 rounded-xl border-gray-200 shadow-sm text-sm">
+                        <SelectValue placeholder="Filtrar dashboard" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-gray-200">
+                        <SelectItem value="all">
+                          <div className="flex items-center space-x-2">
+                            <TrendingUp className="h-4 w-4 text-gray-500" />
+                            <span>Todo el dashboard</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="global">
+                          <div className="flex items-center space-x-2">
+                            <Target className="h-4 w-4 text-blue-500" />
+                            <span>Solo metas globales</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="segment">
+                          <div className="flex items-center space-x-2">
+                            <Building className="h-4 w-4 text-green-500" />
+                            <span>Por segmento</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="salesperson">
+                          <div className="flex items-center space-x-2">
+                            <Users className="h-4 w-4 text-purple-500" />
+                            <span>Por vendedor</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                {/* Secondary selector for specific segment/salesperson */}
+                {(selectedFilter === "segment" || selectedFilter === "salesperson") && (
+                  <div className="flex items-center justify-between sm:justify-start space-x-3">
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
+                      {selectedFilter === "segment" ? "Segmento:" : "Vendedor:"}
+                    </label>
                     <Select 
                       value={globalFilter.value || ""} 
                       onValueChange={(value) => {
@@ -378,7 +386,7 @@ export default function Dashboard() {
                         }
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-56 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm">
+                      <SelectTrigger className="h-11 w-44 sm:w-56 lg:w-56 rounded-xl border-gray-200 shadow-sm text-sm">
                         <SelectValue placeholder={
                           selectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"
                         } />
@@ -399,17 +407,17 @@ export default function Dashboard() {
                         )}
                       </SelectContent>
                     </Select>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
               
               {/* Comparison Period Selector */}
-              <div className="flex items-center space-x-2 flex-none">
-                <label className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Comparar con:
+              <div className="flex items-center justify-between sm:justify-start space-x-3">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
+                  Comparar:
                 </label>
                 <Select value={comparePeriod} onValueChange={setComparePeriod}>
-                  <SelectTrigger className="w-32 sm:w-40 rounded-xl border-gray-200 shadow-sm text-xs sm:text-sm" data-testid="select-compare-period">
+                  <SelectTrigger className="h-11 w-36 sm:w-40 lg:w-40 rounded-xl border-gray-200 shadow-sm text-sm" data-testid="select-compare-period">
                     <SelectValue placeholder="Ninguno" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
