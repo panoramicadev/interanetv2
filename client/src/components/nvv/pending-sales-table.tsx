@@ -101,7 +101,7 @@ export function PendingSalesTable() {
     const caprco2 = parseFloat(originalData.CAPRCO2 || '0');
     const ppprne = parseFloat(originalData.PPPRNE || '0');
     
-    const cantidadPendiente = caprex2 - caprco2;
+    const cantidadPendiente = caprco2 - caprex2;
     const montoPendiente = cantidadPendiente * ppprne;
     
     return {
