@@ -263,6 +263,8 @@ export default function TomadorPedidos() {
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedTiers, setSelectedTiers] = useState<Record<string, PriceTier>>({});
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
@@ -1780,26 +1782,41 @@ export default function TomadorPedidos() {
 
                     {/* Mobile Product Results */}
                     <div className="space-y-3">
-                      {filteredProducts.length > 0 ? (
-                        filteredProducts.map((product) => (
+                      {priceList.length > 0 ? (
+                        priceList.filter((product: PriceList) => {
+                          if (selectedCategory === 'all') return true;
+                          const productName = product.producto?.toLowerCase() || '';
+                          const sku = product.codigo?.toLowerCase() || '';
+                          
+                          switch (selectedCategory) {
+                            case 'pinturas':
+                              return productName.includes('pintura') || productName.includes('latex') || productName.includes('esmalte');
+                            case 'barnices':
+                              return productName.includes('barniz') || productName.includes('laca');
+                            case 'accesorios':
+                              return productName.includes('brocha') || productName.includes('rodillo') || productName.includes('masilla');
+                            default:
+                              return true;
+                          }
+                        }).map((product: PriceList) => (
                           <Card key={product.id} className="p-3">
                             <div className="space-y-3">
                               <div>
                                 <div className="flex items-start justify-between mb-2">
                                   <div className="flex-1 min-w-0">
                                     <h4 className="font-medium text-sm leading-5 truncate">
-                                      {product.name}
+                                      {product.producto}
                                     </h4>
                                     <p className="text-xs text-muted-foreground mt-1">
-                                      SKU: {product.sku}
+                                      SKU: {product.codigo}
                                     </p>
                                   </div>
                                   <div className="text-right ml-2">
                                     <p className="font-bold text-green-600">
-                                      {formatCurrency(product.price)}
+                                      {formatCurrency(Number(product.lista) || 0)}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      Stock: {product.stock}
+                                      {product.unidad}
                                     </p>
                                   </div>
                                 </div>
@@ -1812,42 +1829,66 @@ export default function TomadorPedidos() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
-                                      const qty = (productQuantities[product.id] || 1) - 1;
+                                      const qty = (productQuantities[product.codigo] || 1) - 1;
                                       setProductQuantities(prev => ({
                                         ...prev,
-                                        [product.id]: Math.max(1, qty)
+                                        [product.codigo]: Math.max(1, qty)
                                       }));
                                     }}
                                     className="h-8 w-8 p-0"
-                                    data-testid={`mobile-decrease-${product.id}`}
+                                    data-testid={`mobile-decrease-${product.codigo}`}
                                   >
                                     <Minus className="w-3 h-3" />
                                   </Button>
                                   <span className="text-sm font-medium w-8 text-center">
-                                    {productQuantities[product.id] || 1}
+                                    {productQuantities[product.codigo] || 1}
                                   </span>
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
-                                      const qty = (productQuantities[product.id] || 1) + 1;
+                                      const qty = (productQuantities[product.codigo] || 1) + 1;
                                       setProductQuantities(prev => ({
                                         ...prev,
-                                        [product.id]: Math.min(product.stock, qty)
+                                        [product.codigo]: Math.min(99, qty)
                                       }));
                                     }}
                                     className="h-8 w-8 p-0"
-                                    disabled={(productQuantities[product.id] || 1) >= product.stock}
-                                    data-testid={`mobile-increase-${product.id}`}
+                                    data-testid={`mobile-increase-${product.codigo}`}
                                   >
                                     <Plus className="w-3 h-3" />
                                   </Button>
                                 </div>
                                 <Button
-                                  onClick={() => addToCart(product, productQuantities[product.id] || 1)}
+                                  onClick={() => {
+                                    const quantity = productQuantities[product.codigo] || 1;
+                                    const availableTiers = getAvailableTiers(product);
+                                    const selectedTier = selectedTiers[product.codigo] || 'lista';
+                                    const tierOption = availableTiers.find(tier => tier.key === selectedTier);
+                                    const unitPrice = tierOption?.price || 0;
+                                    
+                                    const newItem: CartItem = {
+                                      id: `${product.codigo}-${Date.now()}`,
+                                      type: "standard",
+                                      productName: product.producto,
+                                      productCode: product.codigo,
+                                      quantity,
+                                      unitPrice,
+                                      totalPrice: unitPrice * quantity,
+                                      priceTier: selectedTier,
+                                      tierPrices: availableTiers,
+                                      productUnit: product.unidad || undefined,
+                                    };
+
+                                    setCart(prev => [...prev, newItem]);
+                                    toast({
+                                      title: "Producto agregado",
+                                      description: `${product.producto} agregado al presupuesto`,
+                                    });
+                                  }}
                                   size="sm"
                                   className="h-8 px-4 bg-orange-500 hover:bg-orange-600"
-                                  data-testid={`mobile-add-to-cart-${product.id}`}
+                                  data-testid={`mobile-add-to-cart-${product.codigo}`}
                                 >
                                   <ShoppingCart className="w-3 h-3 mr-1" />
                                   Agregar
@@ -1903,7 +1944,7 @@ export default function TomadorPedidos() {
                                     {item.productName}
                                   </h4>
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    SKU: {item.sku}
+                                    SKU: {item.productCode || item.customSku || 'N/A'}
                                   </p>
                                 </div>
                                 <Button
