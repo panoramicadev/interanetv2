@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 //import panoramicaLogoPath from "@assets/Diseño sin título (27)_1757959070748.png"; // Commented due to special chars in filename"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -262,6 +264,7 @@ export default function TomadorPedidos() {
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedTiers, setSelectedTiers] = useState<Record<string, PriceTier>>({});
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
   const [customProduct, setCustomProduct] = useState<CustomProductData>(INITIAL_CUSTOM_PRODUCT);
   const [selectedOrderForView, setSelectedOrderForView] = useState<Order | null>(null);
@@ -1332,8 +1335,8 @@ export default function TomadorPedidos() {
     <div className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4">
       <div className="space-y-6">
         {/* Header */}
-        <div className="space-y-2">
-          <div className="flex justify-between items-start">
+        <div className="space-y-4">
+          <div className={`${isMobile ? 'space-y-4' : 'flex justify-between items-start'}`}>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
                 Tomador de Pedidos
@@ -1344,8 +1347,8 @@ export default function TomadorPedidos() {
             </div>
             <Button
               onClick={handleCreateQuoteForNewClient}
-              className="flex items-center gap-2"
-              size="lg"
+              className={`flex items-center gap-2 ${isMobile ? 'w-full justify-center py-3' : ''}`}
+              size={isMobile ? "lg" : "lg"}
               data-testid="button-create-quote-new-client"
             >
               <Calculator className="w-5 h-5" />
@@ -1373,7 +1376,8 @@ export default function TomadorPedidos() {
                 placeholder="Buscar por nombre de cliente..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className={`pl-10 ${isMobile ? 'h-12 text-base' : ''}`}
+                style={{ fontSize: isMobile ? '16px' : undefined }} // Prevent zoom on iOS
               />
             </div>
 
@@ -1398,63 +1402,69 @@ export default function TomadorPedidos() {
                     {clients.map((client: Client) => (
                       <div
                         key={client.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                        className={`p-4 border rounded-lg hover:bg-muted/50 transition-colors ${
+                          isMobile ? 'space-y-4' : 'flex items-center justify-between'
+                        }`}
                       >
-                        <div className="flex items-center space-x-4 flex-1">
-                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                            <User className="w-6 h-6 text-primary" />
-                          </div>
-                          <div className="space-y-1 flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="font-medium text-foreground truncate" data-testid={`text-client-name-${client.id}`}>
-                                {client.nokoen}
-                              </h3>
-                              {client.rten && (
-                                <Badge variant="outline" className="text-xs">
-                                  RUT: {client.rten}
-                                </Badge>
-                              )}
+                        <div className={`${isMobile ? 'space-y-3' : 'flex items-center space-x-4 flex-1'}`}>
+                          <div className={`${isMobile ? 'flex items-center space-x-3' : 'contents'}`}>
+                            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                              <User className="w-6 h-6 text-primary" />
                             </div>
-                            <div className="space-y-1 text-sm text-muted-foreground">
-                              {client.dien && (
-                                <div className="flex items-center gap-1">
-                                  <MapPin className="w-3 h-3" />
-                                  <span className="truncate">{client.dien}{client.cmen ? `, ${client.cmen}` : ''}</span>
-                                </div>
-                              )}
-                              {client.foen && (
-                                <div className="flex items-center gap-1">
-                                  <Phone className="w-3 h-3" />
-                                  <span>{client.foen}</span>
-                                </div>
-                              )}
-                              {client.crlt && (
-                                <div className="text-xs">
-                                  Límite crédito: {formatCurrency(Number(client.crlt))} | 
-                                  Disponible: {formatCurrency(Number(client.cren) || 0)}
-                                </div>
-                              )}
+                            <div className={`space-y-1 ${isMobile ? 'flex-1' : 'flex-1 min-w-0'}`}>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-medium text-foreground truncate" data-testid={`text-client-name-${client.id}`}>
+                                  {client.nokoen}
+                                </h3>
+                                {client.rten && (
+                                  <Badge variant="outline" className="text-xs">
+                                    RUT: {client.rten}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="space-y-1 text-sm text-muted-foreground">
+                                {client.dien && (
+                                  <div className="flex items-center gap-1">
+                                    <MapPin className="w-3 h-3" />
+                                    <span className="truncate">{client.dien}{client.cmen ? `, ${client.cmen}` : ''}</span>
+                                  </div>
+                                )}
+                                {client.foen && (
+                                  <div className="flex items-center gap-1">
+                                    <Phone className="w-3 h-3" />
+                                    <span>{client.foen}</span>
+                                  </div>
+                                )}
+                                {client.crlt && (
+                                  <div className="text-xs">
+                                    Límite crédito: {formatCurrency(Number(client.crlt))} | 
+                                    Disponible: {formatCurrency(Number(client.cren) || 0)}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
+                        <div className={`${isMobile ? 'flex gap-2' : 'flex items-center gap-2 ml-4'}`}>
                           <Button
                             variant="outline"
                             data-testid={`button-create-quote-${client.id}`}
                             onClick={() => handleCreateQuoteForClient(client)}
-                            className="flex items-center gap-2"
+                            className={`flex items-center gap-2 ${isMobile ? 'flex-1 h-12' : ''}`}
+                            size={isMobile ? "lg" : "default"}
                           >
                             <Calculator className="w-4 h-4" />
-                            Presupuesto
+                            {isMobile ? "Presupuesto" : "Presupuesto"}
                           </Button>
                           <Button
                             data-testid={`button-create-order-${client.id}`}
                             onClick={() => handleCreateOrder(client)}
                             disabled={createOrderMutation.isPending}
-                            className="flex items-center gap-2"
+                            className={`flex items-center gap-2 ${isMobile ? 'flex-1 h-12' : ''}`}
+                            size={isMobile ? "lg" : "default"}
                           >
                             <ShoppingCart className="w-4 h-4" />
-                            {createOrderMutation.isPending ? "Creando..." : "Crear Pedido"}
+                            {createOrderMutation.isPending ? "Creando..." : (isMobile ? "Pedido" : "Crear Pedido")}
                           </Button>
                         </div>
                       </div>
@@ -1586,25 +1596,193 @@ export default function TomadorPedidos() {
       </div>
     </div>
 
-    {/* Quote Builder Modal */}
-    <Dialog open={showQuoteBuilder} onOpenChange={setShowQuoteBuilder}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
-        <DialogHeader className="p-6 pb-4">
-          <DialogTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Calculator className="w-6 h-6" />
+    {/* Quote Builder - Mobile Sheet / Desktop Dialog */}
+    {isMobile ? (
+      <Sheet open={showQuoteBuilder} onOpenChange={setShowQuoteBuilder}>
+        <SheetContent side="bottom" className="h-[95vh] p-0">
+          <SheetHeader className="p-4 pb-2 border-b">
+            <SheetTitle className="flex items-center gap-2">
+              <Calculator className="w-5 h-5" />
               Constructor de Presupuesto
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={resetQuoteBuilder}
-              data-testid="button-close-quote-builder"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </DialogTitle>
-        </DialogHeader>
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              Crear presupuesto con productos y información del cliente
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col h-[calc(95vh-60px)]">
+            {/* Mobile Content */}
+            <div className="flex-1 overflow-y-auto">
+              <Tabs defaultValue="client" className="h-full">
+                <div className="border-b px-4">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="client" data-testid="tab-client-mobile">Cliente</TabsTrigger>
+                    <TabsTrigger value="products" data-testid="tab-products-mobile">Productos</TabsTrigger>
+                    <TabsTrigger value="cart" data-testid="tab-cart-mobile">
+                      Carrito ({cart.length})
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+                
+                <TabsContent value="client" className="p-4 space-y-4 m-0">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Información del Cliente</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="mobile-client-name">Nombre del Cliente *</Label>
+                        <Input
+                          id="mobile-client-name"
+                          value={quoteForm.clientName}
+                          onChange={(e) => setQuoteForm(prev => ({ ...prev, clientName: e.target.value }))}
+                          data-testid="mobile-input-client-name"
+                          placeholder="Nombre completo del cliente"
+                          className="h-12 text-base"
+                          style={{ fontSize: '16px' }}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="mobile-client-rut">RUT</Label>
+                        <Input
+                          id="mobile-client-rut"
+                          value={quoteForm.clientRut}
+                          onChange={(e) => setQuoteForm(prev => ({ ...prev, clientRut: e.target.value }))}
+                          data-testid="mobile-input-client-rut"
+                          placeholder="12345678-9"
+                          className="h-12 text-base"
+                          style={{ fontSize: '16px' }}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="mobile-client-email">Email</Label>
+                        <Input
+                          id="mobile-client-email"
+                          type="email"
+                          value={quoteForm.clientEmail}
+                          onChange={(e) => setQuoteForm(prev => ({ ...prev, clientEmail: e.target.value }))}
+                          data-testid="mobile-input-client-email"
+                          placeholder="cliente@email.com"
+                          className="h-12 text-base"
+                          style={{ fontSize: '16px' }}
+                          inputMode="email"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="mobile-client-phone">Teléfono</Label>
+                        <Input
+                          id="mobile-client-phone"
+                          value={quoteForm.clientPhone}
+                          onChange={(e) => setQuoteForm(prev => ({ ...prev, clientPhone: e.target.value }))}
+                          data-testid="mobile-input-client-phone"
+                          placeholder="+56 9 1234 5678"
+                          className="h-12 text-base"
+                          style={{ fontSize: '16px' }}
+                          inputMode="tel"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="mobile-client-address">Dirección</Label>
+                        <Input
+                          id="mobile-client-address"
+                          value={quoteForm.clientAddress}
+                          onChange={(e) => setQuoteForm(prev => ({ ...prev, clientAddress: e.target.value }))}
+                          data-testid="mobile-input-client-address"
+                          placeholder="Dirección completa"
+                          className="h-12 text-base"
+                          style={{ fontSize: '16px' }}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="mobile-valid-until">Válido hasta</Label>
+                        <Input
+                          id="mobile-valid-until"
+                          type="date"
+                          value={quoteForm.validUntil}
+                          onChange={(e) => setQuoteForm(prev => ({ ...prev, validUntil: e.target.value }))}
+                          data-testid="mobile-input-valid-until"
+                          className="h-12 text-base"
+                          style={{ fontSize: '16px' }}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="mobile-notes">Notas</Label>
+                        <Textarea
+                          id="mobile-notes"
+                          rows={3}
+                          value={quoteForm.notes}
+                          onChange={(e) => setQuoteForm(prev => ({ ...prev, notes: e.target.value }))}
+                          data-testid="mobile-textarea-notes"
+                          placeholder="Condiciones especiales, términos, etc."
+                          className="text-base"
+                          style={{ fontSize: '16px' }}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="products" className="p-4 space-y-4 m-0">
+                  {/* Mobile Product Search will be added here */}
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Package className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Búsqueda de productos en desarrollo</p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="cart" className="p-4 space-y-4 m-0">
+                  {/* Mobile Cart will be added here */}
+                  <div className="text-center py-8 text-muted-foreground">
+                    <ShoppingCart className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Carrito: {cart.length} productos</p>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+            
+            {/* Sticky Bottom Actions for Mobile */}
+            <div className="border-t p-4 bg-background">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={resetQuoteBuilder}
+                  className="flex-1 h-12"
+                  data-testid="mobile-button-cancel"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={saveQuoteAndDownloadPDF}
+                  disabled={!quoteForm.clientName || cart.length === 0}
+                  className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
+                  data-testid="mobile-button-save-quote"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Crear PDF
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    ) : (
+      <Dialog open={showQuoteBuilder} onOpenChange={setShowQuoteBuilder}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
+          <DialogHeader className="p-6 pb-4">
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Calculator className="w-6 h-6" />
+                Constructor de Presupuesto
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetQuoteBuilder}
+                data-testid="button-close-quote-builder"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
         
         <div className="flex h-[calc(90vh-100px)]">
           {/* Left Side - Product Search and Client Info */}
@@ -2030,6 +2208,7 @@ export default function TomadorPedidos() {
         </div>
       </DialogContent>
     </Dialog>
+    )}
 
     {/* Custom Product Modal */}
     <Dialog open={showCustomProductModal} onOpenChange={setShowCustomProductModal}>
