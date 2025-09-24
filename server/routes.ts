@@ -4538,11 +4538,12 @@ export function registerRoutes(app: Express): Server {
         // Process each image file in the ZIP
         for (const fileName of imageFiles) {
           const zipEntry = zip.files[fileName];
+          
+          // Extract product code from filename (handle nested ZIP structures and remove extension)
+          const baseName = path.basename(fileName);
+          const productCode = baseName.replace(/\.(png|jpg|jpeg|gif|webp)$/i, '');
 
           try {
-            // Extract product code from filename (handle nested ZIP structures and remove extension)
-            const baseName = path.basename(fileName);
-            const productCode = baseName.replace(/\.(png|jpg|jpeg|gif|webp)$/i, '');
             
             // Check if product exists in the database
             const existingProduct = await storage.getEcommerceProductByCode(productCode);
@@ -4822,13 +4823,13 @@ export function registerRoutes(app: Express): Server {
               productName: row['Producto'] || row['product_name'] || 'Producto sin nombre',
               salesperson: row['Vendedor'] || row['salesperson'] || '',
               segment: row['Segmento'] || row['segment'] || '',
-              quantity: parseFloat(row['Cantidad'] || row['quantity'] || '0'),
-              unitPrice: parseFloat(row['Precio_Unitario'] || row['unit_price'] || '0'),
-              totalAmount: parseFloat(row['Monto_Total'] || row['total_amount'] || '0'),
+              quantity: (parseFloat(row['Cantidad'] || row['quantity'] || '0')).toString(),
+              unitPrice: (parseFloat(row['Precio_Unitario'] || row['unit_price'] || '0')).toString(),
+              totalAmount: (parseFloat(row['Monto_Total'] || row['total_amount'] || '0')).toString(),
               currency: row['Moneda'] || row['currency'] || 'CLP',
-              commitmentDate: row['Fecha_Compromiso'] ? new Date(row['Fecha_Compromiso']) : null,
-              expectedDeliveryDate: row['Fecha_Entrega'] ? new Date(row['Fecha_Entrega']) : null,
-              orderDate: row['Fecha_Pedido'] ? new Date(row['Fecha_Pedido']) : null,
+              commitmentDate: row['Fecha_Compromiso'] ? new Date(row['Fecha_Compromiso']).toISOString() : null,
+              expectedDeliveryDate: row['Fecha_Entrega'] ? new Date(row['Fecha_Entrega']).toISOString() : null,
+              orderDate: row['Fecha_Pedido'] ? new Date(row['Fecha_Pedido']).toISOString() : null,
               status: row['Estado'] || row['status'] || 'pending',
               priority: row['Prioridad'] || row['priority'] || 'normal',
               warehouse: row['Bodega'] || row['warehouse'] || '',
