@@ -2,16 +2,17 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Database } from "lucide-react";
+import { Upload, Database, BarChart3 } from "lucide-react";
 import { CsvImport } from "@/components/nvv/csv-import";
 import { PendingSalesTable } from "@/components/nvv/pending-sales-table";
+import { NvvDashboard } from "@/components/nvv/nvv-dashboard";
 
 
 // NVV Page
 export default function NVVPage() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("import");
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   // Check if the user is authorized
   if (!user || (user.role !== "admin" && user.role !== "supervisor")) {
@@ -31,7 +32,11 @@ export default function NVVPage() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="dashboard" className="flex items-center space-x-2" data-testid="tab-dashboard">
+            <BarChart3 className="h-4 w-4" />
+            <span>Dashboard</span>
+          </TabsTrigger>
           <TabsTrigger value="import" className="flex items-center space-x-2" data-testid="tab-import">
             <Upload className="h-4 w-4" />
             <span>Importar CSV</span>
@@ -41,6 +46,11 @@ export default function NVVPage() {
             <span>Datos Importados</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* Dashboard Tab */}
+        <TabsContent value="dashboard" className="space-y-6">
+          <NvvDashboard />
+        </TabsContent>
 
         {/* Import Tab */}
         <TabsContent value="import" className="space-y-6">
