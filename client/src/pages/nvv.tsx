@@ -39,24 +39,10 @@ interface NvvMetrics {
   cancelledCount: number;
 }
 
-interface NvvDataMetricsProps {
-  startDate?: Date;
-  endDate?: Date;
-  selectedSalesperson?: string;
-  selectedSegment?: string;
-}
-
 // Componente para mostrar métricas de los datos importados NVV
-function NvvDataMetrics({ startDate, endDate, selectedSalesperson, selectedSegment }: NvvDataMetricsProps) {
-  // Construir parámetros de consulta para métricas
-  const metricsQueryParams = new URLSearchParams();
-  if (startDate) metricsQueryParams.set('startDate', startDate.toISOString());
-  if (endDate) metricsQueryParams.set('endDate', endDate.toISOString());
-  if (selectedSalesperson) metricsQueryParams.set('salesperson', selectedSalesperson);
-  if (selectedSegment) metricsQueryParams.set('segment', selectedSegment);
-
+function NvvDataMetrics() {
   const { data: metrics, isLoading: metricsLoading } = useQuery<NvvMetrics>({
-    queryKey: ['/api/nvv/metrics', metricsQueryParams.toString()],
+    queryKey: ['/api/nvv/metrics'],
     retry: false,
   });
 
@@ -202,19 +188,7 @@ export default function NVVPage() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   
-  // Chart display options
-  const [viewMode, setViewMode] = useState<"sales" | "units">("sales");
-  const [trendPeriod, setTrendPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
-  const [breakdownBy, setBreakdownBy] = useState<"segment" | "salesperson">("segment");
   
-  // NVV Filters
-  const [nvvFilters, setNvvFilters] = useState({
-    status: 'all',
-    salesperson: 'all',
-    segment: 'all',
-    startDate: undefined as Date | undefined,
-    endDate: undefined as Date | undefined,
-  });
 
   // Update selected period when filter type changes
   useEffect(() => {
@@ -688,7 +662,7 @@ export default function NVVPage() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="import" className="flex items-center space-x-2" data-testid="tab-import">
             <Upload className="h-4 w-4" />
             <span>Importar CSV</span>
@@ -696,10 +670,6 @@ export default function NVVPage() {
           <TabsTrigger value="data" className="flex items-center space-x-2" data-testid="tab-data">
             <Database className="h-4 w-4" />
             <span>Datos Importados</span>
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center space-x-2" data-testid="tab-analytics">
-            <BarChart3 className="h-4 w-4" />
-            <span>Análisis</span>
           </TabsTrigger>
         </TabsList>
 
@@ -718,283 +688,12 @@ export default function NVVPage() {
 
         {/* Data Tab */}
         <TabsContent value="data" className="space-y-6">
-          {/* Filters for NVV Data */}
-          <Card className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <Select 
-                value={nvvFilters.status} 
-                onValueChange={(value) => setNvvFilters(prev => ({ ...prev, status: value }))}
-              >
-                <SelectTrigger data-testid="filter-status">
-                  <SelectValue placeholder="Todos los estados" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="pending">Pendiente</SelectItem>
-                  <SelectItem value="confirmed">Confirmado</SelectItem>
-                  <SelectItem value="delivered">Entregado</SelectItem>
-                  <SelectItem value="cancelled">Cancelado</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select 
-                value={nvvFilters.salesperson} 
-                onValueChange={(value) => setNvvFilters(prev => ({ ...prev, salesperson: value }))}
-              >
-                <SelectTrigger data-testid="filter-salesperson">
-                  <SelectValue placeholder="Todos los vendedores" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los vendedores</SelectItem>
-                  {/* Add salesperson options dynamically */}
-                </SelectContent>
-              </Select>
-
-              <Select 
-                value={nvvFilters.segment} 
-                onValueChange={(value) => setNvvFilters(prev => ({ ...prev, segment: value }))}
-              >
-                <SelectTrigger data-testid="filter-segment">
-                  <SelectValue placeholder="Todos los segmentos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los segmentos</SelectItem>
-                  <SelectItem value="FERRETERIAS">Ferreterías</SelectItem>
-                  <SelectItem value="CONSTRUCCION">Construcción</SelectItem>
-                  <SelectItem value="MCT">MCT</SelectItem>
-                  <SelectItem value="PANORAMICA STORE">Panorámica Store</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" data-testid="filter-start-date">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {nvvFilters.startDate ? format(nvvFilters.startDate, "dd/MM/yyyy") : "Fecha inicio"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={nvvFilters.startDate}
-                    onSelect={(date) => setNvvFilters(prev => ({ ...prev, startDate: date }))}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" data-testid="filter-end-date">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {nvvFilters.endDate ? format(nvvFilters.endDate, "dd/MM/yyyy") : "Fecha fin"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={nvvFilters.endDate}
-                    onSelect={(date) => setNvvFilters(prev => ({ ...prev, endDate: date }))}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </Card>
-
           {/* Métricas de Datos Importados */}
-          <NvvDataMetrics 
-            startDate={nvvFilters.startDate}
-            endDate={nvvFilters.endDate}
-            selectedSalesperson={nvvFilters.salesperson === 'all' ? '' : nvvFilters.salesperson}
-            selectedSegment={nvvFilters.segment === 'all' ? '' : nvvFilters.segment}
-          />
+          <NvvDataMetrics />
 
-          <PendingSalesTable
-            startDate={nvvFilters.startDate}
-            endDate={nvvFilters.endDate}
-            selectedStatus={nvvFilters.status === 'all' ? '' : nvvFilters.status}
-            selectedSalesperson={nvvFilters.salesperson === 'all' ? '' : nvvFilters.salesperson}
-            selectedSegment={nvvFilters.segment === 'all' ? '' : nvvFilters.segment}
-          />
+          <PendingSalesTable />
         </TabsContent>
 
-        {/* Analytics Tab */}
-        <TabsContent value="analytics" className="space-y-6">
-          {/* KPI Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="p-4" data-testid="kpi-total-sales">
-          <CardHeader className="p-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Ventas Totales</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="text-2xl font-bold text-gray-900">
-              {formatCurrency(mockSummary.totalSales)}
-            </div>
-            <p className="text-xs text-red-600 font-medium">
-              {mockSummary.salesVarianceVsPrevious ? mockSummary.salesVarianceVsPrevious.toFixed(1) : '0.0'}% vs anterior
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="p-4" data-testid="kpi-variance-target">
-          <CardHeader className="p-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Varianza vs Meta</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="text-2xl font-bold text-red-600">
-              {mockSummary.salesVarianceVsTarget ? mockSummary.salesVarianceVsTarget.toFixed(1) : '0.0'}%
-            </div>
-            <p className="text-xs text-gray-500">Bajo objetivo</p>
-          </CardContent>
-        </Card>
-
-        <Card className="p-4" data-testid="kpi-units">
-          <CardHeader className="p-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Unidades</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="text-2xl font-bold text-gray-900">
-              {formatNumber(mockSummary.totalUnits)}
-            </div>
-            <p className="text-xs text-gray-500">Vendidas</p>
-          </CardContent>
-        </Card>
-
-        <Card className="p-4" data-testid="kpi-avg-ticket">
-          <CardHeader className="p-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Ticket Promedio</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="text-2xl font-bold text-gray-900">
-              {formatCurrency(mockSummary.averageTicket)}
-            </div>
-            <p className="text-xs text-gray-500">Por venta</p>
-          </CardContent>
-        </Card>
-
-        <Card className="p-4" data-testid="kpi-period">
-          <CardHeader className="p-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Período</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="text-lg font-bold text-gray-900">
-              {mockSummary.periodLabel}
-            </div>
-            <p className="text-xs text-gray-500">Análisis actual</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Trend Chart */}
-      <Card className="p-6">
-        <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Tendencia de Ventas</h2>
-            <p className="text-sm text-gray-600">Evolución temporal con metas</p>
-          </div>
-          <div className="flex space-x-2">
-            <Select value={viewMode} onValueChange={(value: "sales" | "units") => setViewMode(value)}>
-              <SelectTrigger className="w-32 rounded-xl border-gray-200 shadow-sm text-sm" data-testid="select-view-mode">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl border-gray-200">
-                <SelectItem value="sales">Ventas CLP</SelectItem>
-                <SelectItem value="units">Unidades</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Select value={trendPeriod} onValueChange={(value: "daily" | "weekly" | "monthly") => setTrendPeriod(value)}>
-              <SelectTrigger className="w-32 rounded-xl border-gray-200 shadow-sm text-sm" data-testid="select-trend-period">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl border-gray-200">
-                <SelectItem value="daily">Diario</SelectItem>
-                <SelectItem value="weekly">Semanal</SelectItem>
-                <SelectItem value="monthly">Mensual</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="h-80">
-          <Line data={trendChartData} options={trendChartOptions} />
-        </div>
-      </Card>
-
-      {/* Breakdown Chart */}
-      <Card className="p-6">
-        <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Varianza por {breakdownBy === 'segment' ? 'Segmento' : 'Vendedor'}</h2>
-            <p className="text-sm text-gray-600">Cumplimiento vs metas establecidas</p>
-          </div>
-          <Select value={breakdownBy} onValueChange={(value: "segment" | "salesperson") => setBreakdownBy(value)}>
-            <SelectTrigger className="w-40 rounded-xl border-gray-200 shadow-sm text-sm" data-testid="select-breakdown-by">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-gray-200">
-              <SelectItem value="segment">Por Segmento</SelectItem>
-              <SelectItem value="salesperson">Por Vendedor</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="h-64">
-          <Bar data={breakdownChartData} options={breakdownChartOptions} />
-        </div>
-      </Card>
-
-      {/* Packaging Breakdown Table */}
-      <PackagingBreakdownTable 
-        selectedPeriod={selectedPeriod}
-        filterType={filterType}
-      />
-
-      {/* Detailed Table */}
-      <Card className="p-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Detalle de Variaciones</h2>
-          <p className="text-sm text-gray-600">Información completa por {breakdownBy === 'segment' ? 'segmento' : 'vendedor'}</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm" data-testid="breakdown-table">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-medium text-gray-900">
-                  {breakdownBy === 'segment' ? 'Segmento' : 'Vendedor'}
-                </th>
-                <th className="text-right py-3 px-4 font-medium text-gray-900">Ventas</th>
-                <th className="text-right py-3 px-4 font-medium text-gray-900">Unidades</th>
-                <th className="text-right py-3 px-4 font-medium text-gray-900">Meta</th>
-                <th className="text-right py-3 px-4 font-medium text-gray-900">Var. vs Meta</th>
-                <th className="text-right py-3 px-4 font-medium text-gray-900">Var. vs Anterior</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mockBreakdownData.map((item, index) => (
-                <tr key={index} className="border-b border-gray-100 hover:bg-gray-50" data-testid={`breakdown-row-${index}`}>
-                  <td className="py-3 px-4 font-medium text-gray-900">{item.name}</td>
-                  <td className="py-3 px-4 text-right text-gray-900">{formatCurrency(item.sales)}</td>
-                  <td className="py-3 px-4 text-right text-gray-600">{formatNumber(item.units)}</td>
-                  <td className="py-3 px-4 text-right text-gray-600">
-                    {item.target ? formatCurrency(item.target) : '-'}
-                  </td>
-                  <td className={`py-3 px-4 text-right font-medium ${
-                    (item.varianceVsTarget || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {item.varianceVsTarget ? `${item.varianceVsTarget >= 0 ? '+' : ''}${item.varianceVsTarget.toFixed(1)}%` : '-'}
-                  </td>
-                  <td className={`py-3 px-4 text-right font-medium ${
-                    (item.varianceVsPrevious || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {item.varianceVsPrevious ? `${item.varianceVsPrevious >= 0 ? '+' : ''}${item.varianceVsPrevious.toFixed(1)}%` : '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );
