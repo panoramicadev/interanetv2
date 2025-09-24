@@ -7233,6 +7233,201 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getNvvDashboardMetrics(): Promise<{
+    totalRecords: number;
+    totalSalespeople: number;
+    totalCompanies: number;
+    totalPendingAmount: number;
+    averageOrderValue: number;
+    topSalespeople: Array<{
+      salesperson: string;
+      totalAmount: number;
+      recordCount: number;
+    }>;
+    topCompanies: Array<{
+      company: string;
+      totalAmount: number;
+      recordCount: number;
+    }>;
+    statusBreakdown: Array<{
+      status: string;
+      count: number;
+      amount: number;
+    }>;
+    regionBreakdown: Array<{
+      region: string;
+      count: number;
+      amount: number;
+    }>;
+  }> {
+    try {
+      // Basic metrics
+      const totalRecordsResult = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(nvvPendingSales);
+
+      const totalSalespeopleResult = await db
+        .select({ count: sql<number>`COUNT(DISTINCT ${nvvPendingSales.salesperson})` })
+        .from(nvvPendingSales)
+        .where(isNotNull(nvvPendingSales.salesperson));
+
+      // Total companies (using clientName from original data)
+      const totalCompaniesResult = await db
+        .select({ 
+          count: sql<number>`COUNT(DISTINCT COALESCE(
+            ${nvvPendingSales.originalData}->>'NOKOEN',
+            ${nvvPendingSales.clientName}
+          ))`
+        })
+        .from(nvvPendingSales);
+
+      // Calculate pending amount using (CAPRCO2 - CAPREX2) * PPPRNE
+      const pendingAmountResult = await db
+        .select({
+          totalAmount: sql<number>`
+            COALESCE(SUM(
+              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            ), 0)`,
+          avgAmount: sql<number>`
+            COALESCE(AVG(
+              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            ), 0)`
+        })
+        .from(nvvPendingSales);
+
+      // Top salespeople by pending amount
+      const topSalespeopleResult = await db
+        .select({
+          salesperson: nvvPendingSales.salesperson,
+          totalAmount: sql<number>`
+            COALESCE(SUM(
+              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            ), 0)`,
+          recordCount: sql<number>`COUNT(*)`
+        })
+        .from(nvvPendingSales)
+        .where(isNotNull(nvvPendingSales.salesperson))
+        .groupBy(nvvPendingSales.salesperson)
+        .orderBy(sql`
+          SUM(
+            (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+             CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
+            CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+          ) DESC`)
+        .limit(10);
+
+      // Top companies by pending amount
+      const topCompaniesResult = await db
+        .select({
+          company: sql<string>`
+            COALESCE(
+              ${nvvPendingSales.originalData}->>'NOKOEN',
+              ${nvvPendingSales.clientName}
+            )`,
+          totalAmount: sql<number>`
+            COALESCE(SUM(
+              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            ), 0)`,
+          recordCount: sql<number>`COUNT(*)`
+        })
+        .from(nvvPendingSales)
+        .groupBy(sql`
+          COALESCE(
+            ${nvvPendingSales.originalData}->>'NOKOEN',
+            ${nvvPendingSales.clientName}
+          )`)
+        .orderBy(sql`
+          SUM(
+            (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+             CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
+            CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+          ) DESC`)
+        .limit(10);
+
+      // Status breakdown
+      const statusBreakdownResult = await db
+        .select({
+          status: nvvPendingSales.status,
+          count: sql<number>`COUNT(*)`,
+          amount: sql<number>`
+            COALESCE(SUM(
+              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            ), 0)`
+        })
+        .from(nvvPendingSales)
+        .groupBy(nvvPendingSales.status)
+        .orderBy(sql`COUNT(*) DESC`);
+
+      // Region breakdown
+      const regionBreakdownResult = await db
+        .select({
+          region: nvvPendingSales.region,
+          count: sql<number>`COUNT(*)`,
+          amount: sql<number>`
+            COALESCE(SUM(
+              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            ), 0)`
+        })
+        .from(nvvPendingSales)
+        .groupBy(nvvPendingSales.region)
+        .orderBy(sql`COUNT(*) DESC`)
+        .limit(10);
+
+      return {
+        totalRecords: totalRecordsResult[0]?.count || 0,
+        totalSalespeople: totalSalespeopleResult[0]?.count || 0,
+        totalCompanies: totalCompaniesResult[0]?.count || 0,
+        totalPendingAmount: pendingAmountResult[0]?.totalAmount || 0,
+        averageOrderValue: pendingAmountResult[0]?.avgAmount || 0,
+        topSalespeople: topSalespeopleResult.map(row => ({
+          salesperson: row.salesperson || 'Sin vendedor',
+          totalAmount: row.totalAmount || 0,
+          recordCount: row.recordCount || 0,
+        })),
+        topCompanies: topCompaniesResult.map(row => ({
+          company: row.company || 'Sin nombre',
+          totalAmount: row.totalAmount || 0,
+          recordCount: row.recordCount || 0,
+        })),
+        statusBreakdown: statusBreakdownResult.map(row => ({
+          status: row.status || 'pending',
+          count: row.count || 0,
+          amount: row.amount || 0,
+        })),
+        regionBreakdown: regionBreakdownResult.map(row => ({
+          region: row.region || 'Sin región',
+          count: row.count || 0,
+          amount: row.amount || 0,
+        })),
+      };
+    } catch (error) {
+      console.error('Error getting NVV dashboard metrics:', error);
+      return {
+        totalRecords: 0,
+        totalSalespeople: 0,
+        totalCompanies: 0,
+        totalPendingAmount: 0,
+        averageOrderValue: 0,
+        topSalespeople: [],
+        topCompanies: [],
+        statusBreakdown: [],
+        regionBreakdown: [],
+      };
+    }
+  }
+
   // Get unique comunas that don't match any region (for diagnostics)
   async getUnmatchedComunas(): Promise<Array<{
     comuna: string;

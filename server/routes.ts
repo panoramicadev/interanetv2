@@ -4928,6 +4928,12 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get NVV Dashboard metrics
+  app.get('/api/nvv/dashboard', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const metrics = await storage.getNvvDashboardMetrics();
+    res.json(metrics);
+  }));
+
   // Region Management Endpoints
   // Load Comuna-Region mapping from CSV
   app.post('/api/admin/regions/load', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
