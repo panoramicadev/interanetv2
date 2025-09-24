@@ -17,14 +17,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { NvvPendingSales } from "@shared/schema";
 
-interface PendingSalesTableProps {
-  startDate?: Date;
-  endDate?: Date;
-  selectedStatus?: string;
-  selectedSalesperson?: string;
-  selectedSegment?: string;
-}
-
 const statusLabels: Record<string, string> = {
   pending: "Pendiente",
   confirmed: "Confirmado",
@@ -39,34 +31,18 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-red-100 text-red-800"
 };
 
-export function PendingSalesTable({ 
-  startDate, 
-  endDate, 
-  selectedStatus, 
-  selectedSalesperson, 
-  selectedSegment 
-}: PendingSalesTableProps) {
+export function PendingSalesTable() {
   const { toast } = useToast();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
 
-  // Build query parameters
+  // Build query parameters - simplified to show all data
   const queryParams = new URLSearchParams();
-  if (startDate) queryParams.set('startDate', startDate.toISOString());
-  if (endDate) queryParams.set('endDate', endDate.toISOString());
-  if (selectedStatus) queryParams.set('status', selectedStatus);
-  if (selectedSalesperson) queryParams.set('salesperson', selectedSalesperson);
-  if (selectedSegment) queryParams.set('segment', selectedSegment);
   queryParams.set('limit', pageSize.toString());
   queryParams.set('offset', ((currentPage - 1) * pageSize).toString());
 
   const { data: pendingSales, isLoading, error } = useQuery<NvvPendingSales[]>({
     queryKey: ['/api/nvv/pending', queryParams.toString()],
-    retry: false,
-  });
-
-  const { data: metrics } = useQuery({
-    queryKey: ['/api/nvv/metrics', startDate?.toISOString(), endDate?.toISOString(), selectedSalesperson, selectedSegment],
     retry: false,
   });
 
