@@ -36,13 +36,24 @@ export function PendingSalesTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
 
-  // Build query parameters - simplified to show all data
-  const queryParams = new URLSearchParams();
-  queryParams.set('limit', pageSize.toString());
-  queryParams.set('offset', ((currentPage - 1) * pageSize).toString());
-
   const { data: pendingSales, isLoading, error } = useQuery<NvvPendingSales[]>({
-    queryKey: ['/api/nvv/pending', queryParams.toString()],
+    queryKey: ['/api/nvv/pending', pageSize, currentPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        limit: pageSize.toString(),
+        offset: ((currentPage - 1) * pageSize).toString(),
+      });
+      
+      const response = await fetch(`/api/nvv/pending?${params}`, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar datos NVV');
+      }
+      
+      return response.json();
+    },
     retry: false,
   });
 
