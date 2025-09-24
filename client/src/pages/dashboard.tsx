@@ -334,8 +334,313 @@ export default function Dashboard() {
     <div>
         {/* Header */}
         <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
-          {/* Mobile: Grid 2x2 Layout, Desktop: Single Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row lg:items-center gap-4 lg:gap-6 w-full">
+          {/* Mobile Layout: Filters Button + Summary Chips */}
+          {isMobile ? (
+            <div className="space-y-3">
+              {/* Top Row: Filters Button */}
+              <div className="flex items-center justify-between">
+                <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
+                <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+                  <DrawerTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleDrawerOpen}
+                      className="flex items-center space-x-2 h-9 px-3 text-sm"
+                      data-testid="button-filters"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      <span>Filtros</span>
+                    </Button>
+                  </DrawerTrigger>
+                  <DrawerContent className="max-h-[85vh]">
+                    <DrawerHeader className="text-center border-b pb-4 mb-6">
+                      <DrawerTitle className="text-lg font-semibold">Filtros del Dashboard</DrawerTitle>
+                      <DrawerDescription className="text-sm text-gray-600">
+                        Personaliza la vista de tus datos de ventas
+                      </DrawerDescription>
+                    </DrawerHeader>
+                    
+                    <div className="px-6 space-y-6 overflow-y-auto flex-1">
+                      {/* Período Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                          <CalendarIcon className="h-4 w-4" />
+                          <span>Período de tiempo</span>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-2">Tipo de filtro</label>
+                            <Select value={localFilterType} onValueChange={(value: "day" | "month" | "year" | "range") => setLocalFilterType(value)}>
+                              <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-xl border-gray-200">
+                                <SelectItem value="day">Día específico</SelectItem>
+                                <SelectItem value="month">Mensual</SelectItem>
+                                <SelectItem value="year">Anual</SelectItem>
+                                <SelectItem value="range">Rango personalizado</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-2">
+                              {localFilterType === "day" ? "Fecha" : 
+                               localFilterType === "month" ? "Mes" : 
+                               localFilterType === "year" ? "Año" : "Rango de fechas"}
+                            </label>
+                            
+                            {localFilterType === "day" ? (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className="h-11 w-full justify-start text-left font-normal rounded-xl border-gray-200"
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                                    <span>
+                                      {localSelectedDate ? format(localSelectedDate, "dd/MM/yyyy") : "Seleccionar fecha"}
+                                    </span>
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                                  <Calendar
+                                    mode="single"
+                                    selected={localSelectedDate}
+                                    onSelect={setLocalSelectedDate}
+                                    initialFocus
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            ) : localFilterType === "range" ? (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className="h-11 w-full justify-start text-left font-normal rounded-xl border-gray-200"
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                                    <span>
+                                      {localDateRange?.from && localDateRange?.to
+                                        ? `${format(localDateRange.from, "dd/MM")} - ${format(localDateRange.to, "dd/MM")}`
+                                        : localDateRange?.from
+                                        ? `${format(localDateRange.from, "dd/MM")} - Seleccionar fin`
+                                        : "Seleccionar rango"}
+                                    </span>
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                                  <Calendar
+                                    mode="range"
+                                    selected={localDateRange}
+                                    onSelect={setLocalDateRange}
+                                    initialFocus
+                                    numberOfMonths={2}
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            ) : localFilterType === "year" ? (
+                              <Select value={localSelectedYear.toString()} onValueChange={(value) => setLocalSelectedYear(parseInt(value))}>
+                                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-gray-200">
+                                  <SelectItem value="2025">2025</SelectItem>
+                                  <SelectItem value="2024">2024</SelectItem>
+                                  <SelectItem value="2023">2023</SelectItem>
+                                  <SelectItem value="2022">2022</SelectItem>
+                                  <SelectItem value="2021">2021</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Select value={localSelectedPeriod} onValueChange={setLocalSelectedPeriod}>
+                                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-gray-200">
+                                  <SelectItem value="2025-09">Septiembre 2025</SelectItem>
+                                  <SelectItem value="2025-08">Agosto 2025</SelectItem>
+                                  <SelectItem value="2025-07">Julio 2025</SelectItem>
+                                  <SelectItem value="2025-06">Junio 2025</SelectItem>
+                                  <SelectItem value="2025-05">Mayo 2025</SelectItem>
+                                  <SelectItem value="current-month">Mes actual</SelectItem>
+                                  <SelectItem value="last-month">Mes anterior</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <Separator />
+                      
+                      {/* Vista Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                          <Filter className="h-4 w-4" />
+                          <span>Vista del dashboard</span>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-2">Tipo de vista</label>
+                            <Select 
+                              value={localSelectedFilter} 
+                              onValueChange={(value) => {
+                                setLocalSelectedFilter(value);
+                                if (value === "all") {
+                                  setLocalGlobalFilter({ type: "all" });
+                                } else if (value === "global") {
+                                  setLocalGlobalFilter({ type: "global" });
+                                } else if (value === "segment") {
+                                  setLocalGlobalFilter({ type: "segment" });
+                                } else if (value === "salesperson") {
+                                  setLocalGlobalFilter({ type: "salesperson" });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-xl border-gray-200">
+                                <SelectItem value="all">
+                                  <div className="flex items-center space-x-2">
+                                    <TrendingUp className="h-4 w-4 text-gray-500" />
+                                    <span>Todo el dashboard</span>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="global">
+                                  <div className="flex items-center space-x-2">
+                                    <Target className="h-4 w-4 text-blue-500" />
+                                    <span>Solo metas globales</span>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="segment">
+                                  <div className="flex items-center space-x-2">
+                                    <Building className="h-4 w-4 text-green-500" />
+                                    <span>Por segmento</span>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="salesperson">
+                                  <div className="flex items-center space-x-2">
+                                    <Users className="h-4 w-4 text-purple-500" />
+                                    <span>Por vendedor</span>
+                                  </div>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {(localSelectedFilter === "segment" || localSelectedFilter === "salesperson") && (
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 block mb-2">
+                                {localSelectedFilter === "segment" ? "Segmento específico" : "Vendedor específico"}
+                              </label>
+                              <Select 
+                                value={localGlobalFilter.value || ""} 
+                                onValueChange={(value) => {
+                                  if (localSelectedFilter === "segment") {
+                                    setLocalGlobalFilter({ type: "segment", value });
+                                  } else if (localSelectedFilter === "salesperson") {
+                                    setLocalGlobalFilter({ type: "salesperson", value });
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                                  <SelectValue placeholder={
+                                    localSelectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"
+                                  } />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
+                                  {localSelectedFilter === "segment" ? (
+                                    segments?.map((segment) => (
+                                      <SelectItem key={segment} value={segment}>
+                                        {segment}
+                                      </SelectItem>
+                                    ))
+                                  ) : (
+                                    salespeople?.map((salesperson) => (
+                                      <SelectItem key={salesperson} value={salesperson}>
+                                        {salesperson}
+                                      </SelectItem>
+                                    ))
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <Separator />
+                      
+                      {/* Comparación Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                          <TrendingUp className="h-4 w-4" />
+                          <span>Comparación de períodos</span>
+                        </div>
+                        
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 block mb-2">Comparar con</label>
+                          <Select value={localComparePeriod} onValueChange={setLocalComparePeriod}>
+                            <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
+                              {generateComparisonOptions().map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <DrawerFooter className="border-t pt-4 mt-6">
+                      <div className="flex space-x-3">
+                        <Button 
+                          variant="outline" 
+                          onClick={handleClearFilters}
+                          className="flex-1"
+                          data-testid="button-clear-filters"
+                        >
+                          Limpiar
+                        </Button>
+                        <Button 
+                          onClick={handleApplyFilters}
+                          className="flex-1"
+                          data-testid="button-apply-filters"
+                        >
+                          Aplicar filtros
+                        </Button>
+                      </div>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
+              </div>
+              
+              {/* Summary Chips */}
+              <div className="flex items-center space-x-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {generateSummaryChips().map((chip) => (
+                  <Badge 
+                    key={chip.key} 
+                    variant="secondary" 
+                    className="shrink-0 text-xs bg-gray-100 text-gray-700 border-gray-200"
+                    data-testid={`chip-${chip.key}`}
+                  >
+                    {chip.label}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Desktop Layout: Keep existing grid */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row lg:items-center gap-4 lg:gap-6 w-full">
               {/* Filter Type Selector */}
               <div className="flex items-center justify-between sm:justify-start space-x-3">
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
@@ -557,9 +862,10 @@ export default function Dashboard() {
                       </SelectItem>
                     ))}
                   </SelectContent>
-                </Select>
-              </div>
-          </div>
+                  </Select>
+                </div>
+            </div>
+          )}
         </header>
 
         {/* Main Content */}
