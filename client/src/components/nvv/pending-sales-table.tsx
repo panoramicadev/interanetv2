@@ -97,53 +97,6 @@ export function PendingSalesTable() {
 
   return (
     <div className="space-y-6">
-      {/* Summary Metrics */}
-      {metrics && (
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-          <Card className="p-4" data-testid="metric-total-amount">
-            <div className="text-sm font-medium text-gray-600">Monto Total</div>
-            <div className="text-2xl font-bold text-gray-900">
-              {formatCurrency((metrics as any).totalAmount || 0)}
-            </div>
-          </Card>
-          
-          <Card className="p-4" data-testid="metric-total-quantity">
-            <div className="text-sm font-medium text-gray-600">Cantidad Total</div>
-            <div className="text-2xl font-bold text-gray-900">
-              {((metrics as any).totalQuantity || 0).toLocaleString('es-CL')}
-            </div>
-          </Card>
-
-          <Card className="p-4" data-testid="metric-pending">
-            <div className="text-sm font-medium text-gray-600">Pendientes</div>
-            <div className="text-2xl font-bold text-yellow-600">
-              {(metrics as any).pendingCount || 0}
-            </div>
-          </Card>
-
-          <Card className="p-4" data-testid="metric-confirmed">
-            <div className="text-sm font-medium text-gray-600">Confirmados</div>
-            <div className="text-2xl font-bold text-blue-600">
-              {(metrics as any).confirmedCount || 0}
-            </div>
-          </Card>
-
-          <Card className="p-4" data-testid="metric-delivered">
-            <div className="text-sm font-medium text-gray-600">Entregados</div>
-            <div className="text-2xl font-bold text-green-600">
-              {(metrics as any).deliveredCount || 0}
-            </div>
-          </Card>
-
-          <Card className="p-4" data-testid="metric-cancelled">
-            <div className="text-sm font-medium text-gray-600">Cancelados</div>
-            <div className="text-2xl font-bold text-red-600">
-              {(metrics as any).cancelledCount || 0}
-            </div>
-          </Card>
-        </div>
-      )}
-
       {/* Data Table */}
       <Card>
         <CardHeader>
