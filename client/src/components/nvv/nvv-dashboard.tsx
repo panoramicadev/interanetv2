@@ -123,6 +123,25 @@ export function NvvDashboard() {
     }).format(date);
   };
 
+  const calculateMonthlyTotals = () => {
+    if (!detailedData) return {};
+    
+    const monthlyTotals: Record<string, number> = {};
+    
+    detailedData.forEach(record => {
+      const month = getMonthFromDate(record.commitmentDate);
+      const pendingAmount = calculatePendingAmount(record);
+      
+      if (monthlyTotals[month]) {
+        monthlyTotals[month] += pendingAmount;
+      } else {
+        monthlyTotals[month] = pendingAmount;
+      }
+    });
+    
+    return monthlyTotals;
+  };
+
   if (isLoadingDetails) {
     return (
       <Card className="p-6 text-center">
@@ -142,8 +161,42 @@ export function NvvDashboard() {
     );
   }
 
+  const monthlyTotals = calculateMonthlyTotals();
+
   return (
     <div className="space-y-6">
+      {/* Total NVV por Mes */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Calendar className="h-5 w-5" />
+            <span>Total NVV por Mes</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {Object.keys(monthlyTotals).length === 0 ? (
+            <div className="text-center text-gray-500 py-4">
+              No hay datos de NVV disponibles
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(monthlyTotals)
+                .sort(([a], [b]) => new Date(a + " 1, 2024").getTime() - new Date(b + " 1, 2024").getTime())
+                .map(([month, total]) => (
+                  <div key={month} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      {month}
+                    </div>
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                      {formatCurrency(total)}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Tabla de Datos Detallados */}
       <Card>
         <CardHeader>
