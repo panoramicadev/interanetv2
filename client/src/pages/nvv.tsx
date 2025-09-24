@@ -30,6 +30,129 @@ import type { NVVSummary, NVVTrendPoint, NVVBreakdownItem } from "@shared/schema
 import { CsvImport } from "@/components/nvv/csv-import";
 import { PendingSalesTable } from "@/components/nvv/pending-sales-table";
 
+interface NvvDataMetricsProps {
+  startDate?: Date;
+  endDate?: Date;
+  selectedSalesperson?: string;
+  selectedSegment?: string;
+}
+
+// Componente para mostrar métricas de los datos importados NVV
+function NvvDataMetrics({ startDate, endDate, selectedSalesperson, selectedSegment }: NvvDataMetricsProps) {
+  // Construir parámetros de consulta para métricas
+  const metricsQueryParams = new URLSearchParams();
+  if (startDate) metricsQueryParams.set('startDate', startDate.toISOString());
+  if (endDate) metricsQueryParams.set('endDate', endDate.toISOString());
+  if (selectedSalesperson) metricsQueryParams.set('salesperson', selectedSalesperson);
+  if (selectedSegment) metricsQueryParams.set('segment', selectedSegment);
+
+  const { data: metrics, isLoading: metricsLoading } = useQuery({
+    queryKey: ['/api/nvv/metrics', metricsQueryParams.toString()],
+    retry: false,
+  });
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('es-CL').format(num);
+  };
+
+  if (metricsLoading) {
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i} className="p-4">
+            <div className="animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+              <div className="h-8 bg-gray-200 rounded w-1/2 mb-1"></div>
+              <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <Card className="p-6 text-center">
+        <p className="text-gray-500">No hay datos disponibles para mostrar métricas.</p>
+        <p className="text-sm text-gray-400 mt-1">Importa datos CSV o ajusta los filtros.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card className="p-4" data-testid="nvv-metric-total-amount">
+        <CardHeader className="p-0 pb-2">
+          <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+            <TrendingUp className="h-4 w-4 mr-1" />
+            Monto Total
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="text-2xl font-bold text-green-600">
+            {formatCurrency(metrics.totalAmount || 0)}
+          </div>
+          <p className="text-xs text-gray-500">En notas de venta</p>
+        </CardContent>
+      </Card>
+
+      <Card className="p-4" data-testid="nvv-metric-total-quantity">
+        <CardHeader className="p-0 pb-2">
+          <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+            <Package className="h-4 w-4 mr-1" />
+            Cantidad Total
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="text-2xl font-bold text-blue-600">
+            {formatNumber(metrics.totalQuantity || 0)}
+          </div>
+          <p className="text-xs text-gray-500">Unidades</p>
+        </CardContent>
+      </Card>
+
+      <Card className="p-4" data-testid="nvv-metric-pending-count">
+        <CardHeader className="p-0 pb-2">
+          <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+            <Target className="h-4 w-4 mr-1" />
+            Pendientes
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="text-2xl font-bold text-yellow-600">
+            {formatNumber(metrics.pendingCount || 0)}
+          </div>
+          <p className="text-xs text-gray-500">Por confirmar</p>
+        </CardContent>
+      </Card>
+
+      <Card className="p-4" data-testid="nvv-metric-confirmed-count">
+        <CardHeader className="p-0 pb-2">
+          <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
+            <Users className="h-4 w-4 mr-1" />
+            Confirmados
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="text-2xl font-bold text-green-600">
+            {formatNumber(metrics.confirmedCount || 0)}
+          </div>
+          <p className="text-xs text-gray-500">Listos</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 interface PackagingMetric {
   packagingType: string;
   totalSales: number;
@@ -669,6 +792,14 @@ export default function NVVPage() {
               </Popover>
             </div>
           </Card>
+
+          {/* Métricas de Datos Importados */}
+          <NvvDataMetrics 
+            startDate={nvvFilters.startDate}
+            endDate={nvvFilters.endDate}
+            selectedSalesperson={nvvFilters.salesperson === 'all' ? '' : nvvFilters.salesperson}
+            selectedSegment={nvvFilters.segment === 'all' ? '' : nvvFilters.segment}
+          />
 
           <PendingSalesTable
             startDate={nvvFilters.startDate}
