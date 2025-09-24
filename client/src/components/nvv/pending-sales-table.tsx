@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { 
   Table, 
@@ -57,28 +56,6 @@ export function PendingSalesTable() {
     retry: false,
   });
 
-  const updateStatus = async (id: string, status: string) => {
-    try {
-      await apiRequest(`/api/nvv/${id}/status`, {
-        method: 'PATCH',
-        data: { status }
-      });
-
-      queryClient.invalidateQueries({ queryKey: ['/api/nvv/pending'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/nvv/metrics'] });
-
-      toast({
-        title: "Estado actualizado",
-        description: `El estado se cambió a ${statusLabels[status]}`,
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "No se pudo actualizar el estado",
-        variant: "destructive",
-      });
-    }
-  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -228,22 +205,9 @@ export function PendingSalesTable() {
                             {formatDate(sale.commitmentDate)}
                           </TableCell>
                           <TableCell>
-                            <Select
-                              value={sale.status || 'pending'}
-                              onValueChange={(value) => updateStatus(sale.id, value)}
-                            >
-                              <SelectTrigger className="w-32">
-                                <Badge className={statusColors[sale.status || 'pending'] || "bg-gray-100 text-gray-800"}>
-                                  {statusLabels[sale.status || 'pending'] || sale.status}
-                                </Badge>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="pending">Pendiente</SelectItem>
-                                <SelectItem value="confirmed">Confirmado</SelectItem>
-                                <SelectItem value="delivered">Entregado</SelectItem>
-                                <SelectItem value="cancelled">Cancelado</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <Badge className={statusColors[sale.status || 'pending'] || "bg-gray-100 text-gray-800"}>
+                              {statusLabels[sale.status || 'pending'] || sale.status}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
