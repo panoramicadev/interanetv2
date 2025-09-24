@@ -93,6 +93,29 @@ export function PendingSalesTable() {
     return new Date(date).toLocaleDateString('es-CL');
   };
 
+  // Función para extraer y calcular datos NVV
+  const calculateNvvData = (sale: any) => {
+    const originalData = sale.originalData || {};
+    
+    const caprex2 = parseFloat(originalData.CAPREX2 || '0');
+    const caprco2 = parseFloat(originalData.CAPRCO2 || '0');
+    const ppprne = parseFloat(originalData.PPPRNE || '0');
+    
+    const cantidadPendiente = caprex2 - caprco2;
+    const montoPendiente = cantidadPendiente * ppprne;
+    
+    return {
+      cantidadRequerida: caprex2,
+      cantidadConfirmada: caprco2,
+      cantidadPendiente,
+      precioUnitario: ppprne,
+      montoPendiente,
+      clienteNombre: originalData.NOKOEN || sale.clientName || 'Sin nombre',
+      productoNombre: originalData.NOKOPR || sale.productName || 'Sin nombre',
+      productoCode: originalData.KOPRCT || sale.productCode || '',
+    };
+  };
+
   if (error) {
     return (
       <Card className="p-6">
@@ -145,83 +168,97 @@ export function PendingSalesTable() {
                       <TableHead>Documento</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Producto</TableHead>
-                      <TableHead>Vendedor</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead>Monto</TableHead>
+                      <TableHead>Cant. Requerida</TableHead>
+                      <TableHead>Cant. Confirmada</TableHead>
+                      <TableHead>Cant. Pendiente</TableHead>
+                      <TableHead>Precio Unit.</TableHead>
+                      <TableHead>Monto Pendiente</TableHead>
                       <TableHead>Fecha Compromiso</TableHead>
                       <TableHead>Estado</TableHead>
                       <TableHead>Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pendingSales.map((sale) => (
-                      <TableRow key={sale.id} data-testid={`sale-row-${sale.id}`}>
-                        <TableCell className="font-medium">
-                          <div>
-                            <div className="font-semibold">{sale.documentNumber}</div>
-                            <div className="text-sm text-gray-500">{sale.documentType}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{sale.clientName}</div>
-                            <div className="text-sm text-gray-500">{sale.clientCode}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{sale.productName}</div>
-                            <div className="text-sm text-gray-500">{sale.productCode}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{sale.salesperson}</div>
-                            {sale.segment && (
-                              <div className="text-sm text-gray-500">{sale.segment}</div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {(sale.quantity || 0).toLocaleString('es-CL')}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(Number(sale.totalAmount) || 0)}
-                        </TableCell>
-                        <TableCell>
-                          {formatDate(sale.commitmentDate)}
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={sale.status || 'pending'}
-                            onValueChange={(value) => updateStatus(sale.id, value)}
-                          >
-                            <SelectTrigger className="w-32">
-                              <Badge className={statusColors[sale.status || 'pending'] || "bg-gray-100 text-gray-800"}>
-                                {statusLabels[sale.status || 'pending'] || sale.status}
-                              </Badge>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pending">Pendiente</SelectItem>
-                              <SelectItem value="confirmed">Confirmado</SelectItem>
-                              <SelectItem value="delivered">Entregado</SelectItem>
-                              <SelectItem value="cancelled">Cancelado</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              data-testid={`button-view-${sale.id}`}
+                    {pendingSales.map((sale) => {
+                      const nvvData = calculateNvvData(sale);
+                      return (
+                        <TableRow key={sale.id} data-testid={`sale-row-${sale.id}`}>
+                          <TableCell className="font-medium">
+                            <div>
+                              <div className="font-semibold">{sale.documentNumber}</div>
+                              <div className="text-sm text-gray-500">{sale.documentType}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{nvvData.clienteNombre}</div>
+                              <div className="text-sm text-gray-500">{sale.clientCode}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{nvvData.productoNombre}</div>
+                              <div className="text-sm text-gray-500">{nvvData.productoCode}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="font-medium text-blue-600">
+                              {nvvData.cantidadRequerida.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="font-medium text-green-600">
+                              {nvvData.cantidadConfirmada.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={`font-medium ${nvvData.cantidadPendiente > 0 ? 'text-orange-600' : nvvData.cantidadPendiente < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                              {nvvData.cantidadPendiente.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(nvvData.precioUnitario)}
+                          </TableCell>
+                          <TableCell className="text-right font-bold">
+                            <span className={`${nvvData.montoPendiente > 0 ? 'text-orange-600' : nvvData.montoPendiente < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                              {formatCurrency(nvvData.montoPendiente)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {formatDate(sale.commitmentDate)}
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={sale.status || 'pending'}
+                              onValueChange={(value) => updateStatus(sale.id, value)}
                             >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                              <SelectTrigger className="w-32">
+                                <Badge className={statusColors[sale.status || 'pending'] || "bg-gray-100 text-gray-800"}>
+                                  {statusLabels[sale.status || 'pending'] || sale.status}
+                                </Badge>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">Pendiente</SelectItem>
+                                <SelectItem value="confirmed">Confirmado</SelectItem>
+                                <SelectItem value="delivered">Entregado</SelectItem>
+                                <SelectItem value="cancelled">Cancelado</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                data-testid={`button-view-${sale.id}`}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
