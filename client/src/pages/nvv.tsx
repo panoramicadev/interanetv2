@@ -30,6 +30,15 @@ import type { NVVSummary, NVVTrendPoint, NVVBreakdownItem } from "@shared/schema
 import { CsvImport } from "@/components/nvv/csv-import";
 import { PendingSalesTable } from "@/components/nvv/pending-sales-table";
 
+interface NvvMetrics {
+  totalAmount: number;
+  totalQuantity: number;
+  pendingCount: number;
+  confirmedCount: number;
+  deliveredCount: number;
+  cancelledCount: number;
+}
+
 interface NvvDataMetricsProps {
   startDate?: Date;
   endDate?: Date;
@@ -46,7 +55,7 @@ function NvvDataMetrics({ startDate, endDate, selectedSalesperson, selectedSegme
   if (selectedSalesperson) metricsQueryParams.set('salesperson', selectedSalesperson);
   if (selectedSegment) metricsQueryParams.set('segment', selectedSegment);
 
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
+  const { data: metrics, isLoading: metricsLoading } = useQuery<NvvMetrics>({
     queryKey: ['/api/nvv/metrics', metricsQueryParams.toString()],
     retry: false,
   });
