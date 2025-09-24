@@ -18,9 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp } from "lucide-react";
+import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -49,10 +53,136 @@ export default function Dashboard() {
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
   
+  // Mobile detection and drawer state
+  const isMobile = useIsMobile();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  
+  // Local state for drawer filters (before applying)
+  const [localFilterType, setLocalFilterType] = useState(filterType);
+  const [localSelectedPeriod, setLocalSelectedPeriod] = useState(selectedPeriod);
+  const [localSelectedDate, setLocalSelectedDate] = useState(selectedDate);
+  const [localSelectedYear, setLocalSelectedYear] = useState(selectedYear);
+  const [localDateRange, setLocalDateRange] = useState(dateRange);
+  const [localSelectedFilter, setLocalSelectedFilter] = useState(selectedFilter);
+  const [localGlobalFilter, setLocalGlobalFilter] = useState(globalFilter);
+  const [localComparePeriod, setLocalComparePeriod] = useState(comparePeriod);
+  
   // Reset comparison period when filter type changes
   useEffect(() => {
     setComparePeriod("none");
   }, [filterType]);
+  
+  // Update local state when drawer opens
+  const handleDrawerOpen = () => {
+    setLocalFilterType(filterType);
+    setLocalSelectedPeriod(selectedPeriod);
+    setLocalSelectedDate(selectedDate);
+    setLocalSelectedYear(selectedYear);
+    setLocalDateRange(dateRange);
+    setLocalSelectedFilter(selectedFilter);
+    setLocalGlobalFilter(globalFilter);
+    setLocalComparePeriod(comparePeriod);
+    setIsDrawerOpen(true);
+  };
+  
+  // Apply drawer filters to main state
+  const handleApplyFilters = () => {
+    setFilterType(localFilterType);
+    setSelectedPeriod(localSelectedPeriod);
+    setSelectedDate(localSelectedDate);
+    setSelectedYear(localSelectedYear);
+    setDateRange(localDateRange);
+    setSelectedFilter(localSelectedFilter);
+    setGlobalFilter(localGlobalFilter);
+    setComparePeriod(localComparePeriod);
+    setIsDrawerOpen(false);
+  };
+  
+  // Clear all filters
+  const handleClearFilters = () => {
+    const currentMonth = format(new Date(), "yyyy-MM");
+    setLocalFilterType("month");
+    setLocalSelectedPeriod(currentMonth);
+    setLocalSelectedDate(new Date());
+    setLocalSelectedYear(new Date().getFullYear());
+    setLocalDateRange(undefined);
+    setLocalSelectedFilter("all");
+    setLocalGlobalFilter({ type: "all" });
+    setLocalComparePeriod("none");
+  };
+  
+  // Generate summary chips for mobile
+  const generateSummaryChips = () => {
+    const chips = [];
+    
+    // Filter type and period chip
+    let periodText = "";
+    switch (filterType) {
+      case "day":
+        periodText = selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Día";
+        break;
+      case "month":
+        if (selectedPeriod === "current-month") {
+          periodText = "Mes actual";
+        } else if (selectedPeriod === "last-month") {
+          periodText = "Mes anterior";
+        } else {
+          const [year, month] = selectedPeriod.split("-");
+          const date = new Date(parseInt(year), parseInt(month) - 1);
+          periodText = format(date, "MMM yyyy");
+        }
+        break;
+      case "year":
+        periodText = selectedYear.toString();
+        break;
+      case "range":
+        if (dateRange?.from && dateRange?.to) {
+          periodText = `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`;
+        } else {
+          periodText = "Rango";
+        }
+        break;
+    }
+    
+    chips.push({
+      key: "period",
+      label: `${filterType === "day" ? "Día" : filterType === "month" ? "Mes" : filterType === "year" ? "Año" : "Rango"}: ${periodText}`
+    });
+    
+    // Vista chip
+    if (globalFilter.type !== "all") {
+      let vistaText = "";
+      switch (globalFilter.type) {
+        case "global":
+          vistaText = "Solo metas globales";
+          break;
+        case "segment":
+          vistaText = globalFilter.value ? `Segmento: ${globalFilter.value}` : "Por segmento";
+          break;
+        case "salesperson":
+          vistaText = globalFilter.value ? `Vendedor: ${globalFilter.value}` : "Por vendedor";
+          break;
+      }
+      chips.push({
+        key: "vista",
+        label: vistaText
+      });
+    }
+    
+    // Compare chip
+    if (comparePeriod !== "none") {
+      const compareOptions = generateComparisonOptions();
+      const compareOption = compareOptions.find(option => option.value === comparePeriod);
+      if (compareOption) {
+        chips.push({
+          key: "compare",
+          label: `Comparar: ${compareOption.label}`
+        });
+      }
+    }
+    
+    return chips;
+  };
   
   // Fetch segments and salespeople for the filter dropdown
   const { data: segments } = useQuery<string[]>({
