@@ -67,7 +67,7 @@ import {
   type NvvImportResult,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, gte, lte, lt, inArray, or, isNull } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, lt, inArray, or, isNull, isNotNull } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 
