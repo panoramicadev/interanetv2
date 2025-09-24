@@ -7281,107 +7281,126 @@ export class DatabaseStorage implements IStorage {
         })
         .from(nvvPendingSales);
 
-      // Calculate pending amount using (CAPRCO2 - CAPREX2) * PPPRNE
+      // Calculate pending amount using GREATEST((CAPRCO2 - CAPREX2), 0) * PPPRNE
+      // Only include records with status 'pending' or 'confirmed' for pending calculations
       const pendingAmountResult = await db
         .select({
           totalAmount: sql<number>`
             COALESCE(SUM(
-              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              GREATEST(
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                0
+              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
             ), 0)`,
           avgAmount: sql<number>`
             COALESCE(AVG(
-              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              GREATEST(
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                0
+              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
             ), 0)`
         })
-        .from(nvvPendingSales);
+        .from(nvvPendingSales)
+        .where(sql`${nvvPendingSales.status} IN ('pending', 'confirmed')`);
 
-      // Top salespeople by pending amount
+      // Top salespeople by pending amount (normalized names, active status only)
       const topSalespeopleResult = await db
         .select({
-          salesperson: nvvPendingSales.salesperson,
+          salesperson: sql<string>`TRIM(UPPER(${nvvPendingSales.salesperson}))`,
           totalAmount: sql<number>`
             COALESCE(SUM(
-              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              GREATEST(
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                0
+              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
             ), 0)`,
           recordCount: sql<number>`COUNT(*)`
         })
         .from(nvvPendingSales)
-        .where(isNotNull(nvvPendingSales.salesperson))
-        .groupBy(nvvPendingSales.salesperson)
+        .where(sql`${nvvPendingSales.salesperson} IS NOT NULL AND ${nvvPendingSales.status} IN ('pending', 'confirmed')`)
+        .groupBy(sql`TRIM(UPPER(${nvvPendingSales.salesperson}))`)
         .orderBy(sql`
           SUM(
-            (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-             CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
-            CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            GREATEST(
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+              0
+            ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
           ) DESC`)
         .limit(10);
 
-      // Top companies by pending amount
+      // Top companies by pending amount (normalized names, active status only)
       const topCompaniesResult = await db
         .select({
           company: sql<string>`
-            COALESCE(
+            TRIM(UPPER(COALESCE(
               ${nvvPendingSales.originalData}->>'NOKOEN',
               ${nvvPendingSales.clientName}
-            )`,
+            )))`,
           totalAmount: sql<number>`
             COALESCE(SUM(
-              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              GREATEST(
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                0
+              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
             ), 0)`,
           recordCount: sql<number>`COUNT(*)`
         })
         .from(nvvPendingSales)
+        .where(sql`${nvvPendingSales.status} IN ('pending', 'confirmed')`)
         .groupBy(sql`
-          COALESCE(
+          TRIM(UPPER(COALESCE(
             ${nvvPendingSales.originalData}->>'NOKOEN',
             ${nvvPendingSales.clientName}
-          )`)
+          )))`)
         .orderBy(sql`
           SUM(
-            (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-             CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
-            CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            GREATEST(
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+              CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+              0
+            ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
           ) DESC`)
         .limit(10);
 
-      // Status breakdown
+      // Status breakdown (includes all statuses)
       const statusBreakdownResult = await db
         .select({
           status: nvvPendingSales.status,
           count: sql<number>`COUNT(*)`,
           amount: sql<number>`
             COALESCE(SUM(
-              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              GREATEST(
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                0
+              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
             ), 0)`
         })
         .from(nvvPendingSales)
         .groupBy(nvvPendingSales.status)
         .orderBy(sql`COUNT(*) DESC`);
 
-      // Region breakdown
+      // Region breakdown 
       const regionBreakdownResult = await db
         .select({
-          region: nvvPendingSales.region,
+          region: sql<string>`COALESCE(${nvvPendingSales.region}, 'Sin región')`,
           count: sql<number>`COUNT(*)`,
           amount: sql<number>`
             COALESCE(SUM(
-              (CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-               CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL)) *
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              GREATEST(
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
+                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                0
+              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
             ), 0)`
         })
         .from(nvvPendingSales)
-        .groupBy(nvvPendingSales.region)
+        .groupBy(sql`COALESCE(${nvvPendingSales.region}, 'Sin región')`)
         .orderBy(sql`COUNT(*) DESC`)
         .limit(10);
 
