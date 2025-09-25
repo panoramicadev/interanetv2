@@ -30,6 +30,15 @@ interface ChartDataPoint {
   sales: number;
 }
 
+interface NvvMetrics {
+  totalAmount: number;
+  totalQuantity: number;
+  pendingCount: number;
+  confirmedCount: number;
+  deliveredCount: number;
+  cancelledCount: number;
+}
+
 interface SalesChartProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
@@ -54,6 +63,11 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
     queryKey: [`/api/sales/chart-data?period=${chartPeriod}&selectedPeriod=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
+  // Query for NVV metrics
+  const { data: nvvMetrics, isLoading: nvvLoading } = useQuery<NvvMetrics>({
+    queryKey: [`/api/nvv/metrics${segment ? `?segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `${segment ? '&' : '?'}salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+  });
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -69,30 +83,69 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
     return gradient;
   };
 
+  const createNvvGradient = (ctx: any) => {
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(59, 130, 246, 0.3)'); // Azul claro transparente
+    gradient.addColorStop(1, 'rgba(59, 130, 246, 0.0)'); // Transparente
+    return gradient;
+  };
+
+  // Calculate combined data (sales + NVV)
+  const combinedData = chartData?.map(d => {
+    const nvvAmount = nvvMetrics?.totalAmount || 0;
+    // Distribute NVV amount evenly across periods for visualization
+    const avgNvvPerPeriod = chartData ? nvvAmount / chartData.length : 0;
+    return d.sales + avgNvvPerPeriod;
+  }) || [];
+
   const chartConfig = {
     labels: chartData?.map(d => d.period) || [],
-    datasets: [{
-      label: 'Ventas',
-      data: chartData?.map(d => d.sales) || [],
-      fill: true,
-      backgroundColor: (context: any) => {
-        const chart = context.chart;
-        const {ctx, chartArea} = chart;
-        if (!chartArea) return null;
-        return createGradient(ctx);
+    datasets: [
+      {
+        label: 'Ventas Reales',
+        data: chartData?.map(d => d.sales) || [],
+        fill: true,
+        backgroundColor: (context: any) => {
+          const chart = context.chart;
+          const {ctx, chartArea} = chart;
+          if (!chartArea) return null;
+          return createGradient(ctx);
+        },
+        borderColor: '#22c55e', // Verde
+        borderWidth: 3,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        pointBackgroundColor: '#22c55e',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointHoverBackgroundColor: '#22c55e',
+        pointHoverBorderColor: '#ffffff',
+        pointHoverBorderWidth: 3,
+        tension: 0.4,
       },
-      borderColor: '#22c55e', // Verde más brillante
-      borderWidth: 3,
-      pointRadius: 6,
-      pointHoverRadius: 8,
-      pointBackgroundColor: '#22c55e',
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
-      pointHoverBackgroundColor: '#22c55e',
-      pointHoverBorderColor: '#ffffff',
-      pointHoverBorderWidth: 3,
-      tension: 0.4, // Línea suavizada
-    }]
+      {
+        label: 'Ventas + NVV',
+        data: combinedData,
+        fill: true,
+        backgroundColor: (context: any) => {
+          const chart = context.chart;
+          const {ctx, chartArea} = chart;
+          if (!chartArea) return null;
+          return createNvvGradient(ctx);
+        },
+        borderColor: '#3b82f6', // Azul
+        borderWidth: 3,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        pointBackgroundColor: '#3b82f6',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointHoverBackgroundColor: '#3b82f6',
+        pointHoverBorderColor: '#ffffff',
+        pointHoverBorderWidth: 3,
+        tension: 0.4,
+      }
+    ]
   };
 
   const options = {
@@ -106,7 +159,18 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
     },
     plugins: {
       legend: {
-        display: false
+        display: true,
+        position: 'top' as const,
+        labels: {
+          color: '#374151',
+          font: {
+            size: 12,
+            weight: 500
+          },
+          padding: 20,
+          usePointStyle: true,
+          pointStyle: 'circle'
+        }
       },
       datalabels: {
         display: false
@@ -226,7 +290,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
       </div>
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm w-full">
         <div className="h-60 sm:h-80 w-full">
-          {isLoading ? (
+          {isLoading || nvvLoading ? (
             <div className="flex items-center justify-center h-full">
               <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-green-500"></div>
             </div>
