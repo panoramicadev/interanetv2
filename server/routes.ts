@@ -4975,6 +4975,31 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get salesperson mapping endpoint
+  app.get('/api/sales-transactions/salesperson-mapping', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      // Get unique salesperson mapping from sales transactions
+      const salespersonMapping = await storage.getSalespersonMapping();
+      
+      // Get segment breakdown from sales transactions 
+      const segments = await storage.getSegmentAnalysis();
+
+      res.json({
+        kofulidoToName: salespersonMapping,
+        segments: segments.reduce((acc: Record<string, { count: number; amount: number }>, segment) => {
+          acc[segment.segment] = {
+            count: 1, // This would need to be calculated if we have transaction count per segment
+            amount: segment.totalSales
+          };
+          return acc;
+        }, {})
+      });
+    } catch (error: any) {
+      console.error('Error fetching salesperson mapping:', error);
+      res.status(500).json({ message: 'Failed to fetch salesperson mapping' });
+    }
+  }));
+
   // Get NVV Dashboard metrics
   app.get('/api/nvv/dashboard', requireAuth, asyncHandler(async (req: any, res: any) => {
     const metrics = await storage.getNvvDashboardMetrics();
