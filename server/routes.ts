@@ -16,6 +16,38 @@ import { db } from "./db";
 import { ecommerceProducts } from "../shared/schema";
 import { eq } from "drizzle-orm";
 
+// Date parsing utility function
+function parseDate(value: any): string | null {
+  if (!value || value.toString().trim() === '') return null;
+  try {
+    const dateStr = value.toString();
+    let parts: string[];
+    
+    if (dateStr.includes('-')) {
+      parts = dateStr.split('-');
+    } else if (dateStr.includes('/')) {
+      parts = dateStr.split('/');
+    } else {
+      return null;
+    }
+    
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]);
+      const year = parseInt(parts[2]);
+      
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900) {
+        const formattedMonth = month.toString().padStart(2, '0');
+        const formattedDay = day.toString().padStart(2, '0');
+        return `${year}-${formattedMonth}-${formattedDay}`;
+      }
+    }
+  } catch (e) {
+    console.warn('Invalid date format:', value);
+  }
+  return null;
+}
+
 // Database error handling middleware with secure logging
 function handleDatabaseError(error: any, operation: string) {
   const timestamp = new Date().toISOString();
@@ -4827,7 +4859,7 @@ export function registerRoutes(app: Express): Server {
               unitPrice: (parseFloat(row['Precio_Unitario'] || row['unit_price'] || '0')).toString(),
               totalAmount: (parseFloat(row['Monto_Total'] || row['total_amount'] || '0')).toString(),
               currency: row['Moneda'] || row['currency'] || 'CLP',
-              commitmentDate: row['FEERLI'] ? new Date(row['FEERLI']).toISOString() : null,
+              commitmentDate: parseDate(row['FEERLI']),
               expectedDeliveryDate: row['Fecha_Entrega'] ? new Date(row['Fecha_Entrega']).toISOString() : null,
               orderDate: row['Fecha_Pedido'] ? new Date(row['Fecha_Pedido']).toISOString() : null,
               status: row['Estado'] || row['status'] || 'pending',
