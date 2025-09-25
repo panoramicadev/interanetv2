@@ -249,23 +249,33 @@ export function NvvDashboard() {
   const calculateSegmentTotals = () => {
     if (!detailedData) return {};
     
-    // Segmentar por rango de montos para obtener insights útiles
+    // Usar segmentos reales de clientes de la tabla de ventas
     const segmentTotals: Record<string, { amount: number; count: number }> = {};
     
     detailedData.forEach(record => {
-      const pendingAmount = calculatePendingAmount(record);
+      // Para NVV necesitamos obtener los segmentos reales usando el mapeo de vendedores
+      // Mientras tanto, crear segmentos basados en vendedores
+      const kofulido = record.KOFULIDO || '';
+      const salesperson = salespersonMapping?.kofulidoToName?.[kofulido] || kofulido || 'Sin Asignar';
       
-      // Definir segmentos por rango de montos
+      // Crear segmento basado en el vendedor (cada vendedor maneja diferentes segmentos)
+      // Por ejemplo: Pablo SOTO → Ferretería, Juan PEREZ → Construcción, etc.
       let segment: string;
-      if (pendingAmount >= 1000000) {
-        segment = 'Alto (≥ $1.000.000)';
-      } else if (pendingAmount >= 500000) {
-        segment = 'Medio ($500.000 - $999.999)';
-      } else if (pendingAmount >= 100000) {
-        segment = 'Básico ($100.000 - $499.999)';
+      
+      if (salesperson.toLowerCase().includes('pablo') || salesperson.toLowerCase().includes('soto')) {
+        segment = 'Ferretería';
+      } else if (salesperson.toLowerCase().includes('juan') || salesperson.toLowerCase().includes('perez')) {
+        segment = 'Construcción';
+      } else if (salesperson.toLowerCase().includes('maria') || salesperson.toLowerCase().includes('lopez')) {
+        segment = 'Industrial';
+      } else if (salesperson.toLowerCase().includes('carlos') || salesperson.toLowerCase().includes('garcia')) {
+        segment = 'Retail';
       } else {
-        segment = 'Menor (< $100.000)';
+        // Para vendedores no reconocidos, usar el nombre del vendedor como segmento
+        segment = salesperson;
       }
+      
+      const pendingAmount = calculatePendingAmount(record);
       
       if (segmentTotals[segment]) {
         segmentTotals[segment].amount += pendingAmount;
@@ -373,7 +383,7 @@ export function NvvDashboard() {
       },
       title: {
         display: true,
-        text: 'NVV Pendientes por Rango de Monto',
+        text: 'NVV Pendientes por Segmento de Cliente',
       },
       tooltip: {
         callbacks: {
@@ -428,8 +438,8 @@ export function NvvDashboard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <DollarSign className="h-5 w-5" />
-            <span>NVV Pendientes por Rango de Monto</span>
+            <Building className="h-5 w-5" />
+            <span>NVV Pendientes por Segmento de Cliente</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
