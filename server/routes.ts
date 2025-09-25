@@ -4827,7 +4827,7 @@ export function registerRoutes(app: Express): Server {
               unitPrice: (parseFloat(row['Precio_Unitario'] || row['unit_price'] || '0')).toString(),
               totalAmount: (parseFloat(row['Monto_Total'] || row['total_amount'] || '0')).toString(),
               currency: row['Moneda'] || row['currency'] || 'CLP',
-              commitmentDate: row['Fecha_Compromiso'] ? new Date(row['Fecha_Compromiso']).toISOString() : null,
+              commitmentDate: row['FEERLI'] ? new Date(row['FEERLI']).toISOString() : null,
               expectedDeliveryDate: row['Fecha_Entrega'] ? new Date(row['Fecha_Entrega']).toISOString() : null,
               orderDate: row['Fecha_Pedido'] ? new Date(row['Fecha_Pedido']).toISOString() : null,
               status: row['Estado'] || row['status'] || 'pending',
