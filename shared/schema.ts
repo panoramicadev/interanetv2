@@ -1973,62 +1973,62 @@ export const nvvPendingSales = pgTable("nvv_pending_sales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   
   // ALL NVV CSV COLUMNS WITH EXACT NAMES - For easy linking with other systems
-  IDMAEEDO: numeric("idmaeedo", { precision: 15, scale: 2 }),
-  TIDO: varchar("tido"),
-  NUDO: varchar("nudo"), 
-  ENDO: varchar("endo"),
-  SUENDO: varchar("suendo"),
-  SUDO: varchar("sudo"),
-  FEEMDO: date("feemdo"),
-  FEER: date("feer"),
-  MODO: varchar("modo"),
-  TIMODO: varchar("timodo"),
-  TIDEVE: varchar("tideve"),
-  TIDEVEFE: date("tidevefe"),
-  TIDEVEHO: varchar("tideveho"),
-  PPPRNE: numeric("ppprne", { precision: 15, scale: 2 }),
-  TAMOPPPR: numeric("tamopppr", { precision: 15, scale: 2 }),
-  VANELI: numeric("vaneli", { precision: 15, scale: 2 }),
-  FEEMLI: date("feemli"),
-  KOFULIDO: varchar("kofulido"), // Vendedor
-  LILG: varchar("lilg"),
-  PRCT: varchar("prct"),
-  NULIDO: varchar("nulido"),
-  FEERLI: date("feerli"), // Fecha compromiso - CAMPO PRINCIPAL
-  SULIDO: varchar("sulido"),
-  BOSULIDO: varchar("bosulido"),
-  LUVTLIDO: integer("luvtlido"),
-  KOPRCT: varchar("koprct"), // Código producto/SKU
-  UD01PR: varchar("ud01pr"),
-  NOKOZO: varchar("nokozo"),
-  IDMAEDDO: numeric("idmaeddo", { precision: 15, scale: 2 }),
-  NUSEPR: varchar("nusepr"),
-  CAPRCO1: numeric("caprco1", { precision: 10, scale: 2 }),
-  CAPRAD1: numeric("caprad1", { precision: 10, scale: 2 }),
-  CAPREX1: numeric("caprex1", { precision: 10, scale: 2 }),
-  UD02PR: varchar("ud02pr"),
-  CAPRCO2: numeric("caprco2", { precision: 10, scale: 2 }), // Cantidad confirmada
-  CAPRAD2: numeric("caprad2", { precision: 10, scale: 2 }),
-  CAPREX2: numeric("caprex2", { precision: 10, scale: 2 }), // Cantidad requerida
-  OCDO: varchar("ocdo"),
-  OBDO: varchar("obdo"),
-  NOKOEN: varchar("nokoen"), // Nombre cliente
-  ZOEN: varchar("zoen"),
-  DIEN: varchar("dien"),
-  COMUNA: varchar("comuna"), // Comuna
-  TIPR: varchar("tipr"),
-  NOKOPR: text("nokopr"), // Nombre producto
-  PFPR: varchar("pfpr"),
-  FMPR: varchar("fmpr"),
-  RUPR: varchar("rupr"),
-  MRPR: varchar("mrpr"),
-  STFI1: numeric("stfi1", { precision: 10, scale: 2 }),
-  STFI2: numeric("stfi2", { precision: 10, scale: 2 }),
-  PRRG: varchar("prrg"),
-  KOPRTE: varchar("koprte"),
-  ENDOFI: varchar("endofi"),
-  UBICACION: varchar("ubicacion"),
-  OBSERVA: text("observa"), // Observaciones
+  IDMAEEDO: numeric("IDMAEEDO", { precision: 15, scale: 2 }),
+  TIDO: varchar("TIDO"),
+  NUDO: varchar("NUDO"), 
+  ENDO: varchar("ENDO"),
+  SUENDO: varchar("SUENDO"),
+  SUDO: varchar("SUDO"),
+  FEEMDO: date("FEEMDO"),
+  FEER: date("FEER"),
+  MODO: varchar("MODO"),
+  TIMODO: varchar("TIMODO"),
+  TIDEVE: varchar("TIDEVE"),
+  TIDEVEFE: date("TIDEVEFE"),
+  TIDEVEHO: varchar("TIDEVEHO"),
+  PPPRNE: numeric("PPPRNE", { precision: 15, scale: 2 }),
+  TAMOPPPR: numeric("TAMOPPPR", { precision: 15, scale: 2 }),
+  VANELI: numeric("VANELI", { precision: 15, scale: 2 }),
+  FEEMLI: date("FEEMLI"),
+  KOFULIDO: varchar("KOFULIDO"), // Vendedor
+  LILG: varchar("LILG"),
+  PRCT: varchar("PRCT"),
+  NULIDO: varchar("NULIDO"),
+  FEERLI: date("FEERLI"), // Fecha compromiso - CAMPO PRINCIPAL
+  SULIDO: varchar("SULIDO"),
+  BOSULIDO: varchar("BOSULIDO"),
+  LUVTLIDO: integer("LUVTLIDO"),
+  KOPRCT: varchar("KOPRCT"), // Código producto/SKU
+  UD01PR: varchar("UD01PR"),
+  NOKOZO: varchar("NOKOZO"),
+  IDMAEDDO: numeric("IDMAEDDO", { precision: 15, scale: 2 }),
+  NUSEPR: varchar("NUSEPR"),
+  CAPRCO1: numeric("CAPRCO1", { precision: 10, scale: 2 }),
+  CAPRAD1: numeric("CAPRAD1", { precision: 10, scale: 2 }),
+  CAPREX1: numeric("CAPREX1", { precision: 10, scale: 2 }),
+  UD02PR: varchar("UD02PR"),
+  CAPRCO2: numeric("CAPRCO2", { precision: 10, scale: 2 }), // Cantidad confirmada
+  CAPRAD2: numeric("CAPRAD2", { precision: 10, scale: 2 }),
+  CAPREX2: numeric("CAPREX2", { precision: 10, scale: 2 }), // Cantidad requerida
+  OCDO: varchar("OCDO"),
+  OBDO: varchar("OBDO"),
+  NOKOEN: varchar("NOKOEN"), // Nombre cliente
+  ZOEN: varchar("ZOEN"),
+  DIEN: varchar("DIEN"),
+  COMUNA: varchar("COMUNA"), // Comuna
+  TIPR: varchar("TIPR"),
+  NOKOPR: text("NOKOPR"), // Nombre producto
+  PFPR: varchar("PFPR"),
+  FMPR: varchar("FMPR"),
+  RUPR: varchar("RUPR"),
+  MRPR: varchar("MRPR"),
+  STFI1: numeric("STFI1", { precision: 10, scale: 2 }),
+  STFI2: numeric("STFI2", { precision: 10, scale: 2 }),
+  PRRG: varchar("PRRG"),
+  KOPRTE: varchar("KOPRTE"),
+  ENDOFI: varchar("ENDOFI"),
+  UBICACION: varchar("UBICACION"),
+  OBSERVA: text("OBSERVA"), // Observaciones
   
   // System fields for tracking
   importedAt: timestamp("imported_at").defaultNow(),
