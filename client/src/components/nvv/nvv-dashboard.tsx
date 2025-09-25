@@ -111,6 +111,22 @@ export function NvvDashboard() {
     retry: false,
   });
 
+  // Obtener mapeo de códigos de vendedor a nombres reales y segmentos
+  const { data: salespersonMapping, isLoading: isLoadingMapping } = useQuery<{
+    kofulidoToName: Record<string, string>;
+    segments: Record<string, { count: number; amount: number }>;
+  }>({
+    queryKey: ['/api/sales-transactions/salesperson-mapping'],
+    queryFn: async () => {
+      const response = await fetch('/api/sales-transactions/salesperson-mapping');
+      if (!response.ok) {
+        throw new Error('Error al cargar mapeo de vendedores');
+      }
+      return response.json();
+    },
+    retry: false,
+  });
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -214,7 +230,9 @@ export function NvvDashboard() {
     const salespersonTotals: Record<string, { amount: number; count: number }> = {};
     
     detailedData.forEach(record => {
-      const salesperson = record.KOFULIDO || 'Sin Vendedor';
+      const kofulido = record.KOFULIDO || '';
+      // Usar nombre real del vendedor si está disponible, sino usar código
+      const salesperson = salespersonMapping?.kofulidoToName?.[kofulido] || kofulido || 'Sin Vendedor';
       const pendingAmount = calculatePendingAmount(record);
       
       if (salespersonTotals[salesperson]) {
@@ -228,7 +246,39 @@ export function NvvDashboard() {
     return salespersonTotals;
   };
 
-  if (isLoadingDetails) {
+  const calculateSegmentTotals = () => {
+    if (!detailedData) return {};
+    
+    // Segmentar por rango de montos para obtener insights útiles
+    const segmentTotals: Record<string, { amount: number; count: number }> = {};
+    
+    detailedData.forEach(record => {
+      const pendingAmount = calculatePendingAmount(record);
+      
+      // Definir segmentos por rango de montos
+      let segment: string;
+      if (pendingAmount >= 1000000) {
+        segment = 'Alto (≥ $1.000.000)';
+      } else if (pendingAmount >= 500000) {
+        segment = 'Medio ($500.000 - $999.999)';
+      } else if (pendingAmount >= 100000) {
+        segment = 'Básico ($100.000 - $499.999)';
+      } else {
+        segment = 'Menor (< $100.000)';
+      }
+      
+      if (segmentTotals[segment]) {
+        segmentTotals[segment].amount += pendingAmount;
+        segmentTotals[segment].count += 1;
+      } else {
+        segmentTotals[segment] = { amount: pendingAmount, count: 1 };
+      }
+    });
+    
+    return segmentTotals;
+  };
+
+  if (isLoadingDetails || isLoadingMapping) {
     return (
       <Card className="p-6 text-center">
         <div className="animate-pulse text-gray-500">Cargando datos de notas de venta...</div>
@@ -249,6 +299,7 @@ export function NvvDashboard() {
 
   const monthlyTotals = calculateMonthlyTotals();
   const salespersonTotals = calculateSalespersonTotals();
+  const segmentTotals = calculateSegmentTotals();
 
   // Preparar datos para el gráfico de vendedores
   const salespersonChartData = {
@@ -300,6 +351,56 @@ export function NvvDashboard() {
     }
   };
 
+  // Preparar datos para el gráfico de segmentos
+  const segmentChartData = {
+    labels: Object.keys(segmentTotals),
+    datasets: [
+      {
+        label: 'Monto Pendiente (CLP)',
+        data: Object.values(segmentTotals).map(item => item.amount),
+        backgroundColor: 'rgba(34, 197, 94, 0.7)',
+        borderColor: 'rgba(34, 197, 94, 1)',
+        borderWidth: 1,
+      }
+    ],
+  };
+
+  const segmentChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: 'NVV Pendientes por Rango de Monto',
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            const value = context.raw;
+            const segment = context.label;
+            const count = segmentTotals[segment]?.count || 0;
+            return [
+              `Monto: ${formatCurrency(value)}`,
+              `NVV: ${count}`
+            ];
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(value: any) {
+            return formatCurrency(value);
+          }
+        }
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Gráfico por Vendedor */}
@@ -318,6 +419,27 @@ export function NvvDashboard() {
           ) : (
             <div className="h-96">
               <Bar data={salespersonChartData} options={salespersonChartOptions} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Gráfico por Segmento */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <DollarSign className="h-5 w-5" />
+            <span>NVV Pendientes por Rango de Monto</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {Object.keys(segmentTotals).length === 0 ? (
+            <div className="text-center text-gray-500 py-4">
+              No hay datos de segmentos disponibles
+            </div>
+          ) : (
+            <div className="h-96">
+              <Bar data={segmentChartData} options={segmentChartOptions} />
             </div>
           )}
         </CardContent>
