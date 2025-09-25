@@ -4854,31 +4854,37 @@ export function registerRoutes(app: Express): Server {
           const row = rawData[i];
           
           try {
-            // Map CSV columns to database fields (adjust based on actual CSV structure)
-            const processedRow = {
-              documentNumber: row['Documento'] || row['document_number'] || `DOC-${Date.now()}-${i}`,
-              documentType: row['Tipo'] || row['document_type'] || 'NVV',
-              clientCode: row['Codigo_Cliente'] || row['client_code'] || '',
-              clientName: row['Cliente'] || row['client_name'] || 'Cliente sin nombre',
-              productCode: row['Codigo_Producto'] || row['product_code'] || '',
-              productName: row['Producto'] || row['product_name'] || 'Producto sin nombre',
-              salesperson: row['Vendedor'] || row['salesperson'] || '',
-              segment: row['Segmento'] || row['segment'] || '',
-              quantity: (parseFloat(row['Cantidad'] || row['quantity'] || '0')).toString(),
-              unitPrice: (parseFloat(row['Precio_Unitario'] || row['unit_price'] || '0')).toString(),
-              totalAmount: (parseFloat(row['Monto_Total'] || row['total_amount'] || '0')).toString(),
-              currency: row['Moneda'] || row['currency'] || 'CLP',
-              commitmentDate: parseDate(row['FEERLI']),
-              expectedDeliveryDate: row['Fecha_Entrega'] ? new Date(row['Fecha_Entrega']).toISOString() : null,
-              orderDate: row['Fecha_Pedido'] ? new Date(row['Fecha_Pedido']).toISOString() : null,
-              status: row['Estado'] || row['status'] || 'pending',
-              priority: row['Prioridad'] || row['priority'] || 'normal',
-              warehouse: row['Bodega'] || row['warehouse'] || '',
-              region: row['Region'] || row['region'] || '',
-              commune: row['Comuna'] || row['commune'] || '',
-              notes: row['Observaciones'] || row['notes'] || '',
-              originalData: row, // Store original CSV row for reference
-            };
+            // Map CSV columns DIRECTLY to database fields with EXACT NAMES
+            // Store all values as strings - Drizzle will convert them appropriately 
+            const processedRow: any = {};
+            
+            // Map all CSV columns directly to database fields
+            const csvFields = [
+              'IDMAEEDO', 'TIDO', 'NUDO', 'ENDO', 'SUENDO', 'SUDO', 'FEEMDO', 'FEER', 
+              'MODO', 'TIMODO', 'TIDEVE', 'TIDEVEFE', 'TIDEVEHO', 'PPPRNE', 'TAMOPPPR', 
+              'VANELI', 'FEEMLI', 'KOFULIDO', 'LILG', 'PRCT', 'NULIDO', 'FEERLI', 
+              'SULIDO', 'BOSULIDO', 'LUVTLIDO', 'KOPRCT', 'UD01PR', 'NOKOZO', 'IDMAEDDO',
+              'NUSEPR', 'CAPRCO1', 'CAPRAD1', 'CAPREX1', 'UD02PR', 'CAPRCO2', 'CAPRAD2', 
+              'CAPREX2', 'OCDO', 'OBDO', 'NOKOEN', 'ZOEN', 'DIEN', 'COMUNA', 'TIPR',
+              'NOKOPR', 'PFPR', 'FMPR', 'RUPR', 'MRPR', 'STFI1', 'STFI2', 'PRRG', 
+              'KOPRTE', 'ENDOFI', 'UBICACION', 'OBSERVA'
+            ];
+            
+            // Date fields that need parseDate processing
+            const dateFields = ['FEEMDO', 'FEER', 'TIDEVEFE', 'FEEMLI', 'FEERLI'];
+            
+            csvFields.forEach(field => {
+              if (dateFields.includes(field)) {
+                // Parse date fields with parseDate function
+                processedRow[field] = row[field] ? parseDate(row[field]) : null;
+              } else {
+                // All other fields as strings or null
+                processedRow[field] = row[field] || null;
+              }
+            });
+            
+            // System fields
+            processedRow.importBatch = importBatch;
 
             processedData.push(processedRow);
           } catch (error) {

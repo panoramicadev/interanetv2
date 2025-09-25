@@ -1972,49 +1972,76 @@ export type CartStateType = z.infer<typeof cartStateSchema>;
 export const nvvPendingSales = pgTable("nvv_pending_sales", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   
-  // Core NVV fields (adaptable based on CSV structure)
-  documentNumber: varchar("document_number").notNull(), // Número de documento/nota
-  documentType: varchar("document_type"), // Tipo de documento
-  clientCode: varchar("client_code"), // Código de cliente  
-  clientName: text("client_name"), // Nombre del cliente
-  productCode: varchar("product_code"), // Código del producto
-  productName: text("product_name"), // Nombre del producto
-  salesperson: varchar("salesperson"), // Vendedor responsable
-  segment: varchar("segment"), // Segmento del cliente
+  // ALL NVV CSV COLUMNS WITH EXACT NAMES - For easy linking with other systems
+  IDMAEEDO: numeric("idmaeedo", { precision: 15, scale: 2 }),
+  TIDO: varchar("tido"),
+  NUDO: varchar("nudo"), 
+  ENDO: varchar("endo"),
+  SUENDO: varchar("suendo"),
+  SUDO: varchar("sudo"),
+  FEEMDO: date("feemdo"),
+  FEER: date("feer"),
+  MODO: varchar("modo"),
+  TIMODO: varchar("timodo"),
+  TIDEVE: varchar("tideve"),
+  TIDEVEFE: date("tidevefe"),
+  TIDEVEHO: varchar("tideveho"),
+  PPPRNE: numeric("ppprne", { precision: 15, scale: 2 }),
+  TAMOPPPR: numeric("tamopppr", { precision: 15, scale: 2 }),
+  VANELI: numeric("vaneli", { precision: 15, scale: 2 }),
+  FEEMLI: date("feemli"),
+  KOFULIDO: varchar("kofulido"), // Vendedor
+  LILG: varchar("lilg"),
+  PRCT: varchar("prct"),
+  NULIDO: varchar("nulido"),
+  FEERLI: date("feerli"), // Fecha compromiso - CAMPO PRINCIPAL
+  SULIDO: varchar("sulido"),
+  BOSULIDO: varchar("bosulido"),
+  LUVTLIDO: integer("luvtlido"),
+  KOPRCT: varchar("koprct"), // Código producto/SKU
+  UD01PR: varchar("ud01pr"),
+  NOKOZO: varchar("nokozo"),
+  IDMAEDDO: numeric("idmaeddo", { precision: 15, scale: 2 }),
+  NUSEPR: varchar("nusepr"),
+  CAPRCO1: numeric("caprco1", { precision: 10, scale: 2 }),
+  CAPRAD1: numeric("caprad1", { precision: 10, scale: 2 }),
+  CAPREX1: numeric("caprex1", { precision: 10, scale: 2 }),
+  UD02PR: varchar("ud02pr"),
+  CAPRCO2: numeric("caprco2", { precision: 10, scale: 2 }), // Cantidad confirmada
+  CAPRAD2: numeric("caprad2", { precision: 10, scale: 2 }),
+  CAPREX2: numeric("caprex2", { precision: 10, scale: 2 }), // Cantidad requerida
+  OCDO: varchar("ocdo"),
+  OBDO: varchar("obdo"),
+  NOKOEN: varchar("nokoen"), // Nombre cliente
+  ZOEN: varchar("zoen"),
+  DIEN: varchar("dien"),
+  COMUNA: varchar("comuna"), // Comuna
+  TIPR: varchar("tipr"),
+  NOKOPR: text("nokopr"), // Nombre producto
+  PFPR: varchar("pfpr"),
+  FMPR: varchar("fmpr"),
+  RUPR: varchar("rupr"),
+  MRPR: varchar("mrpr"),
+  STFI1: numeric("stfi1", { precision: 10, scale: 2 }),
+  STFI2: numeric("stfi2", { precision: 10, scale: 2 }),
+  PRRG: varchar("prrg"),
+  KOPRTE: varchar("koprte"),
+  ENDOFI: varchar("endofi"),
+  UBICACION: varchar("ubicacion"),
+  OBSERVA: text("observa"), // Observaciones
   
-  // Quantity and amounts
-  quantity: numeric("quantity", { precision: 10, scale: 2 }), // Cantidad comprometida
-  unitPrice: numeric("unit_price", { precision: 15, scale: 2 }), // Precio unitario
-  totalAmount: numeric("total_amount", { precision: 15, scale: 2 }), // Monto total
-  currency: varchar("currency").default("CLP"), // Moneda
-  
-  // Important dates
-  commitmentDate: date("commitment_date"), // Fecha de compromiso
-  expectedDeliveryDate: date("expected_delivery_date"), // Fecha esperada de entrega
-  orderDate: date("order_date"), // Fecha del pedido
-  
-  // Status and tracking
-  status: varchar("status").default("pending"), // Estado: pending, confirmed, delivered, cancelled
-  priority: varchar("priority").default("normal"), // Prioridad: low, normal, high, urgent
-  warehouse: varchar("warehouse"), // Bodega/almacén
-  region: varchar("region"), // Región
-  commune: varchar("commune"), // Comuna
-  
-  // Additional fields for flexible CSV import
-  originalData: jsonb("original_data"), // Store original CSV row for reference
-  notes: text("notes"), // Observaciones adicionales
-  
-  // System fields
-  importedAt: timestamp("imported_at").defaultNow(), // Fecha de importación
-  importBatch: varchar("import_batch"), // Lote de importación para tracking
+  // System fields for tracking
+  importedAt: timestamp("imported_at").defaultNow(),
+  importBatch: varchar("import_batch"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  // Indexes for performance
-  documentNumberIdx: index("nvv_pending_sales_document_number_idx").on(table.documentNumber),
-  clientCodeIdx: index("nvv_pending_sales_client_code_idx").on(table.clientCode),
-  statusIdx: index("nvv_pending_sales_status_idx").on(table.status),
-  commitmentDateIdx: index("nvv_pending_sales_commitment_date_idx").on(table.commitmentDate),
+  // Indexes for performance on key fields
+  nudoIdx: index("nvv_pending_sales_nudo_idx").on(table.NUDO),
+  nokoenIdx: index("nvv_pending_sales_nokoen_idx").on(table.NOKOEN),
+  koprctIdx: index("nvv_pending_sales_koprct_idx").on(table.KOPRCT),
+  feerliIdx: index("nvv_pending_sales_feerli_idx").on(table.FEERLI),
+  kofulidoIdx: index("nvv_pending_sales_kofulido_idx").on(table.KOFULIDO),
   importBatchIdx: index("nvv_pending_sales_import_batch_idx").on(table.importBatch),
 }));
 
