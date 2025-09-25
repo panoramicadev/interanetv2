@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Target, TrendingUp, CheckCircle, AlertCircle, TrendingDown, Clock, AlertTriangle, Building, Users } from "lucide-react";
+import { Target, TrendingUp, CheckCircle, AlertCircle, TrendingDown, Clock, AlertTriangle, Building, Users, FileText, BarChart3 } from "lucide-react";
 
 export interface GoalProgress {
   id: string;
@@ -17,6 +17,15 @@ export interface GoalProgress {
   percentage: number;
   remaining: number;
   isCompleted: boolean;
+}
+
+interface NvvMetrics {
+  totalAmount: number;
+  totalQuantity: number;
+  pendingCount: number;
+  confirmedCount: number;
+  deliveredCount: number;
+  cancelledCount: number;
 }
 
 interface GoalsProgressProps {
@@ -55,6 +64,11 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
   // Use external data if provided, otherwise use fetched data
   const goalsProgress = goalsData || fetchedGoalsProgress;
   const isLoading = externalLoading !== undefined ? externalLoading : fetchedLoading;
+
+  // Query for NVV metrics (always fetch, not filtered by global filter)
+  const { data: nvvMetrics, isLoading: nvvLoading } = useQuery<NvvMetrics>({
+    queryKey: [`/api/nvv/metrics`],
+  });
 
   // Normalize function to handle case and accent insensitive comparison
   const normalize = (str: string | null | undefined): string => {
@@ -530,6 +544,49 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
             );
           })}
         </div>
+      )}
+
+      {/* NVV Section - Always show */}
+      {nvvMetrics && !nvvLoading && (
+        <Card className="border border-yellow-200 bg-gradient-to-r from-yellow-50 to-orange-50 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center space-x-2 text-lg font-semibold">
+              <FileText className="h-5 w-5 text-yellow-600" />
+              <span>Notas de Venta (NVV)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-white/50 rounded-lg">
+                <div className="text-xs text-muted-foreground mb-1">Total Pendiente</div>
+                <div className="text-sm font-bold text-yellow-700">
+                  {formatCurrency(nvvMetrics.totalAmount)}
+                </div>
+              </div>
+              <div className="text-center p-3 bg-white/50 rounded-lg">
+                <div className="text-xs text-muted-foreground mb-1">Cantidad Total</div>
+                <div className="text-sm font-bold text-yellow-700">
+                  {nvvMetrics.totalQuantity.toLocaleString('es-CL')}
+                </div>
+              </div>
+              <div className="text-center p-3 bg-white/50 rounded-lg">
+                <div className="text-xs text-muted-foreground mb-1">Órdenes Pendientes</div>
+                <div className="text-sm font-bold text-yellow-700">
+                  {nvvMetrics.pendingCount.toLocaleString('es-CL')}
+                </div>
+              </div>
+              <div className="text-center p-3 bg-white/50 rounded-lg">
+                <div className="text-xs text-muted-foreground mb-1">Estado General</div>
+                <div className="text-sm font-bold text-yellow-700">
+                  {nvvMetrics.pendingCount > 0 ? 'Activo' : 'Completado'}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 text-xs text-muted-foreground text-center">
+              Las Notas de Venta (NVV) representan ventas pendientes de entrega o confirmación
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
