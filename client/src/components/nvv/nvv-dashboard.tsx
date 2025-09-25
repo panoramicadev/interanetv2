@@ -116,11 +116,39 @@ export function NvvDashboard() {
   };
 
   const getMonthFromDate = (dateString: string) => {
+    if (!dateString) return 'Fecha no disponible';
     const date = new Date(dateString);
     return new Intl.DateTimeFormat('es-CL', {
       year: 'numeric',
       month: 'long'
     }).format(date);
+  };
+
+  const getMonthFromFEERLI = (feerli: string) => {
+    if (!feerli) return 'Fecha no disponible';
+    // FEERLI viene en formato DD/MM/YYYY, convertir a Date
+    const parts = feerli.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1; // month is 0-indexed
+      const year = parseInt(parts[2]);
+      const date = new Date(year, month, day);
+      return new Intl.DateTimeFormat('es-CL', {
+        year: 'numeric',
+        month: 'long'
+      }).format(date);
+    }
+    return 'Fecha inválida';
+  };
+
+  const formatFEERLI = (feerli: string) => {
+    if (!feerli) return 'Sin fecha';
+    // FEERLI ya viene en formato DD/MM/YYYY, solo validar
+    const parts = feerli.split('/');
+    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+      return feerli;
+    }
+    return 'Fecha inválida';
   };
 
   const calculateMonthlyTotals = () => {
@@ -129,7 +157,8 @@ export function NvvDashboard() {
     const monthlyTotals: Record<string, number> = {};
     
     detailedData.forEach(record => {
-      const month = getMonthFromDate(record.commitmentDate);
+      const feerli = record.originalData?.FEERLI;
+      const month = getMonthFromFEERLI(feerli);
       const pendingAmount = calculatePendingAmount(record);
       
       if (monthlyTotals[month]) {
@@ -244,7 +273,7 @@ export function NvvDashboard() {
                     return (
                       <TableRow key={record.id} data-testid={`row-nvv-${record.id}`}>
                         <TableCell className="min-w-[120px]" data-testid={`text-month-${record.id}`}>
-                          {getMonthFromDate(record.commitmentDate)}
+                          {getMonthFromFEERLI(record.originalData?.FEERLI)}
                         </TableCell>
                         <TableCell className="font-medium min-w-[100px]" data-testid={`text-salesperson-${record.id}`}>
                           {kofulido}
@@ -276,7 +305,7 @@ export function NvvDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="min-w-[120px]" data-testid={`text-date-${record.id}`}>
-                          {formatDate(record.commitmentDate)}
+                          {formatFEERLI(record.originalData?.FEERLI)}
                         </TableCell>
                       </TableRow>
                     );
