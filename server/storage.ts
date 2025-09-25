@@ -7093,31 +7093,36 @@ export class DatabaseStorage implements IStorage {
 
       const conditions = [];
 
-      if (options.status) {
-        conditions.push(eq(nvvPendingSales.status, options.status));
-      }
+      // Note: status field doesn't exist in CSV structure, skip filtering by status
+      // if (options.status) {
+      //   conditions.push(eq(nvvPendingSales.status, options.status));
+      // }
 
+      // Use KOFULIDO for salesperson filtering
       if (options.salesperson) {
-        conditions.push(eq(nvvPendingSales.salesperson, options.salesperson));
+        conditions.push(eq(nvvPendingSales.KOFULIDO, options.salesperson));
       }
 
-      if (options.segment) {
-        conditions.push(eq(nvvPendingSales.segment, options.segment));
-      }
+      // Note: segment field doesn't exist in CSV structure, skip filtering by segment
+      // if (options.segment) {
+      //   conditions.push(eq(nvvPendingSales.segment, options.segment));
+      // }
 
+      // Use FEERLI for date filtering (commitment date)
       if (options.startDate) {
-        conditions.push(gte(nvvPendingSales.commitmentDate, options.startDate.toISOString().split('T')[0]));
+        conditions.push(gte(nvvPendingSales.FEERLI, options.startDate.toISOString().split('T')[0]));
       }
 
       if (options.endDate) {
-        conditions.push(lte(nvvPendingSales.commitmentDate, options.endDate.toISOString().split('T')[0]));
+        conditions.push(lte(nvvPendingSales.FEERLI, options.endDate.toISOString().split('T')[0]));
       }
 
       if (conditions.length > 0) {
         query = query.where(and(...conditions));
       }
 
-      query = query.orderBy(desc(nvvPendingSales.commitmentDate));
+      // Order by FEERLI (commitment date) descending
+      query = query.orderBy(desc(nvvPendingSales.FEERLI));
 
       if (options.limit) {
         query = query.limit(options.limit);
@@ -7151,32 +7156,34 @@ export class DatabaseStorage implements IStorage {
     try {
       const conditions = [];
 
+      // Use FEERLI for date filtering
       if (options.startDate) {
-        conditions.push(gte(nvvPendingSales.commitmentDate, options.startDate.toISOString().split('T')[0]));
+        conditions.push(gte(nvvPendingSales.FEERLI, options.startDate.toISOString().split('T')[0]));
       }
 
       if (options.endDate) {
-        conditions.push(lte(nvvPendingSales.commitmentDate, options.endDate.toISOString().split('T')[0]));
+        conditions.push(lte(nvvPendingSales.FEERLI, options.endDate.toISOString().split('T')[0]));
       }
 
+      // Use KOFULIDO for salesperson filtering
       if (options.salesperson) {
-        conditions.push(eq(nvvPendingSales.salesperson, options.salesperson));
+        conditions.push(eq(nvvPendingSales.KOFULIDO, options.salesperson));
       }
 
-      if (options.segment) {
-        conditions.push(eq(nvvPendingSales.segment, options.segment));
-      }
+      // Note: segment field doesn't exist in CSV structure, skip filtering by segment
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
       const results = await db
         .select({
-          totalAmount: sql<number>`COALESCE(SUM(${nvvPendingSales.totalAmount}), 0)`,
-          totalQuantity: sql<number>`COALESCE(SUM(${nvvPendingSales.quantity}), 0)`,
-          pendingCount: sql<number>`COALESCE(SUM(CASE WHEN ${nvvPendingSales.status} = 'pending' THEN 1 ELSE 0 END), 0)`,
-          confirmedCount: sql<number>`COALESCE(SUM(CASE WHEN ${nvvPendingSales.status} = 'confirmed' THEN 1 ELSE 0 END), 0)`,
-          deliveredCount: sql<number>`COALESCE(SUM(CASE WHEN ${nvvPendingSales.status} = 'delivered' THEN 1 ELSE 0 END), 0)`,
-          cancelledCount: sql<number>`COALESCE(SUM(CASE WHEN ${nvvPendingSales.status} = 'cancelled' THEN 1 ELSE 0 END), 0)`,
+          // Calculate amounts using CSV fields (PPPRNE * CAPRCO2)
+          totalAmount: sql<number>`COALESCE(SUM(CAST(${nvvPendingSales.PPPRNE} AS NUMERIC) * CAST(${nvvPendingSales.CAPRCO2} AS NUMERIC)), 0)`,
+          totalQuantity: sql<number>`COALESCE(SUM(CAST(${nvvPendingSales.CAPRCO2} AS NUMERIC)), 0)`,
+          // Note: status columns don't exist in CSV, return basic counts
+          pendingCount: sql<number>`COUNT(*)`, // All records are considered "pending" by default
+          confirmedCount: sql<number>`0`,
+          deliveredCount: sql<number>`0`,
+          cancelledCount: sql<number>`0`,
         })
         .from(nvvPendingSales)
         .where(whereClause);
