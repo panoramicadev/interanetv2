@@ -303,11 +303,16 @@ export function NvvDashboard() {
     // Usar exactamente la misma lógica que el dashboard principal: campo NORUEN
     const segmentTotals: Record<string, { amount: number; count: number }> = {};
     
+    // Log temporal para depurar valores de segmentos
+    const uniqueSegments = new Set<string>();
+    
     dataToUse.forEach(record => {
       // Usar directamente el campo NORUEN que contiene el segmento real
       const segment = record.NORUEN && record.NORUEN.trim() !== '' 
         ? record.NORUEN.trim() 
         : 'Sin Segmento';
+      
+      uniqueSegments.add(segment);
       
       const pendingAmount = calculatePendingAmount(record);
       
@@ -318,6 +323,8 @@ export function NvvDashboard() {
         segmentTotals[segment] = { amount: pendingAmount, count: 1 };
       }
     });
+    
+    console.log('🔍 Segmentos encontrados en NVV:', Array.from(uniqueSegments).sort());
     
     return segmentTotals;
   };
