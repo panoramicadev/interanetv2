@@ -79,6 +79,21 @@ function Router() {
               }
             }} />
             
+            {/* Ruta dashboard explícita */}
+            <Route path="/dashboard" component={() => {
+              switch (user.role) {
+                case 'admin':
+                case 'supervisor':
+                  return <Dashboard />;
+                case 'salesperson':
+                  return <SalespersonDashboard />;
+                case 'client':
+                  return <ClientBuyerDashboard />;
+                default:
+                  return <Dashboard />;
+              }
+            }} />
+            
             {/* Rutas específicas de admin */}
             <Route path="/nvv" component={NVVPage} />
             <Route path="/usuarios" component={Users} />
