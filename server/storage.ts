@@ -7209,23 +7209,8 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async updateNvvStatus(id: string, status: string): Promise<boolean> {
-    try {
-      const [updated] = await db
-        .update(nvvPendingSales)
-        .set({ 
-          status, 
-          updatedAt: new Date() 
-        })
-        .where(eq(nvvPendingSales.id, id))
-        .returning();
-
-      return !!updated;
-    } catch (error) {
-      console.error('Error updating NVV status:', error);
-      return false;
-    }
-  }
+  // Note: Status updates removed since CSV data doesn't include status tracking
+  // NVV data is imported as-is from external system
 
   async deleteNvvBatch(importBatch: string): Promise<boolean> {
     try {
@@ -7268,147 +7253,95 @@ export class DatabaseStorage implements IStorage {
     }>;
   }> {
     try {
-      // Basic metrics
+      // Basic metrics using direct CSV column names
       const totalRecordsResult = await db
         .select({ count: sql<number>`COUNT(*)` })
         .from(nvvPendingSales);
 
       const totalSalespeopleResult = await db
-        .select({ count: sql<number>`COUNT(DISTINCT ${nvvPendingSales.salesperson})` })
+        .select({ count: sql<number>`COUNT(DISTINCT ${nvvPendingSales.KOFULIDO})` })
         .from(nvvPendingSales)
-        .where(isNotNull(nvvPendingSales.salesperson));
+        .where(isNotNull(nvvPendingSales.KOFULIDO));
 
-      // Total companies (using clientName from original data)
       const totalCompaniesResult = await db
-        .select({ 
-          count: sql<number>`COUNT(DISTINCT COALESCE(
-            ${nvvPendingSales.originalData}->>'NOKOEN',
-            ${nvvPendingSales.clientName}
-          ))`
-        })
-        .from(nvvPendingSales);
+        .select({ count: sql<number>`COUNT(DISTINCT ${nvvPendingSales.NOKOEN})` })
+        .from(nvvPendingSales)
+        .where(isNotNull(nvvPendingSales.NOKOEN));
 
-      // Calculate pending amount using GREATEST((CAPRCO2 - CAPREX2), 0) * PPPRNE
-      // Only include records with status 'pending' or 'confirmed' for pending calculations
+      // Calculate pending amount using CSV fields directly
       const pendingAmountResult = await db
         .select({
           totalAmount: sql<number>`
             COALESCE(SUM(
               GREATEST(
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+                CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
                 0
-              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
             ), 0)`,
           avgAmount: sql<number>`
             COALESCE(AVG(
               GREATEST(
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+                CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
                 0
-              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
             ), 0)`
         })
-        .from(nvvPendingSales)
-        .where(sql`${nvvPendingSales.status} IN ('pending', 'confirmed')`);
+        .from(nvvPendingSales);
 
-      // Top salespeople by pending amount (normalized names, active status only)
+      // Top salespeople using KOFULIDO
       const topSalespeopleResult = await db
         .select({
-          salesperson: sql<string>`TRIM(UPPER(${nvvPendingSales.salesperson}))`,
+          salesperson: sql<string>`TRIM(UPPER(COALESCE(${nvvPendingSales.KOFULIDO}, 'Sin vendedor')))`,
           totalAmount: sql<number>`
             COALESCE(SUM(
               GREATEST(
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+                CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
                 0
-              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
             ), 0)`,
           recordCount: sql<number>`COUNT(*)`
         })
         .from(nvvPendingSales)
-        .where(sql`${nvvPendingSales.salesperson} IS NOT NULL AND ${nvvPendingSales.status} IN ('pending', 'confirmed')`)
-        .groupBy(sql`TRIM(UPPER(${nvvPendingSales.salesperson}))`)
+        .where(isNotNull(nvvPendingSales.KOFULIDO))
+        .groupBy(sql`TRIM(UPPER(COALESCE(${nvvPendingSales.KOFULIDO}, 'Sin vendedor')))`)
         .orderBy(sql`
           SUM(
             GREATEST(
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
               0
-            ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
           ) DESC`)
         .limit(10);
 
-      // Top companies by pending amount (normalized names, active status only)
+      // Top companies using NOKOEN
       const topCompaniesResult = await db
         .select({
-          company: sql<string>`
-            TRIM(UPPER(COALESCE(
-              ${nvvPendingSales.originalData}->>'NOKOEN',
-              ${nvvPendingSales.clientName}
-            )))`,
+          company: sql<string>`TRIM(UPPER(COALESCE(${nvvPendingSales.NOKOEN}, 'Sin nombre')))`,
           totalAmount: sql<number>`
             COALESCE(SUM(
               GREATEST(
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+                CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+                CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
                 0
-              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+              ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
             ), 0)`,
           recordCount: sql<number>`COUNT(*)`
         })
         .from(nvvPendingSales)
-        .where(sql`${nvvPendingSales.status} IN ('pending', 'confirmed')`)
-        .groupBy(sql`
-          TRIM(UPPER(COALESCE(
-            ${nvvPendingSales.originalData}->>'NOKOEN',
-            ${nvvPendingSales.clientName}
-          )))`)
+        .where(isNotNull(nvvPendingSales.NOKOEN))
+        .groupBy(sql`TRIM(UPPER(COALESCE(${nvvPendingSales.NOKOEN}, 'Sin nombre')))`)
         .orderBy(sql`
           SUM(
             GREATEST(
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-              CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
+              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
               0
-            ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
+            ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)
           ) DESC`)
-        .limit(10);
-
-      // Status breakdown (includes all statuses)
-      const statusBreakdownResult = await db
-        .select({
-          status: nvvPendingSales.status,
-          count: sql<number>`COUNT(*)`,
-          amount: sql<number>`
-            COALESCE(SUM(
-              GREATEST(
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
-                0
-              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
-            ), 0)`
-        })
-        .from(nvvPendingSales)
-        .groupBy(nvvPendingSales.status)
-        .orderBy(sql`COUNT(*) DESC`);
-
-      // Region breakdown 
-      const regionBreakdownResult = await db
-        .select({
-          region: sql<string>`COALESCE(${nvvPendingSales.region}, 'Sin región')`,
-          count: sql<number>`COUNT(*)`,
-          amount: sql<number>`
-            COALESCE(SUM(
-              GREATEST(
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPRCO2', '0') AS DECIMAL) - 
-                CAST(COALESCE(${nvvPendingSales.originalData}->>'CAPREX2', '0') AS DECIMAL),
-                0
-              ) * CAST(COALESCE(${nvvPendingSales.originalData}->>'PPPRNE', '0') AS DECIMAL)
-            ), 0)`
-        })
-        .from(nvvPendingSales)
-        .groupBy(sql`COALESCE(${nvvPendingSales.region}, 'Sin región')`)
-        .orderBy(sql`COUNT(*) DESC`)
         .limit(10);
 
       return {
@@ -7427,16 +7360,9 @@ export class DatabaseStorage implements IStorage {
           totalAmount: row.totalAmount || 0,
           recordCount: row.recordCount || 0,
         })),
-        statusBreakdown: statusBreakdownResult.map(row => ({
-          status: row.status || 'pending',
-          count: row.count || 0,
-          amount: row.amount || 0,
-        })),
-        regionBreakdown: regionBreakdownResult.map(row => ({
-          region: row.region || 'Sin región',
-          count: row.count || 0,
-          amount: row.amount || 0,
-        })),
+        // Note: Status and region breakdowns removed since CSV doesn't include these fields
+        statusBreakdown: [{ status: 'pending', count: totalRecordsResult[0]?.count || 0, amount: pendingAmountResult[0]?.totalAmount || 0 }],
+        regionBreakdown: [],
       };
     } catch (error) {
       console.error('Error getting NVV dashboard metrics:', error);
