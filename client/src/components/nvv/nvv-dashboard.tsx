@@ -14,6 +14,25 @@ import {
   MapPin,
   FileText
 } from "lucide-react";
+import { Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface NvvDashboardMetrics {
   totalRecords: number;
@@ -189,6 +208,26 @@ export function NvvDashboard() {
     return monthlyTotals;
   };
 
+  const calculateSalespersonTotals = () => {
+    if (!detailedData) return {};
+    
+    const salespersonTotals: Record<string, { amount: number; count: number }> = {};
+    
+    detailedData.forEach(record => {
+      const salesperson = record.KOFULIDO || 'Sin Vendedor';
+      const pendingAmount = calculatePendingAmount(record);
+      
+      if (salespersonTotals[salesperson]) {
+        salespersonTotals[salesperson].amount += pendingAmount;
+        salespersonTotals[salesperson].count += 1;
+      } else {
+        salespersonTotals[salesperson] = { amount: pendingAmount, count: 1 };
+      }
+    });
+    
+    return salespersonTotals;
+  };
+
   if (isLoadingDetails) {
     return (
       <Card className="p-6 text-center">
@@ -209,9 +248,81 @@ export function NvvDashboard() {
   }
 
   const monthlyTotals = calculateMonthlyTotals();
+  const salespersonTotals = calculateSalespersonTotals();
+
+  // Preparar datos para el gráfico de vendedores
+  const salespersonChartData = {
+    labels: Object.keys(salespersonTotals),
+    datasets: [
+      {
+        label: 'Monto Pendiente (CLP)',
+        data: Object.values(salespersonTotals).map(item => item.amount),
+        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+        borderColor: 'rgba(59, 130, 246, 1)',
+        borderWidth: 1,
+      }
+    ],
+  };
+
+  const salespersonChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: 'NVV Pendientes por Vendedor',
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            const value = context.raw;
+            const salesperson = context.label;
+            const count = salespersonTotals[salesperson]?.count || 0;
+            return [
+              `Monto: ${formatCurrency(value)}`,
+              `NVV: ${count}`
+            ];
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(value: any) {
+            return formatCurrency(value);
+          }
+        }
+      }
+    }
+  };
 
   return (
     <div className="space-y-6">
+      {/* Gráfico por Vendedor */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Users className="h-5 w-5" />
+            <span>NVV Pendientes por Vendedor</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {Object.keys(salespersonTotals).length === 0 ? (
+            <div className="text-center text-gray-500 py-4">
+              No hay datos de vendedores disponibles
+            </div>
+          ) : (
+            <div className="h-96">
+              <Bar data={salespersonChartData} options={salespersonChartOptions} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Total NVV por Mes */}
       <Card>
         <CardHeader>
