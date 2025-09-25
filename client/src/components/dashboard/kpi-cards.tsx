@@ -5,8 +5,7 @@ import {
   DollarSign, 
   ShoppingCart, 
   Package, 
-  Users,
-  FileText 
+  Users 
 } from "lucide-react";
 
 interface SalesMetrics {
@@ -20,15 +19,6 @@ interface SalesMetrics {
   previousMonthOrders?: number;
   previousMonthUnits?: number;
   previousMonthCustomers?: number;
-}
-
-interface NvvMetrics {
-  totalAmount: number;
-  totalQuantity: number;
-  pendingCount: number;
-  confirmedCount: number;
-  deliveredCount: number;
-  cancelledCount: number;
 }
 
 interface KPICardsProps {
@@ -109,11 +99,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     enabled: !!resolvedComparePeriod, // Only run if resolved period is set
   });
 
-  // Query for NVV metrics
-  const { data: nvvMetrics } = useQuery<NvvMetrics>({
-    queryKey: [`/api/nvv/metrics${segment ? `?segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `${segment ? '&' : '?'}salesperson=${encodeURIComponent(salesperson)}` : ''}`],
-  });
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -128,8 +113,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-6">
-        {[...Array(5)].map((_, i) => (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+        {[...Array(4)].map((_, i) => (
           <div key={i} className="modern-card p-3 sm:p-6">
             <div className="skeleton h-3 sm:h-4 mb-2"></div>
             <div className="skeleton h-6 sm:h-8 mb-1"></div>
@@ -229,21 +214,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       iconColor: "text-purple-600",
       testId: "kpi-customers"
     },
-    {
-      title: "NVV Pendientes",
-      value: formatCurrency(nvvMetrics?.totalAmount || 0),
-      change: "Sin datos previos",
-      changeColor: "text-gray-500",
-      comparison: null,
-      icon: FileText,
-      bgColor: "bg-yellow-100 dark:bg-yellow-900/20",
-      iconColor: "text-yellow-600",
-      testId: "kpi-nvv-pending"
-    },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
       {kpis.map((kpi) => (
         <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
