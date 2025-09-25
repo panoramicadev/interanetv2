@@ -16,36 +16,45 @@ import { db } from "./db";
 import { ecommerceProducts } from "../shared/schema";
 import { eq } from "drizzle-orm";
 
-// Date parsing utility function
+// Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
   if (!value || value.toString().trim() === '') return null;
+  
   try {
-    const dateStr = value.toString();
+    const dateStr = value.toString().trim();
     let parts: string[];
     
-    if (dateStr.includes('-')) {
-      parts = dateStr.split('-');
-    } else if (dateStr.includes('/')) {
+    // Handle different separators
+    if (dateStr.includes('/')) {
       parts = dateStr.split('/');
+    } else if (dateStr.includes('-')) {
+      parts = dateStr.split('-');
     } else {
       return null;
     }
     
-    if (parts.length === 3) {
-      const day = parseInt(parts[0]);
-      const month = parseInt(parts[1]);
-      const year = parseInt(parts[2]);
-      
-      if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900) {
-        const formattedMonth = month.toString().padStart(2, '0');
-        const formattedDay = day.toString().padStart(2, '0');
-        return `${year}-${formattedMonth}-${formattedDay}`;
-      }
-    }
+    if (parts.length !== 3) return null;
+    
+    // Parse numbers
+    const day = parseInt(parts[0]);
+    const month = parseInt(parts[1]); 
+    const year = parseInt(parts[2]);
+    
+    // Validate ranges
+    if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+    if (day < 1 || day > 31) return null;
+    if (month < 1 || month > 12) return null;
+    if (year < 1900 || year > 2100) return null; // Reasonable year range
+    
+    // Format as YYYY-MM-DD
+    const formattedMonth = month.toString().padStart(2, '0');
+    const formattedDay = day.toString().padStart(2, '0');
+    return `${year}-${formattedMonth}-${formattedDay}`;
+    
   } catch (e) {
-    console.warn('Invalid date format:', value);
+    console.warn('Error parsing date:', value, e);
+    return null;
   }
-  return null;
 }
 
 // Database error handling middleware with secure logging
