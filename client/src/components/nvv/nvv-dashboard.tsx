@@ -76,6 +76,7 @@ interface NvvRecord {
   KOPRCT: string | null; // SKU del producto
   NOKOPR: string | null; // Nombre del producto
   KOFULIDO: string | null; // Vendedor
+  FEEMDO: string | null; // Fecha de emisión del documento
   FEERLI: string | null; // Fecha de compromiso
   CAPRCO2: string | null; // Cantidad confirmada
   CAPREX2: string | null; // Cantidad requerida
@@ -186,12 +187,12 @@ export function NvvDashboard() {
     }).format(date);
   };
 
-  const getMonthFromFEERLI = (feerli: string) => {
-    if (!feerli) return 'Fecha no disponible';
+  const getMonthFromFEEMDO = (feemdo: string) => {
+    if (!feemdo) return 'Fecha no disponible';
     
     try {
-      // FEERLI viene desde PostgreSQL en formato YYYY-MM-DD
-      const date = new Date(feerli);
+      // FEEMDO viene desde PostgreSQL en formato YYYY-MM-DD
+      const date = new Date(feemdo);
       if (isNaN(date.getTime())) {
         return 'Fecha inválida';
       }
@@ -205,12 +206,12 @@ export function NvvDashboard() {
     }
   };
 
-  const formatFEERLI = (feerli: string) => {
-    if (!feerli) return 'Sin fecha';
+  const formatFEEMDO = (feemdo: string) => {
+    if (!feemdo) return 'Sin fecha';
     
     try {
       // Las fechas vienen desde PostgreSQL en formato YYYY-MM-DD
-      const date = new Date(feerli);
+      const date = new Date(feemdo);
       if (isNaN(date.getTime())) {
         return 'Fecha inválida';
       }
@@ -231,9 +232,9 @@ export function NvvDashboard() {
     
     const months = new Set<string>();
     detailedData.forEach(record => {
-      const feerli = record.FEERLI;
-      if (feerli) {
-        const month = getMonthFromFEERLI(feerli);
+      const feemdo = record.FEEMDO;
+      if (feemdo) {
+        const month = getMonthFromFEEMDO(feemdo);
         if (month !== 'Fecha inválida') {
           months.add(month);
         }
@@ -247,8 +248,8 @@ export function NvvDashboard() {
     if (month === 'all') return data;
     
     return data.filter(record => {
-      const feerli = record.FEERLI;
-      const recordMonth = getMonthFromFEERLI(feerli || '');
+      const feemdo = record.FEEMDO;
+      const recordMonth = getMonthFromFEEMDO(feemdo || '');
       return recordMonth === month;
     });
   };
@@ -259,8 +260,8 @@ export function NvvDashboard() {
     const monthlyTotals: Record<string, number> = {};
     
     detailedData.forEach(record => {
-      const feerli = record.FEERLI;
-      const month = getMonthFromFEERLI(feerli || '');
+      const feemdo = record.FEEMDO;
+      const month = getMonthFromFEEMDO(feemdo || '');
       const pendingAmount = calculatePendingAmount(record);
       
       if (monthlyTotals[month]) {
@@ -856,7 +857,7 @@ export function NvvDashboard() {
                     return (
                       <TableRow key={record.id} data-testid={`row-nvv-${record.id}`}>
                         <TableCell className="min-w-[120px]" data-testid={`text-month-${record.id}`}>
-                          {getMonthFromFEERLI(record.FEERLI || '')}
+                          {getMonthFromFEEMDO(record.FEEMDO || '')}
                         </TableCell>
                         <TableCell className="font-medium min-w-[100px]" data-testid={`text-salesperson-${record.id}`}>
                           {kofulido}
@@ -888,7 +889,7 @@ export function NvvDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="min-w-[120px]" data-testid={`text-date-${record.id}`}>
-                          {formatFEERLI(record.FEERLI || '')}
+                          {formatFEEMDO(record.FEEMDO || '')}
                         </TableCell>
                       </TableRow>
                     );
