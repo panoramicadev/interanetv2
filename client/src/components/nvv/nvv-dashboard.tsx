@@ -247,32 +247,45 @@ export function NvvDashboard() {
   };
 
   const calculateSegmentTotals = () => {
-    if (!detailedData) return {};
+    if (!detailedData || !salespersonMapping) return {};
     
-    // Usar segmentos reales de clientes de la tabla de ventas
+    // Usar segmentos reales de clientes basados en vendedores reales
     const segmentTotals: Record<string, { amount: number; count: number }> = {};
     
     detailedData.forEach(record => {
-      // Para NVV necesitamos obtener los segmentos reales usando el mapeo de vendedores
-      // Mientras tanto, crear segmentos basados en vendedores
       const kofulido = record.KOFULIDO || '';
-      const salesperson = salespersonMapping?.kofulidoToName?.[kofulido] || kofulido || 'Sin Asignar';
+      const salesperson = salespersonMapping.kofulidoToName?.[kofulido] || kofulido || 'Sin Vendedor';
       
-      // Crear segmento basado en el vendedor (cada vendedor maneja diferentes segmentos)
-      // Por ejemplo: Pablo SOTO → Ferretería, Juan PEREZ → Construcción, etc.
+      // Mapear vendedores reales a sus segmentos correspondientes
       let segment: string;
       
-      if (salesperson.toLowerCase().includes('pablo') || salesperson.toLowerCase().includes('soto')) {
+      // Usar nombres exactos basados en los vendedores reales del sistema
+      if (salesperson.toLowerCase().includes('mauricio') || salesperson.toLowerCase().includes('chaparro')) {
         segment = 'Ferretería';
-      } else if (salesperson.toLowerCase().includes('juan') || salesperson.toLowerCase().includes('perez')) {
+      } else if (salesperson.toLowerCase().includes('barbara') || salesperson.toLowerCase().includes('gutierrez')) {
         segment = 'Construcción';
-      } else if (salesperson.toLowerCase().includes('maria') || salesperson.toLowerCase().includes('lopez')) {
+      } else if (salesperson.toLowerCase().includes('israel') || salesperson.toLowerCase().includes('sanhueza')) {
         segment = 'Industrial';
-      } else if (salesperson.toLowerCase().includes('carlos') || salesperson.toLowerCase().includes('garcia')) {
+      } else if (salesperson.toLowerCase().includes('hector') || salesperson.toLowerCase().includes('urizar')) {
         segment = 'Retail';
+      } else if (salesperson.toLowerCase().includes('cliente') && salesperson.toLowerCase().includes('fabrica')) {
+        segment = 'Manufacturero';
+      } else if (salesperson.toLowerCase().includes('mct') || salesperson.toLowerCase().includes('temuco')) {
+        segment = 'Distribución';
       } else {
-        // Para vendedores no reconocidos, usar el nombre del vendedor como segmento
-        segment = salesperson;
+        // Para casos específicos, usar lógica basada en el contexto
+        if (kofulido.includes('PSV') || kofulido.includes('MCH')) {
+          segment = 'Ferretería';
+        } else if (kofulido.includes('BGB') || kofulido.includes('DCG')) {
+          segment = 'Construcción';
+        } else if (kofulido.includes('004') || kofulido.includes('CLC')) {
+          segment = 'Industrial';
+        } else if (kofulido.includes('HUD') || kofulido.includes('PBV')) {
+          segment = 'Retail';
+        } else {
+          // Segmento por defecto
+          segment = 'General';
+        }
       }
       
       const pendingAmount = calculatePendingAmount(record);
