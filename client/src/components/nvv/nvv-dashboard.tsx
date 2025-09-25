@@ -45,17 +45,23 @@ interface NvvDashboardMetrics {
 
 interface NvvRecord {
   id: string;
-  salesperson: string | null;
-  clientName: string;
-  productName: string | null;
-  quantity: number;
-  unitPrice: number;
-  totalAmount: number;
-  commitmentDate: string;
-  status: string;
-  region: string | null;
-  segment: string | null;
-  originalData: any;
+  // Direct CSV column fields
+  NOKOEN: string | null; // Cliente
+  KOPRCT: string | null; // SKU del producto
+  NOKOPR: string | null; // Nombre del producto
+  KOFULIDO: string | null; // Vendedor
+  FEERLI: string | null; // Fecha de compromiso
+  CAPRCO2: string | null; // Cantidad confirmada
+  CAPREX2: string | null; // Cantidad requerida
+  PPPRNE: string | null; // Precio unitario neto
+  // Additional CSV columns that we might need
+  NUDO: string | null; // Número de documento
+  TIDO: string | null; // Tipo de documento
+  COMUNA: string | null; // Comuna
+  OBSERVA: string | null; // Observaciones
+  // System fields
+  status?: string;
+  importBatch?: string;
 }
 
 const statusLabels: Record<string, string> = {
@@ -107,10 +113,9 @@ export function NvvDashboard() {
   };
 
   const calculatePendingAmount = (record: NvvRecord) => {
-    if (!record.originalData) return 0;
-    const caprco2 = parseFloat(record.originalData.CAPRCO2 || '0');
-    const caprex2 = parseFloat(record.originalData.CAPREX2 || '0'); 
-    const ppprne = parseFloat(record.originalData.PPPRNE || '0');
+    const caprco2 = parseFloat(record.CAPRCO2 || '0');
+    const caprex2 = parseFloat(record.CAPREX2 || '0'); 
+    const ppprne = parseFloat(record.PPPRNE || '0');
     const pendingUnits = Math.max(caprco2 - caprex2, 0);
     return pendingUnits * ppprne;
   };
@@ -157,8 +162,8 @@ export function NvvDashboard() {
     const monthlyTotals: Record<string, number> = {};
     
     detailedData.forEach(record => {
-      const feerli = record.originalData?.FEERLI;
-      const month = getMonthFromFEERLI(feerli);
+      const feerli = record.FEERLI;
+      const month = getMonthFromFEERLI(feerli || '');
       const pendingAmount = calculatePendingAmount(record);
       
       if (monthlyTotals[month]) {
@@ -260,20 +265,20 @@ export function NvvDashboard() {
                 <TableBody>
                   {detailedData.slice(0, 100).map((record) => {
                     const pendingAmount = calculatePendingAmount(record);
-                    const caprco2 = record.originalData?.CAPRCO2 ? parseFloat(record.originalData.CAPRCO2) : 0;
-                    const caprex2 = record.originalData?.CAPREX2 ? parseFloat(record.originalData.CAPREX2) : 0;
-                    const ppprne = record.originalData?.PPPRNE ? parseFloat(record.originalData.PPPRNE) : 0;
+                    const caprco2 = record.CAPRCO2 ? parseFloat(record.CAPRCO2) : 0;
+                    const caprex2 = record.CAPREX2 ? parseFloat(record.CAPREX2) : 0;
+                    const ppprne = record.PPPRNE ? parseFloat(record.PPPRNE) : 0;
                     
-                    // Obtener campos correctos del originalData
-                    const nokoen = record.originalData?.NOKOEN || record.clientName || 'Sin cliente';
-                    const koprct = record.originalData?.KOPRCT || 'Sin SKU';
-                    const nokopr = record.originalData?.NOKOPR || record.productName || 'Sin producto';
-                    const kofulido = record.originalData?.KOFULIDO || record.salesperson || 'Sin vendedor';
+                    // Usar campos directos de CSV
+                    const nokoen = record.NOKOEN || 'Sin cliente';
+                    const koprct = record.KOPRCT || 'Sin SKU';
+                    const nokopr = record.NOKOPR || 'Sin producto';
+                    const kofulido = record.KOFULIDO || 'Sin vendedor';
                     
                     return (
                       <TableRow key={record.id} data-testid={`row-nvv-${record.id}`}>
                         <TableCell className="min-w-[120px]" data-testid={`text-month-${record.id}`}>
-                          {getMonthFromFEERLI(record.originalData?.FEERLI)}
+                          {getMonthFromFEERLI(record.FEERLI || '')}
                         </TableCell>
                         <TableCell className="font-medium min-w-[100px]" data-testid={`text-salesperson-${record.id}`}>
                           {kofulido}
@@ -300,12 +305,12 @@ export function NvvDashboard() {
                           {formatCurrency(pendingAmount)}
                         </TableCell>
                         <TableCell className="min-w-[100px]" data-testid={`text-status-${record.id}`}>
-                          <Badge className={statusColors[record.status] || "bg-gray-100 text-gray-800"}>
-                            {statusLabels[record.status] || record.status}
+                          <Badge className={statusColors[record.status || 'pending'] || "bg-gray-100 text-gray-800"}>
+                            {statusLabels[record.status || 'pending'] || record.status || 'Pendiente'}
                           </Badge>
                         </TableCell>
                         <TableCell className="min-w-[120px]" data-testid={`text-date-${record.id}`}>
-                          {formatFEERLI(record.originalData?.FEERLI)}
+                          {formatFEERLI(record.FEERLI || '')}
                         </TableCell>
                       </TableRow>
                     );
