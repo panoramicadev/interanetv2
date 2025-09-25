@@ -72,11 +72,10 @@ export function PendingSalesTable() {
 
   // Función para extraer y calcular datos NVV
   const calculateNvvData = (sale: any) => {
-    const originalData = sale.originalData || {};
-    
-    const caprex2 = parseFloat(originalData.CAPREX2 || '0');
-    const caprco2 = parseFloat(originalData.CAPRCO2 || '0');
-    const ppprne = parseFloat(originalData.PPPRNE || '0');
+    // Usar campos CSV directos (sin originalData)
+    const caprex2 = parseFloat(sale.CAPREX2 || '0');
+    const caprco2 = parseFloat(sale.CAPRCO2 || '0');
+    const ppprne = parseFloat(sale.PPPRNE || '0');
     
     const cantidadPendiente = caprco2 - caprex2;
     const montoPendiente = cantidadPendiente * ppprne;
@@ -87,9 +86,9 @@ export function PendingSalesTable() {
       cantidadPendiente,
       precioUnitario: ppprne,
       montoPendiente,
-      clienteNombre: originalData.NOKOEN || sale.clientName || 'Sin nombre',
-      productoNombre: originalData.NOKOPR || sale.productName || 'Sin nombre',
-      productoCode: originalData.KOPRCT || sale.productCode || '',
+      clienteNombre: sale.NOKOEN || 'Sin nombre',
+      productoNombre: sale.NOKOPR || 'Sin nombre',
+      productoCode: sale.KOPRCT || '',
     };
   };
 
@@ -162,14 +161,14 @@ export function PendingSalesTable() {
                         <TableRow key={sale.id} data-testid={`sale-row-${sale.id}`}>
                           <TableCell className="font-medium">
                             <div>
-                              <div className="font-semibold">{sale.documentNumber}</div>
-                              <div className="text-sm text-gray-500">{sale.documentType}</div>
+                              <div className="font-semibold">{sale.NUDO || 'N/D'}</div>
+                              <div className="text-sm text-gray-500">{sale.TIDO || 'N/D'}</div>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div>
                               <div className="font-medium">{nvvData.clienteNombre}</div>
-                              <div className="text-sm text-gray-500">{sale.clientCode}</div>
+                              <div className="text-sm text-gray-500">{sale.NOKOEN}</div>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -202,11 +201,11 @@ export function PendingSalesTable() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            {formatDate(sale.commitmentDate)}
+                            {formatDate(sale.FEERLI)}
                           </TableCell>
                           <TableCell>
-                            <Badge className={statusColors[sale.status || 'pending'] || "bg-gray-100 text-gray-800"}>
-                              {statusLabels[sale.status || 'pending'] || sale.status}
+                            <Badge className="bg-yellow-100 text-yellow-800">
+                              Pendiente
                             </Badge>
                           </TableCell>
                           <TableCell>
