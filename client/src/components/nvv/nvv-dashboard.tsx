@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   TrendingUp, 
   Users, 
@@ -12,8 +14,11 @@ import {
   Calendar,
   UserCheck,
   MapPin,
-  FileText
+  FileText,
+  BarChart3,
+  TrendingDown
 } from "lucide-react";
+import { useState } from "react";
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -98,6 +103,9 @@ const statusColors: Record<string, string> = {
 };
 
 export function NvvDashboard() {
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [previousMonth, setPreviousMonth] = useState<string>('previous');
+
   // Obtener datos detallados de las notas de venta
   const { data: detailedData, isLoading: isLoadingDetails, error } = useQuery<NvvRecord[]>({
     queryKey: ['/api/nvv/pending'],
@@ -204,6 +212,33 @@ export function NvvDashboard() {
     }
   };
 
+  const getAvailableMonths = () => {
+    if (!detailedData) return [];
+    
+    const months = new Set<string>();
+    detailedData.forEach(record => {
+      const feerli = record.FEERLI;
+      if (feerli) {
+        const month = getMonthFromFEERLI(feerli);
+        if (month !== 'Fecha inválida') {
+          months.add(month);
+        }
+      }
+    });
+    
+    return Array.from(months).sort();
+  };
+
+  const filterDataByMonth = (data: NvvRecord[], month: string) => {
+    if (month === 'all') return data;
+    
+    return data.filter(record => {
+      const feerli = record.FEERLI;
+      const recordMonth = getMonthFromFEERLI(feerli || '');
+      return recordMonth === month;
+    });
+  };
+
   const calculateMonthlyTotals = () => {
     if (!detailedData) return {};
     
@@ -224,12 +259,13 @@ export function NvvDashboard() {
     return monthlyTotals;
   };
 
-  const calculateSalespersonTotals = () => {
+  const calculateSalespersonTotals = (monthFilter?: string) => {
     if (!detailedData) return {};
     
+    const dataToUse = monthFilter ? filterDataByMonth(detailedData, monthFilter) : detailedData;
     const salespersonTotals: Record<string, { amount: number; count: number }> = {};
     
-    detailedData.forEach(record => {
+    dataToUse.forEach(record => {
       const kofulido = record.KOFULIDO || '';
       // Usar nombre real del vendedor si está disponible, sino usar código
       const salesperson = salespersonMapping?.kofulidoToName?.[kofulido] || kofulido || 'Sin Vendedor';
@@ -246,13 +282,14 @@ export function NvvDashboard() {
     return salespersonTotals;
   };
 
-  const calculateSegmentTotals = () => {
+  const calculateSegmentTotals = (monthFilter?: string) => {
     if (!detailedData || !salespersonMapping) return {};
     
+    const dataToUse = monthFilter ? filterDataByMonth(detailedData, monthFilter) : detailedData;
     // Usar segmentos reales de clientes basados en vendedores reales
     const segmentTotals: Record<string, { amount: number; count: number }> = {};
     
-    detailedData.forEach(record => {
+    dataToUse.forEach(record => {
       const kofulido = record.KOFULIDO || '';
       const salesperson = salespersonMapping.kofulidoToName?.[kofulido] || kofulido || 'Sin Vendedor';
       
@@ -301,6 +338,50 @@ export function NvvDashboard() {
     return segmentTotals;
   };
 
+  // Función para calcular diferencias entre meses
+  const calculateMonthlyDifferences = () => {
+    if (!detailedData) return { salesperson: {}, segment: {} };
+    
+    const availableMonths = getAvailableMonths();
+    if (availableMonths.length < 2) {
+      return { salesperson: {}, segment: {} };
+    }
+    
+    const currentMonthTotals = {
+      salesperson: calculateSalespersonTotals(selectedMonth),
+      segment: calculateSegmentTotals(selectedMonth)
+    };
+    
+    const previousMonthTotals = {
+      salesperson: calculateSalespersonTotals(previousMonth),
+      segment: calculateSegmentTotals(previousMonth)
+    };
+    
+    const calculateDiff = (current: Record<string, { amount: number; count: number }>, previous: Record<string, { amount: number; count: number }>) => {
+      const differences: Record<string, { amount: number; percentage: number; count: number }> = {};
+      
+      Object.keys(current).forEach(key => {
+        const currentAmount = current[key]?.amount || 0;
+        const previousAmount = previous[key]?.amount || 0;
+        const amountDiff = currentAmount - previousAmount;
+        const percentage = previousAmount !== 0 ? (amountDiff / previousAmount) * 100 : (currentAmount > 0 ? 100 : 0);
+        
+        differences[key] = {
+          amount: amountDiff,
+          percentage,
+          count: (current[key]?.count || 0) - (previous[key]?.count || 0)
+        };
+      });
+      
+      return differences;
+    };
+    
+    return {
+      salesperson: calculateDiff(currentMonthTotals.salesperson, previousMonthTotals.salesperson),
+      segment: calculateDiff(currentMonthTotals.segment, previousMonthTotals.segment)
+    };
+  };
+  
   if (isLoadingDetails || isLoadingMapping) {
     return (
       <Card className="p-6 text-center">
@@ -320,9 +401,11 @@ export function NvvDashboard() {
     );
   }
 
+  const availableMonths = getAvailableMonths();
   const monthlyTotals = calculateMonthlyTotals();
-  const salespersonTotals = calculateSalespersonTotals();
-  const segmentTotals = calculateSegmentTotals();
+  const salespersonTotals = calculateSalespersonTotals(selectedMonth);
+  const segmentTotals = calculateSegmentTotals(selectedMonth);
+  const monthlyDifferences = calculateMonthlyDifferences();
 
   // Preparar datos para el gráfico de vendedores
   const salespersonChartData = {
@@ -426,12 +509,65 @@ export function NvvDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Selector de Meses para Análisis Comparativo */}
+      {availableMonths.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <BarChart3 className="h-5 w-5" />
+              <span>Análisis Comparativo Mensual</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Mes Actual</label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar mes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los meses</SelectItem>
+                    {availableMonths.map((month) => (
+                      <SelectItem key={month} value={month}>
+                        {month}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">Mes a Comparar</label>
+                <Select value={previousMonth} onValueChange={setPreviousMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar mes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="previous">Mes anterior</SelectItem>
+                    {availableMonths.map((month) => (
+                      <SelectItem key={month} value={month}>
+                        {month}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Gráfico por Vendedor */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Users className="h-5 w-5" />
             <span>NVV Pendientes por Vendedor</span>
+            {selectedMonth !== 'all' && (
+              <Badge variant="outline" className="ml-2">
+                {selectedMonth}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -440,8 +576,38 @@ export function NvvDashboard() {
               No hay datos de vendedores disponibles
             </div>
           ) : (
-            <div className="h-96">
-              <Bar data={salespersonChartData} options={salespersonChartOptions} />
+            <div className="space-y-4">
+              <div className="h-96">
+                <Bar data={salespersonChartData} options={salespersonChartOptions} />
+              </div>
+              
+              {/* Mostrar diferencias mensuales si hay comparación disponible */}
+              {selectedMonth !== 'all' && previousMonth !== 'previous' && Object.keys(monthlyDifferences.salesperson).length > 0 && (
+                <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <h4 className="text-sm font-medium mb-3 flex items-center">
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Diferencias vs {previousMonth}
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                    {Object.entries(monthlyDifferences.salesperson)
+                      .filter(([_, diff]) => diff.amount !== 0)
+                      .slice(0, 6)
+                      .map(([salesperson, diff]) => (
+                        <div key={salesperson} className="flex justify-between items-center p-2 bg-white dark:bg-gray-700 rounded">
+                          <span className="truncate mr-2">{salesperson}</span>
+                          <div className="flex items-center space-x-1">
+                            <span className={`font-medium ${diff.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {diff.amount >= 0 ? '+' : ''}{formatCurrency(diff.amount)}
+                            </span>
+                            <span className={`text-xs ${diff.percentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              ({diff.percentage >= 0 ? '+' : ''}{diff.percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -453,6 +619,11 @@ export function NvvDashboard() {
           <CardTitle className="flex items-center space-x-2">
             <Building className="h-5 w-5" />
             <span>NVV Pendientes por Segmento de Cliente</span>
+            {selectedMonth !== 'all' && (
+              <Badge variant="outline" className="ml-2">
+                {selectedMonth}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -461,8 +632,38 @@ export function NvvDashboard() {
               No hay datos de segmentos disponibles
             </div>
           ) : (
-            <div className="h-96">
-              <Bar data={segmentChartData} options={segmentChartOptions} />
+            <div className="space-y-4">
+              <div className="h-96">
+                <Bar data={segmentChartData} options={segmentChartOptions} />
+              </div>
+              
+              {/* Mostrar diferencias mensuales si hay comparación disponible */}
+              {selectedMonth !== 'all' && previousMonth !== 'previous' && Object.keys(monthlyDifferences.segment).length > 0 && (
+                <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <h4 className="text-sm font-medium mb-3 flex items-center">
+                    <TrendingDown className="h-4 w-4 mr-2" />
+                    Diferencias vs {previousMonth}
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                    {Object.entries(monthlyDifferences.segment)
+                      .filter(([_, diff]) => diff.amount !== 0)
+                      .slice(0, 6)
+                      .map(([segment, diff]) => (
+                        <div key={segment} className="flex justify-between items-center p-2 bg-white dark:bg-gray-700 rounded">
+                          <span className="truncate mr-2">{segment}</span>
+                          <div className="flex items-center space-x-1">
+                            <span className={`font-medium ${diff.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {diff.amount >= 0 ? '+' : ''}{formatCurrency(diff.amount)}
+                            </span>
+                            <span className={`text-xs ${diff.percentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              ({diff.percentage >= 0 ? '+' : ''}{diff.percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
