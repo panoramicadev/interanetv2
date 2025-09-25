@@ -146,15 +146,14 @@ export function NvvDashboard() {
     }).format(amount);
   };
 
-  // Formato más compacto para los gráficos
-  const formatCurrencyCompact = (amount: number) => {
-    if (amount >= 1000000) {
-      return `$${(amount / 1000000).toFixed(1)}M CLP`;
-    } else if (amount >= 1000) {
-      return `$${(amount / 1000).toFixed(0)}K CLP`;
-    } else {
-      return `$${amount.toFixed(0)} CLP`;
-    }
+  // Formato exacto para etiquetas en gráficos
+  const formatCurrencyLabel = (amount: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
   };
 
   const formatNumber = (num: number) => {
@@ -480,7 +479,7 @@ export function NvvDashboard() {
         anchor: 'end' as const,
         align: 'top' as const,
         formatter: function(value: number) {
-          return formatCurrencyCompact(value);
+          return formatCurrencyLabel(value);
         },
         font: {
           weight: 'bold' as const,
@@ -504,7 +503,7 @@ export function NvvDashboard() {
         beginAtZero: true,
         ticks: {
           callback: function(value: any) {
-            return formatCurrencyCompact(value);
+            return formatCurrencyLabel(value);
           },
           font: {
             weight: 'bold' as const,
@@ -592,7 +591,7 @@ export function NvvDashboard() {
         anchor: 'end' as const,
         align: 'top' as const,
         formatter: function(value: number) {
-          return formatCurrencyCompact(value);
+          return formatCurrencyLabel(value);
         },
         font: {
           weight: 'bold' as const,
@@ -616,7 +615,7 @@ export function NvvDashboard() {
         beginAtZero: true,
         ticks: {
           callback: function(value: any) {
-            return formatCurrencyCompact(value);
+            return formatCurrencyLabel(value);
           },
           font: {
             weight: 'bold' as const,
