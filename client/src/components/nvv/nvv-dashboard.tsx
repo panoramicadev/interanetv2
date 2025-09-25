@@ -76,6 +76,7 @@ interface NvvRecord {
   KOPRCT: string | null; // SKU del producto
   NOKOPR: string | null; // Nombre del producto
   KOFULIDO: string | null; // Vendedor
+  NORUEN: string | null; // Segmento de cliente
   FEERLI: string | null; // Fecha de compromiso
   CAPRCO2: string | null; // Cantidad confirmada
   CAPREX2: string | null; // Cantidad requerida
@@ -296,47 +297,17 @@ export function NvvDashboard() {
   };
 
   const calculateSegmentTotals = (monthFilter?: string) => {
-    if (!detailedData || !salespersonMapping) return {};
+    if (!detailedData) return {};
     
     const dataToUse = monthFilter ? filterDataByMonth(detailedData, monthFilter) : detailedData;
-    // Usar segmentos reales de clientes basados en vendedores reales
+    // Usar exactamente la misma lógica que el dashboard principal: campo NORUEN
     const segmentTotals: Record<string, { amount: number; count: number }> = {};
     
     dataToUse.forEach(record => {
-      const kofulido = record.KOFULIDO || '';
-      const salesperson = salespersonMapping.kofulidoToName?.[kofulido] || kofulido || 'Sin Vendedor';
-      
-      // Mapear vendedores reales a sus segmentos correspondientes
-      let segment: string;
-      
-      // Usar nombres exactos basados en los vendedores reales del sistema
-      if (salesperson.toLowerCase().includes('mauricio') || salesperson.toLowerCase().includes('chaparro')) {
-        segment = 'Ferretería';
-      } else if (salesperson.toLowerCase().includes('barbara') || salesperson.toLowerCase().includes('gutierrez')) {
-        segment = 'Construcción';
-      } else if (salesperson.toLowerCase().includes('israel') || salesperson.toLowerCase().includes('sanhueza')) {
-        segment = 'Industrial';
-      } else if (salesperson.toLowerCase().includes('hector') || salesperson.toLowerCase().includes('urizar')) {
-        segment = 'Retail';
-      } else if (salesperson.toLowerCase().includes('cliente') && salesperson.toLowerCase().includes('fabrica')) {
-        segment = 'Manufacturero';
-      } else if (salesperson.toLowerCase().includes('mct') || salesperson.toLowerCase().includes('temuco')) {
-        segment = 'Distribución';
-      } else {
-        // Para casos específicos, usar lógica basada en el contexto
-        if (kofulido.includes('PSV') || kofulido.includes('MCH')) {
-          segment = 'Ferretería';
-        } else if (kofulido.includes('BGB') || kofulido.includes('DCG')) {
-          segment = 'Construcción';
-        } else if (kofulido.includes('004') || kofulido.includes('CLC')) {
-          segment = 'Industrial';
-        } else if (kofulido.includes('HUD') || kofulido.includes('PBV')) {
-          segment = 'Retail';
-        } else {
-          // Segmento por defecto
-          segment = 'General';
-        }
-      }
+      // Usar directamente el campo NORUEN que contiene el segmento real
+      const segment = record.NORUEN && record.NORUEN.trim() !== '' 
+        ? record.NORUEN.trim() 
+        : 'Sin Segmento';
       
       const pendingAmount = calculatePendingAmount(record);
       
