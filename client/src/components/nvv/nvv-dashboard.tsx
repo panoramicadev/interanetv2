@@ -131,29 +131,42 @@ export function NvvDashboard() {
 
   const getMonthFromFEERLI = (feerli: string) => {
     if (!feerli) return 'Fecha no disponible';
-    // FEERLI viene en formato DD/MM/YYYY, convertir a Date
-    const parts = feerli.split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0]);
-      const month = parseInt(parts[1]) - 1; // month is 0-indexed
-      const year = parseInt(parts[2]);
-      const date = new Date(year, month, day);
+    
+    try {
+      // FEERLI viene desde PostgreSQL en formato YYYY-MM-DD
+      const date = new Date(feerli);
+      if (isNaN(date.getTime())) {
+        return 'Fecha inválida';
+      }
+      
       return new Intl.DateTimeFormat('es-CL', {
         year: 'numeric',
         month: 'long'
       }).format(date);
+    } catch (error) {
+      return 'Fecha inválida';
     }
-    return 'Fecha inválida';
   };
 
   const formatFEERLI = (feerli: string) => {
     if (!feerli) return 'Sin fecha';
-    // FEERLI ya viene en formato DD/MM/YYYY, solo validar
-    const parts = feerli.split('/');
-    if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-      return feerli;
+    
+    try {
+      // Las fechas vienen desde PostgreSQL en formato YYYY-MM-DD
+      const date = new Date(feerli);
+      if (isNaN(date.getTime())) {
+        return 'Fecha inválida';
+      }
+      
+      // Formatear a DD/MM/YYYY para mostrar
+      return date.toLocaleDateString('es-CL', {
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric'
+      });
+    } catch (error) {
+      return 'Fecha inválida';
     }
-    return 'Fecha inválida';
   };
 
   const calculateMonthlyTotals = () => {
