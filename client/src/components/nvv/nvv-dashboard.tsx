@@ -226,7 +226,6 @@ export function NvvDashboard() {
                     <TableHead className="min-w-[120px] text-right">Monto Pendiente</TableHead>
                     <TableHead className="min-w-[100px]">Estado</TableHead>
                     <TableHead className="min-w-[120px]">Fecha Compromiso</TableHead>
-                    <TableHead className="min-w-[100px]">Región</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -278,9 +277,6 @@ export function NvvDashboard() {
                         </TableCell>
                         <TableCell className="min-w-[120px]" data-testid={`text-date-${record.id}`}>
                           {formatDate(record.commitmentDate)}
-                        </TableCell>
-                        <TableCell className="min-w-[100px]" data-testid={`text-region-${record.id}`}>
-                          {record.region || 'Sin región'}
                         </TableCell>
                       </TableRow>
                     );
