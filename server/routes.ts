@@ -5023,8 +5023,32 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
+      // Get mapping from salesperson (kofulido) to segment (noruen)
+      const salespersonSegmentResults = await db
+        .selectDistinct({
+          kofulido: salesTransactions.kofulido,
+          noruen: salesTransactions.noruen,
+        })
+        .from(salesTransactions)
+        .where(
+          and(
+            isNotNull(salesTransactions.kofulido),
+            isNotNull(salesTransactions.noruen),
+            ne(salesTransactions.kofulido, ''),
+            ne(salesTransactions.noruen, '')
+          )
+        );
+
+      const kofulidoToSegment: Record<string, string> = {};
+      salespersonSegmentResults.forEach(result => {
+        if (result.kofulido && result.noruen) {
+          kofulidoToSegment[result.kofulido] = result.noruen;
+        }
+      });
+
       res.json({
         kofulidoToName,
+        kofulidoToSegment,
         segments
       });
     } catch (error: any) {

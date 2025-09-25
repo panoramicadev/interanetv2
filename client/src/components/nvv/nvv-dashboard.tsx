@@ -76,7 +76,6 @@ interface NvvRecord {
   KOPRCT: string | null; // SKU del producto
   NOKOPR: string | null; // Nombre del producto
   KOFULIDO: string | null; // Vendedor
-  NORUEN: string | null; // Segmento de cliente
   FEERLI: string | null; // Fecha de compromiso
   CAPRCO2: string | null; // Cantidad confirmada
   CAPREX2: string | null; // Cantidad requerida
@@ -125,6 +124,7 @@ export function NvvDashboard() {
   // Obtener mapeo de códigos de vendedor a nombres reales y segmentos
   const { data: salespersonMapping, isLoading: isLoadingMapping } = useQuery<{
     kofulidoToName: Record<string, string>;
+    kofulidoToSegment: Record<string, string>;
     segments: Record<string, { count: number; amount: number }>;
   }>({
     queryKey: ['/api/sales-transactions/salesperson-mapping'],
@@ -297,22 +297,17 @@ export function NvvDashboard() {
   };
 
   const calculateSegmentTotals = (monthFilter?: string) => {
-    if (!detailedData) return {};
+    if (!detailedData || !salespersonMapping) return {};
     
     const dataToUse = monthFilter ? filterDataByMonth(detailedData, monthFilter) : detailedData;
-    // Usar exactamente la misma lógica que el dashboard principal: campo NORUEN
     const segmentTotals: Record<string, { amount: number; count: number }> = {};
     
-    // Log temporal para depurar valores de segmentos
-    const uniqueSegments = new Set<string>();
-    
     dataToUse.forEach(record => {
-      // Usar directamente el campo NORUEN que contiene el segmento real
-      const segment = record.NORUEN && record.NORUEN.trim() !== '' 
-        ? record.NORUEN.trim() 
+      // Usar KOFULIDO (vendedor) para buscar el segmento desde el mapeo de ventas
+      const salesperson = record.KOFULIDO?.trim();
+      const segment = salesperson && salespersonMapping.kofulidoToSegment?.[salesperson]
+        ? salespersonMapping.kofulidoToSegment[salesperson]
         : 'Sin Segmento';
-      
-      uniqueSegments.add(segment);
       
       const pendingAmount = calculatePendingAmount(record);
       
@@ -323,8 +318,6 @@ export function NvvDashboard() {
         segmentTotals[segment] = { amount: pendingAmount, count: 1 };
       }
     });
-    
-    console.log('🔍 Segmentos encontrados en NVV:', Array.from(uniqueSegments).sort());
     
     return segmentTotals;
   };
