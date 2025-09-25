@@ -29,6 +29,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 ChartJS.register(
   CategoryScale,
@@ -36,7 +37,8 @@ ChartJS.register(
   BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ChartDataLabels
 );
 
 interface NvvDashboardMetrics {
@@ -140,7 +142,19 @@ export function NvvDashboard() {
       style: 'currency',
       currency: 'CLP',
       minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  // Formato más compacto para los gráficos
+  const formatCurrencyCompact = (amount: number) => {
+    if (amount >= 1000000) {
+      return `$${(amount / 1000000).toFixed(1)}M CLP`;
+    } else if (amount >= 1000) {
+      return `$${(amount / 1000).toFixed(0)}K CLP`;
+    } else {
+      return `$${amount.toFixed(0)} CLP`;
+    }
   };
 
   const formatNumber = (num: number) => {
@@ -423,13 +437,24 @@ export function NvvDashboard() {
 
   const salespersonChartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: 'top' as const,
+        labels: {
+          font: {
+            weight: 'bold' as const,
+            size: 12
+          }
+        }
       },
       title: {
         display: true,
         text: 'NVV Pendientes por Vendedor',
+        font: {
+          weight: 'bold' as const,
+          size: 16
+        }
       },
       tooltip: {
         callbacks: {
@@ -442,6 +467,35 @@ export function NvvDashboard() {
               `NVV: ${count}`
             ];
           }
+        },
+        titleFont: {
+          weight: 'bold' as const
+        },
+        bodyFont: {
+          weight: 'bold' as const
+        }
+      },
+      datalabels: {
+        display: true,
+        anchor: 'end' as const,
+        align: 'top' as const,
+        formatter: function(value: number) {
+          return formatCurrencyCompact(value);
+        },
+        font: {
+          weight: 'bold' as const,
+          size: 11
+        },
+        color: '#1f2937',
+        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        borderColor: '#e5e7eb',
+        borderWidth: 1,
+        borderRadius: 4,
+        padding: {
+          top: 4,
+          bottom: 4,
+          left: 6,
+          right: 6
         }
       }
     },
@@ -450,8 +504,30 @@ export function NvvDashboard() {
         beginAtZero: true,
         ticks: {
           callback: function(value: any) {
-            return formatCurrency(value);
+            return formatCurrencyCompact(value);
+          },
+          font: {
+            weight: 'bold' as const,
+            size: 11
           }
+        },
+        title: {
+          display: true,
+          text: 'Monto Pendiente (CLP)',
+          font: {
+            weight: 'bold' as const,
+            size: 12
+          }
+        }
+      },
+      x: {
+        ticks: {
+          font: {
+            weight: 'bold' as const,
+            size: 10
+          },
+          maxRotation: 45,
+          minRotation: 0
         }
       }
     }
@@ -473,13 +549,24 @@ export function NvvDashboard() {
 
   const segmentChartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: 'top' as const,
+        labels: {
+          font: {
+            weight: 'bold' as const,
+            size: 12
+          }
+        }
       },
       title: {
         display: true,
         text: 'NVV Pendientes por Segmento de Cliente',
+        font: {
+          weight: 'bold' as const,
+          size: 16
+        }
       },
       tooltip: {
         callbacks: {
@@ -492,6 +579,35 @@ export function NvvDashboard() {
               `NVV: ${count}`
             ];
           }
+        },
+        titleFont: {
+          weight: 'bold' as const
+        },
+        bodyFont: {
+          weight: 'bold' as const
+        }
+      },
+      datalabels: {
+        display: true,
+        anchor: 'end' as const,
+        align: 'top' as const,
+        formatter: function(value: number) {
+          return formatCurrencyCompact(value);
+        },
+        font: {
+          weight: 'bold' as const,
+          size: 11
+        },
+        color: '#1f2937',
+        backgroundColor: 'rgba(255, 255, 255, 0.8)',
+        borderColor: '#e5e7eb',
+        borderWidth: 1,
+        borderRadius: 4,
+        padding: {
+          top: 4,
+          bottom: 4,
+          left: 6,
+          right: 6
         }
       }
     },
@@ -500,8 +616,30 @@ export function NvvDashboard() {
         beginAtZero: true,
         ticks: {
           callback: function(value: any) {
-            return formatCurrency(value);
+            return formatCurrencyCompact(value);
+          },
+          font: {
+            weight: 'bold' as const,
+            size: 11
           }
+        },
+        title: {
+          display: true,
+          text: 'Monto Pendiente (CLP)',
+          font: {
+            weight: 'bold' as const,
+            size: 12
+          }
+        }
+      },
+      x: {
+        ticks: {
+          font: {
+            weight: 'bold' as const,
+            size: 10
+          },
+          maxRotation: 45,
+          minRotation: 0
         }
       }
     }
