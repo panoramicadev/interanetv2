@@ -1583,6 +1583,23 @@ export function registerRoutes(app: Express): Server {
       }
 
       await storage.insertMultipleSalesTransactions(validatedTransactions);
+
+      // Record this import in file upload registry
+      try {
+        await storage.recordFileUpload({
+          fileType: 'sales',
+          fileName: 'sales_data.csv', // Generic name since we don't have actual filename
+          uploadedBy: (req.user as any)?.id || 'unknown',
+          recordsImported: validatedTransactions.length,
+          recordsErrors: errors.length,
+          status: errors.length > 0 ? 'partial' : 'success',
+          errorMessage: errors.length > 0 ? `${errors.length} validation errors` : null,
+          fileSize: JSON.stringify(transactions).length, // Approximate size
+        });
+      } catch (uploadRecordError) {
+        console.error('Failed to record file upload:', uploadRecordError);
+        // Don't fail the main import for this
+      }
       
       res.json({ 
         message: "Data imported successfully",
@@ -1593,6 +1610,37 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error importing sales data:", error);
       res.status(500).json({ message: "Failed to import sales data" });
+    }
+  });
+
+  // File uploads registry endpoints
+  app.get('/api/files/last-upload', requireAuth, async (req, res) => {
+    try {
+      const { fileType } = req.query;
+      const lastUpload = await storage.getLastFileUpload(fileType as string);
+      
+      if (!lastUpload) {
+        return res.status(404).json({ message: "No file uploads found" });
+      }
+      
+      res.json(lastUpload);
+    } catch (error) {
+      console.error("Error fetching last file upload:", error);
+      res.status(500).json({ message: "Failed to fetch last file upload" });
+    }
+  });
+
+  app.get('/api/files/history', requireAuth, async (req, res) => {
+    try {
+      const { fileType, limit } = req.query;
+      const history = await storage.getFileUploadHistory(
+        fileType as string, 
+        limit ? parseInt(limit as string) : 10
+      );
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching file upload history:", error);
+      res.status(500).json({ message: "Failed to fetch file upload history" });
     }
   });
 
