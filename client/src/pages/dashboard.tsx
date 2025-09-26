@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
@@ -21,7 +22,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -52,6 +53,12 @@ export default function Dashboard() {
   
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
+  
+  // Subtle refresh functionality state
+  const [lastUpdated, setLastUpdated] = useState<string | null>(() => 
+    localStorage.getItem('dashboard-last-updated')
+  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Mobile detection and drawer state
   const isMobile = useIsMobile();
@@ -109,6 +116,49 @@ export default function Dashboard() {
     setLocalSelectedFilter("all");
     setLocalGlobalFilter({ type: "all" });
     setLocalComparePeriod("none");
+  };
+
+  // Subtle refresh functionality
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      // Invalidate all sales-related queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      
+      // Update timestamp
+      const now = new Date().toISOString();
+      setLastUpdated(now);
+      localStorage.setItem('dashboard-last-updated', now);
+      
+      // Subtle success notification
+      toast({
+        description: "Datos actualizados",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Format last updated time in a subtle way
+  const formatLastUpdated = (timestamp: string): string => {
+    const now = new Date();
+    const updated = new Date(timestamp);
+    const diffMinutes = Math.floor((now.getTime() - updated.getTime()) / 60000);
+    
+    if (diffMinutes < 1) return 'ahora';
+    if (diffMinutes < 60) return `${diffMinutes}m`;
+    if (diffMinutes < 1440) {
+      const diffHours = Math.floor(diffMinutes / 60);
+      return `${diffHours}h`;
+    }
+    return updated.toLocaleTimeString('es-CL', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
   };
   
   // Generate summary chips for mobile
@@ -868,8 +918,26 @@ export default function Dashboard() {
           )}
         </header>
 
+        {/* Subtle refresh button - ultra discrete */}
+        <button 
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="absolute top-2 right-2 opacity-0 hover:opacity-60 transition-opacity text-gray-300 hover:text-gray-400 p-1 z-50"
+          title="Actualizar datos"
+          data-testid="button-subtle-refresh"
+        >
+          <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </button>
+
         {/* Main Content */}
-        <main className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 space-y-3 sm:space-y-4 lg:space-y-6">
+        <main className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 space-y-3 sm:space-y-4 lg:space-y-6 relative">
+          {/* Subtle last updated message */}
+          {lastUpdated && (
+            <div className="absolute top-1 right-3 text-[10px] text-gray-400/60 font-mono pointer-events-none select-none">
+              Actualizado {formatLastUpdated(lastUpdated)}
+            </div>
+          )}
+          
           {/* KPI Cards with Modern Styling */}
           <div>
             <KPICards 
