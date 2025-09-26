@@ -108,9 +108,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     enabled: !!resolvedComparePeriod, // Only run if resolved period is set
   });
 
-  // Query for NVV metrics
+  // Query for NVV metrics with the same filters as sales metrics
   const { data: nvvMetrics } = useQuery<NvvMetrics>({
-    queryKey: [`/api/nvv/metrics${segment ? `?segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `${segment ? '&' : '?'}salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/nvv/metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const formatCurrency = (amount: number) => {

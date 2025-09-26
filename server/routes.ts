@@ -4978,13 +4978,23 @@ export function registerRoutes(app: Express): Server {
 
   // Get NVV summary metrics
   app.get('/api/nvv/metrics', requireAuth, asyncHandler(async (req: any, res: any) => {
-    const { salesperson, segment, startDate, endDate } = req.query;
+    const { salesperson, segment, startDate, endDate, period, filterType } = req.query;
+    
+    // Use same date range logic as sales metrics
+    const dateRange = getDateRange(period as string, filterType as string);
     
     const options: any = {};
     if (salesperson) options.salesperson = salesperson;
     if (segment) options.segment = segment;
-    if (startDate) options.startDate = new Date(startDate);
-    if (endDate) options.endDate = new Date(endDate);
+    
+    // Use date range if period/filterType provided, otherwise use startDate/endDate
+    if (period && filterType) {
+      options.startDate = new Date(dateRange.startDate);
+      options.endDate = new Date(dateRange.endDate);
+    } else {
+      if (startDate) options.startDate = new Date(startDate);
+      if (endDate) options.endDate = new Date(endDate);
+    }
 
     const metrics = await storage.getNvvSummaryMetrics(options);
     res.json(metrics);
