@@ -20,6 +20,7 @@ import {
   storeBanners,
   ecommerceProducts,
   nvvPendingSales,
+  fileUploads,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -65,6 +66,8 @@ import {
   type NvvPendingSales,
   type InsertNvvPendingSales,
   type NvvImportResult,
+  type FileUpload,
+  type InsertFileUpload,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray, or, isNull, isNotNull } from "drizzle-orm";
@@ -755,6 +758,11 @@ export interface IStorage {
     offset?: number;
   }): Promise<any[]>;
   getEcommerceCategories(): Promise<string[]>;
+  
+  // File Upload Registry operations
+  recordFileUpload(upload: InsertFileUpload): Promise<FileUpload>;
+  getLastFileUpload(fileType?: string): Promise<FileUpload | undefined>;
+  getFileUploadHistory(fileType?: string, limit?: number): Promise<FileUpload[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -7416,6 +7424,52 @@ export class DatabaseStorage implements IStorage {
       }));
     } catch (error) {
       console.error('Error getting unmatched comunas:', error);
+      return [];
+    }
+  }
+
+  // File Upload Registry operations
+  async recordFileUpload(upload: InsertFileUpload): Promise<FileUpload> {
+    try {
+      const [result] = await db
+        .insert(fileUploads)
+        .values(upload)
+        .returning();
+      return result;
+    } catch (error) {
+      console.error('Error recording file upload:', error);
+      throw error;
+    }
+  }
+
+  async getLastFileUpload(fileType?: string): Promise<FileUpload | undefined> {
+    try {
+      let query = db.select().from(fileUploads).orderBy(desc(fileUploads.uploadedAt));
+      
+      if (fileType) {
+        query = query.where(eq(fileUploads.fileType, fileType));
+      }
+      
+      const [result] = await query.limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting last file upload:', error);
+      return undefined;
+    }
+  }
+
+  async getFileUploadHistory(fileType?: string, limit: number = 10): Promise<FileUpload[]> {
+    try {
+      let query = db.select().from(fileUploads).orderBy(desc(fileUploads.uploadedAt));
+      
+      if (fileType) {
+        query = query.where(eq(fileUploads.fileType, fileType));
+      }
+      
+      const results = await query.limit(limit);
+      return results;
+    } catch (error) {
+      console.error('Error getting file upload history:', error);
       return [];
     }
   }

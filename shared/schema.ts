@@ -2176,3 +2176,32 @@ export type NvvImportResult = z.infer<typeof nvvImportResultSchema>;
 // Export Comuna-Region Mapping types
 export type ComunaRegionMapping = typeof comunaRegionMapping.$inferSelect;
 export type InsertComunaRegionMapping = z.infer<typeof insertComunaRegionMappingSchema>;
+
+// ==============================================
+// File Uploads Registry
+// ==============================================
+
+// Track all CSV file uploads for data import history
+export const fileUploads = pgTable("file_uploads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fileType: varchar("file_type").notNull(), // 'sales', 'products', 'nvv', 'prices', etc.
+  fileName: varchar("file_name").notNull(), // Original filename
+  uploadedBy: varchar("uploaded_by").notNull(), // User ID who uploaded the file
+  uploadedAt: timestamp("uploaded_at").defaultNow(), // When file was uploaded
+  recordsImported: integer("records_imported").default(0), // How many records were imported
+  recordsErrors: integer("records_errors").default(0), // How many records failed
+  status: varchar("status").default("success"), // 'success', 'partial', 'error'
+  errorMessage: text("error_message"), // Error details if import failed
+  fileSize: integer("file_size"), // File size in bytes
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Insert schema for file uploads
+export const insertFileUploadSchema = createInsertSchema(fileUploads).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Export File Upload types
+export type FileUpload = typeof fileUploads.$inferSelect;
+export type InsertFileUpload = z.infer<typeof insertFileUploadSchema>;

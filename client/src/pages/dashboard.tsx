@@ -125,11 +125,10 @@ export default function Dashboard() {
       // Invalidate all sales-related queries to refresh data
       await queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/goals'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/files/last-upload', 'sales'] });
       
-      // Update timestamp
-      const now = new Date().toISOString();
-      setLastUpdated(now);
-      localStorage.setItem('dashboard-last-updated', now);
+      // Don't update timestamp manually - let it be controlled by file upload data
+      // The timestamp should reflect when the data file was uploaded, not when refreshed
       
       // Subtle success notification
       toast({
@@ -248,15 +247,30 @@ export default function Dashboard() {
     setSelectedFilter(globalFilter.type);
   }, [globalFilter.type]);
 
-  // Capture initial data load timestamp
+  // Fetch last file upload timestamp for sales data
+  const { data: lastFileUpload } = useQuery({
+    queryKey: ["/api/files/last-upload", "sales"],
+    queryFn: () => fetch('/api/files/last-upload?fileType=sales').then(res => {
+      if (res.status === 404) return null; // No uploads yet
+      if (!res.ok) throw new Error('Failed to fetch last upload');
+      return res.json();
+    }),
+    retry: false,
+  });
+
+  // Set last updated timestamp from file upload data
   useEffect(() => {
-    // Set timestamp when component mounts (data loads initially)
-    if (!lastUpdated) {
+    if (lastFileUpload?.uploadedAt) {
+      const uploadTime = lastFileUpload.uploadedAt;
+      setLastUpdated(uploadTime);
+      localStorage.setItem('dashboard-last-updated', uploadTime);
+    } else if (!lastUpdated) {
+      // Fallback: use current time if no file uploads found
       const now = new Date().toISOString();
       setLastUpdated(now);
       localStorage.setItem('dashboard-last-updated', now);
     }
-  }, [lastUpdated]);
+  }, [lastFileUpload, lastUpdated]);
 
   // Update selected period when filter type changes
   useEffect(() => {
