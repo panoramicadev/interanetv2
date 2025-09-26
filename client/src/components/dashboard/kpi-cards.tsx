@@ -21,6 +21,15 @@ interface SalesMetrics {
   previousMonthCustomers?: number;
 }
 
+interface NvvMetrics {
+  totalSales: number;
+  totalQuantity: number;
+  pendingCount: number;
+  confirmedCount: number;
+  deliveredCount: number;
+  cancelledCount: number;
+}
+
 interface KPICardsProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
@@ -97,6 +106,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const { data: comparisonMetrics } = useQuery<SalesMetrics>({
     queryKey: [`/api/sales/metrics?period=${resolvedComparePeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
     enabled: !!resolvedComparePeriod, // Only run if resolved period is set
+  });
+
+  // Query for NVV metrics
+  const { data: nvvMetrics } = useQuery<NvvMetrics>({
+    queryKey: [`/api/nvv/metrics${segment ? `?segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `${segment ? '&' : '?'}salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const formatCurrency = (amount: number) => {
@@ -216,40 +230,91 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     },
   ];
 
+  // Renderizar tarjeta personalizada para Ventas Totales
+  const renderSalesCard = (kpi: any) => {
+    const nvvTotal = nvvMetrics?.totalSales || 0;
+    const combinedTotal = (metrics?.totalSales || 0) + nvvTotal;
+
+    return (
+      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex-1 mb-2 lg:mb-0">
+            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
+              {kpi.title}
+            </p>
+            <div className="relative">
+              <p 
+                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 break-all lg:break-normal"
+                data-testid={kpi.testId}
+              >
+                {kpi.value}
+              </p>
+              {kpi.comparison && (
+                <Badge 
+                  className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
+                  data-testid={`${kpi.testId}-comparison-badge`}
+                >
+                  {kpi.comparison.text}
+                </Badge>
+              )}
+            </div>
+            <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
+              {kpi.change}
+            </p>
+            {/* Información adicional de NVV */}
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-1">
+                NVV: {formatCurrency(nvvTotal)}
+              </p>
+              <p className="text-xs font-semibold text-gray-700">
+                Total Combinado: {formatCurrency(combinedTotal)}
+              </p>
+            </div>
+          </div>
+          <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
+            <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
       {kpis.map((kpi) => (
-        <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 mb-2 lg:mb-0">
-              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
-                {kpi.title}
-              </p>
-              <div className="relative">
-                <p 
-                  className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 break-all lg:break-normal"
-                  data-testid={kpi.testId}
-                >
-                  {kpi.value}
+        kpi.title === "Ventas Totales" ? renderSalesCard(kpi) : (
+          <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex-1 mb-2 lg:mb-0">
+                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
+                  {kpi.title}
                 </p>
-                {kpi.comparison && (
-                  <Badge 
-                    className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
-                    data-testid={`${kpi.testId}-comparison-badge`}
+                <div className="relative">
+                  <p 
+                    className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 break-all lg:break-normal"
+                    data-testid={kpi.testId}
                   >
-                    {kpi.comparison.text}
-                  </Badge>
-                )}
+                    {kpi.value}
+                  </p>
+                  {kpi.comparison && (
+                    <Badge 
+                      className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
+                      data-testid={`${kpi.testId}-comparison-badge`}
+                    >
+                      {kpi.comparison.text}
+                    </Badge>
+                  )}
+                </div>
+                <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
+                  {kpi.change}
+                </p>
               </div>
-              <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
-                {kpi.change}
-              </p>
-            </div>
-            <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
-              <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+              <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
+                <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+              </div>
             </div>
           </div>
-        </div>
+        )
       ))}
     </div>
   );
