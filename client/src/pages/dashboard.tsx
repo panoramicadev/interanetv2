@@ -248,6 +248,16 @@ export default function Dashboard() {
     setSelectedFilter(globalFilter.type);
   }, [globalFilter.type]);
 
+  // Capture initial data load timestamp
+  useEffect(() => {
+    // Set timestamp when component mounts (data loads initially)
+    if (!lastUpdated) {
+      const now = new Date().toISOString();
+      setLastUpdated(now);
+      localStorage.setItem('dashboard-last-updated', now);
+    }
+  }, [lastUpdated]);
+
   // Update selected period when filter type changes
   useEffect(() => {
     switch (filterType) {
@@ -918,11 +928,11 @@ export default function Dashboard() {
           )}
         </header>
 
-        {/* Subtle refresh button - ultra discrete */}
+        {/* Subtle refresh button - always visible but discrete */}
         <button 
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className="absolute top-2 right-2 opacity-0 hover:opacity-60 transition-opacity text-gray-300 hover:text-gray-400 p-1 z-50"
+          className="absolute top-2 right-2 opacity-30 hover:opacity-60 transition-opacity text-gray-300 hover:text-gray-400 p-1 z-50"
           title="Actualizar datos"
           data-testid="button-subtle-refresh"
         >
