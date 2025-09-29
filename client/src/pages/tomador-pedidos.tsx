@@ -1357,51 +1357,69 @@ export default function TomadorPedidos() {
 
   return (
     <>
-    <div className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="space-y-4">
-          <div className={`${isMobile ? 'space-y-4' : 'flex justify-between items-start'}`}>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+    <div className={`${
+      isMobile 
+        ? 'px-4 py-6' 
+        : 'px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4'
+    }`}>
+      <div className={`space-y-6 ${isMobile ? 'space-y-8' : ''}`}>
+        {/* Header - Optimized for Mobile */}
+        <div className={`${isMobile ? 'space-y-6' : 'space-y-4'}`}>
+          <div className={`${isMobile ? 'space-y-6' : 'flex justify-between items-start'}`}>
+            <div className={isMobile ? 'text-center' : ''}>
+              <h1 className={`font-bold text-foreground ${
+                isMobile ? 'text-3xl mb-3' : 'text-2xl sm:text-3xl'
+              }`}>
                 Tomador de Pedidos
               </h1>
-              <p className="text-muted-foreground">
+              <p className={`text-muted-foreground ${
+                isMobile ? 'text-base leading-relaxed' : ''
+              }`}>
                 Busca clientes y crea pedidos de manera rápida y eficiente
               </p>
             </div>
             <Button
               onClick={handleCreateQuoteForNewClient}
-              className={`flex items-center gap-2 ${isMobile ? 'w-full justify-center py-3' : ''}`}
+              className={`flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 ${
+                isMobile ? 'w-full h-14 text-lg font-semibold rounded-xl' : ''
+              }`}
               size={isMobile ? "lg" : "lg"}
               data-testid="button-create-quote-new-client"
             >
-              <Calculator className="w-5 h-5" />
+              <Calculator className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
               Crear Presupuesto
             </Button>
           </div>
         </div>
 
-        {/* Client Search Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="w-5 h-5" />
+        {/* Client Search Section - Mobile Optimized */}
+        <Card className={isMobile ? 'border-2 shadow-md' : ''}>
+          <CardHeader className={isMobile ? 'pb-4' : ''}>
+            <CardTitle className={`flex items-center gap-2 ${
+              isMobile ? 'text-xl' : ''
+            }`}>
+              <Search className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
               Buscar Cliente
             </CardTitle>
-            <CardDescription>
+            <CardDescription className={isMobile ? 'text-base' : ''}>
               Ingresa el nombre del cliente para buscar en la base de datos
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className={`space-y-4 ${isMobile ? 'space-y-6 pt-2' : ''}`}>
             <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Search className={`absolute left-4 text-muted-foreground ${
+                isMobile ? 'top-4 h-5 w-5' : 'top-3 h-4 w-4'
+              }`} />
               <Input
                 data-testid="input-client-search"
-                placeholder="Buscar por nombre de cliente..."
+                placeholder={isMobile ? "Buscar cliente..." : "Buscar por nombre de cliente..."}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`pl-10 ${isMobile ? 'h-12 text-base' : ''}`}
+                className={`${
+                  isMobile 
+                    ? 'pl-12 h-14 text-base rounded-xl border-2 focus:border-orange-400' 
+                    : 'pl-10'
+                }`}
                 style={{ fontSize: isMobile ? '16px' : undefined }} // Prevent zoom on iOS
               />
             </div>
@@ -2822,6 +2840,69 @@ export default function TomadorPedidos() {
         </div>
       </DialogContent>
     </Dialog>
+    
+    {/* Mobile Bottom Navigation Bar */}
+    {isMobile && (
+      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t-2 border-orange-200 px-4 py-3 z-50">
+        <div className="flex items-center justify-around max-w-md mx-auto">
+          <div className="text-center">
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                <Search className="w-6 h-6 text-orange-600" />
+              </div>
+              <span className="text-xs font-medium text-orange-600">Buscar</span>
+            </div>
+          </div>
+          
+          <div className="text-center">
+            <Button
+              variant="ghost"
+              onClick={handleCreateQuoteForNewClient}
+              className="flex flex-col items-center gap-1 p-2 h-auto"
+              data-testid="mobile-nav-quote"
+            >
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                <Calculator className="w-6 h-6 text-primary" />
+              </div>
+              <span className="text-xs font-medium">Presupuesto</span>
+            </Button>
+          </div>
+          
+          <div className="text-center relative">
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center relative">
+                <ShoppingCart className="w-6 h-6 text-muted-foreground" />
+                {cart.length > 0 && (
+                  <Badge className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs min-w-[20px] h-5 rounded-full flex items-center justify-center p-0">
+                    {cart.length}
+                  </Badge>
+                )}
+              </div>
+              <span className="text-xs font-medium text-muted-foreground">Carrito</span>
+            </div>
+          </div>
+          
+          <div className="text-center">
+            <Button
+              variant="ghost"
+              asChild
+              className="flex flex-col items-center gap-1 p-2 h-auto"
+              data-testid="mobile-nav-orders"
+            >
+              <Link href="/pedidos">
+                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
+                  <FileText className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <span className="text-xs font-medium text-muted-foreground">Pedidos</span>
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+    
+    {/* Add bottom padding to prevent content being hidden behind mobile nav */}
+    {isMobile && <div className="h-20" />}
     </>
   );
 }
