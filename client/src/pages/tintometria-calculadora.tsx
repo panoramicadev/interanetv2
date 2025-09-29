@@ -34,42 +34,24 @@ interface CostCalculation {
 }
 
 // Color wheel component
-const ColorWheel = ({ onColorSelect, selectedColor }: { 
-  onColorSelect: (color: Color) => void;
-  selectedColor: Color | null;
+const ColorWheel = ({ onColorSelect, selectedHex }: { 
+  onColorSelect: (hex: string) => void;
+  selectedHex: string;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawn, setIsDrawn] = useState(false);
-  
-  const { data: colores = [] } = useQuery<Color[]>({
-    queryKey: ['/api/tintometria/colores'],
-  });
 
-  // Paleta de colores con posiciones angulares
-  const colorMap = [
-    { angle: 0, color: '#FF0000', name: 'Rojo', keywords: ['rojo', 'red', 'cereza'] },
-    { angle: 30, color: '#FF8000', name: 'Naranja', keywords: ['naranja', 'orange', 'atardecer'] },
-    { angle: 60, color: '#FFFF00', name: 'Amarillo', keywords: ['amarillo', 'yellow', 'sol'] },
-    { angle: 90, color: '#80FF00', name: 'Lima', keywords: ['lima', 'lime'] },
-    { angle: 120, color: '#00FF00', name: 'Verde', keywords: ['verde', 'green', 'bosque'] },
-    { angle: 150, color: '#00FF80', name: 'Verde Azul', keywords: ['verde', 'azul'] },
-    { angle: 180, color: '#00FFFF', name: 'Cian', keywords: ['cian', 'cyan'] },
-    { angle: 210, color: '#0080FF', name: 'Azul Claro', keywords: ['azul', 'blue'] },
-    { angle: 240, color: '#0000FF', name: 'Azul', keywords: ['azul', 'blue', 'océano', 'marino'] },
-    { angle: 270, color: '#8000FF', name: 'Violeta', keywords: ['violeta', 'purple', 'real'] },
-    { angle: 300, color: '#FF00FF', name: 'Magenta', keywords: ['magenta'] },
-    { angle: 330, color: '#FF0080', name: 'Rosa', keywords: ['rosa', 'pink'] },
-    { angle: -1, color: '#FFFFFF', name: 'Blanco', keywords: ['blanco', 'white', 'nieve'] },
-    { angle: -2, color: '#808080', name: 'Gris', keywords: ['gris', 'gray', 'perla'] },
-    { angle: -3, color: '#000000', name: 'Negro', keywords: ['negro', 'black', 'profundo'] },
-  ];
-
-  const findMatchingColor = (colorInfo: typeof colorMap[0]) => {
-    return colores.find(color => 
-      colorInfo.keywords.some(keyword => 
-        color.nombreColor.toLowerCase().includes(keyword.toLowerCase())
-      )
-    );
+  const hslToHex = (h: number, s: number, l: number): string => {
+    l /= 100;
+    const a = (s * Math.min(l, 1 - l)) / 100;
+    const f = (n: number) => {
+      const k = (n + h / 30) % 12;
+      const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+      return Math.round(255 * color)
+        .toString(16)
+        .padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
   };
 
   const drawColorWheel = useCallback(() => {
@@ -95,9 +77,9 @@ const ColorWheel = ({ onColorSelect, selectedColor }: {
       const hue = (i / segments) * 360;
       
       // Draw multiple rings for saturation
-      for (let r = 0; r < radius; r += 2) {
-        const saturation = (r / radius) * 100;
-        const lightness = 50 + (1 - r / radius) * 30; // Lighter towards center
+      for (let r = 30; r < radius; r += 2) {
+        const saturation = ((r - 30) / (radius - 30)) * 100;
+        const lightness = 50;
         
         ctx.beginPath();
         ctx.arc(centerX, centerY, r, angle, nextAngle);
@@ -167,32 +149,20 @@ const ColorWheel = ({ onColorSelect, selectedColor }: {
     const dy = y - centerY;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
-    if (distance <= radius) {
-      // Calculate angle
+    if (distance >= 30 && distance <= radius) {
+      // Calculate angle and convert to hue
       let angle = Math.atan2(dy, dx) * 180 / Math.PI;
       if (angle < 0) angle += 360;
       
-      // Find closest color
-      let closestColor = colorMap[0];
-      let minDiff = 360;
+      const hue = angle;
+      const saturation = ((distance - 30) / (radius - 30)) * 100;
+      const lightness = 50;
       
-      for (const colorInfo of colorMap) {
-        if (colorInfo.angle < 0) continue; // Skip special colors
-        const diff = Math.abs(angle - colorInfo.angle);
-        const diffWrapped = Math.abs(angle - colorInfo.angle + 360);
-        const diffWrapped2 = Math.abs(angle - colorInfo.angle - 360);
-        const minColorDiff = Math.min(diff, diffWrapped, diffWrapped2);
-        
-        if (minColorDiff < minDiff) {
-          minDiff = minColorDiff;
-          closestColor = colorInfo;
-        }
-      }
-      
-      const matchingColor = findMatchingColor(closestColor);
-      if (matchingColor) {
-        onColorSelect(matchingColor);
-      }
+      const hexColor = hslToHex(hue, saturation, lightness);
+      onColorSelect(hexColor);
+    } else if (distance <= 30) {
+      // White center clicked
+      onColorSelect('#FFFFFF');
     }
     
     // Check clicks on bottom sections
@@ -200,25 +170,22 @@ const ColorWheel = ({ onColorSelect, selectedColor }: {
     if (y >= bottomY && y <= bottomY + 30) {
       if (x >= centerX - 60 && x <= centerX - 20) {
         // White clicked
-        const whiteColor = findMatchingColor(colorMap.find(c => c.angle === -1)!);
-        if (whiteColor) onColorSelect(whiteColor);
+        onColorSelect('#FFFFFF');
       } else if (x >= centerX - 20 && x <= centerX + 20) {
         // Gray clicked
-        const grayColor = findMatchingColor(colorMap.find(c => c.angle === -2)!);
-        if (grayColor) onColorSelect(grayColor);
+        onColorSelect('#808080');
       } else if (x >= centerX + 20 && x <= centerX + 60) {
         // Black clicked
-        const blackColor = findMatchingColor(colorMap.find(c => c.angle === -3)!);
-        if (blackColor) onColorSelect(blackColor);
+        onColorSelect('#000000');
       }
     }
   };
 
   React.useEffect(() => {
-    if (colores.length > 0 && !isDrawn) {
+    if (!isDrawn) {
       drawColorWheel();
     }
-  }, [colores, drawColorWheel, isDrawn]);
+  }, [drawColorWheel, isDrawn]);
 
   return (
     <div className="flex flex-col items-center space-y-4">
@@ -230,10 +197,18 @@ const ColorWheel = ({ onColorSelect, selectedColor }: {
         onClick={handleCanvasClick}
         data-testid="color-wheel"
       />
-      {selectedColor && (
+      {selectedHex && (
         <div className="text-center p-3 bg-secondary/50 rounded-lg">
-          <div className="font-medium">{selectedColor.nombreColor}</div>
-          <div className="text-sm text-muted-foreground">Código: {selectedColor.colorId}</div>
+          <div className="flex items-center justify-center gap-3">
+            <div 
+              className="w-8 h-8 rounded border-2 border-border"
+              style={{ backgroundColor: selectedHex }}
+            />
+            <div>
+              <div className="font-medium text-sm">Color seleccionado</div>
+              <div className="text-lg font-mono">{selectedHex}</div>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -242,25 +217,27 @@ const ColorWheel = ({ onColorSelect, selectedColor }: {
 
 export default function TintometriaCalculadora() {
   const { toast } = useToast();
-  const [selectedColor, setSelectedColor] = useState<Color | null>(null);
+  const [selectedHex, setSelectedHex] = useState('');
+  const [selectedTipoBase, setSelectedTipoBase] = useState('');
+  const [selectedTipoProducto, setSelectedTipoProducto] = useState('');
   const [selectedEnvaseId, setSelectedEnvaseId] = useState('');
   const [calculation, setCalculation] = useState<CostCalculation | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  // Query for envases
-  const { data: colores = [] } = useQuery<Color[]>({
-    queryKey: ['/api/tintometria/colores'],
-  });
-
+  // Queries para obtener datos
   const { data: envases = [], isLoading: loadingEnvases } = useQuery<Envase[]>({
     queryKey: ['/api/tintometria/envases'],
   });
 
+  const { data: bases = [], isLoading: loadingBases } = useQuery({
+    queryKey: ['/api/tintometria/bases'],
+  });
+
   const handleCalculate = async () => {
-    if (!selectedColor || !selectedEnvaseId) {
+    if (!selectedHex || !selectedTipoBase || !selectedTipoProducto || !selectedEnvaseId) {
       toast({
         title: 'Campos requeridos',
-        description: 'Por favor selecciona un color y un envase',
+        description: 'Por favor completa todos los campos',
         variant: 'destructive',
       });
       return;
@@ -268,15 +245,21 @@ export default function TintometriaCalculadora() {
 
     setIsCalculating(true);
     try {
-      const response = await apiRequest('/api/tintometria/calculate', {
-        method: 'POST',
-        data: {
-          colorId: selectedColor.colorId,
-          envaseId: selectedEnvaseId,
-        },
-      });
-
-      setCalculation(response as unknown as CostCalculation);
+      // Por ahora solo mostramos los valores seleccionados
+      // Aquí se implementará la lógica de cálculo real
+      const mockCalculation = {
+        colorId: selectedHex,
+        envaseId: selectedEnvaseId,
+        baseId: selectedTipoBase,
+        baseCost: 1250,
+        pigmentsCost: 350,
+        envaseData: envases.find(e => e.envaseId === selectedEnvaseId)!,
+        totalPaintCost: 1600,
+        totalCost: 2450,
+        suggestedPrice: 3675
+      };
+      
+      setCalculation(mockCalculation);
       toast({
         title: 'Cálculo realizado',
         description: 'El costo ha sido calculado exitosamente',
@@ -293,7 +276,9 @@ export default function TintometriaCalculadora() {
   };
 
   const resetCalculation = () => {
-    setSelectedColor(null);
+    setSelectedHex('');
+    setSelectedTipoBase('');
+    setSelectedTipoProducto('');
     setSelectedEnvaseId('');
     setCalculation(null);
   };
@@ -326,9 +311,37 @@ export default function TintometriaCalculadora() {
             <div className="space-y-2">
               <Label>Color</Label>
               <ColorWheel 
-                onColorSelect={setSelectedColor} 
-                selectedColor={selectedColor}
+                onColorSelect={setSelectedHex} 
+                selectedHex={selectedHex}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tipo-base">Tipo de Base</Label>
+              <Select value={selectedTipoBase} onValueChange={setSelectedTipoBase}>
+                <SelectTrigger id="tipo-base" data-testid="select-tipo-base">
+                  <SelectValue placeholder="Selecciona tipo de base" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="agua">Base al Agua</SelectItem>
+                  <SelectItem value="solvente">Base Solvente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tipo-producto">Tipo de Producto</Label>
+              <Select value={selectedTipoProducto} onValueChange={setSelectedTipoProducto}>
+                <SelectTrigger id="tipo-producto" data-testid="select-tipo-producto">
+                  <SelectValue placeholder="Selecciona tipo de producto" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="esmalte">Esmalte</SelectItem>
+                  <SelectItem value="latex">Látex</SelectItem>
+                  <SelectItem value="barniz">Barniz</SelectItem>
+                  <SelectItem value="primer">Primer</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -354,7 +367,7 @@ export default function TintometriaCalculadora() {
             <div className="flex gap-2 pt-4">
               <Button 
                 onClick={handleCalculate}
-                disabled={isCalculating || !selectedColor || !selectedEnvaseId}
+                disabled={isCalculating || !selectedHex || !selectedTipoBase || !selectedTipoProducto || !selectedEnvaseId}
                 className="flex-1"
                 data-testid="button-calculate"
               >
@@ -404,11 +417,25 @@ export default function TintometriaCalculadora() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-2">
                     <div className="font-medium text-muted-foreground">Color:</div>
-                    <div data-testid="result-color">{selectedColor?.nombreColor}</div>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-4 h-4 rounded border"
+                        style={{ backgroundColor: selectedHex }}
+                      />
+                      <span data-testid="result-color">{selectedHex}</span>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <div className="font-medium text-muted-foreground">Envase:</div>
                     <div data-testid="result-envase">{calculation.envaseId}</div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="font-medium text-muted-foreground">Base:</div>
+                    <div data-testid="result-base">{selectedTipoBase}</div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="font-medium text-muted-foreground">Producto:</div>
+                    <div data-testid="result-producto">{selectedTipoProducto}</div>
                   </div>
                 </div>
 
@@ -492,16 +519,16 @@ export default function TintometriaCalculadora() {
               <div className="text-sm text-muted-foreground">Envases disponibles</div>
             </div>
             <div className="space-y-2">
-              <div className="text-2xl font-bold text-muted-foreground">
-                --
+              <div className="text-2xl font-bold text-primary" data-testid="stat-bases">
+                {bases.length}
               </div>
-              <div className="text-sm text-muted-foreground">Recetas configuradas</div>
+              <div className="text-sm text-muted-foreground">Bases disponibles</div>
             </div>
             <div className="space-y-2">
               <div className="text-2xl font-bold text-muted-foreground">
-                --
+                4
               </div>
-              <div className="text-sm text-muted-foreground">Pigmentos registrados</div>
+              <div className="text-sm text-muted-foreground">Tipos de producto</div>
             </div>
           </div>
         </CardContent>
