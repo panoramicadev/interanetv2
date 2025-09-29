@@ -54,6 +54,28 @@ export default function Dashboard() {
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
   
+  // Query to check if goals exist (only for months) 
+  const { data: goalsProgress } = useQuery({
+    queryKey: ["/api/goals/progress", selectedPeriod, globalFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedPeriod) {
+        params.append('selectedPeriod', selectedPeriod);
+      }
+      if (globalFilter.type !== "all") {
+        params.append('type', globalFilter.type);
+        if (globalFilter.value) {
+          params.append('target', globalFilter.value);
+        }
+      }
+      const url = `/api/goals/progress${params.toString() ? `?${params.toString()}` : ''}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: filterType === "month", // Only fetch for month view
+  });
+  
   // Subtle refresh functionality state
   const [lastUpdated, setLastUpdated] = useState<string | null>(() => 
     localStorage.getItem('dashboard-last-updated')
@@ -973,8 +995,8 @@ export default function Dashboard() {
             />
           </div>
           
-          {/* Goals Progress Dashboard - Solo mostrar para meses completos */}
-          {filterType === "month" && (
+          {/* Goals Progress Dashboard - Solo mostrar para meses completos y cuando hay metas configuradas */}
+          {filterType === "month" && goalsProgress && goalsProgress.length > 0 && (
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <GoalsProgress 
                 globalFilter={globalFilter}
