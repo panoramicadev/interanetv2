@@ -272,10 +272,23 @@ export default function TomadorPedidos() {
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
     const currentPath = location.split('?')[0];
+    const searchParams = new URLSearchParams(location.split('?')[1] || '');
+    const quoteId = searchParams.get('quoteId');
+    
     if (newTab === 'constructor') {
-      navigate(currentPath); // Remove query param for default tab
+      // Preserve quoteId if it exists, otherwise remove all query params
+      if (quoteId) {
+        navigate(`${currentPath}?quoteId=${quoteId}`);
+      } else {
+        navigate(currentPath); // Remove query param for default tab
+      }
     } else {
-      navigate(`${currentPath}?tab=${newTab}`);
+      // Preserve quoteId when switching to other tabs
+      if (quoteId) {
+        navigate(`${currentPath}?tab=${newTab}&quoteId=${quoteId}`);
+      } else {
+        navigate(`${currentPath}?tab=${newTab}`);
+      }
     }
   };
   
@@ -335,10 +348,6 @@ export default function TomadorPedidos() {
         title: "Cotización cargada",
         description: `Cotización #${quote.quoteNumber} cargada para editar`,
       });
-      
-      // Clean up URL - remove quoteId parameter but preserve constructor context
-      const urlWithoutQuote = location.split('?')[0];
-      navigate(`${urlWithoutQuote}?tab=constructor`, { replace: true }); // Preserve constructor tab after loading
       
     } catch (error) {
       console.error('Error loading quote:', error);
