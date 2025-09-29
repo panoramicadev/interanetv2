@@ -36,6 +36,7 @@ import OrdersPage from "@/pages/orders";
 import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
+import TintometriaSelector from "@/pages/tintometria-selector";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -115,6 +116,7 @@ function Router() {
             }} />
             <Route path="/tintometria/admin" component={TintometriaAdmin} />
             <Route path="/tintometria/calculadora" component={TintometriaCalculadora} />
+            <Route path="/tintometria/selector" component={TintometriaSelector} />
             
             <Route path="/segment/:segmentName" component={SegmentDetail} />
             <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />

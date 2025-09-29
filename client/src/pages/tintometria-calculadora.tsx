@@ -41,11 +41,11 @@ export default function TintometriaCalculadora() {
   const [isCalculating, setIsCalculating] = useState(false);
 
   // Queries for colores and envases
-  const { data: colores = [], isLoading: loadingColores } = useQuery({
+  const { data: colores = [], isLoading: loadingColores } = useQuery<Color[]>({
     queryKey: ['/api/tintometria/colores'],
   });
 
-  const { data: envases = [], isLoading: loadingEnvases } = useQuery({
+  const { data: envases = [], isLoading: loadingEnvases } = useQuery<Envase[]>({
     queryKey: ['/api/tintometria/envases'],
   });
 
@@ -63,13 +63,13 @@ export default function TintometriaCalculadora() {
     try {
       const response = await apiRequest('/api/tintometria/calculate', {
         method: 'POST',
-        body: JSON.stringify({
+        data: {
           colorId: selectedColorId,
           envaseId: selectedEnvaseId,
-        }),
+        },
       });
 
-      setCalculation(response as CostCalculation);
+      setCalculation(response as unknown as CostCalculation);
       toast({
         title: 'Cálculo realizado',
         description: 'El costo ha sido calculado exitosamente',
