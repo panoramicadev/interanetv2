@@ -244,8 +244,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             </p>
             <div className="relative">
               <p 
-                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 break-all lg:break-normal"
+                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
                 data-testid={kpi.testId}
+                title={kpi.value}
               >
                 {kpi.value}
               </p>
@@ -263,10 +264,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             </p>
             {/* Información adicional de NVV */}
             <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1">
+              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`NVV: ${formatCurrency(nvvTotal)}`}>
                 NVV: {formatCurrency(nvvTotal)}
               </p>
-              <p className="text-xs font-semibold text-gray-700">
+              <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(combinedTotal)}`}>
                 Total Combinado: {formatCurrency(combinedTotal)}
               </p>
             </div>
@@ -291,8 +292,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </p>
                 <div className="relative">
                   <p 
-                    className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 break-all lg:break-normal"
+                    className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
                     data-testid={kpi.testId}
+                    title={kpi.value}
                   >
                     {kpi.value}
                   </p>
