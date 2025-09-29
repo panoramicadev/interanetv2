@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,12 +55,15 @@ export default function EcommerceAdmin() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryDescription, setNewCategoryDescription] = useState("");
   
-  // Estados para importador ZIP
+  // Estados para importador ZIP con sistema de jobs
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ processed: 0, total: 0, results: [] as any[] });
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'extracting' | 'processing' | 'completed' | 'error'>('idle');
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'scanning' | 'processing' | 'completed' | 'error'>('idle');
   const [currentFile, setCurrentFile] = useState<string>('');
   const [uploadError, setUploadError] = useState<string>('');
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [progressData, setProgressData] = useState<any>(null);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   
   const { toast } = useToast();
 
@@ -195,7 +198,7 @@ export default function EcommerceAdmin() {
     }
   });
 
-  // Mutación para importar imágenes desde ZIP
+  // Nueva mutación para iniciar job de importación de imágenes ZIP
   const uploadZipMutation = useMutation({
     mutationFn: async (file: File) => {
       setUploadStatus('uploading');
@@ -205,9 +208,6 @@ export default function EcommerceAdmin() {
       const formData = new FormData();
       formData.append('zipFile', file);
       
-      setUploadStatus('extracting');
-      setCurrentFile('Extrayendo imágenes del ZIP...');
-      
       const response = await fetch('/api/ecommerce/admin/upload-images', {
         method: 'POST',
         body: formData
@@ -215,44 +215,151 @@ export default function EcommerceAdmin() {
       
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Error al procesar ZIP');
+        throw new Error(error.message || 'Error al iniciar importación');
       }
-      
-      setUploadStatus('processing');
-      setCurrentFile('Procesando imágenes...');
       
       return response.json();
     },
     onSuccess: (data) => {
-      setUploadStatus('completed');
-      setCurrentFile('');
-      setUploadProgress(data);
-      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      // Iniciar polling del job
+      const jobId = data.jobId;
+      setCurrentJobId(jobId);
+      setUploadStatus('scanning');
+      setCurrentFile('Escaneando archivo ZIP...');
       
-      const successCount = data.results?.filter((r: any) => r.success).length || 0;
-      const errorCount = data.results?.filter((r: any) => !r.success).length || 0;
+      console.log(`🔄 [ZIP IMPORT] Job iniciado: ${jobId}, comenzando polling...`);
+      
+      // Iniciar polling cada 1 segundo
+      const interval = setInterval(() => {
+        pollJobStatus(jobId);
+      }, 1000);
+      
+      setPollingInterval(interval);
       
       toast({
-        title: "Importación completada",
-        description: `✅ ${successCount} imágenes procesadas exitosamente${errorCount > 0 ? `, ❌ ${errorCount} errores` : ''}`,
-        variant: errorCount > 0 ? "destructive" : "default"
+        title: "Importación iniciada",
+        description: "El archivo ZIP se está procesando en segundo plano.",
       });
-      setIsUploading(false);
     },
     onError: (error: any) => {
-      console.error('❌ [ZIP IMPORT] Error en importación:', error);
+      console.error('❌ [ZIP IMPORT] Error iniciando importación:', error);
       setUploadStatus('error');
       setCurrentFile('');
-      setUploadError(error.message || "No se pudo procesar el archivo ZIP");
+      setUploadError(error.message || "No se pudo iniciar la importación");
       
       toast({
         title: "Error en la importación",
-        description: error.message || "No se pudo procesar el archivo ZIP.",
+        description: error.message || "No se pudo iniciar la importación.",
         variant: "destructive",
       });
       setIsUploading(false);
     }
   });
+
+  // Función para hacer polling del status del job
+  const pollJobStatus = async (jobId: string) => {
+    try {
+      const response = await apiRequest(`/api/ecommerce/admin/upload-images/${jobId}/status`);
+      const jobData = await response.json();
+      
+      console.log(`📊 [ZIP IMPORT] Job ${jobId} status:`, jobData.status, `(${jobData.processedFiles}/${jobData.totalFiles})`);
+      
+      // Actualizar estado basado en el progreso del job
+      setProgressData(jobData.progressData);
+      
+      if (jobData.totalFiles > 0) {
+        setUploadProgress({
+          processed: jobData.processedFiles,
+          total: jobData.totalFiles,
+          results: jobData.resultData?.results || []
+        });
+      }
+      
+      // Actualizar información de archivo actual
+      if (jobData.progressData?.currentFile) {
+        setCurrentFile(jobData.progressData.currentFile);
+      } else if (jobData.progressData?.phase === 'scanning') {
+        setCurrentFile('Escaneando archivo ZIP...');
+      } else if (jobData.progressData?.phase === 'processing') {
+        const batch = jobData.progressData.currentBatch || 0;
+        const totalBatches = jobData.progressData.totalBatches || 0;
+        setCurrentFile(`Procesando lote ${batch}/${totalBatches}...`);
+      } else if (jobData.progressData?.phase === 'completed') {
+        setCurrentFile('');
+      }
+      
+      // Actualizar estado principal
+      if (jobData.status === 'processing') {
+        if (jobData.progressData?.phase === 'scanning') {
+          setUploadStatus('scanning');
+        } else {
+          setUploadStatus('processing');
+        }
+      } else if (jobData.status === 'success' || jobData.status === 'partial') {
+        // Job completado
+        setUploadStatus('completed');
+        setCurrentFile('');
+        
+        // Limpiar polling
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+        
+        // Invalidar queries para refrescar productos
+        queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+        
+        // Mostrar resultado final
+        const successCount = jobData.successfulFiles || 0;
+        const errorCount = jobData.failedFiles || 0;
+        
+        toast({
+          title: "Importación completada",
+          description: `✅ ${successCount} imágenes procesadas exitosamente${errorCount > 0 ? `, ❌ ${errorCount} errores` : ''}`,
+          variant: errorCount > 0 ? "destructive" : "default"
+        });
+        
+        setIsUploading(false);
+        setCurrentJobId(null);
+        
+      } else if (jobData.status === 'error') {
+        // Error en el job
+        setUploadStatus('error');
+        setCurrentFile('');
+        setUploadError(jobData.errorMessage || 'Error procesando ZIP');
+        
+        // Limpiar polling
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          setPollingInterval(null);
+        }
+        
+        toast({
+          title: "Error en la importación",
+          description: jobData.errorMessage || "Error procesando el archivo ZIP.",
+          variant: "destructive",
+        });
+        
+        setIsUploading(false);
+        setCurrentJobId(null);
+      }
+      
+    } catch (error) {
+      console.error('❌ [ZIP IMPORT] Error consultando status del job:', error);
+      
+      // En caso de error de polling, continuar intentando por un tiempo
+      // pero si falla varias veces, detener el polling
+    }
+  };
+
+  // Limpiar polling al desmontar componente
+  React.useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
 
   // Filtrar productos
   const filteredProducts = productos.filter(product => {
@@ -326,10 +433,10 @@ export default function EcommerceAdmin() {
       return;
     }
     
-    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+    if (file.size > 100 * 1024 * 1024) { // 100MB limit
       toast({
         title: "Archivo muy grande",
-        description: "El archivo ZIP no debe exceder 50MB.",
+        description: "El archivo ZIP no debe exceder 100MB.",
         variant: "destructive",
       });
       return;
@@ -491,12 +598,12 @@ export default function EcommerceAdmin() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
                 <div className="flex items-center gap-2 text-blue-800">
                   {uploadStatus === 'uploading' && <CloudUpload className="h-5 w-5 animate-pulse" />}
-                  {uploadStatus === 'extracting' && <Package className="h-5 w-5 animate-bounce" />}
+                  {uploadStatus === 'scanning' && <Package className="h-5 w-5 animate-bounce" />}
                   {uploadStatus === 'processing' && <Image className="h-5 w-5 animate-spin" />}
                   {uploadStatus === 'completed' && <CheckCircle className="h-5 w-5 text-green-600" />}
                   <h4 className="font-medium">
                     {uploadStatus === 'uploading' && 'Subiendo archivo ZIP...'}
-                    {uploadStatus === 'extracting' && 'Extrayendo imágenes...'}
+                    {uploadStatus === 'scanning' && 'Escaneando archivo ZIP...'}
                     {uploadStatus === 'processing' && 'Procesando y subiendo imágenes...'}
                     {uploadStatus === 'completed' && 'Importación completada'}
                   </h4>
@@ -524,7 +631,7 @@ export default function EcommerceAdmin() {
                         width: uploadProgress.total > 0 
                           ? `${(uploadProgress.processed / uploadProgress.total) * 100}%`
                           : uploadStatus === 'uploading' ? '30%' 
-                          : uploadStatus === 'extracting' ? '50%'
+                          : uploadStatus === 'scanning' ? '50%'
                           : uploadStatus === 'processing' ? '80%' : '100%'
                       }}
                     />
@@ -533,11 +640,11 @@ export default function EcommerceAdmin() {
                 
                 {/* Pasos del proceso */}
                 <div className="grid grid-cols-4 gap-2 text-xs">
-                  <div className={`flex items-center gap-1 ${uploadStatus === 'uploading' ? 'text-blue-600 font-medium' : uploadStatus === 'extracting' || uploadStatus === 'processing' || uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                  <div className={`flex items-center gap-1 ${uploadStatus === 'uploading' ? 'text-blue-600 font-medium' : uploadStatus === 'scanning' || uploadStatus === 'processing' || uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
                     <CloudUpload className="h-3 w-3" />
                     <span>Subir</span>
                   </div>
-                  <div className={`flex items-center gap-1 ${uploadStatus === 'extracting' ? 'text-blue-600 font-medium' : uploadStatus === 'processing' || uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
+                  <div className={`flex items-center gap-1 ${uploadStatus === 'scanning' ? 'text-blue-600 font-medium' : uploadStatus === 'processing' || uploadStatus === 'completed' ? 'text-green-600' : 'text-gray-400'}`}>
                     <Package className="h-3 w-3" />
                     <span>Extraer</span>
                   </div>
@@ -566,7 +673,7 @@ export default function EcommerceAdmin() {
                   <div>
                     <p className="text-lg font-medium">Arrastra tu archivo ZIP aquí</p>
                     <p className="text-sm text-muted-foreground">
-                      o haz clic para seleccionar (máximo 50MB)
+                      o haz clic para seleccionar (máximo 100MB)
                     </p>
                   </div>
                   <input
