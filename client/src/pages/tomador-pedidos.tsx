@@ -838,6 +838,8 @@ export default function TomadorPedidos() {
           taxAmount: tax.toString(),
           total: total.toString(),
           status: "draft" as const,
+          // Convert validUntil string to ISO string if it exists
+          validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
         };
 
         const response = await apiRequest(`/api/quotes/${editingQuoteId}`, {
@@ -894,6 +896,8 @@ export default function TomadorPedidos() {
           taxAmount: tax.toString(),
           total: total.toString(),
           status: "draft" as const,
+          // Convert validUntil string to ISO string if it exists
+          validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
         };
 
         const response = await apiRequest('/api/quotes', {
@@ -1433,6 +1437,8 @@ export default function TomadorPedidos() {
           taxAmount: tax.toString(),
           total: total.toString(),
           status: "draft" as const,
+          // Convert validUntil string to ISO string if it exists
+          validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
         };
 
         const response = await apiRequest(`/api/quotes/${editingQuoteId}`, {
@@ -1481,6 +1487,8 @@ export default function TomadorPedidos() {
           taxAmount: tax.toString(),
           total: total.toString(),
           status: "draft" as const,
+          // Convert validUntil string to ISO string if it exists
+          validUntil: quoteForm.validUntil ? new Date(quoteForm.validUntil).toISOString() : null,
         };
 
         const response = await apiRequest('/api/quotes', {
