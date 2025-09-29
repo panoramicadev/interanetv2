@@ -229,8 +229,12 @@ export default function TintometriaCalculadora() {
     queryKey: ['/api/tintometria/envases'],
   });
 
-  const { data: bases = [], isLoading: loadingBases } = useQuery({
+  const { data: bases = [], isLoading: loadingBases } = useQuery<any[]>({
     queryKey: ['/api/tintometria/bases'],
+  });
+
+  const { data: colores = [] } = useQuery<any[]>({
+    queryKey: ['/api/tintometria/colores'],
   });
 
   const handleCalculate = async () => {
