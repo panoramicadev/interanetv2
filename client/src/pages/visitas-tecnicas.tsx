@@ -206,10 +206,6 @@ export default function VisitasTecnicasPage() {
               <FileText className="w-4 h-4 mr-2" />
               Exportar Reportes
             </Button>
-            <Button variant="outline" className="w-full justify-start" data-testid="button-gestionar-productos">
-              <Package className="w-4 h-4 mr-2" />
-              Gestionar Productos
-            </Button>
           </CardContent>
         </Card>
       </div>
@@ -294,7 +290,7 @@ export default function VisitasTecnicasPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Users className="w-4 h-4" />
+                        <User className="w-4 h-4" />
                         <span data-testid={`text-cliente-${visita.id}`}>
                           {visita.cliente}
                         </span>
