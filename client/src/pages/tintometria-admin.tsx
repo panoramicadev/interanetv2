@@ -65,15 +65,15 @@ export default function TintometriaAdmin() {
   const [activeTab, setActiveTab] = useState('pigments');
 
   // Queries for all entities
-  const { data: pigments = [], isLoading: loadingPigments } = useQuery({
+  const { data: pigments = [], isLoading: loadingPigments } = useQuery<Pigment[]>({
     queryKey: ['/api/tintometria/pigments'],
   });
 
-  const { data: bases = [], isLoading: loadingBases } = useQuery({
+  const { data: bases = [], isLoading: loadingBases } = useQuery<Base[]>({
     queryKey: ['/api/tintometria/bases'],
   });
 
-  const { data: envases = [], isLoading: loadingEnvases } = useQuery({
+  const { data: envases = [], isLoading: loadingEnvases } = useQuery<Envase[]>({
     queryKey: ['/api/tintometria/envases'],
   });
 
@@ -93,7 +93,7 @@ export default function TintometriaAdmin() {
     try {
       await apiRequest(`/api/tintometria/${entity}`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        data,
       });
       await queryClient.invalidateQueries({ queryKey: [`/api/tintometria/${entity}`] });
       toast({
@@ -115,7 +115,7 @@ export default function TintometriaAdmin() {
     try {
       await apiRequest(`/api/tintometria/${entity}/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(data),
+        data,
       });
       await queryClient.invalidateQueries({ queryKey: [`/api/tintometria/${entity}`] });
       toast({
@@ -155,13 +155,21 @@ export default function TintometriaAdmin() {
   };
 
   const PigmentForm = ({ pigment, onSubmit }: { pigment?: Pigment; onSubmit: (data: InsertPigment) => void }) => {
+    const [compatibleBase, setCompatibleBase] = useState<'Agua' | 'Solvente' | ''>(pigment?.compatibleBase as 'Agua' | 'Solvente' || '');
+
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       const formData = new FormData(e.currentTarget);
+      
+      if (!compatibleBase) {
+        alert('Por favor complete todos los campos obligatorios');
+        return;
+      }
+      
       onSubmit({
         pigmentoCode: formData.get('pigmentoCode') as string,
         nombre: formData.get('nombre') as string,
-        compatibleBase: formData.get('compatibleBase') as 'Agua' | 'Solvente',
+        compatibleBase: compatibleBase as 'Agua' | 'Solvente',
         costoKgClp: parseFloat(formData.get('costoKgClp') as string),
         proveedor: formData.get('proveedor') as string,
         notas: formData.get('notas') as string,
@@ -196,7 +204,7 @@ export default function TintometriaAdmin() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label htmlFor="compatibleBase">Base Compatible</Label>
-            <Select name="compatibleBase" defaultValue={pigment?.compatibleBase} required>
+            <Select value={compatibleBase} onValueChange={(value: 'Agua' | 'Solvente') => setCompatibleBase(value)} required>
               <SelectTrigger data-testid="select-compatible-base">
                 <SelectValue placeholder="Selecciona base" />
               </SelectTrigger>
@@ -225,7 +233,7 @@ export default function TintometriaAdmin() {
           <Input 
             id="proveedor" 
             name="proveedor" 
-            defaultValue={pigment?.proveedor} 
+            defaultValue={pigment?.proveedor || ''} 
             data-testid="input-proveedor"
           />
         </div>
@@ -235,7 +243,7 @@ export default function TintometriaAdmin() {
           <Textarea 
             id="notas" 
             name="notas" 
-            defaultValue={pigment?.notas} 
+            defaultValue={pigment?.notas || ''} 
             data-testid="textarea-notas"
           />
         </div>
@@ -253,13 +261,22 @@ export default function TintometriaAdmin() {
   };
 
   const BaseForm = ({ base, onSubmit }: { base?: Base; onSubmit: (data: InsertBase) => void }) => {
+    const [tipoBase, setTipoBase] = useState<'Agua' | 'Solvente' | ''>(base?.tipoBase as 'Agua' | 'Solvente' || '');
+    const [colorBase, setColorBase] = useState<'Blanco' | 'Incoloro' | ''>(base?.colorBase as 'Blanco' | 'Incoloro' || '');
+
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       const formData = new FormData(e.currentTarget);
+      
+      if (!tipoBase || !colorBase) {
+        alert('Por favor complete todos los campos obligatorios');
+        return;
+      }
+      
       onSubmit({
         baseId: formData.get('baseId') as string,
-        tipoBase: formData.get('tipoBase') as 'Agua' | 'Solvente',
-        colorBase: formData.get('colorBase') as 'Blanco' | 'Incoloro',
+        tipoBase: tipoBase as 'Agua' | 'Solvente',
+        colorBase: colorBase as 'Blanco' | 'Incoloro',
         costoKgClp: parseFloat(formData.get('costoKgClp') as string),
         notas: formData.get('notas') as string,
       });
@@ -280,7 +297,7 @@ export default function TintometriaAdmin() {
           </div>
           <div>
             <Label htmlFor="tipoBase">Tipo de Base</Label>
-            <Select name="tipoBase" defaultValue={base?.tipoBase} required>
+            <Select value={tipoBase} onValueChange={(value: 'Agua' | 'Solvente') => setTipoBase(value)} required>
               <SelectTrigger data-testid="select-tipo-base">
                 <SelectValue placeholder="Selecciona tipo" />
               </SelectTrigger>
@@ -295,7 +312,7 @@ export default function TintometriaAdmin() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label htmlFor="colorBase">Color Base</Label>
-            <Select name="colorBase" defaultValue={base?.colorBase} required>
+            <Select value={colorBase} onValueChange={(value: 'Blanco' | 'Incoloro') => setColorBase(value)} required>
               <SelectTrigger data-testid="select-color-base">
                 <SelectValue placeholder="Selecciona color" />
               </SelectTrigger>
@@ -324,7 +341,7 @@ export default function TintometriaAdmin() {
           <Textarea 
             id="notas" 
             name="notas" 
-            defaultValue={base?.notas} 
+            defaultValue={base?.notas || ''} 
             data-testid="textarea-notas"
           />
         </div>
@@ -342,13 +359,22 @@ export default function TintometriaAdmin() {
   };
 
   const EnvaseForm = ({ envase, onSubmit }: { envase?: Envase; onSubmit: (data: InsertEnvase) => void }) => {
+    const [material, setMaterial] = useState<'Plástico' | 'Metálico' | ''>(envase?.material as 'Plástico' | 'Metálico' || '');
+    const [capacidad, setCapacidad] = useState<'BD' | 'BD5' | '1/4' | 'GL' | 'BD4' | ''>(envase?.capacidad as 'BD' | 'BD5' | '1/4' | 'GL' | 'BD4' || '');
+
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       const formData = new FormData(e.currentTarget);
+      
+      if (!material || !capacidad) {
+        alert('Por favor complete todos los campos obligatorios');
+        return;
+      }
+      
       onSubmit({
         envaseId: formData.get('envaseId') as string,
-        material: formData.get('material') as 'Plástico' | 'Metálico',
-        capacidad: formData.get('capacidad') as 'BD' | 'BD5' | '1/4' | 'GL' | 'BD4',
+        material: material as 'Plástico' | 'Metálico',
+        capacidad: capacidad as 'BD' | 'BD5' | '1/4' | 'GL' | 'BD4',
         kgPorEnvase: parseFloat(formData.get('kgPorEnvase') as string),
         costoEnvaseClp: parseFloat(formData.get('costoEnvaseClp') as string),
         notas: formData.get('notas') as string,
@@ -370,7 +396,7 @@ export default function TintometriaAdmin() {
           </div>
           <div>
             <Label htmlFor="material">Material</Label>
-            <Select name="material" defaultValue={envase?.material} required>
+            <Select value={material} onValueChange={(value: 'Plástico' | 'Metálico') => setMaterial(value)} required>
               <SelectTrigger data-testid="select-material">
                 <SelectValue placeholder="Selecciona material" />
               </SelectTrigger>
@@ -385,7 +411,7 @@ export default function TintometriaAdmin() {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <Label htmlFor="capacidad">Capacidad</Label>
-            <Select name="capacidad" defaultValue={envase?.capacidad} required>
+            <Select value={capacidad} onValueChange={(value: 'BD' | 'BD5' | '1/4' | 'GL' | 'BD4') => setCapacidad(value)} required>
               <SelectTrigger data-testid="select-capacidad">
                 <SelectValue placeholder="Selecciona capacidad" />
               </SelectTrigger>
@@ -429,7 +455,7 @@ export default function TintometriaAdmin() {
           <Textarea 
             id="notas" 
             name="notas" 
-            defaultValue={envase?.notas} 
+            defaultValue={envase?.notas || ''} 
             data-testid="textarea-notas"
           />
         </div>
