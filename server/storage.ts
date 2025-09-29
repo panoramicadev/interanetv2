@@ -7532,6 +7532,31 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async clearAllNvvData(): Promise<{ success: boolean; deletedCount: number; message: string }> {
+    try {
+      console.log('🗑️ Starting complete NVV data cleanup...');
+      
+      // Delete all records from nvv_pending_sales table
+      const result = await db.delete(nvvPendingSales);
+      const deletedCount = result.rowCount || 0;
+      
+      console.log(`✅ NVV cleanup completed: ${deletedCount} records deleted`);
+      
+      return {
+        success: true,
+        deletedCount,
+        message: `Eliminados ${deletedCount} registros NVV exitosamente`
+      };
+    } catch (error) {
+      console.error('❌ Error during NVV cleanup:', error);
+      return {
+        success: false,
+        deletedCount: 0,
+        message: 'Error al eliminar registros NVV: ' + (error instanceof Error ? error.message : 'Error desconocido')
+      };
+    }
+  }
+
   async getNvvTotalSummary(): Promise<{
     totalAmount: number;
     totalRecords: number;

@@ -5367,6 +5367,28 @@ export function registerRoutes(app: Express): Server {
     res.json(pendingSales);
   }));
 
+  // Clear all NVV data - DESTRUCTIVE OPERATION
+  app.delete('/api/nvv/clear-all', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      // Restrict to admin role only for safety
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Solo administradores pueden eliminar todos los datos NVV'
+        });
+      }
+
+      const result = await storage.clearAllNvvData();
+      res.json(result);
+    } catch (error) {
+      console.error('Error clearing NVV data:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al eliminar datos NVV'
+      });
+    }
+  }));
+
   // Get NVV total summary without date filters
   app.get('/api/nvv/total', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
