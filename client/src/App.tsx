@@ -93,8 +93,8 @@ function Router() {
             <Route path="/clientes" component={Clients} />
             <Route path="/ordenes" component={OrdenesPage} />
             <Route path="/pedidos" component={() => {
-              // Redirect from /pedidos to /tomador-pedidos with pedidos tab
-              window.location.replace('/tomador-pedidos?tab=pedidos');
+              // Redirect from /pedidos to /tomador-pedidos recientes tab
+              window.location.replace('/tomador-pedidos?tab=recientes');
               return null;
             }} />
             <Route path="/products" component={() => {
@@ -124,8 +124,8 @@ function Router() {
             {/* Rutas específicas de vendedor */}
             <Route path="/mis-clientes" component={ClientsDashboard} />
             <Route path="/presupuestos" component={() => {
-              // Redirect from /presupuestos to /tomador-pedidos with cotizaciones tab
-              window.location.replace('/tomador-pedidos?tab=cotizaciones');
+              // Redirect from /presupuestos to /tomador-pedidos recientes tab
+              window.location.replace('/tomador-pedidos?tab=recientes');
               return null;
             }} />
             

@@ -78,20 +78,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/tomador-pedidos",
-      label: "Tomador de Pedidos",
+      label: "Pedidos Recientes",
       icon: ClipboardCheck,
-      children: [
-        {
-          href: "/tomador-pedidos?tab=cotizaciones",
-          label: "Cotizaciones",
-          icon: FileText,
-        },
-        {
-          href: "/tomador-pedidos?tab=pedidos",
-          label: "Pedidos",
-          icon: CheckCircle2,
-        },
-      ],
     },
     {
       href: "/tareas",
@@ -172,20 +160,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/tomador-pedidos",
-      label: "Tomador de Pedidos",
+      label: "Pedidos Recientes",
       icon: ClipboardCheck,
-      children: [
-        {
-          href: "/tomador-pedidos?tab=cotizaciones",
-          label: "Cotizaciones",
-          icon: FileText,
-        },
-        {
-          href: "/tomador-pedidos?tab=pedidos",
-          label: "Pedidos",
-          icon: CheckCircle2,
-        },
-      ],
     },
     {
       href: "/tareas",
@@ -236,20 +212,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/tomador-pedidos",
-      label: "Tomador de Pedidos",
+      label: "Pedidos Recientes",
       icon: ClipboardCheck,
-      children: [
-        {
-          href: "/tomador-pedidos?tab=cotizaciones",
-          label: "Cotizaciones",
-          icon: FileText,
-        },
-        {
-          href: "/tomador-pedidos?tab=pedidos",
-          label: "Pedidos",
-          icon: CheckCircle2,
-        },
-      ],
     },
     {
       href: "/tareas",
