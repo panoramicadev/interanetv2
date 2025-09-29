@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
@@ -15,7 +15,11 @@ import {
   XCircle,
   Send,
   Package,
+  Copy,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,9 +59,9 @@ interface Quote {
   status: "draft" | "sent" | "accepted" | "rejected" | "converted";
   validUntil?: string;
   notes?: string;
-  totalAmount: string;
+  total: string;
   taxAmount?: string;
-  discountAmount?: string;
+  discount?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -95,6 +99,8 @@ export default function QuotesList() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   // Build query parameters
   const buildQueryParams = () => {
@@ -116,6 +122,41 @@ export default function QuotesList() {
   const { data: quotes, isLoading, error } = useQuery<Quote[]>({
     queryKey: [`/api/quotes?${buildQueryParams()}`],
   });
+
+  // Mutation to duplicate quote for editing
+  const duplicateQuoteMutation = useMutation({
+    mutationFn: async (quoteId: string) => {
+      return await apiRequest(`/api/quotes/${quoteId}/duplicate`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: (newQuote) => {
+      toast({
+        title: "Cotización duplicada",
+        description: `Nueva cotización #${newQuote.quoteNumber} creada para editar. Abriendo editor...`,
+      });
+      // Invalidate all quote queries (fixes cache invalidation bug)
+      queryClient.invalidateQueries({ 
+        predicate: (query) => 
+          typeof query.queryKey[0] === 'string' && 
+          (query.queryKey[0] as string).startsWith('/api/quotes')
+      });
+      
+      // Navigate immediately to tomador de pedidos with the new quote ID
+      navigate(`/tomador-pedidos?quoteId=${newQuote.id}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al duplicar",
+        description: error.message || "No se pudo duplicar la cotización",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDuplicateForEdit = (quoteId: string) => {
+    duplicateQuoteMutation.mutate(quoteId);
+  };
 
   const formatCurrency = (amount: string | number) => {
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -337,11 +378,11 @@ export default function QuotesList() {
                       
                       <TableCell className="py-4">
                         <div className="font-medium text-gray-900" data-testid={`total-amount-${quote.id}`}>
-                          {formatCurrency(quote.totalAmount)}
+                          {formatCurrency(quote.total)}
                         </div>
-                        {quote.discountAmount && parseFloat(quote.discountAmount) > 0 && (
+                        {quote.discount && parseFloat(quote.discount) > 0 && (
                           <div className="text-sm text-green-600">
-                            Descuento: {formatCurrency(quote.discountAmount)}
+                            Descuento: {formatCurrency(quote.discount)}
                           </div>
                         )}
                       </TableCell>
@@ -383,10 +424,14 @@ export default function QuotesList() {
                               <FileText className="w-4 h-4 mr-2" />
                               Ver detalles
                             </DropdownMenuItem>
-                            {quote.status === 'draft' && (
-                              <DropdownMenuItem data-testid={`edit-${quote.id}`}>
-                                <User className="w-4 h-4 mr-2" />
-                                Editar
+                            {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
+                              <DropdownMenuItem 
+                                data-testid={`button-duplicate-quote-${quote.id}`}
+                                onClick={() => handleDuplicateForEdit(quote.id)}
+                                disabled={duplicateQuoteMutation.isPending}
+                              >
+                                <Copy className="w-4 h-4 mr-2" />
+                                {duplicateQuoteMutation.isPending ? 'Duplicando...' : 'Duplicar para editar'}
                               </DropdownMenuItem>
                             )}
                             {(quote.status === 'accepted' || quote.status === 'sent') && (

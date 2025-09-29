@@ -806,6 +806,9 @@ export interface IStorage {
   // Quote to Order conversion
   convertQuoteToOrder(quoteId: string, userId: string): Promise<Order>;
   
+  // Quote duplication for editing (atomic operation)
+  duplicateQuote(originalQuoteId: string, userId: string): Promise<Quote>;
+  
   // Additional helper for quote items
   getQuoteItemById(id: string): Promise<QuoteItem | undefined>;
 
@@ -7337,6 +7340,71 @@ export class DatabaseStorage implements IStorage {
     await this.updateQuote(quoteId, { status: 'converted' });
 
     return order;
+  }
+
+  // Quote duplication for editing (atomic operation)
+  async duplicateQuote(originalQuoteId: string, userId: string): Promise<Quote> {
+    const newQuote = await db.transaction(async (tx) => {
+      // Get the original quote and items within the same transaction for true atomicity
+      const [originalQuote] = await tx
+        .select()
+        .from(quotes)
+        .where(eq(quotes.id, originalQuoteId));
+
+      if (!originalQuote) {
+        throw new Error('Quote not found');
+      }
+
+      const originalItems = await tx
+        .select()
+        .from(quoteItems)
+        .where(eq(quoteItems.quoteId, originalQuoteId));
+
+      // Create new quote with same data but as draft
+      const quoteNumber = `Q-${Date.now()}`;
+      const [newQuote] = await tx
+        .insert(quotes)
+        .values({
+          clientName: originalQuote.clientName,
+          clientRut: originalQuote.clientRut,
+          clientEmail: originalQuote.clientEmail,
+          clientPhone: originalQuote.clientPhone,
+          clientAddress: originalQuote.clientAddress,
+          validUntil: originalQuote.validUntil,
+          notes: originalQuote.notes 
+            ? `Copia de cotización #${originalQuote.quoteNumber} - ${originalQuote.notes}` 
+            : `Copia de cotización #${originalQuote.quoteNumber}`,
+          subtotal: originalQuote.subtotal,
+          total: originalQuote.total,
+          taxAmount: originalQuote.taxAmount,
+          discount: originalQuote.discount,
+          taxRate: originalQuote.taxRate,
+          status: 'draft', // Always create as draft
+          createdBy: userId,
+          quoteNumber,
+        })
+        .returning();
+
+      // Copy all items from original quote
+      if (originalItems.length > 0) {
+        const newItemsData = originalItems.map(item => ({
+          quoteId: newQuote.id,
+          productName: item.productName,
+          productCode: item.productCode,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          notes: item.notes,
+        }));
+
+        await tx.insert(quoteItems).values(newItemsData);
+      }
+
+      return { newQuote, hasItems: originalItems.length > 0 };
+    });
+
+    // Always recalculate totals after transaction to ensure consistency
+    return await this.recalculateQuoteTotals(newQuote.newQuote.id);
   }
 
   // Store operations

@@ -25,6 +25,7 @@ import { z } from "zod";
 import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { nanoid } from "nanoid";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 // HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
 
@@ -282,6 +283,69 @@ export default function TomadorPedidos() {
   useEffect(() => {
     setActiveTab(getActiveTabFromUrl());
   }, [location]);
+
+  // Auto-load quote for editing when quoteId is in URL
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.split('?')[1] || '');
+    const quoteId = searchParams.get('quoteId');
+    
+    if (quoteId) {
+      // Load the quote and switch to constructor tab
+      loadQuoteForEditing(quoteId);
+      setActiveTab('constructor');
+    }
+  }, [location]);
+
+  // Function to load a quote for editing
+  const loadQuoteForEditing = async (quoteId: string) => {
+    try {
+      // Load quote and items using consistent apiRequest
+      const quote = await apiRequest(`/api/quotes/${quoteId}`);
+      const items = await apiRequest(`/api/quotes/${quoteId}/items`).catch(() => []); // Fallback to empty array if items endpoint fails
+      
+      // Populate form with quote data
+      setQuoteForm({
+        clientName: quote.clientName,
+        clientRut: quote.clientRut || '',
+        clientEmail: quote.clientEmail || '',
+        clientPhone: quote.clientPhone || '',
+        clientAddress: quote.clientAddress || '',
+        validUntil: quote.validUntil || '',
+        notes: quote.notes || '',
+      });
+      
+      // Convert quote items to cart items with proper types
+      const cartItems: CartItem[] = items.map((item: any) => ({
+        id: item.id || nanoid(), // Generate stable unique ID
+        type: 'standard' as const,
+        productName: item.productName,
+        productCode: item.productCode || '',
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+        totalPrice: Number(item.totalPrice),
+      }));
+      
+      setCart(cartItems);
+      setShowQuoteBuilder(true);
+      
+      toast({
+        title: "Cotización cargada",
+        description: `Cotización #${quote.quoteNumber} cargada para editar`,
+      });
+      
+      // Clean up URL - remove quoteId parameter but preserve constructor context
+      const urlWithoutQuote = location.split('?')[0];
+      navigate(`${urlWithoutQuote}?tab=constructor`, { replace: true }); // Preserve constructor tab after loading
+      
+    } catch (error) {
+      console.error('Error loading quote:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo cargar la cotización",
+        variant: "destructive"
+      });
+    }
+  };
   
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
