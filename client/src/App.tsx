@@ -33,6 +33,7 @@ import EcommerceAdmin from "@/pages/ecommerce-admin";
 import Carrito from "@/pages/carrito";
 import QuotesPage from "@/pages/quotes";
 import OrdersPage from "@/pages/orders";
+import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -98,6 +99,7 @@ function Router() {
             <Route path="/metas" component={Metas} />
             <Route path="/tomador-pedidos" component={TomadorPedidos} />
             <Route path="/tareas" component={TareasPage} />
+            <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
             <Route path="/segment/:segmentName" component={SegmentDetail} />
             <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
             <Route path="/client/:clientName" component={ClientDetail} />

@@ -73,6 +73,27 @@ import {
   type NvvPendingSales,
   type InsertNvvPendingSales,
   type NvvImportResult,
+  visitasTecnicas,
+  contactosVisita,
+  productosEvaluados,
+  evaluacionesTecnicas,
+  reclamos,
+  firmasDigitales,
+  evidencias,
+  type VisitaTecnica,
+  type InsertVisitaTecnica,
+  type ContactoVisita,
+  type InsertContactoVisita,
+  type ProductoEvaluado,
+  type InsertProductoEvaluado,
+  type EvaluacionTecnica,
+  type InsertEvaluacionTecnica,
+  type Reclamo,
+  type InsertReclamo,
+  type FirmaDigital,
+  type InsertFirmaDigital,
+  type Evidencia,
+  type InsertEvidencia,
   type FileUpload,
   type InsertFileUpload,
 } from "@shared/schema";
@@ -7757,6 +7778,260 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error getting file upload history:', error);
       return [];
+    }
+  }
+
+  // ==============================================
+  // VISITAS TÉCNICAS METHODS
+  // ==============================================
+
+  async getEstadisticasVisitasTecnicas(options: { periodo?: string } = {}): Promise<{
+    totalVisitas: number;
+    visitasCompletadas: number;
+    visitasBorrador: number;
+    aplicacionesCorrectas: number;
+    aplicacionesDeficientes: number;
+    reclamosPendientes: number;
+    promedioProgreso: number;
+  }> {
+    try {
+      // Simular estadísticas por ahora
+      // TODO: Implementar cálculos reales basados en datos
+      return {
+        totalVisitas: 0,
+        visitasCompletadas: 0,
+        visitasBorrador: 0,
+        aplicacionesCorrectas: 0,
+        aplicacionesDeficientes: 0,
+        reclamosPendientes: 0,
+        promedioProgreso: 0
+      };
+    } catch (error) {
+      console.error('Error getting visitas técnicas statistics:', error);
+      return {
+        totalVisitas: 0,
+        visitasCompletadas: 0,
+        visitasBorrador: 0,
+        aplicacionesCorrectas: 0,
+        aplicacionesDeficientes: 0,
+        reclamosPendientes: 0,
+        promedioProgreso: 0
+      };
+    }
+  }
+
+  async getListadoVisitasTecnicas(options: {
+    search?: string;
+    estado?: string;
+    tecnico?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<Array<{
+    id: string;
+    nombreObra: string;
+    fechaVisita: string;
+    tecnico: string;
+    cliente: string;
+    estado: string;
+    productosEvaluados: number;
+    reclamosTotal: number;
+  }>> {
+    try {
+      // Por ahora retornar array vacío
+      // TODO: Implementar query real con joins a users y clients
+      return [];
+    } catch (error) {
+      console.error('Error getting listado visitas técnicas:', error);
+      return [];
+    }
+  }
+
+  async createVisitaTecnica(data: any) {
+    try {
+      const [visitaCreada] = await db.insert(visitasTecnicas).values(data).returning();
+      return visitaCreada;
+    } catch (error) {
+      console.error('Error creating visita técnica:', error);
+      throw error;
+    }
+  }
+
+  async getVisitaTecnicaById(id: string) {
+    try {
+      const [visita] = await db.select().from(visitasTecnicas).where(eq(visitasTecnicas.id, id));
+      return visita;
+    } catch (error) {
+      console.error('Error getting visita técnica by id:', error);
+      return null;
+    }
+  }
+
+  async updateVisitaTecnica(id: string, data: any) {
+    try {
+      const [visitaActualizada] = await db
+        .update(visitasTecnicas)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(visitasTecnicas.id, id))
+        .returning();
+      return visitaActualizada;
+    } catch (error) {
+      console.error('Error updating visita técnica:', error);
+      return null;
+    }
+  }
+
+  async deleteVisitaTecnica(id: string): Promise<boolean> {
+    try {
+      // Eliminar registros relacionados primero
+      await db.delete(contactosVisita).where(eq(contactosVisita.visitaId, id));
+      await db.delete(productosEvaluados).where(eq(productosEvaluados.visitaId, id));
+      await db.delete(reclamos).where(eq(reclamos.visitaId, id));
+      await db.delete(firmasDigitales).where(eq(firmasDigitales.visitaId, id));
+      await db.delete(evidencias).where(eq(evidencias.visitaId, id));
+      
+      // Eliminar la visita principal
+      await db.delete(visitasTecnicas).where(eq(visitasTecnicas.id, id));
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting visita técnica:', error);
+      return false;
+    }
+  }
+
+  async getProductosParaVisitas(options: {
+    clienteId?: string;
+    search?: string;
+    active?: boolean;
+  } = {}) {
+    try {
+      let query = db.select({
+        id: products.id,
+        kopr: products.kopr,
+        name: products.name,
+        ud02pr: products.ud02pr,
+        priceProduct: products.priceProduct,
+        category: products.category
+      }).from(products);
+
+      const conditions = [];
+      
+      if (options.active) {
+        conditions.push(eq(products.active, true));
+      }
+
+      if (options.search) {
+        conditions.push(
+          or(
+            ilike(products.name, `%${options.search}%`),
+            ilike(products.kopr, `%${options.search}%`)
+          )
+        );
+      }
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+
+      query = query.orderBy(products.name).limit(100);
+
+      const productos = await query;
+      return productos;
+    } catch (error) {
+      console.error('Error getting productos para visitas:', error);
+      return [];
+    }
+  }
+
+  async getTecnicosDisponibles() {
+    try {
+      const tecnicos = await db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          role: users.role
+        })
+        .from(users)
+        .where(
+          and(
+            or(
+              eq(users.role, 'admin'),
+              eq(users.role, 'supervisor'),
+              eq(users.role, 'salesperson') // Los vendedores también pueden ser técnicos
+            )
+          )
+        )
+        .orderBy(users.firstName, users.lastName);
+
+      return tecnicos.map(tecnico => ({
+        ...tecnico,
+        fullName: `${tecnico.firstName || ''} ${tecnico.lastName || ''}`.trim() || tecnico.email
+      }));
+    } catch (error) {
+      console.error('Error getting técnicos disponibles:', error);
+      return [];
+    }
+  }
+
+  async createEvidencia(data: any) {
+    try {
+      const [evidenciaCreada] = await db.insert(evidencias).values(data).returning();
+      return evidenciaCreada;
+    } catch (error) {
+      console.error('Error creating evidencia:', error);
+      throw error;
+    }
+  }
+
+  async createContactoVisita(data: any) {
+    try {
+      const [contactoCreado] = await db.insert(contactosVisita).values(data).returning();
+      return contactoCreado;
+    } catch (error) {
+      console.error('Error creating contacto visita:', error);
+      throw error;
+    }
+  }
+
+  async createProductoEvaluado(data: any) {
+    try {
+      const [productoCreado] = await db.insert(productosEvaluados).values(data).returning();
+      return productoCreado;
+    } catch (error) {
+      console.error('Error creating producto evaluado:', error);
+      throw error;
+    }
+  }
+
+  async createEvaluacionTecnica(data: any) {
+    try {
+      const [evaluacionCreada] = await db.insert(evaluacionesTecnicas).values(data).returning();
+      return evaluacionCreada;
+    } catch (error) {
+      console.error('Error creating evaluación técnica:', error);
+      throw error;
+    }
+  }
+
+  async createReclamo(data: any) {
+    try {
+      const [reclamoCreado] = await db.insert(reclamos).values(data).returning();
+      return reclamoCreado;
+    } catch (error) {
+      console.error('Error creating reclamo:', error);
+      throw error;
+    }
+  }
+
+  async createFirmaDigital(data: any) {
+    try {
+      const [firmaCreada] = await db.insert(firmasDigitales).values(data).returning();
+      return firmaCreada;
+    } catch (error) {
+      console.error('Error creating firma digital:', error);
+      throw error;
     }
   }
 
