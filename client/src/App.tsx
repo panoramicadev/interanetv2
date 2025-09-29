@@ -90,7 +90,11 @@ function Router() {
             <Route path="/ecommerce" component={EcommerceAdmin} />
             <Route path="/clientes" component={Clients} />
             <Route path="/ordenes" component={OrdenesPage} />
-            <Route path="/pedidos" component={OrdersPage} />
+            <Route path="/pedidos" component={() => {
+              // Redirect from /pedidos to /tomador-pedidos with pedidos tab
+              window.location.replace('/tomador-pedidos?tab=pedidos');
+              return null;
+            }} />
             <Route path="/products" component={() => {
               // Redirect from /products to /productos
               window.location.replace('/productos');
@@ -107,7 +111,11 @@ function Router() {
             
             {/* Rutas específicas de vendedor */}
             <Route path="/mis-clientes" component={ClientsDashboard} />
-            <Route path="/presupuestos" component={QuotesPage} />
+            <Route path="/presupuestos" component={() => {
+              // Redirect from /presupuestos to /tomador-pedidos with cotizaciones tab
+              window.location.replace('/tomador-pedidos?tab=cotizaciones');
+              return null;
+            }} />
             
             {/* Rutas específicas de supervisor */}
             <Route path="/mis-vendedores" component={MisVendedoresPage} />
