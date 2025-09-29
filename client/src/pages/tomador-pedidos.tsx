@@ -1838,7 +1838,7 @@ export default function TomadorPedidos() {
               </TabsList>
               
               <TabsContent value="cotizaciones" className="space-y-4">
-                <QuotesList />
+                <QuotesList onEditQuote={loadQuoteForEditing} />
               </TabsContent>
               
               <TabsContent value="pedidos" className="space-y-4">

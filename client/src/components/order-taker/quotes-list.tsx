@@ -96,7 +96,11 @@ const statusConfig = {
   },
 };
 
-export default function QuotesList() {
+interface QuotesListProps {
+  onEditQuote?: (quoteId: string) => void;
+}
+
+export default function QuotesList({ onEditQuote }: QuotesListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -200,7 +204,12 @@ export default function QuotesList() {
 
   // Function to open quote in edit mode
   const handleEditQuote = (quoteId: string) => {
-    navigate(`/tomador-pedidos?quoteId=${quoteId}`);
+    if (onEditQuote) {
+      onEditQuote(quoteId);
+    } else {
+      // Fallback to navigation if no prop is provided
+      navigate(`/tomador-pedidos?quoteId=${quoteId}`);
+    }
   };
 
   const formatCurrency = (amount: string | number) => {
@@ -474,7 +483,7 @@ export default function QuotesList() {
                               onClick={() => handleEditQuote(quote.id)}
                             >
                               <FileText className="w-4 h-4 mr-2" />
-                              Ver detalles
+                              Ver / Editar
                             </DropdownMenuItem>
                             {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
                               <DropdownMenuItem 
