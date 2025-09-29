@@ -1810,8 +1810,8 @@ export default function TomadorPedidos() {
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                         <Input
                           placeholder="Buscar productos por nombre o SKU..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
+                          value={productSearchTerm}
+                          onChange={(e) => setProductSearchTerm(e.target.value)}
                           className="pl-10 h-12 text-base"
                           style={{ fontSize: '16px' }}
                           data-testid="mobile-search-products"
@@ -1864,11 +1864,11 @@ export default function TomadorPedidos() {
                       {priceList.length > 0 ? (
                         priceList.filter((product: PriceList) => {
                           // Filtrar solo por término de búsqueda (categorías ocultas temporalmente)
-                          if (!searchTerm || searchTerm.trim().length === 0) return true;
+                          if (!productSearchTerm || productSearchTerm.trim().length === 0) return true;
                           
                           const productName = product.producto?.toLowerCase() || '';
                           const sku = product.codigo?.toLowerCase() || '';
-                          const searchTermLower = searchTerm.toLowerCase().trim();
+                          const searchTermLower = productSearchTerm.toLowerCase().trim();
                           
                           return productName.includes(searchTermLower) || 
                                  sku.includes(searchTermLower);
