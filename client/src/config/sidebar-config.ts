@@ -11,7 +11,9 @@ import {
   ClipboardList,
   ClipboardCheck,
   DollarSign,
-  TrendingUp
+  TrendingUp,
+  Receipt,
+  CheckCircle2
 } from "lucide-react";
 
 interface SidebarItem {
@@ -42,8 +44,18 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/ordenes",
-      label: "Gestión de Órdenes",
+      label: "Transacciones Históricas",
+      icon: Receipt,
+    },
+    {
+      href: "/presupuestos",
+      label: "Cotizaciones",
       icon: FileText,
+    },
+    {
+      href: "/pedidos",
+      label: "Pedidos",
+      icon: CheckCircle2,
     },
     {
       href: "/usuarios",
@@ -110,8 +122,18 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/ordenes",
-      label: "Gestión de Órdenes",
+      label: "Transacciones Históricas",
+      icon: Receipt,
+    },
+    {
+      href: "/presupuestos",
+      label: "Cotizaciones",
       icon: FileText,
+    },
+    {
+      href: "/pedidos",
+      label: "Pedidos",
+      icon: CheckCircle2,
     },
     {
       href: "/usuarios",
@@ -173,8 +195,18 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/ordenes",
-      label: "Gestión de Órdenes",
+      label: "Transacciones Históricas",
+      icon: Receipt,
+    },
+    {
+      href: "/presupuestos",
+      label: "Cotizaciones",
       icon: FileText,
+    },
+    {
+      href: "/pedidos",
+      label: "Pedidos",
+      icon: CheckCircle2,
       separator: true, // Separador antes de Tomador de Pedidos
     },
     {

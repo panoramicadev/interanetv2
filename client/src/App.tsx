@@ -31,6 +31,8 @@ import ProductDetail from "@/pages/product-detail";
 import TomadorPedidos from "@/pages/tomador-pedidos";
 import EcommerceAdmin from "@/pages/ecommerce-admin";
 import Carrito from "@/pages/carrito";
+import QuotesPage from "@/pages/quotes";
+import OrdersPage from "@/pages/orders";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -87,6 +89,7 @@ function Router() {
             <Route path="/ecommerce" component={EcommerceAdmin} />
             <Route path="/clientes" component={Clients} />
             <Route path="/ordenes" component={OrdenesPage} />
+            <Route path="/pedidos" component={OrdersPage} />
             <Route path="/products" component={() => {
               // Redirect from /products to /productos
               window.location.replace('/productos');
@@ -102,7 +105,7 @@ function Router() {
             
             {/* Rutas específicas de vendedor */}
             <Route path="/mis-clientes" component={ClientsDashboard} />
-            <Route path="/presupuestos" component={() => <div className="p-6"><h1 className="text-2xl font-bold">Presupuestos</h1><p>Página en construcción</p></div>} />
+            <Route path="/presupuestos" component={QuotesPage} />
             
             {/* Rutas específicas de supervisor */}
             <Route path="/mis-vendedores" component={MisVendedoresPage} />
