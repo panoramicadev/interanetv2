@@ -7,8 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Plus, 
   FileText, 
-  Users, 
-  Package, 
   BarChart3, 
   Calendar,
   MapPin,
@@ -362,7 +360,7 @@ export default function VisitasTecnicasPage() {
 
         {/* Tabs principales */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="dashboard" data-testid="tab-dashboard">
               <BarChart3 className="w-4 h-4 mr-2" />
               Dashboard
@@ -370,14 +368,6 @@ export default function VisitasTecnicasPage() {
             <TabsTrigger value="listado" data-testid="tab-listado">
               <FileText className="w-4 h-4 mr-2" />
               Visitas
-            </TabsTrigger>
-            <TabsTrigger value="productos" data-testid="tab-productos">
-              <Package className="w-4 h-4 mr-2" />
-              Productos
-            </TabsTrigger>
-            <TabsTrigger value="clientes" data-testid="tab-clientes">
-              <Users className="w-4 h-4 mr-2" />
-              Clientes
             </TabsTrigger>
             <TabsTrigger value="reportes" data-testid="tab-reportes">
               <BarChart3 className="w-4 h-4 mr-2" />
@@ -393,45 +383,6 @@ export default function VisitasTecnicasPage() {
             <ListadoContent />
           </TabsContent>
 
-          <TabsContent value="productos" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Gestión de Productos</CardTitle>
-                <CardDescription>
-                  Administra el catálogo de productos disponibles para evaluación técnica
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <Package className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Módulo en desarrollo</h3>
-                  <p className="text-muted-foreground">
-                    La gestión de productos estará disponible próximamente
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="clientes" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Gestión de Clientes</CardTitle>
-                <CardDescription>
-                  Administra los clientes y sus asignaciones de vendedores
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Módulo en desarrollo</h3>
-                  <p className="text-muted-foreground">
-                    La gestión de clientes estará disponible próximamente
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="reportes" className="mt-6">
             <Card>
