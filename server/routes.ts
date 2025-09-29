@@ -9,11 +9,13 @@ import Papa from "papaparse";
 import { nanoid } from "nanoid";
 import { checkDbHealth } from "./db";
 import JSZip from "jszip";
+import unzipper from "unzipper";
+import { Readable } from "stream";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { localImageStorage } from "./localImageStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { ecommerceProducts, salesTransactions } from "../shared/schema";
+import { ecommerceProducts, salesTransactions, fileUploads } from "../shared/schema";
 import { eq, and, isNotNull, ne } from "drizzle-orm";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
@@ -4621,7 +4623,7 @@ export function registerRoutes(app: Express): Server {
   // ZIP image importer for eCommerce products
   const uploadZip = multer({ 
     storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit (increased from 50MB)
     fileFilter: (req, file, cb) => {
       if (file.mimetype === 'application/zip' || 
           file.mimetype === 'application/x-zip-compressed' ||
@@ -4633,6 +4635,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // New improved streaming ZIP image importer with job-based processing
   app.post('/api/ecommerce/admin/upload-images', 
     requireAuth, 
     requireAdminOrSupervisor,
@@ -4642,318 +4645,113 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "No ZIP file provided" });
       }
 
+      const { user } = req as any;
       const zipBuffer = req.file.buffer;
-      const objectStorageService = new ObjectStorageService();
+      const fileName = req.file.originalname;
+      const fileSize = req.file.size;
       
+      console.log(`🚀 [ZIP IMPORT] Starting new ZIP import job: ${fileName} (${Math.round(fileSize / (1024 * 1024))}MB)`);
+
       try {
-        // Parse ZIP file
-        const zip = new JSZip();
-        await zip.loadAsync(zipBuffer);
+        // Create a job record immediately for tracking
+        const jobId = nanoid();
+        const jobRecord = {
+          id: jobId,
+          fileType: 'image_zip',
+          fileName: fileName,
+          uploadedBy: user.id,
+          status: 'pending',
+          fileSize: fileSize,
+          totalFiles: 0,
+          processedFiles: 0,
+          successfulFiles: 0,
+          failedFiles: 0,
+          progressData: {
+            currentBatch: 0,
+            totalBatches: 0,
+            currentFile: '',
+            phase: 'initializing'
+          },
+          resultData: {
+            results: [],
+            summary: {
+              matched: 0,
+              unmatched: 0,
+              errors: []
+            }
+          }
+        };
 
-        // ZIP security controls
-        const MAX_FILES = 300; // Maximum number of files allowed
-        const MAX_ENTRY_SIZE = 10 * 1024 * 1024; // 10MB per individual file
-        const MAX_TOTAL_UNCOMPRESSED = 100 * 1024 * 1024; // 100MB total uncompressed size
+        await db.insert(fileUploads).values(jobRecord);
         
-        const allFiles = Object.keys(zip.files);
-        
-        // Enhanced debugging output
-        console.log(`[ZIP DEBUG] Total files in ZIP: ${allFiles.length}`);
-        console.log(`[ZIP DEBUG] All files list:`, allFiles.slice(0, 10), allFiles.length > 10 ? `... and ${allFiles.length - 10} more` : '');
-        
-        // Filter files more strictly
-        const imageFiles = allFiles.filter(fileName => {
-          const zipEntry = zip.files[fileName];
-          
-          // Skip directories
-          if (zipEntry.dir) {
-            console.log(`[ZIP DEBUG] Skipping directory: ${fileName}`);
-            return false;
-          }
-          
-          // Skip system/hidden files
-          const baseName = path.basename(fileName);
-          const isSystemFile = baseName.startsWith('.') || 
-                              baseName.toLowerCase().includes('thumbs.db') ||
-                              baseName.toLowerCase().includes('desktop.ini') ||
-                              baseName.toLowerCase() === '__macosx';
-          
-          if (isSystemFile) {
-            console.log(`[ZIP DEBUG] Skipping system/hidden file: ${fileName}`);
-            return false;
-          }
-          
-          // Check if it's an actual image file
-          const isImage = isImageFile(fileName);
-          if (!isImage) {
-            console.log(`[ZIP DEBUG] Skipping non-image file: ${fileName}`);
-            return false;
-          }
-          
-          // Additional check: file must have actual content (using proper JSZip API)
-          const fileSize = zipEntry.options?.compression ? 0 : zipEntry.name.length; // Fallback size check
-          if (fileSize === 0) {
-            console.log(`[ZIP DEBUG] Skipping empty file: ${fileName}`);
-            return false;
-          }
-          
-          console.log(`[ZIP DEBUG] Including image file: ${fileName} (size: available)`);
-          return true;
+        console.log(`📋 [ZIP IMPORT] Created job record: ${jobId}`);
+
+        // Start background processing (don't await - return jobId immediately)
+        processZipInBackground(jobId, zipBuffer, fileName, user.id).catch(error => {
+          console.error(`💥 [ZIP IMPORT] Background job ${jobId} failed:`, error);
+          // Update job status to error
+          updateJobStatus(jobId, 'error', `Critical error: ${error.message || error}`);
         });
-        
-        console.log(`[ZIP DEBUG] Final image files count: ${imageFiles.length}`);
-        console.log(`[ZIP DEBUG] Image files list:`, imageFiles.slice(0, 10), imageFiles.length > 10 ? `... and ${imageFiles.length - 10} more` : '');
-        
-        // Check file count limit
-        if (imageFiles.length > MAX_FILES) {
-          return res.status(400).json({
-            message: `ZIP contains too many image files (${imageFiles.length}). Maximum allowed: ${MAX_FILES}`
-          });
-        }
-        
-        // Check individual file sizes and total uncompressed size (using proper JSZip API)
-        let totalUncompressedSize = 0;
-        for (const fileName of imageFiles) {
-          const zipEntry = zip.files[fileName];
-          try {
-            const fileData = await zipEntry.async('uint8array');
-            const fileSize = fileData.length;
-            if (fileSize > MAX_ENTRY_SIZE) {
-              return res.status(400).json({
-                message: `File '${fileName}' exceeds maximum size limit (${Math.round(fileSize / (1024 * 1024))}MB > ${MAX_ENTRY_SIZE / (1024 * 1024)}MB)`
-              });
-            }
-            totalUncompressedSize += fileSize;
-          } catch (error) {
-            console.error(`[ZIP DEBUG] Error reading file ${fileName}:`, error);
-            // Skip files that can't be read
-            continue;
-          }
-        }
-        
-        if (totalUncompressedSize > MAX_TOTAL_UNCOMPRESSED) {
-          return res.status(400).json({
-            message: `Total uncompressed size exceeds limit (${Math.round(totalUncompressedSize / (1024 * 1024))}MB > ${MAX_TOTAL_UNCOMPRESSED / (1024 * 1024)}MB)`
-          });
-        }
 
-        const results: Array<{ fileName: string; success: boolean; productCode?: string; error?: string; errorType?: string }> = [];
-        let processed = 0;
-        const total = imageFiles.length;
-
-        // Process each image file in the ZIP
-        for (const fileName of imageFiles) {
-          const zipEntry = zip.files[fileName];
-          
-          // Extract product code from filename (handle nested ZIP structures and remove extension)
-          const baseName = path.basename(fileName);
-          const productCode = baseName.replace(/\.(png|jpg|jpeg|gif|webp)$/i, '');
-
-          try {
-            
-            // Check if product exists in the database
-            const existingProduct = await storage.getEcommerceProductByCode(productCode);
-            
-            if (!existingProduct) {
-              results.push({
-                fileName,
-                success: false,
-                error: `Producto con código '${productCode}' no encontrado`
-              });
-              continue;
-            }
-
-            // Get image data
-            const imageBuffer = await zipEntry.async('nodebuffer');
-            
-            // Upload to Local Storage with unique filename
-            const timestamp = Date.now();
-            const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'png';
-            const uniqueFileName = `${productCode}_${timestamp}.${fileExtension}`;
-            
-            console.log(`🔄 [ZIP IMPORT] Uploading image ${fileName} as ${uniqueFileName} for product ${productCode}`);
-            
-            let imageUrl: string | null = null;
-            let uploadError: string | null = null;
-            
-            try {
-              imageUrl = await localImageStorage.uploadImage(
-                uniqueFileName,
-                imageBuffer,
-                getContentType(fileExtension)
-              );
-              console.log(`✅ [ZIP IMPORT] Successfully uploaded ${uniqueFileName} to local storage`);
-            } catch (uploadErr) {
-              console.error(`⚠️ [ZIP IMPORT] Failed to upload ${uniqueFileName} to local storage:`, uploadErr);
-              uploadError = uploadErr instanceof Error ? uploadErr.message : 'Unknown upload error';
-              
-              // Continue processing in degraded mode (product without image)
-              console.log(`🔄 [ZIP IMPORT] Continuing in degraded mode for ${productCode} without image`);
-            }
-            
-            // Auto-create ecommerce product if it doesn't exist
-            if (!existingProduct) {
-              console.log(`🏗️ [ZIP IMPORT] Auto-creating ecommerce product for code: ${productCode}`);
-              
-              // Get price list product to use as base
-              const priceListProducts = await storage.getPriceList();
-              const pricingProduct = priceListProducts.find(p => p.codigo === productCode);
-              
-              if (pricingProduct) {
-                const newEcommerceProduct = {
-                  id: `ecom-${productCode}-${Date.now()}`,
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-                  descripcion: pricingProduct.producto, // Corrected: use 'producto' not 'nombre'
-                  priceListId: pricingProduct.id,
-                  activo: true,
-                  categoria: 'Sin categoría', // Removed 'familia' as it doesn't exist
-                  imagenUrl: imageUrl, // Can be null if upload failed
-                  precioEcommerce: pricingProduct.lista?.toString() || '0', // Corrected: use 'lista' not 'precio'
-                  orden: 0
-                };
-                
-                // Insert the new ecommerce product
-                await db.insert(ecommerceProducts).values(newEcommerceProduct);
-                
-                const statusMessage = imageUrl 
-                  ? 'Producto creado automáticamente con imagen'
-                  : 'Producto creado automáticamente (imagen falló, se puede reintentar)';
-                
-                console.log(`✅ [ZIP IMPORT] Created ecommerce product: ${productCode} ${imageUrl ? 'with' : 'without'} image`);
-                
-                results.push({
-                  fileName,
-                  success: true,
-                  productCode,
-                  error: uploadError || undefined,
-                  errorType: uploadError ? 'storage_warning' : undefined
-                } as any);
-                processed++;
-                continue;
-              } else {
-                console.log(`⚠️ [ZIP IMPORT] Product ${productCode} not found in pricing table`);
-                results.push({
-                  fileName,
-                  success: false,
-                  productCode,
-                  error: `Producto '${productCode}' no existe en la lista de precios`,
-                  errorType: 'product_not_found'
-                } as any);
-                continue;
-              }
-            }
-
-            // Update ecommerce product record with image URL (or null if upload failed)
-            if (imageUrl) {
-              await db
-                .update(ecommerceProducts)
-                .set({ imagenUrl: imageUrl })
-                .where(eq(ecommerceProducts.id, existingProduct.id));
-                
-              console.log(`✅ [ZIP IMPORT] Updated existing product ${productCode} with image URL`);
-              
-              results.push({
-                fileName,
-                success: true,
-                productCode,
-                error: undefined,
-                errorType: undefined
-              } as any);
-            } else {
-              // Product exists but image upload failed - log warning but continue
-              console.log(`⚠️ [ZIP IMPORT] Product ${productCode} exists but image upload failed - keeping existing image`);
-              
-              results.push({
-                fileName,
-                success: false,
-                productCode,
-                error: uploadError || 'Error de almacenamiento - producto conserva imagen anterior',
-                errorType: 'storage_warning'
-              } as any);
-            }
-            processed++;
-
-          } catch (error) {
-            console.error(`❌ [ZIP IMPORT] Error processing image ${fileName}:`, error);
-            
-            // Determine the type of error for better user feedback
-            let errorMessage = 'Error desconocido';
-            let errorType = 'unknown';
-            
-            if (error instanceof Error) {
-              const errorString = error.message.toLowerCase();
-              
-              if (errorString.includes('no allowed resources') || errorString.includes('unauthorized') || error.message.includes('401')) {
-                errorType = 'auth';
-                errorMessage = '❌ Error de autenticación en almacenamiento en la nube (Google Cloud Storage no autorizado)';
-              } else if (errorString.includes('network') || errorString.includes('timeout') || errorString.includes('econnreset')) {
-                errorType = 'network';
-                errorMessage = '🌐 Error de conexión de red al almacenamiento';
-              } else if (errorString.includes('quota') || errorString.includes('limit')) {
-                errorType = 'quota';
-                errorMessage = '💾 Cuota de almacenamiento excedida';
-              } else if (errorString.includes('permission') || errorString.includes('access')) {
-                errorType = 'permission';
-                errorMessage = '🔒 Error de permisos en almacenamiento';
-              } else {
-                errorMessage = `💥 Error: ${error.message}`;
-              }
-            }
-            
-            console.error(`🏷️ [ZIP IMPORT] Error categorized as: ${errorType} - ${errorMessage}`);
-            
-            results.push({
-              fileName,
-              success: false,
-              productCode: productCode,
-              error: errorMessage,
-              errorType: errorType
-            });
-          }
-        }
-
-        // Generate summary for response
-        const successCount = results.filter(r => r.success).length;
-        const errorCount = results.filter(r => !r.success).length;
-        const authErrors = results.filter(r => r.errorType === 'auth').length;
-        
-        console.log(`📊 [ZIP IMPORT] Processing complete: ${successCount} success, ${errorCount} errors (${authErrors} auth errors)`);
-        
+        // Return job ID immediately for polling
         res.json({
-          processed: successCount,
-          total: results.length,
-          results,
-          summary: {
-            success: successCount,
-            errors: errorCount,
-            authenticationErrors: authErrors,
-            networkErrors: results.filter(r => r.errorType === 'network').length,
-            otherErrors: results.filter(r => r.errorType === 'unknown').length
-          }
+          jobId: jobId,
+          message: "Importación iniciada. Use el jobId para consultar el progreso.",
+          status: "started"
         });
 
       } catch (error) {
-        console.error("💥 [ZIP IMPORT] Critical error processing ZIP file:", error);
-        
-        // Categorize main processing errors
-        let mainErrorMessage = "Error crítico procesando archivo ZIP";
-        if (error instanceof Error) {
-          const errorString = error.message.toLowerCase();
-          if (errorString.includes('zip') || errorString.includes('corrupt')) {
-            mainErrorMessage = "Archivo ZIP corrupto o inválido";
-          } else if (errorString.includes('memory') || errorString.includes('size')) {
-            mainErrorMessage = "Archivo ZIP demasiado grande para procesar";
-          } else if (errorString.includes('unauthorized') || errorString.includes('401')) {
-            mainErrorMessage = "Error de autenticación en servicios de almacenamiento";
-          }
-        }
+        console.error("💥 [ZIP IMPORT] Critical error starting job:", error);
         
         res.status(500).json({ 
-          message: mainErrorMessage,
+          message: "Error crítico iniciando importación",
           error: error instanceof Error ? error.message : 'Error desconocido',
-          type: 'critical_processing_error'
+          type: 'job_creation_error'
         });
+      }
+    })
+  );
+
+  // Get job status endpoint
+  app.get('/api/ecommerce/admin/upload-images/:jobId/status',
+    requireAuth,
+    requireAdminOrSupervisor,
+    asyncHandler(async (req: any, res: any) => {
+      const { jobId } = req.params;
+      
+      try {
+        const job = await db
+          .select()
+          .from(fileUploads)
+          .where(eq(fileUploads.id, jobId))
+          .limit(1);
+
+        if (job.length === 0) {
+          return res.status(404).json({ message: "Job not found" });
+        }
+
+        const jobData = job[0];
+        
+        res.json({
+          jobId: jobId,
+          status: jobData.status,
+          fileName: jobData.fileName,
+          fileSize: jobData.fileSize,
+          totalFiles: jobData.totalFiles,
+          processedFiles: jobData.processedFiles,
+          successfulFiles: jobData.successfulFiles,
+          failedFiles: jobData.failedFiles,
+          isCompleted: jobData.isCompleted,
+          progressData: jobData.progressData,
+          resultData: jobData.resultData,
+          uploadedAt: jobData.uploadedAt,
+          completedAt: jobData.completedAt,
+          errorMessage: jobData.errorMessage
+        });
+
+      } catch (error) {
+        console.error("Error fetching job status:", error);
+        res.status(500).json({ message: "Failed to fetch job status" });
       }
     })
   );
@@ -4974,6 +4772,420 @@ export function registerRoutes(app: Express): Server {
       'webp': 'image/webp'
     };
     return contentTypes[extension.toLowerCase()] || 'image/png';
+  }
+
+  // Security validation for file paths (prevent Zip Slip attacks)
+  function isValidFilePath(filePath: string): boolean {
+    // Reject paths containing ".." or starting with "/"
+    if (filePath.includes('..') || filePath.startsWith('/') || filePath.includes('\\')) {
+      return false;
+    }
+    // Reject system files and directories
+    const fileName = path.basename(filePath);
+    if (fileName.startsWith('.') || fileName.toLowerCase().includes('__macosx')) {
+      return false;
+    }
+    return true;
+  }
+
+  // Extract product SKU from filename
+  function extractProductSku(fileName: string): string {
+    const baseName = path.basename(fileName);
+    // Remove file extension and clean up
+    const sku = baseName.replace(/\.(png|jpg|jpeg|gif|webp)$/i, '');
+    // Normalize: uppercase, trim spaces, replace common separators
+    return sku.trim().toUpperCase().replace(/[-_\s]+/g, '');
+  }
+
+  // Update job status in database
+  async function updateJobStatus(
+    jobId: string, 
+    status: string, 
+    errorMessage?: string,
+    updateData: Partial<{
+      totalFiles: number;
+      processedFiles: number;
+      successfulFiles: number;
+      failedFiles: number;
+      progressData: any;
+      resultData: any;
+      isCompleted: boolean;
+    }> = {}
+  ): Promise<void> {
+    try {
+      const updateFields: any = { 
+        status,
+        ...updateData
+      };
+
+      if (errorMessage) {
+        updateFields.errorMessage = errorMessage;
+      }
+
+      if (status === 'success' || status === 'error' || status === 'partial') {
+        updateFields.isCompleted = true;
+        updateFields.completedAt = new Date();
+      }
+
+      await db
+        .update(fileUploads)
+        .set(updateFields)
+        .where(eq(fileUploads.id, jobId));
+
+      console.log(`📊 [ZIP IMPORT] Updated job ${jobId} status: ${status}`);
+    } catch (error) {
+      console.error(`💥 [ZIP IMPORT] Failed to update job ${jobId} status:`, error);
+    }
+  }
+
+  // Background processing function with streaming ZIP support
+  async function processZipInBackground(
+    jobId: string,
+    zipBuffer: Buffer,
+    fileName: string,
+    userId: string
+  ): Promise<void> {
+    console.log(`🔄 [ZIP IMPORT] Starting background processing for job ${jobId}`);
+
+    try {
+      await updateJobStatus(jobId, 'processing', undefined, {
+        progressData: { phase: 'scanning', currentFile: '', currentBatch: 0 }
+      });
+
+      // Security limits
+      const MAX_FILES = 300;
+      const MAX_ENTRY_SIZE = 10 * 1024 * 1024; // 10MB per file
+      const MAX_TOTAL_SIZE = 100 * 1024 * 1024; // 100MB total
+      const BATCH_SIZE = 50; // Process 50 images per batch
+
+      // First pass: scan ZIP to get file list and validate
+      const imageFiles: Array<{ path: string; sku: string }> = [];
+      let totalUncompressedSize = 0;
+
+      console.log(`🔍 [ZIP IMPORT] Scanning ZIP contents...`);
+
+      // Create readable stream from buffer for unzipper
+      const zipStream = Readable.from(zipBuffer);
+      
+      await new Promise<void>((resolve, reject) => {
+        zipStream
+          .pipe(unzipper.Parse())
+          .on('entry', (entry) => {
+            const fileName = entry.path;
+            const type = entry.type;
+            const size = entry.vars.uncompressedSize || 0;
+
+            // Skip directories
+            if (type === 'Directory') {
+              entry.autodrain();
+              return;
+            }
+
+            // Validate file path security
+            if (!isValidFilePath(fileName)) {
+              console.log(`🚫 [ZIP IMPORT] Skipping invalid path: ${fileName}`);
+              entry.autodrain();
+              return;
+            }
+
+            // Check if it's an image file
+            if (!isImageFile(fileName)) {
+              entry.autodrain();
+              return;
+            }
+
+            // Check file size limit
+            if (size > MAX_ENTRY_SIZE) {
+              console.log(`🚫 [ZIP IMPORT] File too large: ${fileName} (${Math.round(size / (1024 * 1024))}MB)`);
+              entry.autodrain();
+              return;
+            }
+
+            totalUncompressedSize += size;
+            const sku = extractProductSku(fileName);
+            
+            if (sku) {
+              imageFiles.push({ path: fileName, sku });
+              console.log(`✅ [ZIP IMPORT] Found image: ${fileName} -> SKU: ${sku}`);
+            } else {
+              console.log(`⚠️ [ZIP IMPORT] Could not extract SKU from: ${fileName}`);
+            }
+
+            entry.autodrain();
+          })
+          .on('error', reject)
+          .on('end', resolve);
+      });
+
+      console.log(`📊 [ZIP IMPORT] Scan complete: ${imageFiles.length} images found`);
+
+      // Validate limits
+      if (imageFiles.length > MAX_FILES) {
+        throw new Error(`ZIP contains too many images (${imageFiles.length}). Maximum: ${MAX_FILES}`);
+      }
+
+      if (totalUncompressedSize > MAX_TOTAL_SIZE) {
+        throw new Error(`Total uncompressed size too large (${Math.round(totalUncompressedSize / (1024 * 1024))}MB). Maximum: ${Math.round(MAX_TOTAL_SIZE / (1024 * 1024))}MB`);
+      }
+
+      // Update job with total file count
+      const totalBatches = Math.ceil(imageFiles.length / BATCH_SIZE);
+      await updateJobStatus(jobId, 'processing', undefined, {
+        totalFiles: imageFiles.length,
+        progressData: { 
+          phase: 'processing', 
+          currentBatch: 0, 
+          totalBatches,
+          currentFile: '',
+          totalImages: imageFiles.length 
+        }
+      });
+
+      // Process images in batches
+      const results: Array<{
+        fileName: string;
+        sku: string;
+        success: boolean;
+        error?: string;
+        errorType?: string;
+      }> = [];
+
+      let processedCount = 0;
+      let successCount = 0;
+      let failedCount = 0;
+
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const batchStart = batchIndex * BATCH_SIZE;
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, imageFiles.length);
+        const batch = imageFiles.slice(batchStart, batchEnd);
+
+        console.log(`🔄 [ZIP IMPORT] Processing batch ${batchIndex + 1}/${totalBatches} (${batch.length} files)`);
+
+        await updateJobStatus(jobId, 'processing', undefined, {
+          progressData: { 
+            phase: 'processing', 
+            currentBatch: batchIndex + 1, 
+            totalBatches,
+            currentFile: batch[0]?.path || '',
+            batchSize: batch.length
+          }
+        });
+
+        // Process batch concurrently but with limited concurrency
+        const batchPromises = batch.map(async (fileInfo, index) => {
+          // Add small delay between files to avoid overwhelming the system
+          await new Promise(resolve => setTimeout(resolve, index * 10));
+          
+          return await processImageFile(jobId, zipBuffer, fileInfo.path, fileInfo.sku);
+        });
+
+        const batchResults = await Promise.allSettled(batchPromises);
+
+        // Process batch results
+        batchResults.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            results.push(result.value);
+            if (result.value.success) {
+              successCount++;
+            } else {
+              failedCount++;
+            }
+          } else {
+            results.push({
+              fileName: batch[index].path,
+              sku: batch[index].sku,
+              success: false,
+              error: result.reason?.message || 'Unknown error',
+              errorType: 'processing_error'
+            });
+            failedCount++;
+          }
+          processedCount++;
+        });
+
+        // Update progress after batch
+        await updateJobStatus(jobId, 'processing', undefined, {
+          processedFiles: processedCount,
+          successfulFiles: successCount,
+          failedFiles: failedCount
+        });
+
+        // Yield control to event loop between batches
+        await new Promise(resolve => setImmediate(resolve));
+      }
+
+      // Final status determination
+      let finalStatus = 'success';
+      if (failedCount > 0) {
+        finalStatus = successCount > 0 ? 'partial' : 'error';
+      }
+
+      const summary = {
+        totalProcessed: processedCount,
+        successful: successCount,
+        failed: failedCount,
+        matched: results.filter(r => r.success).length,
+        unmatched: results.filter(r => !r.success && r.errorType === 'product_not_found').length,
+        errors: results.filter(r => !r.success).map(r => ({
+          file: r.fileName,
+          sku: r.sku,
+          error: r.error,
+          type: r.errorType
+        }))
+      };
+
+      await updateJobStatus(jobId, finalStatus, undefined, {
+        processedFiles: processedCount,
+        successfulFiles: successCount,
+        failedFiles: failedCount,
+        isCompleted: true,
+        progressData: { 
+          phase: 'completed', 
+          currentBatch: totalBatches, 
+          totalBatches,
+          currentFile: '' 
+        },
+        resultData: {
+          results,
+          summary
+        }
+      });
+
+      console.log(`✅ [ZIP IMPORT] Job ${jobId} completed: ${successCount} success, ${failedCount} failed`);
+
+    } catch (error) {
+      console.error(`💥 [ZIP IMPORT] Job ${jobId} failed:`, error);
+      await updateJobStatus(jobId, 'error', error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  // Process individual image file from ZIP
+  async function processImageFile(
+    jobId: string,
+    zipBuffer: Buffer,
+    filePath: string,
+    sku: string
+  ): Promise<{
+    fileName: string;
+    sku: string;
+    success: boolean;
+    error?: string;
+    errorType?: string;
+  }> {
+    try {
+      console.log(`🖼️ [ZIP IMPORT] Processing image: ${filePath} (SKU: ${sku})`);
+
+      // Check if product exists
+      const existingProduct = await storage.getEcommerceProductByCode(sku);
+      
+      if (!existingProduct) {
+        return {
+          fileName: filePath,
+          sku,
+          success: false,
+          error: `Producto con código '${sku}' no encontrado`,
+          errorType: 'product_not_found'
+        };
+      }
+
+      // Extract image data from ZIP
+      const imageBuffer = await extractImageFromZip(zipBuffer, filePath);
+      if (!imageBuffer) {
+        return {
+          fileName: filePath,
+          sku,
+          success: false,
+          error: 'No se pudo extraer la imagen del ZIP',
+          errorType: 'extraction_error'
+        };
+      }
+
+      // Upload image with organized path structure
+      const timestamp = Date.now();
+      const fileExtension = path.extname(filePath).toLowerCase() || '.png';
+      const uniqueFileName = `${sku}_${timestamp}${fileExtension}`;
+      
+      try {
+        // Try ObjectStorage first, fallback to local storage
+        let imageUrl: string;
+        const objectStorageService = new ObjectStorageService();
+        
+        try {
+          // Organize images in product-images folder by SKU
+          const storageKey = `product-images/${sku}/${uniqueFileName}`;
+          imageUrl = await objectStorageService.uploadImage(storageKey, imageBuffer, getContentType(fileExtension.substring(1)));
+          console.log(`☁️ [ZIP IMPORT] Uploaded to ObjectStorage: ${storageKey}`);
+        } catch (objStorageError) {
+          console.log(`📁 [ZIP IMPORT] ObjectStorage failed, using local storage for ${sku}`);
+          imageUrl = await localImageStorage.uploadImage(uniqueFileName, imageBuffer, getContentType(fileExtension.substring(1)));
+          console.log(`💾 [ZIP IMPORT] Uploaded to local storage: ${uniqueFileName}`);
+        }
+
+        // Update product with new image URL
+        await db
+          .update(ecommerceProducts)
+          .set({ imagenUrl: imageUrl })
+          .where(eq(ecommerceProducts.id, existingProduct.id));
+
+        console.log(`✅ [ZIP IMPORT] Updated product ${sku} with image`);
+
+        return {
+          fileName: filePath,
+          sku,
+          success: true
+        };
+
+      } catch (uploadError) {
+        console.error(`💥 [ZIP IMPORT] Upload failed for ${sku}:`, uploadError);
+        return {
+          fileName: filePath,
+          sku,
+          success: false,
+          error: uploadError instanceof Error ? uploadError.message : 'Error de carga',
+          errorType: 'upload_error'
+        };
+      }
+
+    } catch (error) {
+      console.error(`💥 [ZIP IMPORT] Error processing ${filePath}:`, error);
+      return {
+        fileName: filePath,
+        sku,
+        success: false,
+        error: error instanceof Error ? error.message : 'Error desconocido',
+        errorType: 'processing_error'
+      };
+    }
+  }
+
+  // Extract specific image from ZIP buffer
+  async function extractImageFromZip(zipBuffer: Buffer, targetPath: string): Promise<Buffer | null> {
+    return new Promise((resolve) => {
+      const zipStream = Readable.from(zipBuffer);
+      let found = false;
+      
+      zipStream
+        .pipe(unzipper.Parse())
+        .on('entry', (entry) => {
+          if (entry.path === targetPath && !found) {
+            found = true;
+            const chunks: Buffer[] = [];
+            
+            entry.on('data', (chunk) => chunks.push(chunk));
+            entry.on('end', () => {
+              const buffer = Buffer.concat(chunks);
+              resolve(buffer);
+            });
+            entry.on('error', () => resolve(null));
+          } else {
+            entry.autodrain();
+          }
+        })
+        .on('error', () => resolve(null))
+        .on('end', () => {
+          if (!found) resolve(null);
+        });
+    });
   }
 
   // ==============================================
