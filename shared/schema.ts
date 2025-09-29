@@ -2335,3 +2335,305 @@ export const insertFileUploadSchema = createInsertSchema(fileUploads).omit({
 // Export File Upload types
 export type FileUpload = typeof fileUploads.$inferSelect;
 export type InsertFileUpload = z.infer<typeof insertFileUploadSchema>;
+
+// ==============================================
+// VISITAS TÉCNICAS SYSTEM
+// ==============================================
+
+// Visitas técnicas table - Main table for technical visits
+export const visitasTecnicas = pgTable("visitas_tecnicas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Información básica de la visita
+  nombreObra: text("nombre_obra").notNull(),
+  direccionObra: text("direccion_obra").notNull(),
+  fechaVisita: date("fecha_visita").notNull(),
+  tecnicoId: varchar("tecnico_id").notNull(), // FK to users.id
+  vendedorId: varchar("vendedor_id"), // FK to users.id
+  clienteId: varchar("cliente_id"), // FK to clients.id (opcional si se usa clienteManual)
+  clienteManual: text("cliente_manual"), // Cliente manual si no está en la lista
+  
+  // Estados de la visita
+  estado: varchar("estado").notNull().default("borrador"), // 'borrador', 'completada'
+  
+  // Evaluación técnica general
+  aplicacionGeneral: varchar("aplicacion_general"), // 'correcta', 'deficiente'
+  tipoSuperficie: text("tipo_superficie"),
+  ambiente: varchar("ambiente"), // 'interior', 'exterior'
+  condicionesClimaticas: text("condiciones_climaticas"),
+  dilucion: text("dilucion"),
+  observacionesGenerales: text("observaciones_generales"),
+  
+  // Comentarios generales
+  comentarios: text("comentarios"),
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Contactos de visita table - Specific contacts for each visit
+export const contactosVisita = pgTable("contactos_visita", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  visitaId: varchar("visita_id").notNull(), // FK to visitasTecnicas.id
+  
+  // Contratista
+  contratistaNombre: varchar("contratista_nombre"),
+  contratistaTelefono: varchar("contratista_telefono"),
+  contratistaEmail: varchar("contratista_email"),
+  
+  // Administrador de obra
+  administradorNombre: varchar("administrador_nombre"),
+  administradorTelefono: varchar("administrador_telefono"),
+  administradorEmail: varchar("administrador_email"),
+  
+  // Supervisor/Capataz
+  supervisorNombre: varchar("supervisor_nombre"),
+  supervisorTelefono: varchar("supervisor_telefono"),
+  supervisorEmail: varchar("supervisor_email"),
+  
+  // Campo contacto general (legacy)
+  contactoGeneral: text("contacto_general"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Productos evaluados table - Products evaluated in each visit
+export const productosEvaluados = pgTable("productos_evaluados", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  visitaId: varchar("visita_id").notNull(), // FK to visitasTecnicas.id
+  productoId: varchar("producto_id"), // FK to products.id (opcional)
+  productoManual: text("producto_manual"), // Producto manual si no está en catálogo
+  
+  // Información del producto en la obra
+  formato: varchar("formato"),
+  color: varchar("color"),
+  lote: varchar("lote"),
+  fechaLlegada: date("fecha_llegada"),
+  metrosCuadradosAplicados: numeric("metros_cuadrados_aplicados", { precision: 10, scale: 2 }),
+  porcentajeAvance: numeric("porcentaje_avance", { precision: 5, scale: 2 }),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Evaluaciones técnicas table - Technical evaluations for each product
+export const evaluacionesTecnicas = pgTable("evaluaciones_tecnicas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  productoEvaluadoId: varchar("producto_evaluado_id").notNull(), // FK to productosEvaluados.id
+  
+  // Evaluación técnica específica por producto
+  aplicacion: varchar("aplicacion"), // 'correcta', 'deficiente'
+  tipoSuperficie: text("tipo_superficie"),
+  ambiente: varchar("ambiente"), // 'interior', 'exterior'
+  condicionesClimaticas: text("condiciones_climaticas"),
+  dilucion: text("dilucion"),
+  observacionesTecnicas: text("observaciones_tecnicas"),
+  preparacionSuperficie: text("preparacion_superficie"),
+  rendimiento: text("rendimiento"),
+  adherencia: text("adherencia"),
+  anomalias: text("anomalias"),
+  accionesRecomendadas: text("acciones_recomendadas"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Reclamos table - Claims associated with visits
+export const reclamos = pgTable("reclamos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  visitaId: varchar("visita_id").notNull(), // FK to visitasTecnicas.id
+  
+  // Información del reclamo
+  descripcion: text("descripcion").notNull(),
+  loteInvolucrado: varchar("lote_involucrado"),
+  sectorAfectado: text("sector_afectado"),
+  observacionTecnica: text("observacion_tecnica"),
+  requiereAnalisisLaboratorio: boolean("requiere_analisis_laboratorio").default(false),
+  estado: varchar("estado").default("pendiente"), // 'pendiente', 'en_proceso', 'resuelto'
+  notasResolucion: text("notas_resolucion"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Firmas digitales table - Digital signatures captured in visits
+export const firmasDigitales = pgTable("firmas_digitales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  visitaId: varchar("visita_id").notNull(), // FK to visitasTecnicas.id
+  
+  // Tipos de firma
+  tipoFirma: varchar("tipo_firma").notNull(), // 'contratista', 'constructor', 'tecnico'
+  nombreFirmante: varchar("nombre_firmante"),
+  cargoFirmante: varchar("cargo_firmante"),
+  
+  // Datos de la firma (base64)
+  datosBase64: text("datos_base64").notNull(),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Evidencias table - Images and evidence files
+export const evidencias = pgTable("evidencias", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  visitaId: varchar("visita_id"), // FK to visitasTecnicas.id (opcional)
+  productoEvaluadoId: varchar("producto_evaluado_id"), // FK to productosEvaluados.id (opcional)
+  reclamoId: varchar("reclamo_id"), // FK to reclamos.id (opcional)
+  
+  // Información del archivo
+  tipoEvidencia: varchar("tipo_evidencia").notNull(), // 'producto', 'reclamo', 'general'
+  nombreArchivo: varchar("nombre_archivo").notNull(),
+  urlArchivo: text("url_archivo").notNull(),
+  tipoArchivo: varchar("tipo_archivo"), // 'image/jpeg', 'image/png', etc.
+  tamanio: integer("tamanio"), // Size in bytes
+  descripcion: text("descripcion"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Relations for visitas técnicas system
+export const visitasTecnicasRelations = relations(visitasTecnicas, ({ one, many }) => ({
+  tecnico: one(users, {
+    fields: [visitasTecnicas.tecnicoId],
+    references: [users.id],
+  }),
+  vendedor: one(users, {
+    fields: [visitasTecnicas.vendedorId],
+    references: [users.id],
+  }),
+  cliente: one(clients, {
+    fields: [visitasTecnicas.clienteId],
+    references: [clients.id],
+  }),
+  contactos: one(contactosVisita, {
+    fields: [visitasTecnicas.id],
+    references: [contactosVisita.visitaId],
+  }),
+  productosEvaluados: many(productosEvaluados),
+  reclamos: many(reclamos),
+  firmas: many(firmasDigitales),
+  evidencias: many(evidencias),
+}));
+
+export const contactosVisitaRelations = relations(contactosVisita, ({ one }) => ({
+  visita: one(visitasTecnicas, {
+    fields: [contactosVisita.visitaId],
+    references: [visitasTecnicas.id],
+  }),
+}));
+
+export const productosEvaluadosRelations = relations(productosEvaluados, ({ one, many }) => ({
+  visita: one(visitasTecnicas, {
+    fields: [productosEvaluados.visitaId],
+    references: [visitasTecnicas.id],
+  }),
+  producto: one(products, {
+    fields: [productosEvaluados.productoId],
+    references: [products.id],
+  }),
+  evaluacionTecnica: one(evaluacionesTecnicas, {
+    fields: [productosEvaluados.id],
+    references: [evaluacionesTecnicas.productoEvaluadoId],
+  }),
+  evidencias: many(evidencias),
+}));
+
+export const evaluacionesTecnicasRelations = relations(evaluacionesTecnicas, ({ one }) => ({
+  productoEvaluado: one(productosEvaluados, {
+    fields: [evaluacionesTecnicas.productoEvaluadoId],
+    references: [productosEvaluados.id],
+  }),
+}));
+
+export const reclamosRelations = relations(reclamos, ({ one, many }) => ({
+  visita: one(visitasTecnicas, {
+    fields: [reclamos.visitaId],
+    references: [visitasTecnicas.id],
+  }),
+  evidencias: many(evidencias),
+}));
+
+export const firmasDigitalesRelations = relations(firmasDigitales, ({ one }) => ({
+  visita: one(visitasTecnicas, {
+    fields: [firmasDigitales.visitaId],
+    references: [visitasTecnicas.id],
+  }),
+}));
+
+export const evidenciasRelations = relations(evidencias, ({ one }) => ({
+  visita: one(visitasTecnicas, {
+    fields: [evidencias.visitaId],
+    references: [visitasTecnicas.id],
+  }),
+  productoEvaluado: one(productosEvaluados, {
+    fields: [evidencias.productoEvaluadoId],
+    references: [productosEvaluados.id],
+  }),
+  reclamo: one(reclamos, {
+    fields: [evidencias.reclamoId],
+    references: [reclamos.id],
+  }),
+}));
+
+// Insert schemas for visitas técnicas system
+export const insertVisitaTecnicaSchema = createInsertSchema(visitasTecnicas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertContactoVisitaSchema = createInsertSchema(contactosVisita).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProductoEvaluadoSchema = createInsertSchema(productosEvaluados).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEvaluacionTecnicaSchema = createInsertSchema(evaluacionesTecnicas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertReclamoSchema = createInsertSchema(reclamos).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFirmaDigitalSchema = createInsertSchema(firmasDigitales).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEvidenciaSchema = createInsertSchema(evidencias).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Export types for visitas técnicas system
+export type VisitaTecnica = typeof visitasTecnicas.$inferSelect;
+export type InsertVisitaTecnica = z.infer<typeof insertVisitaTecnicaSchema>;
+
+export type ContactoVisita = typeof contactosVisita.$inferSelect;
+export type InsertContactoVisita = z.infer<typeof insertContactoVisitaSchema>;
+
+export type ProductoEvaluado = typeof productosEvaluados.$inferSelect;
+export type InsertProductoEvaluado = z.infer<typeof insertProductoEvaluadoSchema>;
+
+export type EvaluacionTecnica = typeof evaluacionesTecnicas.$inferSelect;
+export type InsertEvaluacionTecnica = z.infer<typeof insertEvaluacionTecnicaSchema>;
+
+export type Reclamo = typeof reclamos.$inferSelect;
+export type InsertReclamo = z.infer<typeof insertReclamoSchema>;
+
+export type FirmaDigital = typeof firmasDigitales.$inferSelect;
+export type InsertFirmaDigital = z.infer<typeof insertFirmaDigitalSchema>;
+
+export type Evidencia = typeof evidencias.$inferSelect;
+export type InsertEvidencia = z.infer<typeof insertEvidenciaSchema>;
