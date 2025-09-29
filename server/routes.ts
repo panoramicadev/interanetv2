@@ -4035,6 +4035,37 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Duplicate Quote for editing (creates new quote based on existing one)
+  app.post('/api/quotes/:id/duplicate', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const originalQuote = await storage.getQuoteById(id);
+      if (!originalQuote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control - admin, supervisor, and quote creator can duplicate
+      const canDuplicate = user.role === 'admin' || user.role === 'supervisor' || originalQuote.createdBy === user.id;
+      
+      if (!canDuplicate) {
+        return res.status(403).json({ message: "Not authorized to duplicate this quote" });
+      }
+      
+      // Use the atomic duplicate method
+      const newQuote = await storage.duplicateQuote(id, user.id);
+      
+      res.status(201).json({
+        ...newQuote,
+        message: `Nueva cotización creada basada en #${originalQuote.quoteNumber}`
+      });
+    } catch (error) {
+      console.error("Error duplicating quote:", error);
+      res.status(500).json({ message: "Failed to duplicate quote" });
+    }
+  });
+
   // Enhanced CRUD endpoints for Orders with items
   app.get('/api/orders/:id/with-items', requireAuth, async (req: any, res) => {
     try {
