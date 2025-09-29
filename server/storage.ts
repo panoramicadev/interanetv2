@@ -7470,9 +7470,9 @@ export class DatabaseStorage implements IStorage {
 
       const results = await db
         .select({
-          // Calculate amounts using CSV fields (PPPRNE * CAPRCO2)
-          totalAmount: sql<number>`COALESCE(SUM(CAST(${nvvPendingSales.PPPRNE} AS NUMERIC) * CAST(${nvvPendingSales.CAPRCO2} AS NUMERIC)), 0)`,
-          totalQuantity: sql<number>`COALESCE(SUM(CAST(${nvvPendingSales.CAPRCO2} AS NUMERIC)), 0)`,
+          // Calculate pending amounts using CSV fields (PPPRNE * (CAPRCO2 - CAPREX2))
+          totalAmount: sql<number>`COALESCE(SUM(CAST(${nvvPendingSales.PPPRNE} AS NUMERIC) * GREATEST(CAST(${nvvPendingSales.CAPRCO2} AS NUMERIC) - CAST(${nvvPendingSales.CAPREX2} AS NUMERIC), 0)), 0)`,
+          totalQuantity: sql<number>`COALESCE(SUM(GREATEST(CAST(${nvvPendingSales.CAPRCO2} AS NUMERIC) - CAST(${nvvPendingSales.CAPREX2} AS NUMERIC), 0)), 0)`,
           // Note: status columns don't exist in CSV, return basic counts
           pendingCount: sql<number>`COUNT(*)`, // All records are considered "pending" by default
           confirmedCount: sql<number>`0`,
