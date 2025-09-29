@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -255,6 +255,7 @@ function EditOrderForm({ order, onClose }: EditOrderFormProps) {
 
 export default function TomadorPedidos() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [showQuoteBuilder, setShowQuoteBuilder] = useState(false);
   const [selectedClientForQuote, setSelectedClientForQuote] = useState<Client | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -265,6 +266,16 @@ export default function TomadorPedidos() {
   const [selectedTiers, setSelectedTiers] = useState<Record<string, PriceTier>>({});
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
+  
+  // Debounce search input for client search - wait 600ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+  
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [showCustomProductModal, setShowCustomProductModal] = useState(false);
@@ -349,19 +360,31 @@ export default function TomadorPedidos() {
   // Extract the items array from the response
   const priceList = priceListResponse?.items || [];
 
-  // Fetch clients with search functionality
-  const { data: clients = [], isLoading: isLoadingClients } = useQuery({
-    queryKey: ['/api/clients', { search: searchTerm }],
+  // Fetch clients with search functionality (same structure as client management)
+  const { data: clientsData, isLoading: isLoadingClients } = useQuery({
+    queryKey: ['/api/clients', { search: debouncedSearchTerm }],
     queryFn: async () => {
-      const params = new URLSearchParams({ search: searchTerm });
+      const params = new URLSearchParams();
+      if (debouncedSearchTerm) params.set('search', debouncedSearchTerm);
+      params.set('limit', '50'); // Limit results for performance
+      params.set('offset', '0'); // Always start from first page
+      
       const response = await fetch(`/api/clients?${params}`, { credentials: 'include' });
       if (!response.ok) {
         throw new Error('Failed to fetch clients');
       }
-      return response.json();
+      return response.json() as Promise<{
+        clients: Client[];
+        totalCount: number;
+        currentPage: number;
+        totalPages: number;
+      }>;
     },
-    enabled: searchTerm.length >= 2, // Only search when user has typed at least 2 characters
+    enabled: debouncedSearchTerm.length >= 2, // Only search when user has typed at least 2 characters
   });
+
+  // Extract clients array from response (same as client management)
+  const clients = clientsData?.clients || [];
 
   // Fetch existing orders
   const { data: orders = [], isLoading: isLoadingOrders } = useQuery<Order[]>({
@@ -1384,7 +1407,7 @@ export default function TomadorPedidos() {
             </div>
 
             {/* Search Results */}
-            {searchTerm.length >= 2 && (
+            {debouncedSearchTerm.length >= 2 && (
               <div className="space-y-4">
                 {isLoadingClients ? (
                   <div className="space-y-3">
@@ -1475,7 +1498,7 @@ export default function TomadorPedidos() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No se encontraron clientes con "{searchTerm}"</p>
+                    <p>No se encontraron clientes con "{debouncedSearchTerm}"</p>
                     <p className="text-sm">Intenta con un término de búsqueda diferente</p>
                   </div>
                 )}
