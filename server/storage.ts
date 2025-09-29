@@ -48,13 +48,20 @@ import {
   type InsertTaskAssignment,
   type Order,
   type InsertOrder,
+  type UpdateOrderInput,
+  type AddOrderItemInput,
+  type UpdateOrderItemInput,
   type OrderItem,
   type InsertOrderItem,
+  calculateOrderTotals,
   type PriceList,
   type InsertPriceList,
   type InsertPriceListInput,
   type Quote,
   type InsertQuote,
+  type UpdateQuoteInput,
+  type AddQuoteItemInput,
+  type UpdateQuoteItemInput,
   type QuoteItem,
   type InsertQuoteItem,
   type InsertQuoteItemInput,
@@ -700,6 +707,13 @@ export interface IStorage {
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   updateOrderItem(id: string, orderItem: Partial<InsertOrderItem>): Promise<OrderItem>;
   deleteOrderItem(id: string): Promise<void>;
+  
+  // Enhanced Order operations with items CRUD
+  getOrderWithItems(id: string): Promise<(Order & { items: OrderItem[] }) | undefined>;
+  addOrderItem(orderId: string, item: InsertOrderItem): Promise<OrderItem>;
+  updateOrderItemById(itemId: string, updates: Partial<InsertOrderItem>): Promise<OrderItem>;
+  deleteOrderItemById(itemId: string): Promise<void>;
+  recalculateOrderTotals(orderId: string): Promise<Order>;
 
   // Price List operations
   getPriceList(filters?: {
@@ -740,6 +754,13 @@ export interface IStorage {
   getQuoteItems(quoteId: string): Promise<QuoteItem[]>;
   updateQuoteItem(id: string, quoteItem: Partial<InsertQuoteItem>): Promise<QuoteItem>;
   deleteQuoteItem(id: string): Promise<void>;
+  
+  // Enhanced Quote operations with items CRUD
+  getQuoteWithItems(id: string): Promise<(Quote & { items: QuoteItem[] }) | undefined>;
+  addQuoteItem(quoteId: string, item: InsertQuoteItemInput): Promise<QuoteItem>;
+  updateQuoteItemById(itemId: string, updates: Partial<InsertQuoteItemInput>): Promise<QuoteItem>;
+  deleteQuoteItemById(itemId: string): Promise<void>;
+  recalculateQuoteTotals(quoteId: string): Promise<Quote>;
   
   // Quote to Order conversion
   convertQuoteToOrder(quoteId: string, userId: string): Promise<Order>;
@@ -6614,6 +6635,134 @@ export class DatabaseStorage implements IStorage {
       .where(eq(orderItems.id, id));
   }
 
+  // Enhanced Order operations with items CRUD
+  async getOrderWithItems(id: string): Promise<(Order & { items: OrderItem[] }) | undefined> {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id));
+
+    if (!order) {
+      return undefined;
+    }
+
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, id))
+      .orderBy(orderItems.createdAt);
+
+    return { ...order, items };
+  }
+
+  async addOrderItem(orderId: string, item: InsertOrderItem): Promise<OrderItem> {
+    // Calculate total price
+    const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
+    const unitPrice = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0);
+    const totalPrice = quantity * unitPrice;
+
+    const [newItem] = await db
+      .insert(orderItems)
+      .values({
+        ...item,
+        orderId,
+        totalPrice: totalPrice.toString(),
+      })
+      .returning();
+
+    // Recalculate order totals
+    await this.recalculateOrderTotals(orderId);
+
+    return newItem;
+  }
+
+  async updateOrderItemById(itemId: string, updates: Partial<InsertOrderItem>): Promise<OrderItem> {
+    // Get the current item to find the order ID
+    const [currentItem] = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.id, itemId));
+
+    if (!currentItem) {
+      throw new Error('Order item not found');
+    }
+
+    // Calculate new total price if quantity or unit price changed
+    let updateData = { ...updates };
+    if (updates.quantity !== undefined || updates.unitPrice !== undefined) {
+      const quantity = updates.quantity !== undefined 
+        ? (typeof updates.quantity === 'string' ? parseFloat(updates.quantity) : updates.quantity)
+        : (typeof currentItem.quantity === 'string' ? parseFloat(currentItem.quantity) : currentItem.quantity);
+      
+      const unitPrice = updates.unitPrice !== undefined 
+        ? (typeof updates.unitPrice === 'string' ? parseFloat(updates.unitPrice) : updates.unitPrice)
+        : (typeof currentItem.unitPrice === 'string' ? parseFloat(currentItem.unitPrice) : (currentItem.unitPrice || 0));
+      
+      updateData.totalPrice = (quantity * unitPrice).toString();
+    }
+
+    const [updatedItem] = await db
+      .update(orderItems)
+      .set(updateData)
+      .where(eq(orderItems.id, itemId))
+      .returning();
+
+    // Recalculate order totals
+    await this.recalculateOrderTotals(currentItem.orderId);
+
+    return updatedItem;
+  }
+
+  async deleteOrderItemById(itemId: string): Promise<void> {
+    // Get the current item to find the order ID before deletion
+    const [currentItem] = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.id, itemId));
+
+    if (!currentItem) {
+      throw new Error('Order item not found');
+    }
+
+    await db
+      .delete(orderItems)
+      .where(eq(orderItems.id, itemId));
+
+    // Recalculate order totals
+    await this.recalculateOrderTotals(currentItem.orderId);
+  }
+
+  async recalculateOrderTotals(orderId: string): Promise<Order> {
+    // Get all order items
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderId));
+
+    // Calculate totals using the helper function
+    const itemsForCalculation = items.map(item => ({
+      quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity,
+      unitPrice: typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0),
+    }));
+
+    const totals = calculateOrderTotals(itemsForCalculation);
+
+    // Update order with calculated totals
+    const [updatedOrder] = await db
+      .update(orders)
+      .set({
+        subtotal: totals.subtotal.toString(),
+        discount: totals.discount.toString(),
+        taxAmount: totals.taxAmount.toString(),
+        total: totals.total.toString(),
+        totalAmount: totals.total.toString(), // Legacy field compatibility
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    return updatedOrder;
+  }
+
   // Price List operations
   async getPriceList(filters?: {
     search?: string;
@@ -6970,6 +7119,133 @@ export class DatabaseStorage implements IStorage {
       .where(eq(quoteItems.id, id));
       
     return item;
+  }
+
+  // Enhanced Quote operations with items CRUD
+  async getQuoteWithItems(id: string): Promise<(Quote & { items: QuoteItem[] }) | undefined> {
+    const [quote] = await db
+      .select()
+      .from(quotes)
+      .where(eq(quotes.id, id));
+
+    if (!quote) {
+      return undefined;
+    }
+
+    const items = await db
+      .select()
+      .from(quoteItems)
+      .where(eq(quoteItems.quoteId, id))
+      .orderBy(quoteItems.createdAt);
+
+    return { ...quote, items };
+  }
+
+  async addQuoteItem(quoteId: string, item: InsertQuoteItemInput): Promise<QuoteItem> {
+    // Calculate total price
+    const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
+    const unitPrice = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : item.unitPrice;
+    const totalPrice = quantity * unitPrice;
+
+    const [newItem] = await db
+      .insert(quoteItems)
+      .values({
+        ...item,
+        quoteId,
+        totalPrice: totalPrice.toString(),
+      })
+      .returning();
+
+    // Recalculate quote totals
+    await this.recalculateQuoteTotals(quoteId);
+
+    return newItem;
+  }
+
+  async updateQuoteItemById(itemId: string, updates: Partial<InsertQuoteItemInput>): Promise<QuoteItem> {
+    // Get the current item to find the quote ID
+    const [currentItem] = await db
+      .select()
+      .from(quoteItems)
+      .where(eq(quoteItems.id, itemId));
+
+    if (!currentItem) {
+      throw new Error('Quote item not found');
+    }
+
+    // Calculate new total price if quantity or unit price changed
+    let updateData = { ...updates };
+    if (updates.quantity !== undefined || updates.unitPrice !== undefined) {
+      const quantity = updates.quantity !== undefined 
+        ? (typeof updates.quantity === 'string' ? parseFloat(updates.quantity) : updates.quantity)
+        : (typeof currentItem.quantity === 'string' ? parseFloat(currentItem.quantity) : currentItem.quantity);
+      
+      const unitPrice = updates.unitPrice !== undefined 
+        ? (typeof updates.unitPrice === 'string' ? parseFloat(updates.unitPrice) : updates.unitPrice)
+        : (typeof currentItem.unitPrice === 'string' ? parseFloat(currentItem.unitPrice) : currentItem.unitPrice);
+      
+      updateData.totalPrice = (quantity * unitPrice).toString();
+    }
+
+    const [updatedItem] = await db
+      .update(quoteItems)
+      .set(updateData)
+      .where(eq(quoteItems.id, itemId))
+      .returning();
+
+    // Recalculate quote totals
+    await this.recalculateQuoteTotals(currentItem.quoteId);
+
+    return updatedItem;
+  }
+
+  async deleteQuoteItemById(itemId: string): Promise<void> {
+    // Get the current item to find the quote ID before deletion
+    const [currentItem] = await db
+      .select()
+      .from(quoteItems)
+      .where(eq(quoteItems.id, itemId));
+
+    if (!currentItem) {
+      throw new Error('Quote item not found');
+    }
+
+    await db
+      .delete(quoteItems)
+      .where(eq(quoteItems.id, itemId));
+
+    // Recalculate quote totals
+    await this.recalculateQuoteTotals(currentItem.quoteId);
+  }
+
+  async recalculateQuoteTotals(quoteId: string): Promise<Quote> {
+    // Get all quote items
+    const items = await db
+      .select()
+      .from(quoteItems)
+      .where(eq(quoteItems.quoteId, quoteId));
+
+    // Calculate totals using the helper function
+    const itemsForCalculation = items.map(item => ({
+      quantity: typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity,
+      unitPrice: typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : item.unitPrice,
+    }));
+
+    const totals = calculateOrderTotals(itemsForCalculation); // Reuse calculation logic
+
+    // Update quote with calculated totals
+    const [updatedQuote] = await db
+      .update(quotes)
+      .set({
+        subtotal: totals.subtotal.toString(),
+        discount: totals.discount.toString(),
+        taxAmount: totals.taxAmount.toString(),
+        total: totals.total.toString(),
+      })
+      .where(eq(quotes.id, quoteId))
+      .returning();
+
+    return updatedQuote;
   }
 
   // Quote to Order conversion
