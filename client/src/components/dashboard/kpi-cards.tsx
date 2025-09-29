@@ -232,8 +232,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   // Renderizar tarjeta personalizada para Ventas Totales
   const renderSalesCard = (kpi: any) => {
-    const nvvTotal = nvvMetrics?.totalAmount || 0;
-    const combinedTotal = (metrics?.totalSales || 0) + nvvTotal;
+    const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
+    const combinedTotal = Number(metrics?.totalSales || 0) + nvvTotal;
 
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
