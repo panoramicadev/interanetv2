@@ -133,10 +133,11 @@ export default function QuotesList() {
         method: 'POST',
       });
     },
-    onSuccess: (newQuote) => {
+    onSuccess: (newQuote: any) => {
+      console.log('🔍 newQuote received:', newQuote);
       toast({
         title: "Cotización duplicada",
-        description: `Nueva cotización #${newQuote.quoteNumber} creada para editar. Abriendo editor...`,
+        description: `Nueva cotización #${newQuote?.quoteNumber || 'N/A'} creada para editar. Abriendo editor...`,
       });
       // Invalidate all quote queries (fixes cache invalidation bug)
       queryClient.invalidateQueries({ 
@@ -146,7 +147,11 @@ export default function QuotesList() {
       });
       
       // Navigate immediately to tomador de pedidos with the new quote ID
-      navigate(`/tomador-pedidos?quoteId=${newQuote.id}`);
+      if (newQuote?.id) {
+        navigate(`/tomador-pedidos?quoteId=${newQuote.id}`);
+      } else {
+        console.error('❌ No se recibió un ID válido de cotización');
+      }
     },
     onError: (error: any) => {
       toast({
@@ -198,7 +203,9 @@ export default function QuotesList() {
 
   // Function to open quote in edit mode
   const handleEditQuote = (quoteId: string) => {
+    console.log('🔍 handleEditQuote called with quoteId:', quoteId);
     navigate(`/tomador-pedidos?quoteId=${quoteId}`);
+    console.log('🔍 Navigation triggered to:', `/tomador-pedidos?quoteId=${quoteId}`);
   };
 
   const formatCurrency = (amount: string | number) => {
