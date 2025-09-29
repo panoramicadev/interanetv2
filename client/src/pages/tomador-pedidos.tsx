@@ -303,6 +303,9 @@ export default function TomadorPedidos() {
       const quote = await apiRequest(`/api/quotes/${quoteId}`);
       const items = await apiRequest(`/api/quotes/${quoteId}/items`).catch(() => []); // Fallback to empty array if items endpoint fails
       
+      // Set editing mode
+      setEditingQuoteId(quoteId);
+      
       // Populate form with quote data
       setQuoteForm({
         clientName: quote.clientName,
@@ -354,6 +357,7 @@ export default function TomadorPedidos() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [quoteForm, setQuoteForm] = useState<QuoteFormData>(INITIAL_QUOTE_FORM);
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null); // Track if we're editing an existing quote
   const [selectedUnidad, setSelectedUnidad] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [selectedTiers, setSelectedTiers] = useState<Record<string, PriceTier>>({});
@@ -576,6 +580,8 @@ export default function TomadorPedidos() {
       clientPhone: client.foen || "",
       clientAddress: `${client.dien || ""} ${client.comuna || ""}`.trim(),
     });
+    setCart([]);
+    setEditingQuoteId(null); // Clear editing state for new quote
     setShowQuoteBuilder(true);
   };
 
@@ -585,6 +591,7 @@ export default function TomadorPedidos() {
     setQuoteForm(INITIAL_QUOTE_FORM);
     setCart([]);
     setProductSearchTerm("");
+    setEditingQuoteId(null); // Clear editing state for new quote
     setShowQuoteBuilder(true);
   };
 
@@ -595,6 +602,7 @@ export default function TomadorPedidos() {
     setQuoteForm(INITIAL_QUOTE_FORM);
     setCart([]);
     setProductSearchTerm("");
+    setEditingQuoteId(null); // Clear editing state
   };
 
   // Order action handlers
@@ -807,75 +815,135 @@ export default function TomadorPedidos() {
       const tax = subtotal * 0.19; // 19% IVA
       const total = subtotal + tax;
       
-      // Create quote with proper totals
-      const quoteData = {
-        ...quoteForm,
-        subtotal: subtotal.toString(),
-        taxAmount: tax.toString(),
-        total: total.toString(),
-        status: "draft" as const,
-      };
-
-      const response = await apiRequest('/api/quotes', {
-        method: 'POST',
-        data: quoteData
-      });
-      const savedQuote: Quote = await response.json();
-
-      // Add quote items
+      let savedQuote: Quote;
       const savedItems: any[] = [];
-      for (const item of cart) {
-        const itemData = {
-          quoteId: savedQuote.id,
-          type: item.type,
-          productName: item.productName,
-          productCode: item.productCode,
-          customSku: item.customSku,
-          quantity: item.quantity.toString(),
-          unitPrice: item.unitPrice.toString(),
-          totalPrice: item.totalPrice.toString(),
-          costOfProduction: item.costOfProduction?.toString(),
-          profitMargin: item.profitMargin?.toString(),
-          pricingMode: item.pricingMode,
+      
+      if (editingQuoteId) {
+        // Update existing quote
+        const quoteData = {
+          ...quoteForm,
+          subtotal: subtotal.toString(),
+          taxAmount: tax.toString(),
+          total: total.toString(),
+          status: "draft" as const,
         };
 
-        const itemResponse = await apiRequest(`/api/quotes/${savedQuote.id}/items`, {
-          method: 'POST',
-          data: itemData
+        const response = await apiRequest(`/api/quotes/${editingQuoteId}`, {
+          method: 'PUT',
+          data: quoteData
         });
+        savedQuote = await response.json();
 
-        if (itemResponse.ok) {
-          const savedItem = await itemResponse.json();
-          savedItems.push({ ...savedItem, productUnit: item.productUnit }); // Include unit data
+        // Delete existing items and add new ones
+        const existingItems = await apiRequest(`/api/quotes/${editingQuoteId}/items`).catch(() => []);
+        for (const existingItem of existingItems) {
+          await apiRequest(`/api/quote-items/${existingItem.id}`, { method: 'DELETE' }).catch(() => {});
         }
-      }
 
-      // Convert quote to order so it appears in "Recent Orders"
-      try {
-        const convertResponse = await apiRequest(`/api/quotes/${savedQuote.id}/convert-to-order`, {
-          method: 'POST',
-          data: {}
+        // Add new items
+        for (const item of cart) {
+          const itemData = {
+            quoteId: savedQuote.id,
+            type: item.type,
+            productName: item.productName,
+            productCode: item.productCode,
+            customSku: item.customSku,
+            quantity: item.quantity.toString(),
+            unitPrice: item.unitPrice.toString(),
+            totalPrice: item.totalPrice.toString(),
+            costOfProduction: item.costOfProduction?.toString(),
+            profitMargin: item.profitMargin?.toString(),
+            pricingMode: item.pricingMode,
+          };
+
+          const itemResponse = await apiRequest(`/api/quotes/${savedQuote.id}/items`, {
+            method: 'POST',
+            data: itemData
+          });
+
+          if (itemResponse.ok) {
+            const savedItem = await itemResponse.json();
+            savedItems.push({ ...savedItem, productUnit: item.productUnit }); // Include unit data
+          }
+        }
+
+        // Generate PDF with updated data (no order conversion for existing quotes)
+        generatePDFFromQuote(savedQuote, savedItems);
+
+        toast({
+          title: "Cotización actualizada y PDF generado",
+          description: `Cotización ${savedQuote.quoteNumber} actualizada y PDF descargado`,
         });
-        
-        if (convertResponse.ok) {
-          const convertedOrder = await convertResponse.json();
-          // Invalidate orders cache so the new order appears immediately in "Recent Orders"
-          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      } else {
+        // Create new quote
+        const quoteData = {
+          ...quoteForm,
+          subtotal: subtotal.toString(),
+          taxAmount: tax.toString(),
+          total: total.toString(),
+          status: "draft" as const,
+        };
+
+        const response = await apiRequest('/api/quotes', {
+          method: 'POST',
+          data: quoteData
+        });
+        savedQuote = await response.json();
+
+        // Add quote items
+        for (const item of cart) {
+          const itemData = {
+            quoteId: savedQuote.id,
+            type: item.type,
+            productName: item.productName,
+            productCode: item.productCode,
+            customSku: item.customSku,
+            quantity: item.quantity.toString(),
+            unitPrice: item.unitPrice.toString(),
+            totalPrice: item.totalPrice.toString(),
+            costOfProduction: item.costOfProduction?.toString(),
+            profitMargin: item.profitMargin?.toString(),
+            pricingMode: item.pricingMode,
+          };
+
+          const itemResponse = await apiRequest(`/api/quotes/${savedQuote.id}/items`, {
+            method: 'POST',
+            data: itemData
+          });
+
+          if (itemResponse.ok) {
+            const savedItem = await itemResponse.json();
+            savedItems.push({ ...savedItem, productUnit: item.productUnit }); // Include unit data
+          }
+        }
+
+        // Convert quote to order so it appears in "Recent Orders" (only for new quotes)
+        try {
+          const convertResponse = await apiRequest(`/api/quotes/${savedQuote.id}/convert-to-order`, {
+            method: 'POST',
+            data: {}
+          });
           
-          console.log(`Quote ${savedQuote.quoteNumber} converted to order ${convertedOrder.orderNumber}`);
+          if (convertResponse.ok) {
+            const convertedOrder = await convertResponse.json();
+            // Invalidate orders cache so the new order appears immediately in "Recent Orders"
+            queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+            
+            console.log(`Quote ${savedQuote.quoteNumber} converted to order ${convertedOrder.orderNumber}`);
+          }
+        } catch (error) {
+          console.warn('Could not convert quote to order, but quote was saved successfully:', error);
+          // Don't fail the whole operation if order conversion fails
         }
-      } catch (error) {
-        console.warn('Could not convert quote to order, but quote was saved successfully:', error);
-        // Don't fail the whole operation if order conversion fails
+
+        // Now generate PDF with real saved data
+        generatePDFFromQuote(savedQuote, savedItems);
+
+        toast({
+          title: "Cotización creada y PDF generado",
+          description: `Cotización ${savedQuote.quoteNumber} creada, descargada y agregada a pedidos recientes`,
+        });
       }
-
-      // Now generate PDF with real saved data
-      generatePDFFromQuote(savedQuote, savedItems);
-
-      toast({
-        title: "Cotización creada y PDF generado",
-        description: `Cotización ${savedQuote.quoteNumber} creada, descargada y agregada a pedidos recientes`,
-      });
 
       // Invalidate quotes query to refresh the list
       queryClient.invalidateQueries({ 
@@ -1343,49 +1411,103 @@ export default function TomadorPedidos() {
       const tax = subtotal * 0.19; // 19% IVA
       const total = subtotal + tax;
       
-      // Create quote
-      const quoteData = {
-        ...quoteForm,
-        total: total.toString(),
-        status: "draft" as const,
-      };
-
-      const response = await apiRequest('/api/quotes', {
-        method: 'POST',
-        data: quoteData
-      });
-      const quote: Quote = await response.json();
-
-      // Add quote items
-      for (const item of cart) {
-        const itemData = {
-          quoteId: quote.id,
-          type: item.type,
-          productName: item.productName,
-          productCode: item.productCode,
-          customSku: item.customSku,
-          quantity: item.quantity.toString(),
-          unitPrice: item.unitPrice.toString(),
-          totalPrice: item.totalPrice.toString(),
-          costOfProduction: item.costOfProduction?.toString(),
-          profitMargin: item.profitMargin?.toString(),
-          pricingMode: item.pricingMode,
+      let quote: Quote;
+      
+      if (editingQuoteId) {
+        // Update existing quote
+        const quoteData = {
+          ...quoteForm,
+          subtotal: subtotal.toString(),
+          taxAmount: tax.toString(),
+          total: total.toString(),
+          status: "draft" as const,
         };
 
-        const itemResponse = await apiRequest(`/api/quotes/${quote.id}/items`, {
-          method: 'POST',
-          data: itemData
+        const response = await apiRequest(`/api/quotes/${editingQuoteId}`, {
+          method: 'PUT',
+          data: quoteData
         });
+        quote = await response.json();
 
-        if (!itemResponse.ok) {
-          console.error('Failed to add quote item:', await itemResponse.text());
+        // Delete existing items and add new ones
+        const existingItems = await apiRequest(`/api/quotes/${editingQuoteId}/items`).catch(() => []);
+        for (const existingItem of existingItems) {
+          await apiRequest(`/api/quote-items/${existingItem.id}`, { method: 'DELETE' }).catch(() => {});
         }
-      }
 
-      toast({
-        title: "Presupuesto guardado",
-        description: `Presupuesto ${quote.quoteNumber} creado exitosamente`,
-      });
+        // Add new items
+        for (const item of cart) {
+          const itemData = {
+            quoteId: quote.id,
+            type: item.type,
+            productName: item.productName,
+            productCode: item.productCode,
+            customSku: item.customSku,
+            quantity: item.quantity.toString(),
+            unitPrice: item.unitPrice.toString(),
+            totalPrice: item.totalPrice.toString(),
+            costOfProduction: item.costOfProduction?.toString(),
+            profitMargin: item.profitMargin?.toString(),
+            pricingMode: item.pricingMode,
+          };
+
+          await apiRequest(`/api/quotes/${quote.id}/items`, {
+            method: 'POST',
+            data: itemData
+          });
+        }
+
+        toast({
+          title: "Presupuesto actualizado",
+          description: `Presupuesto ${quote.quoteNumber} actualizado exitosamente`,
+        });
+      } else {
+        // Create new quote
+        const quoteData = {
+          ...quoteForm,
+          subtotal: subtotal.toString(),
+          taxAmount: tax.toString(),
+          total: total.toString(),
+          status: "draft" as const,
+        };
+
+        const response = await apiRequest('/api/quotes', {
+          method: 'POST',
+          data: quoteData
+        });
+        quote = await response.json();
+
+        // Add quote items
+        for (const item of cart) {
+          const itemData = {
+            quoteId: quote.id,
+            type: item.type,
+            productName: item.productName,
+            productCode: item.productCode,
+            customSku: item.customSku,
+            quantity: item.quantity.toString(),
+            unitPrice: item.unitPrice.toString(),
+            totalPrice: item.totalPrice.toString(),
+            costOfProduction: item.costOfProduction?.toString(),
+            profitMargin: item.profitMargin?.toString(),
+            pricingMode: item.pricingMode,
+          };
+
+          const itemResponse = await apiRequest(`/api/quotes/${quote.id}/items`, {
+            method: 'POST',
+            data: itemData
+          });
+
+          if (!itemResponse.ok) {
+            console.error('Failed to add quote item:', await itemResponse.text());
+          }
+        }
+
+        toast({
+          title: "Presupuesto guardado",
+          description: `Presupuesto ${quote.quoteNumber} creado exitosamente`,
+        });
+      }
 
       // Invalidate quotes query to refresh the list
       queryClient.invalidateQueries({ 
