@@ -2588,7 +2588,7 @@ export default function TomadorPedidos() {
 
     {/* Custom Product Modal */}
     <Dialog open={showCustomProductModal} onOpenChange={setShowCustomProductModal}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl mx-4 sm:mx-auto rounded-xl border-0 shadow-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="w-5 h-5" />
