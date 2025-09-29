@@ -1323,18 +1323,29 @@ export type VisitaTaskPayload = z.infer<typeof visitaTaskPayloadSchema>;
 // TaskPayload union type - CRITICAL export requested by architect
 export type TaskPayload = TextoTaskPayload | FormularioTaskPayload | VisitaTaskPayload;
 
-// Orders system - Tomador de Pedidos
+// Orders system - Tomador de Pedidos (Enhanced with Quote parity)
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   orderNumber: varchar("order_number").notNull().unique(), // Auto-generated order number
   clientName: text("client_name").notNull(), // Client name (referencing clients.nokoen)
   clientId: varchar("client_id"), // Optional FK to clients.id for structured reference
+  // Additional client fields for complete orders (parity with quotes)
+  clientRut: varchar("client_rut"), // Client RUT for new clients
+  clientEmail: varchar("client_email"), // Client email
+  clientPhone: varchar("client_phone"), // Client phone
+  clientAddress: text("client_address"), // Client address
   createdBy: varchar("created_by").notNull(), // FK to users.id - who created the order
   status: varchar("status").default("draft"), // draft, confirmed, processing, completed, cancelled
   priority: varchar("priority").default("medium"), // low, medium, high, urgent
   notes: text("notes"), // Additional notes about the order
   estimatedDeliveryDate: timestamp("estimated_delivery_date"), // Optional estimated delivery
-  totalAmount: numeric("total_amount", { precision: 15, scale: 2 }), // Calculated total if items exist
+  // Financial fields (parity with quotes)
+  subtotal: numeric("subtotal", { precision: 15, scale: 2 }), // Subtotal before taxes
+  discount: numeric("discount", { precision: 15, scale: 2 }).default("0"), // Discount amount
+  taxRate: numeric("tax_rate", { precision: 5, scale: 2 }).default("19"), // IVA rate (19% default)
+  taxAmount: numeric("tax_amount", { precision: 15, scale: 2 }), // Calculated tax
+  total: numeric("total", { precision: 15, scale: 2 }), // Final total
+  totalAmount: numeric("total_amount", { precision: 15, scale: 2 }), // Legacy field for compatibility
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1342,11 +1353,19 @@ export const orders = pgTable("orders", {
 export const orderItems = pgTable("order_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   orderId: varchar("order_id").notNull(), // FK to orders.id
+  type: varchar("type").notNull().default("standard"), // "standard" | "custom" (parity with quoteItems)
+  // For standard products
+  productCode: varchar("product_code"), // From price_list.codigo (enhanced)
   productName: text("product_name").notNull(), // Product name
-  productCode: varchar("product_code"), // Optional product code (KOPR)
+  // For custom products (parity with quoteItems)
+  customSku: varchar("custom_sku"), // Custom SKU
+  costOfProduction: numeric("cost_of_production", { precision: 15, scale: 2 }), // Custom cost
+  profitMargin: numeric("profit_margin", { precision: 5, scale: 2 }), // Custom profit %
+  pricingMode: varchar("pricing_mode"), // "calculated" | "direct"
+  // Common fields
   quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull(),
-  unitPrice: numeric("unit_price", { precision: 15, scale: 2 }),
-  totalPrice: numeric("total_price", { precision: 15, scale: 2 }),
+  unitPrice: numeric("unit_price", { precision: 15, scale: 2 }).notNull(),
+  totalPrice: numeric("total_price", { precision: 15, scale: 2 }).notNull(),
   notes: text("notes"), // Item-specific notes
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -1372,9 +1391,13 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   }),
 }));
 
-// Schemas for validation
+// Enhanced schemas for validation (parity with quotes)
 export const insertOrderSchema = createInsertSchema(orders, {
   clientName: z.string().min(1, "Nombre del cliente es requerido"),
+  clientRut: z.string().optional(),
+  clientEmail: z.string().email("Email inválido").optional().or(z.literal("")),
+  clientPhone: z.string().optional(),
+  clientAddress: z.string().optional(),
   status: z.enum(["draft", "confirmed", "processing", "completed", "cancelled"]).default("draft"),
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   notes: z.string().optional(),
@@ -1384,23 +1407,118 @@ export const insertOrderSchema = createInsertSchema(orders, {
   orderNumber: true, // Auto-generated
   createdAt: true,
   updatedAt: true,
+  // Allow subtotal, taxAmount, total to be sent from frontend
 });
 
 export const insertOrderItemSchema = createInsertSchema(orderItems, {
+  type: z.enum(["standard", "custom"]).default("standard"),
   productName: z.string().min(1, "Nombre del producto es requerido"),
+  customSku: z.string().optional(),
+  pricingMode: z.enum(["calculated", "direct"]).optional(),
   quantity: z.union([z.string(), z.number()]).transform((val) => 
     typeof val === 'string' ? val : val.toString()
   ),
-  unitPrice: z.union([z.string(), z.number()]).optional().transform((val) => 
+  unitPrice: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  costOfProduction: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
+  ),
+  profitMargin: z.union([z.string(), z.number()]).optional().transform((val) => 
     val === undefined || val === null ? undefined : (typeof val === 'string' ? val : val.toString())
   ),
 }).omit({
   id: true,
   createdAt: true,
+  totalPrice: true, // Calculated
 });
 
+// Update schemas for PATCH operations
+export const updateOrderSchema = insertOrderSchema.partial().omit({
+  createdBy: true, // Cannot change creator
+});
+
+export const updateOrderItemSchema = insertOrderItemSchema.partial();
+
+// Schema for adding individual items to existing orders
+export const addOrderItemSchema = insertOrderItemSchema.extend({
+  orderId: z.string().min(1, "ID del pedido es requerido"),
+});
+
+// Schema for updating individual items
+export const updateOrderItemByIdSchema = updateOrderItemSchema.extend({
+  id: z.string().min(1, "ID del item es requerido"),
+});
+
+// Schema for order totals recalculation
+export const orderTotalsSchema = z.object({
+  subtotal: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  discount: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? "0" : (typeof val === 'string' ? val : val.toString())
+  ),
+  taxRate: z.union([z.string(), z.number()]).optional().transform((val) => 
+    val === undefined || val === null ? "19" : (typeof val === 'string' ? val : val.toString())
+  ),
+  taxAmount: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  total: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+});
+
+// Types
 export type InsertOrderInput = z.infer<typeof insertOrderSchema>;
 export type InsertOrderItemInput = z.infer<typeof insertOrderItemSchema>;
+export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
+export type UpdateOrderItemInput = z.infer<typeof updateOrderItemSchema>;
+export type AddOrderItemInput = z.infer<typeof addOrderItemSchema>;
+export type UpdateOrderItemByIdInput = z.infer<typeof updateOrderItemByIdSchema>;
+export type OrderTotalsInput = z.infer<typeof orderTotalsSchema>;
+
+// Helper function to calculate order totals
+export function calculateOrderTotals(
+  items: { quantity: number; unitPrice: number }[],
+  discountAmount: number = 0,
+  taxRate: number = 19
+): { subtotal: number; discount: number; taxAmount: number; total: number } {
+  const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+  const discountedAmount = subtotal - discountAmount;
+  const taxAmount = discountedAmount * (taxRate / 100);
+  const total = discountedAmount + taxAmount;
+  
+  return {
+    subtotal: Math.round(subtotal * 100) / 100,
+    discount: Math.round(discountAmount * 100) / 100,
+    taxAmount: Math.round(taxAmount * 100) / 100,
+    total: Math.round(total * 100) / 100
+  };
+}
+
+// Update schemas for Quote CRUD operations (enhance existing for consistency)
+export const updateQuoteSchema = insertQuoteSchema.partial().omit({
+  createdBy: true, // Cannot change creator
+});
+
+export const updateQuoteItemSchema = insertQuoteItemSchema.partial();
+
+// Schema for adding individual items to existing quotes
+export const addQuoteItemSchema = insertQuoteItemSchema.extend({
+  quoteId: z.string().min(1, "ID de la cotización es requerido"),
+});
+
+// Schema for updating individual quote items
+export const updateQuoteItemByIdSchema = updateQuoteItemSchema.extend({
+  id: z.string().min(1, "ID del item es requerido"),
+});
+
+// Additional Quote types for consistency
+export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
+export type UpdateQuoteItemInput = z.infer<typeof updateQuoteItemSchema>;
+export type AddQuoteItemInput = z.infer<typeof addQuoteItemSchema>;
+export type UpdateQuoteItemByIdInput = z.infer<typeof updateQuoteItemByIdSchema>;
 
 // Price List - Lista de Precios Comercial
 export const priceList = pgTable("price_list", {
