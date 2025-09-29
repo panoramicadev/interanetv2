@@ -22,7 +22,7 @@ interface SalesMetrics {
 }
 
 interface NvvMetrics {
-  totalSales: number;
+  totalAmount: number;
   totalQuantity: number;
   pendingCount: number;
   confirmedCount: number;
@@ -232,7 +232,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   // Renderizar tarjeta personalizada para Ventas Totales
   const renderSalesCard = (kpi: any) => {
-    const nvvTotal = nvvMetrics?.totalSales || 0;
+    const nvvTotal = nvvMetrics?.totalAmount || 0;
     const combinedTotal = (metrics?.totalSales || 0) + nvvTotal;
 
     return (
