@@ -196,6 +196,11 @@ export default function QuotesList() {
     }
   };
 
+  // Function to open quote in edit mode
+  const handleEditQuote = (quoteId: string) => {
+    navigate(`/tomador-pedidos?quoteId=${quoteId}`);
+  };
+
   const formatCurrency = (amount: string | number) => {
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     return new Intl.NumberFormat('es-CL', {
@@ -384,8 +389,9 @@ export default function QuotesList() {
                   quotes.map((quote) => (
                     <TableRow 
                       key={quote.id} 
-                      className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors"
+                      className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
                       data-testid={`quote-row-${quote.id}`}
+                      onClick={() => handleEditQuote(quote.id)}
                     >
                       <TableCell className="py-4">
                         <div className="font-medium text-gray-900" data-testid={`quote-number-${quote.id}`}>
@@ -450,7 +456,10 @@ export default function QuotesList() {
                         </div>
                       </TableCell>
                       
-                      <TableCell className="py-4 text-center">
+                      <TableCell 
+                        className="py-4 text-center"
+                        onClick={(e) => e.stopPropagation()} // Prevent row click when clicking actions
+                      >
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" data-testid={`actions-${quote.id}`}>
@@ -458,7 +467,10 @@ export default function QuotesList() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem data-testid={`view-${quote.id}`}>
+                            <DropdownMenuItem 
+                              data-testid={`view-${quote.id}`}
+                              onClick={() => handleEditQuote(quote.id)}
+                            >
                               <FileText className="w-4 h-4 mr-2" />
                               Ver detalles
                             </DropdownMenuItem>
