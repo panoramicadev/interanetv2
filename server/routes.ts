@@ -5833,6 +5833,329 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // =============================================================================
+  // TINTOMETRÍA ROUTES
+  // =============================================================================
+
+  // PIGMENTS routes
+  app.get('/api/tintometria/pigments', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const pigments = await storage.getAllPigments();
+      res.json(pigments);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener pigmentos', error: error.message });
+    }
+  }));
+
+  app.get('/api/tintometria/pigments/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const pigment = await storage.getPigmentById(parseInt(req.params.id));
+      if (!pigment) {
+        return res.status(404).json({ message: 'Pigmento no encontrado' });
+      }
+      res.json(pigment);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener pigmento', error: error.message });
+    }
+  }));
+
+  app.post('/api/tintometria/pigments', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const pigment = await storage.createPigment(req.body);
+      res.status(201).json(pigment);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear pigmento', error: error.message });
+    }
+  }));
+
+  app.put('/api/tintometria/pigments/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const pigment = await storage.updatePigment(parseInt(req.params.id), req.body);
+      res.json(pigment);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar pigmento', error: error.message });
+    }
+  }));
+
+  app.delete('/api/tintometria/pigments/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deletePigment(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar pigmento', error: error.message });
+    }
+  }));
+
+  // BASES routes
+  app.get('/api/tintometria/bases', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const bases = await storage.getAllBases();
+      res.json(bases);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener bases', error: error.message });
+    }
+  }));
+
+  app.get('/api/tintometria/bases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const base = await storage.getBaseById(parseInt(req.params.id));
+      if (!base) {
+        return res.status(404).json({ message: 'Base no encontrada' });
+      }
+      res.json(base);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener base', error: error.message });
+    }
+  }));
+
+  app.post('/api/tintometria/bases', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const base = await storage.createBase(req.body);
+      res.status(201).json(base);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear base', error: error.message });
+    }
+  }));
+
+  app.put('/api/tintometria/bases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const base = await storage.updateBase(parseInt(req.params.id), req.body);
+      res.json(base);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar base', error: error.message });
+    }
+  }));
+
+  app.delete('/api/tintometria/bases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteBase(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar base', error: error.message });
+    }
+  }));
+
+  // ENVASES routes
+  app.get('/api/tintometria/envases', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const envases = await storage.getAllEnvases();
+      res.json(envases);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener envases', error: error.message });
+    }
+  }));
+
+  app.get('/api/tintometria/envases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const envase = await storage.getEnvaseById(parseInt(req.params.id));
+      if (!envase) {
+        return res.status(404).json({ message: 'Envase no encontrado' });
+      }
+      res.json(envase);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener envase', error: error.message });
+    }
+  }));
+
+  app.post('/api/tintometria/envases', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const envase = await storage.createEnvase(req.body);
+      res.status(201).json(envase);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear envase', error: error.message });
+    }
+  }));
+
+  app.put('/api/tintometria/envases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const envase = await storage.updateEnvase(parseInt(req.params.id), req.body);
+      res.json(envase);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar envase', error: error.message });
+    }
+  }));
+
+  app.delete('/api/tintometria/envases/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteEnvase(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar envase', error: error.message });
+    }
+  }));
+
+  // COLORES routes
+  app.get('/api/tintometria/colores', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const colores = await storage.getAllColores();
+      res.json(colores);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener colores', error: error.message });
+    }
+  }));
+
+  app.get('/api/tintometria/colores/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const color = await storage.getColorById(parseInt(req.params.id));
+      if (!color) {
+        return res.status(404).json({ message: 'Color no encontrado' });
+      }
+      res.json(color);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener color', error: error.message });
+    }
+  }));
+
+  app.post('/api/tintometria/colores', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const color = await storage.createColor(req.body);
+      res.status(201).json(color);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear color', error: error.message });
+    }
+  }));
+
+  app.put('/api/tintometria/colores/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const color = await storage.updateColor(parseInt(req.params.id), req.body);
+      res.json(color);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar color', error: error.message });
+    }
+  }));
+
+  app.delete('/api/tintometria/colores/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteColor(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar color', error: error.message });
+    }
+  }));
+
+  // RECETAS routes
+  app.get('/api/tintometria/recetas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { colorId } = req.query;
+      let recetas;
+      if (colorId) {
+        recetas = await storage.getRecetasByColorId(colorId as string);
+      } else {
+        recetas = await storage.getAllRecetas();
+      }
+      res.json(recetas);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener recetas', error: error.message });
+    }
+  }));
+
+  app.get('/api/tintometria/recetas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const receta = await storage.getRecetaById(parseInt(req.params.id));
+      if (!receta) {
+        return res.status(404).json({ message: 'Receta no encontrada' });
+      }
+      res.json(receta);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener receta', error: error.message });
+    }
+  }));
+
+  app.post('/api/tintometria/recetas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const receta = await storage.createReceta(req.body);
+      res.status(201).json(receta);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear receta', error: error.message });
+    }
+  }));
+
+  app.put('/api/tintometria/recetas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const receta = await storage.updateReceta(parseInt(req.params.id), req.body);
+      res.json(receta);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar receta', error: error.message });
+    }
+  }));
+
+  app.delete('/api/tintometria/recetas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteReceta(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar receta', error: error.message });
+    }
+  }));
+
+  // PARÁMETROS routes
+  app.get('/api/tintometria/parametros', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parametros = await storage.getAllParametros();
+      res.json(parametros);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener parámetros', error: error.message });
+    }
+  }));
+
+  app.get('/api/tintometria/parametros/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parametro = await storage.getParametroById(parseInt(req.params.id));
+      if (!parametro) {
+        return res.status(404).json({ message: 'Parámetro no encontrado' });
+      }
+      res.json(parametro);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener parámetro', error: error.message });
+    }
+  }));
+
+  app.post('/api/tintometria/parametros', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parametro = await storage.createParametro(req.body);
+      res.status(201).json(parametro);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear parámetro', error: error.message });
+    }
+  }));
+
+  app.put('/api/tintometria/parametros/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const parametro = await storage.updateParametro(parseInt(req.params.id), req.body);
+      res.json(parametro);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar parámetro', error: error.message });
+    }
+  }));
+
+  app.delete('/api/tintometria/parametros/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteParametro(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar parámetro', error: error.message });
+    }
+  }));
+
+  // CALCULATE COLOR COST route
+  app.post('/api/tintometria/calculate', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { colorId, envaseId } = req.body;
+      if (!colorId || !envaseId) {
+        return res.status(400).json({ message: 'colorId y envaseId son requeridos' });
+      }
+      
+      const calculation = await storage.calculateColorCost(colorId, envaseId);
+      if (!calculation) {
+        return res.status(404).json({ message: 'Color o envase no encontrado' });
+      }
+      
+      res.json(calculation);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al calcular costo', error: error.message });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
