@@ -104,11 +104,21 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: FileCheck,
     },
     {
-      href: "#tintometria",
-      label: "Calcular Tintometría",
+      href: "/tintometria",
+      label: "Tintometría",
       icon: Palette,
-      disabled: true,
-      comingSoon: true,
+      children: [
+        {
+          href: "/tintometria/admin",
+          label: "Administrar Datos",
+          icon: Settings,
+        },
+        {
+          href: "/tintometria/calculadora",
+          label: "Calcular Costos",
+          icon: DollarSign,
+        },
+      ],
     },
 
   ],
@@ -188,11 +198,21 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: FileCheck,
     },
     {
-      href: "#tintometria",
-      label: "Calcular Tintometría",
+      href: "/tintometria",
+      label: "Tintometría",
       icon: Palette,
-      disabled: true,
-      comingSoon: true,
+      children: [
+        {
+          href: "/tintometria/admin",
+          label: "Administrar Datos",
+          icon: Settings,
+        },
+        {
+          href: "/tintometria/calculadora",
+          label: "Calcular Costos",
+          icon: DollarSign,
+        },
+      ],
     },
 
   ],
@@ -242,11 +262,21 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: FileCheck,
     },
     {
-      href: "#tintometria",
-      label: "Calcular Tintometría",
+      href: "/tintometria",
+      label: "Tintometría",
       icon: Palette,
-      disabled: true,
-      comingSoon: true,
+      children: [
+        {
+          href: "/tintometria/admin",
+          label: "Administrar Datos",
+          icon: Settings,
+        },
+        {
+          href: "/tintometria/calculadora",
+          label: "Calcular Costos",
+          icon: DollarSign,
+        },
+      ],
     },
 
   ],
@@ -269,11 +299,21 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
 
     {
-      href: "#tintometria",
-      label: "Calcular Tintometría",
+      href: "/tintometria",
+      label: "Tintometría",
       icon: Palette,
-      disabled: true,
-      comingSoon: true,
+      children: [
+        {
+          href: "/tintometria/admin",
+          label: "Administrar Datos",
+          icon: Settings,
+        },
+        {
+          href: "/tintometria/calculadora",
+          label: "Calcular Costos",
+          icon: DollarSign,
+        },
+      ],
     },
 
   ],
