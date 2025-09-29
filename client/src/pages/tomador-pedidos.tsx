@@ -262,7 +262,7 @@ export default function TomadorPedidos() {
   const getActiveTabFromUrl = () => {
     const searchParams = new URLSearchParams(location.split('?')[1] || '');
     const tab = searchParams.get('tab');
-    return tab === 'cotizaciones' || tab === 'pedidos' ? tab : 'constructor';
+    return tab === 'recientes' ? tab : 'constructor';
   };
   
   const [activeTab, setActiveTab] = useState(getActiveTabFromUrl);
@@ -1410,15 +1410,12 @@ export default function TomadorPedidos() {
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="constructor" data-testid="tab-constructor">
               Constructor
             </TabsTrigger>
-            <TabsTrigger value="cotizaciones" data-testid="tab-cotizaciones">
-              Cotizaciones
-            </TabsTrigger>
-            <TabsTrigger value="pedidos" data-testid="tab-pedidos">
-              Pedidos
+            <TabsTrigger value="recientes" data-testid="tab-recientes">
+              Pedidos Recientes
             </TabsTrigger>
           </TabsList>
 
@@ -1722,12 +1719,40 @@ export default function TomadorPedidos() {
         </Card>
           </TabsContent>
 
-          <TabsContent value="cotizaciones" className="space-y-6">
-            <QuotesList />
-          </TabsContent>
-
-          <TabsContent value="pedidos" className="space-y-6">
-            <OrdersList />
+          <TabsContent value="recientes" className="space-y-6">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Cotizaciones y Pedidos Recientes
+                  </CardTitle>
+                  <CardDescription>
+                    Historial de cotizaciones y pedidos creados en el sistema
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="cotizaciones" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 mb-4">
+                      <TabsTrigger value="cotizaciones">
+                        Cotizaciones
+                      </TabsTrigger>
+                      <TabsTrigger value="pedidos">
+                        Pedidos
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="cotizaciones" className="space-y-4">
+                      <QuotesList />
+                    </TabsContent>
+                    
+                    <TabsContent value="pedidos" className="space-y-4">
+                      <OrdersList />
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
