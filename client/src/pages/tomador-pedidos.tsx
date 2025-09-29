@@ -1362,32 +1362,32 @@ export default function TomadorPedidos() {
         ? 'px-4 py-6' 
         : 'px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4'
     }`}>
-      <div className={`space-y-6 ${isMobile ? 'space-y-8' : ''}`}>
-        {/* Header - Optimized for Mobile */}
-        <div className={`${isMobile ? 'space-y-6' : 'space-y-4'}`}>
-          <div className={`${isMobile ? 'space-y-6' : 'flex justify-between items-start'}`}>
-            <div className={isMobile ? 'text-center' : ''}>
-              <h1 className={`font-bold text-foreground ${
-                isMobile ? 'text-3xl mb-3' : 'text-2xl sm:text-3xl'
+      <div className={`space-y-6 ${isMobile ? 'space-y-5' : ''}`}>
+        {/* Header - Subtle Mobile Design */}
+        <div className={`${isMobile ? 'space-y-3' : 'space-y-4'}`}>
+          <div className={`${isMobile ? 'space-y-4' : 'flex justify-between items-start'}`}>
+            <div>
+              <h1 className={`font-semibold text-foreground ${
+                isMobile ? 'text-xl mb-1' : 'text-2xl sm:text-3xl'
               }`}>
                 Tomador de Pedidos
               </h1>
               <p className={`text-muted-foreground ${
-                isMobile ? 'text-base leading-relaxed' : ''
+                isMobile ? 'text-sm' : ''
               }`}>
-                Busca clientes y crea pedidos de manera rápida y eficiente
+                Busca clientes y crea pedidos
               </p>
             </div>
             <Button
               onClick={handleCreateQuoteForNewClient}
-              className={`flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 ${
-                isMobile ? 'w-full h-14 text-lg font-semibold rounded-xl' : ''
+              className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
+                isMobile ? 'w-full h-10 text-sm font-medium' : ''
               }`}
-              size={isMobile ? "lg" : "lg"}
+              size={isMobile ? "sm" : "lg"}
               data-testid="button-create-quote-new-client"
             >
-              <Calculator className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
-              Crear Presupuesto
+              <Calculator className="w-4 h-4" />
+              {isMobile ? "Nuevo Presupuesto" : "Crear Presupuesto"}
             </Button>
           </div>
         </div>
