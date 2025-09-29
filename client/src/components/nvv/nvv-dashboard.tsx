@@ -86,6 +86,9 @@ interface NvvRecord {
   TIDO: string | null; // Tipo de documento
   COMUNA: string | null; // Comuna
   OBSERVA: string | null; // Observaciones
+  // New calculated columns from database
+  cantidadPendiente: string | null; // New calculated column: CAPRCO2 - CAPREX2
+  totalPendiente: string | null; // New calculated column: PPPRNE * cantidadPendiente
   // System fields
   status?: string;
   importBatch?: string;
@@ -170,12 +173,10 @@ export function NvvDashboard() {
     }).format(new Date(dateString));
   };
 
+  // Updated to use the pre-calculated totalPendiente column from database
   const calculatePendingAmount = (record: NvvRecord) => {
-    const caprco2 = parseFloat(record.CAPRCO2 || '0');
-    const caprex2 = parseFloat(record.CAPREX2 || '0'); 
-    const ppprne = parseFloat(record.PPPRNE || '0');
-    const pendingUnits = Math.max(caprco2 - caprex2, 0);
-    return pendingUnits * ppprne;
+    // Use the new calculated column from database instead of manual calculation
+    return parseFloat(record.totalPendiente || '0');
   };
 
   const getMonthFromDate = (dateString: string) => {
