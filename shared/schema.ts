@@ -2151,6 +2151,10 @@ export const nvvPendingSales = pgTable("nvv_pending_sales", {
   UBICACION: varchar("UBICACION"),
   OBSERVA: text("OBSERVA"), // Observaciones
   
+  // Calculated fields as requested
+  cantidadPendiente: numeric("cantidad_pendiente", { precision: 10, scale: 2 }), // CAPRCO2 - CAPREX2
+  totalPendiente: numeric("total_pendiente", { precision: 15, scale: 2 }), // PPPRNE * cantidadPendiente
+  
   // System fields for tracking
   importedAt: timestamp("imported_at").defaultNow(),
   importBatch: varchar("import_batch"),
