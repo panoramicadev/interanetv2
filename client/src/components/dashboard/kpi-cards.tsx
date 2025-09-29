@@ -108,9 +108,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     enabled: !!resolvedComparePeriod, // Only run if resolved period is set
   });
 
-  // Query for NVV metrics with the same filters as sales metrics
-  const { data: nvvMetrics } = useQuery<NvvMetrics>({
-    queryKey: [`/api/nvv/metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+  // Query for NVV total (without date filters for total general)
+  const { data: nvvTotalData } = useQuery<{
+    totalAmount: number;
+    totalRecords: number;
+  }>({
+    queryKey: ['/api/nvv/total'],
   });
 
   const formatCurrency = (amount: number) => {
@@ -232,7 +235,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   // Renderizar tarjeta personalizada para Ventas Totales
   const renderSalesCard = (kpi: any) => {
-    const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
+    const nvvTotal = Number(nvvTotalData?.totalAmount || 0);
     const combinedTotal = Number(metrics?.totalSales || 0) + nvvTotal;
 
     return (
