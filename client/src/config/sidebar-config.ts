@@ -48,7 +48,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/ordenes",
-      label: "Transacciones Históricas",
+      label: "Facturas",
       icon: Receipt,
     },
     {
@@ -79,7 +79,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/tomador-pedidos",
-      label: "Pedidos Recientes",
+      label: "Tomador de Pedidos",
       icon: ClipboardCheck,
     },
     {
@@ -135,7 +135,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/ordenes",
-      label: "Transacciones Históricas",
+      label: "Facturas",
       icon: Receipt,
     },
     {
@@ -166,7 +166,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/tomador-pedidos",
-      label: "Pedidos Recientes",
+      label: "Tomador de Pedidos",
       icon: ClipboardCheck,
     },
     {
@@ -217,13 +217,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/ordenes",
-      label: "Transacciones Históricas",
+      label: "Facturas",
       icon: Receipt,
       separator: true, // Separador antes de Tomador de Pedidos
     },
     {
       href: "/tomador-pedidos",
-      label: "Pedidos Recientes",
+      label: "Tomador de Pedidos",
       icon: ClipboardCheck,
     },
     {
