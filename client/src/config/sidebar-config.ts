@@ -15,7 +15,8 @@ import {
   Receipt,
   CheckCircle2,
   FileCheck,
-  ChevronDown
+  ChevronDown,
+  PaintBucket
 } from "lucide-react";
 
 interface SidebarItem {
@@ -106,6 +107,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Calcular Costos",
           icon: DollarSign,
         },
+        {
+          href: "/tintometria/selector",
+          label: "Selector Visual",
+          icon: PaintBucket,
+        },
       ],
     },
 
@@ -188,6 +194,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Calcular Costos",
           icon: DollarSign,
         },
+        {
+          href: "/tintometria/selector",
+          label: "Selector Visual",
+          icon: PaintBucket,
+        },
       ],
     },
 
@@ -240,6 +251,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Calcular Costos",
           icon: DollarSign,
         },
+        {
+          href: "/tintometria/selector",
+          label: "Selector Visual",
+          icon: PaintBucket,
+        },
       ],
     },
 
@@ -276,6 +292,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/tintometria/calculadora",
           label: "Calcular Costos",
           icon: DollarSign,
+        },
+        {
+          href: "/tintometria/selector",
+          label: "Selector Visual",
+          icon: PaintBucket,
         },
       ],
     },
