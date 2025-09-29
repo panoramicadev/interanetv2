@@ -1,0 +1,93 @@
+### FUNCIONALIDAD PRINCIPAL
+Sistema donde técnicos visitan obras para evaluar aplicación de productos y generar actas oficiales firmadas digitalmente.
+### MÓDULOS OBLIGATORIOS
+#### 1. DASHBOARD 
+- Estadísticas del mes: total visitas, aplicaciones correctas, reclamos pendientes, progreso promedio
+- Filtros por período y técnico
+#### 2. GESTIÓN DE PRODUCTOS
+- Catálogo con SKU, nombre, variación, categoría
+- Import masivo CSV 
+- Asignación a clientes específicos
+- Imágenes por producto
+#### 3. GESTIÓN DE CLIENTES
+- Datos: identificador único, nombre, email, teléfono, dirección, ciudad
+- Asignación vendedor responsable
+- Productos autorizados por cliente
+- Información de proveedor asociado
+#### 4. VISITAS TÉCNICAS (núcleo del sistema)
+**Formulario multisección:**
+- **Info básica**: Nombre obra, dirección, fecha visita, técnico, vendedor, cliente
+- **Contactos en obra** (campos separados obligatorios):
+  * Contratista: nombre + teléfono + email
+  * Administrador obra: nombre + teléfono + email  
+  * Supervisor/Capataz: nombre + teléfono + email
+  * Campo contacto general (legacy)
+- **Productos evaluados** (tabla editable):
+  * Por cada producto: formato, color, lote, fecha llegada, m² aplicados, % avance
+  * **Evaluación técnica individual por producto**: aplicación (correcta/deficiente), tipo superficie, ambiente (interior/exterior), condiciones climáticas, dilución, observaciones técnicas específicas, preparación superficie, rendimiento, adherencia, anomalías, imágenes evidencia, acciones recomendadas
+- **Evaluación técnica general**: aplicación general, superficie, dilución, ambiente, clima, observaciones generales
+- **Reclamos** (opcional): descripción, lote involucrado, sector afectado, observación técnica, requiere análisis laboratorio, imágenes evidencia, estado, notas resolución
+- **Comentarios generales** 
+- **Firmas digitales**: contratista, constructor, técnico (canvas)
+- **Estados**: borrador o completada
+#### 5. LISTADO VISITAS
+- Tabla con filtros: fecha, cliente, estado, técnico
+- Búsqueda por nombre obra
+- Acciones: ver detalle, exportar PDF individual, eliminar
+- Export PDF múltiple (reporte consolidado)
+#### 6. DETALLE DE VISITA
+- Vista completa de toda la información capturada
+- Visualización de firmas
+- Galería de evidencias fotográficas
+- Export PDF individual
+#### 7. REPORTES
+- Filtros avanzados: rango fechas, cliente, estado, técnico
+- Export PDF consolidado con estadísticas
+- Resumen aplicaciones correctas vs deficientes
+### CARACTERÍSTICAS ESPECÍFICAS
+#### EXPORT PDF COMPLETO
+Cada acta debe incluir absolutamente todo:
+- Encabezado corporativo "Panorámica - Inspecciones Técnicas"
+- Información general de la visita
+- **Contactos completos** (nombre + teléfono + email para cada rol)
+- **Sección detallada por cada producto evaluado** con su evaluación técnica específica completa
+- Evaluación técnica general 
+- Reclamos con evidencias
+- Comentarios generales
+- Firmas digitales embebidas
+- Numeración páginas y footer corporativo
+#### FIRMAS DIGITALES
+- Canvas de dibujo para capturar firmas
+- Conversión a base64 para almacenamiento
+- Visualización en PDF y detalle de visita
+- Obligatorias: contratista, constructor, técnico
+#### GESTIÓN DE EVIDENCIAS
+- Upload imágenes por producto (máx 10MB)
+- Galería en detalle de visita
+- Inclusión en PDF exportado
+- Evidencias de reclamos separadas
+#### UX ESPAÑOL
+- Interfaz completamente en español
+- Formatos fecha DD/MM/YYYY
+- Terminología construcción: obra, contratista, capataz, etc.
+- Mensajes confirmación en español
+### FLUJO DE TRABAJO TÍPICO
+1. Técnico llega a obra, crea nueva visita
+2. Captura datos generales y contactos
+3. Evalúa cada producto aplicado individualmente
+4. Registra evaluación técnica general
+5. Documenta reclamos si existen
+6. Captura firmas de responsables
+7. Genera PDF oficial del acta
+8. Administración revisa reportes consolidados
+### VALIDACIONES CRÍTICAS
+- Campos obligatorios: obra, fecha, técnico, al menos un producto, firmas
+- Validación email/teléfono en contactos
+- No permitir eliminar visitas completadas sin confirmación
+- Verificar productos asignados a cliente seleccionado
+### ESTADOS Y PERMISOS
+- **Borrador**: editable, sin PDF final
+- **Completada**: solo lectura, PDF oficial disponible
+- Admin: acceso total
+- Técnico: solo sus visitas
+- Vendedor: visitas de sus clientes
