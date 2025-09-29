@@ -258,7 +258,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -3713,12 +3713,9 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to add items to this order" });
       }
       
-      const itemData = insertOrderItemSchema.parse({
-        ...req.body,
-        orderId
-      });
+      const itemData = addOrderItemSchema.parse(req.body);
       
-      const item = await storage.createOrderItem(itemData);
+      const item = await storage.addOrderItem(orderId, itemData);
       res.status(201).json(item);
     } catch (error) {
       console.error("Error creating order item:", error);
@@ -3966,7 +3963,7 @@ export function registerRoutes(app: Express): Server {
       }
       
       const validatedData = insertQuoteItemSchema.partial().parse(req.body);
-      const updatedItem = await storage.updateQuoteItem(id, validatedData);
+      const updatedItem = await storage.updateQuoteItemById(id, validatedData);
       
       res.json(updatedItem);
     } catch (error) {
@@ -4002,7 +3999,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to delete this quote item" });
       }
       
-      await storage.deleteQuoteItem(id);
+      await storage.deleteQuoteItemById(id);
       res.json({ message: "Quote item deleted successfully" });
     } catch (error) {
       console.error("Error deleting quote item:", error);
@@ -4033,6 +4030,126 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error converting quote to order:", error);
       res.status(500).json({ message: "Failed to convert quote to order" });
+    }
+  });
+
+  // Enhanced CRUD endpoints for Orders with items
+  app.get('/api/orders/:id/with-items', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const order = await storage.getOrderWithItems(id);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Role-based access control
+      const canView = user.role === 'admin' || user.role === 'supervisor' || order.createdBy === user.id;
+      
+      if (!canView) {
+        return res.status(403).json({ message: "Access denied to this order" });
+      }
+      
+      res.json(order);
+    } catch (error) {
+      console.error("Error fetching order with items:", error);
+      res.status(500).json({ message: "Failed to fetch order with items" });
+    }
+  });
+
+  // Update individual order item with automatic recalculation
+  app.patch('/api/order-items/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      // Get the order item to verify ownership via order
+      const item = await storage.getOrderItemById(id);
+      if (!item) {
+        return res.status(404).json({ message: "Order item not found" });
+      }
+      
+      const order = await storage.getOrderById(item.orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Role-based access control - only admin and supervisor can update order items
+      const canUpdate = user.role === 'admin' || user.role === 'supervisor';
+      
+      if (!canUpdate) {
+        return res.status(403).json({ message: "Not authorized to update this order item" });
+      }
+      
+      const validatedData = updateOrderItemByIdSchema.parse(req.body);
+      const updatedItem = await storage.updateOrderItemById(id, validatedData);
+      
+      res.json(updatedItem);
+    } catch (error) {
+      console.error("Error updating order item:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Validation error", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to update order item" });
+    }
+  });
+
+  // Delete individual order item with automatic recalculation
+  app.delete('/api/order-items/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      // Get the order item to verify ownership via order
+      const item = await storage.getOrderItemById(id);
+      if (!item) {
+        return res.status(404).json({ message: "Order item not found" });
+      }
+      
+      const order = await storage.getOrderById(item.orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      
+      // Role-based access control - only admin and supervisor can delete order items
+      const canDelete = user.role === 'admin' || user.role === 'supervisor';
+      
+      if (!canDelete) {
+        return res.status(403).json({ message: "Not authorized to delete this order item" });
+      }
+      
+      await storage.deleteOrderItemById(id);
+      res.json({ message: "Order item deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting order item:", error);
+      res.status(500).json({ message: "Failed to delete order item" });
+    }
+  });
+
+  // Enhanced CRUD endpoints for Quotes with items
+  app.get('/api/quotes/:id/with-items', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const quote = await storage.getQuoteWithItems(id);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Access denied to this quote" });
+      }
+      
+      res.json(quote);
+    } catch (error) {
+      console.error("Error fetching quote with items:", error);
+      res.status(500).json({ message: "Failed to fetch quote with items" });
     }
   });
 
@@ -4988,7 +5105,7 @@ export function registerRoutes(app: Express): Server {
     if (segment) options.segment = segment;
     
     // Use date range if period/filterType provided, otherwise use startDate/endDate
-    if (period && filterType) {
+    if (period && filterType && dateRange.startDate && dateRange.endDate) {
       options.startDate = new Date(dateRange.startDate);
       options.endDate = new Date(dateRange.endDate);
     } else {

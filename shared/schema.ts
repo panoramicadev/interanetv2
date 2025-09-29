@@ -1443,6 +1443,8 @@ export const updateOrderItemSchema = insertOrderItemSchema.partial();
 // Schema for adding individual items to existing orders
 export const addOrderItemSchema = insertOrderItemSchema.extend({
   orderId: z.string().min(1, "ID del pedido es requerido"),
+}).omit({
+  totalPrice: true, // Calculated automatically
 });
 
 // Schema for updating individual items
@@ -1497,28 +1499,6 @@ export function calculateOrderTotals(
   };
 }
 
-// Update schemas for Quote CRUD operations (enhance existing for consistency)
-export const updateQuoteSchema = insertQuoteSchema.partial().omit({
-  createdBy: true, // Cannot change creator
-});
-
-export const updateQuoteItemSchema = insertQuoteItemSchema.partial();
-
-// Schema for adding individual items to existing quotes
-export const addQuoteItemSchema = insertQuoteItemSchema.extend({
-  quoteId: z.string().min(1, "ID de la cotización es requerido"),
-});
-
-// Schema for updating individual quote items
-export const updateQuoteItemByIdSchema = updateQuoteItemSchema.extend({
-  id: z.string().min(1, "ID del item es requerido"),
-});
-
-// Additional Quote types for consistency
-export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
-export type UpdateQuoteItemInput = z.infer<typeof updateQuoteItemSchema>;
-export type AddQuoteItemInput = z.infer<typeof addQuoteItemSchema>;
-export type UpdateQuoteItemByIdInput = z.infer<typeof updateQuoteItemByIdSchema>;
 
 // Price List - Lista de Precios Comercial
 export const priceList = pgTable("price_list", {
@@ -1707,6 +1687,29 @@ export const insertQuoteItemSchema = createInsertSchema(quoteItems, {
   createdAt: true,
   totalPrice: true, // Calculated
 });
+
+// Update schemas for Quote CRUD operations (enhance existing for consistency)
+export const updateQuoteSchema = insertQuoteSchema.partial().omit({
+  createdBy: true, // Cannot change creator
+});
+
+export const updateQuoteItemSchema = insertQuoteItemSchema.partial();
+
+// Schema for adding individual items to existing quotes
+export const addQuoteItemSchema = insertQuoteItemSchema.extend({
+  quoteId: z.string().min(1, "ID de la cotización es requerido"),
+});
+
+// Schema for updating individual quote items
+export const updateQuoteItemByIdSchema = updateQuoteItemSchema.extend({
+  id: z.string().min(1, "ID del item es requerido"),
+});
+
+// Additional Quote types for consistency
+export type UpdateQuoteInput = z.infer<typeof updateQuoteSchema>;
+export type UpdateQuoteItemInput = z.infer<typeof updateQuoteItemSchema>;
+export type AddQuoteItemInput = z.infer<typeof addQuoteItemSchema>;
+export type UpdateQuoteItemByIdInput = z.infer<typeof updateQuoteItemByIdSchema>;
 
 // Types
 export type Quote = typeof quotes.$inferSelect;
