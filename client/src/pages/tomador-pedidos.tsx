@@ -289,11 +289,7 @@ export default function TomadorPedidos() {
     const searchParams = new URLSearchParams(location.split('?')[1] || '');
     const quoteId = searchParams.get('quoteId');
     
-    console.log('🔍 Auto-load effect ejecutado, location:', location);
-    console.log('🔍 QuoteId detectado:', quoteId);
-    
     if (quoteId) {
-      console.log('📝 Cargando cotización para editar:', quoteId);
       // Load the quote and switch to constructor tab
       loadQuoteForEditing(quoteId);
       setActiveTab('constructor');

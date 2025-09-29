@@ -7405,8 +7405,8 @@ export class DatabaseStorage implements IStorage {
       return { newQuote, hasItems: originalItems.length > 0 };
     });
 
-    // Always recalculate totals after transaction to ensure consistency
-    return await this.recalculateQuoteTotals(newQuote.newQuote.id);
+    // Return the newly created quote (totals are already copied from original)
+    return newQuote.newQuote;
   }
 
   // Store operations
