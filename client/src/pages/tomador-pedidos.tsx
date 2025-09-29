@@ -1818,8 +1818,8 @@ export default function TomadorPedidos() {
                         />
                       </div>
                       
-                      {/* Mobile Filter Chips */}
-                      <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                      {/* Mobile Filter Chips - Hidden temporarily per user request */}
+                      {/* <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
                         <Button
                           variant={selectedCategory === 'all' ? 'default' : 'outline'}
                           size="sm"
@@ -1856,27 +1856,22 @@ export default function TomadorPedidos() {
                         >
                           Barnices
                         </Button>
-                      </div>
+                      </div> */}
                     </div>
 
                     {/* Mobile Product Results */}
                     <div className="space-y-3">
                       {priceList.length > 0 ? (
                         priceList.filter((product: PriceList) => {
-                          if (selectedCategory === 'all') return true;
+                          // Filtrar solo por término de búsqueda (categorías ocultas temporalmente)
+                          if (!searchTerm || searchTerm.trim().length === 0) return true;
+                          
                           const productName = product.producto?.toLowerCase() || '';
                           const sku = product.codigo?.toLowerCase() || '';
+                          const searchTermLower = searchTerm.toLowerCase().trim();
                           
-                          switch (selectedCategory) {
-                            case 'pinturas':
-                              return productName.includes('pintura') || productName.includes('latex') || productName.includes('esmalte');
-                            case 'barnices':
-                              return productName.includes('barniz') || productName.includes('laca');
-                            case 'accesorios':
-                              return productName.includes('brocha') || productName.includes('rodillo') || productName.includes('masilla');
-                            default:
-                              return true;
-                          }
+                          return productName.includes(searchTermLower) || 
+                                 sku.includes(searchTermLower);
                         }).map((product: PriceList) => (
                           <Card key={product.id} className="p-3">
                             <div className="space-y-3">
