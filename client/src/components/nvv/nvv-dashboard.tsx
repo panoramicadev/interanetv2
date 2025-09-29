@@ -112,11 +112,20 @@ export function NvvDashboard() {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [previousMonth, setPreviousMonth] = useState<string>('previous');
 
+  // Obtener sumatoria total sin filtros de fecha
+  const { data: totalSummary, isLoading: isLoadingTotal } = useQuery<{
+    totalAmount: number;
+    totalRecords: number;
+  }>({
+    queryKey: ['/api/nvv/total'],
+    retry: false,
+  });
+
   // Obtener datos detallados de las notas de venta
   const { data: detailedData, isLoading: isLoadingDetails, error } = useQuery<NvvRecord[]>({
     queryKey: ['/api/nvv/pending'],
     queryFn: async () => {
-      const response = await fetch('/api/nvv/pending?limit=100&offset=0');
+      const response = await fetch('/api/nvv/pending?limit=500&offset=0');
       if (!response.ok) {
         throw new Error('Error al cargar datos detallados');
       }
@@ -619,6 +628,76 @@ export function NvvDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Sumatoria Total NVV - Sin Filtros de Fecha */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <DollarSign className="h-5 w-5" />
+            <span>Total NVV General</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoadingTotal ? (
+            <div className="animate-pulse text-gray-500">Cargando total general...</div>
+          ) : totalSummary ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-6">
+                <div className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">
+                  Monto Total Pendiente
+                </div>
+                <div className="text-3xl font-bold text-green-700 dark:text-green-300">
+                  {formatCurrency(totalSummary.totalAmount)}
+                </div>
+              </div>
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-6">
+                <div className="text-sm font-medium text-blue-600 dark:text-blue-400 mb-2">
+                  Total de Registros
+                </div>
+                <div className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                  {formatNumber(totalSummary.totalRecords)}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-4">
+              No hay datos disponibles
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Total NVV por Mes */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Calendar className="h-5 w-5" />
+            <span>Total NVV por Mes</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {Object.keys(monthlyTotals).length === 0 ? (
+            <div className="text-center text-gray-500 py-4">
+              No hay datos de NVV disponibles
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(monthlyTotals)
+                .sort(([a], [b]) => new Date(a + " 1, 2024").getTime() - new Date(b + " 1, 2024").getTime())
+                .map(([month, total]) => (
+                  <div key={month} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      {month}
+                    </div>
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                      {formatCurrency(total)}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Selector de Meses para Análisis Comparativo */}
       {availableMonths.length > 1 && (
         <Card>
@@ -779,38 +858,6 @@ export function NvvDashboard() {
         </CardContent>
       </Card>
 
-      {/* Total NVV por Mes */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Calendar className="h-5 w-5" />
-            <span>Total NVV por Mes</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {Object.keys(monthlyTotals).length === 0 ? (
-            <div className="text-center text-gray-500 py-4">
-              No hay datos de NVV disponibles
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(monthlyTotals)
-                .sort(([a], [b]) => new Date(a + " 1, 2024").getTime() - new Date(b + " 1, 2024").getTime())
-                .map(([month, total]) => (
-                  <div key={month} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                    <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {month}
-                    </div>
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      {formatCurrency(total)}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Tabla de Datos Detallados */}
       <Card>
         <CardHeader>
@@ -843,7 +890,7 @@ export function NvvDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {detailedData.slice(0, 100).map((record) => {
+                  {detailedData.slice(0, 500).map((record) => {
                     const pendingAmount = calculatePendingAmount(record);
                     const caprco2 = record.CAPRCO2 ? parseFloat(record.CAPRCO2) : 0;
                     const caprex2 = record.CAPREX2 ? parseFloat(record.CAPREX2) : 0;
@@ -900,7 +947,7 @@ export function NvvDashboard() {
             </div>
           )}
           <div className="mt-4 text-sm text-gray-600">
-            Mostrando hasta 100 registros más recientes
+            Mostrando hasta 500 registros más recientes
           </div>
         </CardContent>
       </Card>
