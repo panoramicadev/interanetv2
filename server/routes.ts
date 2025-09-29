@@ -5588,6 +5588,251 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ==============================================
+  // VISITAS TÉCNICAS ENDPOINTS
+  // ==============================================
+
+  // Get estadísticas dashboard de visitas técnicas
+  app.get('/api/visitas-tecnicas/estadisticas/:periodo?', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { periodo = 'current' } = req.params;
+      const estadisticas = await storage.getEstadisticasVisitasTecnicas({ periodo });
+      res.json(estadisticas);
+    } catch (error: any) {
+      console.error('❌ Error al obtener estadísticas de visitas técnicas:', error);
+      res.status(500).json({
+        message: 'Error al obtener estadísticas de visitas técnicas',
+        error: error.message
+      });
+    }
+  }));
+
+  // Get listado de visitas técnicas con filtros
+  app.get('/api/visitas-tecnicas/listado', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { search, estado, tecnico, limit = 20, offset = 0 } = req.query;
+      
+      const options = {
+        search: search || undefined,
+        estado: estado !== 'all' ? estado : undefined,
+        tecnico: tecnico || undefined,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      };
+
+      const visitas = await storage.getListadoVisitasTecnicas(options);
+      res.json(visitas);
+    } catch (error: any) {
+      console.error('❌ Error al obtener listado de visitas técnicas:', error);
+      res.status(500).json({
+        message: 'Error al obtener listado de visitas técnicas',
+        error: error.message
+      });
+    }
+  }));
+
+  // Create nueva visita técnica
+  app.post('/api/visitas-tecnicas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validar datos básicos requeridos
+      const { nombreObra, direccionObra, fechaVisita, tecnicoId } = req.body;
+      
+      if (!nombreObra || !direccionObra || !fechaVisita || !tecnicoId) {
+        return res.status(400).json({
+          message: 'Faltan campos requeridos: nombreObra, direccionObra, fechaVisita, tecnicoId'
+        });
+      }
+
+      // Crear visita técnica con datos mínimos
+      const visitaData = {
+        ...req.body,
+        estado: 'borrador' // Estado inicial
+      };
+
+      const nuevaVisita = await storage.createVisitaTecnica(visitaData);
+      res.status(201).json(nuevaVisita);
+    } catch (error: any) {
+      console.error('❌ Error al crear visita técnica:', error);
+      res.status(500).json({
+        message: 'Error al crear visita técnica',
+        error: error.message
+      });
+    }
+  }));
+
+  // Get detalle de visita técnica
+  app.get('/api/visitas-tecnicas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const visita = await storage.getVisitaTecnicaById(id);
+      
+      if (!visita) {
+        return res.status(404).json({
+          message: 'Visita técnica no encontrada'
+        });
+      }
+
+      res.json(visita);
+    } catch (error: any) {
+      console.error('❌ Error al obtener visita técnica:', error);
+      res.status(500).json({
+        message: 'Error al obtener visita técnica',
+        error: error.message
+      });
+    }
+  }));
+
+  // Update visita técnica
+  app.put('/api/visitas-tecnicas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const visitaActualizada = await storage.updateVisitaTecnica(id, req.body);
+      
+      if (!visitaActualizada) {
+        return res.status(404).json({
+          message: 'Visita técnica no encontrada'
+        });
+      }
+
+      res.json(visitaActualizada);
+    } catch (error: any) {
+      console.error('❌ Error al actualizar visita técnica:', error);
+      res.status(500).json({
+        message: 'Error al actualizar visita técnica',
+        error: error.message
+      });
+    }
+  }));
+
+  // Delete visita técnica
+  app.delete('/api/visitas-tecnicas/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      
+      // Solo permitir eliminar visitas en estado borrador
+      const visita = await storage.getVisitaTecnicaById(id);
+      if (!visita) {
+        return res.status(404).json({
+          message: 'Visita técnica no encontrada'
+        });
+      }
+
+      if (visita.estado === 'completada') {
+        return res.status(400).json({
+          message: 'No se puede eliminar una visita técnica completada'
+        });
+      }
+
+      const eliminada = await storage.deleteVisitaTecnica(id);
+      res.json({ success: true, message: 'Visita técnica eliminada' });
+    } catch (error: any) {
+      console.error('❌ Error al eliminar visita técnica:', error);
+      res.status(500).json({
+        message: 'Error al eliminar visita técnica',
+        error: error.message
+      });
+    }
+  }));
+
+  // Get productos para catálogo de visitas técnicas
+  app.get('/api/visitas-tecnicas/productos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { clienteId, search } = req.query;
+      
+      const options = {
+        clienteId: clienteId || undefined,
+        search: search || undefined,
+        active: true
+      };
+
+      const productos = await storage.getProductosParaVisitas(options);
+      res.json(productos);
+    } catch (error: any) {
+      console.error('❌ Error al obtener productos para visitas:', error);
+      res.status(500).json({
+        message: 'Error al obtener productos para visitas',
+        error: error.message
+      });
+    }
+  }));
+
+  // Get técnicos disponibles
+  app.get('/api/visitas-tecnicas/tecnicos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const tecnicos = await storage.getTecnicosDisponibles();
+      res.json(tecnicos);
+    } catch (error: any) {
+      console.error('❌ Error al obtener técnicos:', error);
+      res.status(500).json({
+        message: 'Error al obtener técnicos',
+        error: error.message
+      });
+    }
+  }));
+
+  // Upload evidencia para visita técnica
+  app.post('/api/visitas-tecnicas/:id/evidencias', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const { tipo, descripcion, productoEvaluadoId, reclamoId } = req.body;
+      
+      // TODO: Implementar upload de archivos con multer
+      // Por ahora solo crear el registro en base de datos
+      
+      const evidenciaData = {
+        visitaId: id,
+        tipoEvidencia: tipo,
+        descripcion,
+        productoEvaluadoId: productoEvaluadoId || null,
+        reclamoId: reclamoId || null,
+        nombreArchivo: 'temp-file.jpg', // Temporal
+        urlArchivo: '/temp/evidencia.jpg', // Temporal
+        tipoArchivo: 'image/jpeg',
+        tamanio: 0
+      };
+
+      const evidencia = await storage.createEvidencia(evidenciaData);
+      res.status(201).json(evidencia);
+    } catch (error: any) {
+      console.error('❌ Error al crear evidencia:', error);
+      res.status(500).json({
+        message: 'Error al crear evidencia',
+        error: error.message
+      });
+    }
+  }));
+
+  // Completar visita técnica (cambiar estado a completada)
+  app.post('/api/visitas-tecnicas/:id/completar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      
+      // Validar que la visita existe y tiene los datos mínimos
+      const visita = await storage.getVisitaTecnicaById(id);
+      if (!visita) {
+        return res.status(404).json({
+          message: 'Visita técnica no encontrada'
+        });
+      }
+
+      if (visita.estado === 'completada') {
+        return res.status(400).json({
+          message: 'La visita técnica ya está completada'
+        });
+      }
+
+      // Cambiar estado a completada
+      const visitaCompletada = await storage.updateVisitaTecnica(id, { estado: 'completada' });
+      res.json(visitaCompletada);
+    } catch (error: any) {
+      console.error('❌ Error al completar visita técnica:', error);
+      res.status(500).json({
+        message: 'Error al completar visita técnica',
+        error: error.message
+      });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
