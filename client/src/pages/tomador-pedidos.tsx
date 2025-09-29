@@ -531,6 +531,12 @@ export default function TomadorPedidos() {
         title: "¡Presupuesto creado exitosamente!",
         description: `Presupuesto ${newQuote.quoteNumber} creado para ${newQuote.clientName}`,
       });
+      // Invalidate quotes query to refresh the list
+      queryClient.invalidateQueries({ 
+        predicate: (query) => 
+          typeof query.queryKey[0] === 'string' && 
+          (query.queryKey[0] as string).startsWith('/api/quotes')
+      });
       resetQuoteBuilder();
     },
     onError: (error: any) => {
@@ -869,6 +875,13 @@ export default function TomadorPedidos() {
       toast({
         title: "Cotización creada y PDF generado",
         description: `Cotización ${savedQuote.quoteNumber} creada, descargada y agregada a pedidos recientes`,
+      });
+
+      // Invalidate quotes query to refresh the list
+      queryClient.invalidateQueries({ 
+        predicate: (query) => 
+          typeof query.queryKey[0] === 'string' && 
+          (query.queryKey[0] as string).startsWith('/api/quotes')
       });
 
       resetQuoteBuilder();
@@ -1372,6 +1385,13 @@ export default function TomadorPedidos() {
       toast({
         title: "Presupuesto guardado",
         description: `Presupuesto ${quote.quoteNumber} creado exitosamente`,
+      });
+
+      // Invalidate quotes query to refresh the list
+      queryClient.invalidateQueries({ 
+        predicate: (query) => 
+          typeof query.queryKey[0] === 'string' && 
+          (query.queryKey[0] as string).startsWith('/api/quotes')
       });
 
       resetQuoteBuilder();
