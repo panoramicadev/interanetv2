@@ -2113,89 +2113,6 @@ export default function TomadorPedidos() {
           {/* Left Side - Product Search and Client Info */}
           <div className="flex-1 p-6 overflow-y-auto border-r">
             <div className="space-y-6">
-              {/* Client Info Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Información del Cliente</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="modal-client-name">Nombre del Cliente *</Label>
-                      <Input
-                        id="modal-client-name"
-                        value={quoteForm.clientName}
-                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientName: e.target.value }))}
-                        data-testid="modal-input-client-name"
-                        placeholder="Nombre completo del cliente"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="modal-client-rut">RUT</Label>
-                      <Input
-                        id="modal-client-rut"
-                        value={quoteForm.clientRut}
-                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientRut: e.target.value }))}
-                        data-testid="modal-input-client-rut"
-                        placeholder="12345678-9"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="modal-client-email">Email</Label>
-                      <Input
-                        id="modal-client-email"
-                        type="email"
-                        value={quoteForm.clientEmail}
-                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientEmail: e.target.value }))}
-                        data-testid="modal-input-client-email"
-                        placeholder="cliente@email.com"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="modal-client-phone">Teléfono</Label>
-                      <Input
-                        id="modal-client-phone"
-                        value={quoteForm.clientPhone}
-                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientPhone: e.target.value }))}
-                        data-testid="modal-input-client-phone"
-                        placeholder="+56 9 1234 5678"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Label htmlFor="modal-client-address">Dirección</Label>
-                      <Input
-                        id="modal-client-address"
-                        value={quoteForm.clientAddress}
-                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientAddress: e.target.value }))}
-                        data-testid="modal-input-client-address"
-                        placeholder="Dirección completa"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="modal-valid-until">Válido hasta</Label>
-                      <Input
-                        id="modal-valid-until"
-                        type="date"
-                        value={quoteForm.validUntil}
-                        onChange={(e) => setQuoteForm(prev => ({ ...prev, validUntil: e.target.value }))}
-                        data-testid="modal-input-valid-until"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="modal-notes">Notas</Label>
-                      <Textarea
-                        id="modal-notes"
-                        rows={2}
-                        value={quoteForm.notes}
-                        onChange={(e) => setQuoteForm(prev => ({ ...prev, notes: e.target.value }))}
-                        data-testid="modal-textarea-notes"
-                        placeholder="Condiciones especiales, términos, etc."
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Product Search Section */}
               <Card>
                 <CardHeader>
@@ -2364,6 +2281,89 @@ export default function TomadorPedidos() {
                       <Plus className="w-4 h-4 mr-2" />
                       Agregar Producto Personalizado
                     </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Client Info Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Información del Cliente</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="modal-client-name">Nombre del Cliente *</Label>
+                      <Input
+                        id="modal-client-name"
+                        value={quoteForm.clientName}
+                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientName: e.target.value }))}
+                        data-testid="modal-input-client-name"
+                        placeholder="Nombre completo del cliente"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="modal-client-rut">RUT</Label>
+                      <Input
+                        id="modal-client-rut"
+                        value={quoteForm.clientRut}
+                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientRut: e.target.value }))}
+                        data-testid="modal-input-client-rut"
+                        placeholder="12345678-9"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="modal-client-email">Email</Label>
+                      <Input
+                        id="modal-client-email"
+                        type="email"
+                        value={quoteForm.clientEmail}
+                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientEmail: e.target.value }))}
+                        data-testid="modal-input-client-email"
+                        placeholder="cliente@email.com"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="modal-client-phone">Teléfono</Label>
+                      <Input
+                        id="modal-client-phone"
+                        value={quoteForm.clientPhone}
+                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientPhone: e.target.value }))}
+                        data-testid="modal-input-client-phone"
+                        placeholder="+56 9 1234 5678"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="modal-client-address">Dirección</Label>
+                      <Input
+                        id="modal-client-address"
+                        value={quoteForm.clientAddress}
+                        onChange={(e) => setQuoteForm(prev => ({ ...prev, clientAddress: e.target.value }))}
+                        data-testid="modal-input-client-address"
+                        placeholder="Dirección completa"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="modal-valid-until">Válido hasta</Label>
+                      <Input
+                        id="modal-valid-until"
+                        type="date"
+                        value={quoteForm.validUntil}
+                        onChange={(e) => setQuoteForm(prev => ({ ...prev, validUntil: e.target.value }))}
+                        data-testid="modal-input-valid-until"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="modal-notes">Notas</Label>
+                      <Textarea
+                        id="modal-notes"
+                        rows={2}
+                        value={quoteForm.notes}
+                        onChange={(e) => setQuoteForm(prev => ({ ...prev, notes: e.target.value }))}
+                        data-testid="modal-textarea-notes"
+                        placeholder="Condiciones especiales, términos, etc."
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
