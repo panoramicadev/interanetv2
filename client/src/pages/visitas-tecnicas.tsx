@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   Plus, 
   FileText, 
@@ -46,6 +47,11 @@ export default function VisitasTecnicasPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [filtroMes, setFiltroMes] = useState<string>("current");
+  const [showNewVisitModal, setShowNewVisitModal] = useState(false);
+
+  const handleNewVisit = () => {
+    setShowNewVisitModal(true);
+  };
 
   // Query para estadísticas del dashboard
   const { data: estadisticas, isLoading: loadingStats } = useQuery<EstadisticasVisitas>({
@@ -198,7 +204,11 @@ export default function VisitasTecnicasPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button className="w-full justify-start" data-testid="button-nueva-visita">
+            <Button 
+              className="w-full justify-start" 
+              onClick={handleNewVisit}
+              data-testid="button-nueva-visita"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Nueva Visita Técnica
             </Button>
@@ -220,7 +230,7 @@ export default function VisitasTecnicasPage() {
           <h2 className="text-2xl font-bold">Listado de Visitas</h2>
           <p className="text-muted-foreground">Gestiona y revisa todas las visitas técnicas</p>
         </div>
-        <Button data-testid="button-crear-visita">
+        <Button onClick={handleNewVisit} data-testid="button-crear-visita">
           <Plus className="w-4 h-4 mr-2" />
           Nueva Visita
         </Button>
@@ -330,7 +340,7 @@ export default function VisitasTecnicasPage() {
                   : 'Comienza creando tu primera visita técnica.'
                 }
               </p>
-              <Button data-testid="button-primera-visita">
+              <Button onClick={handleNewVisit} data-testid="button-primera-visita">
                 <Plus className="w-4 h-4 mr-2" />
                 Nueva Visita Técnica
               </Button>
@@ -401,6 +411,59 @@ export default function VisitasTecnicasPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Modal para nueva visita técnica */}
+      <Dialog open={showNewVisitModal} onOpenChange={setShowNewVisitModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nueva Visita Técnica</DialogTitle>
+            <DialogDescription>
+              Crea una nueva visita técnica para evaluar productos y servicios
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nombre de la Obra</label>
+                <Input placeholder="Ingresa el nombre de la obra" data-testid="input-nombre-obra" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Cliente</label>
+                <Input placeholder="Nombre del cliente" data-testid="input-cliente" />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Técnico</label>
+                <Input placeholder="Nombre del técnico asignado" data-testid="input-tecnico" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Fecha de Visita</label>
+                <Input type="date" data-testid="input-fecha-visita" />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Dirección</label>
+              <Input placeholder="Dirección de la obra" data-testid="input-direccion" />
+            </div>
+            
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => setShowNewVisitModal(false)} data-testid="button-cancelar">
+                Cancelar
+              </Button>
+              <Button onClick={() => {
+                // Aquí iría la lógica para crear la visita
+                setShowNewVisitModal(false);
+              }} data-testid="button-crear">
+                Crear Visita
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
