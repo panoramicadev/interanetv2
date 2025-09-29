@@ -6,7 +6,8 @@ import {
   Building2,
   Menu,
   X,
-  ChevronRight
+  ChevronRight,
+  ChevronDown
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
@@ -23,9 +24,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const handleLogout = () => {
     logoutMutation.mutate();
+  };
+
+  const toggleSubmenu = (itemHref: string) => {
+    setExpandedItems(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(itemHref)) {
+        newExpanded.delete(itemHref);
+      } else {
+        newExpanded.add(itemHref);
+      }
+      return newExpanded;
+    });
   };
 
   const getInitials = (firstName?: string | null, lastName?: string | null) => {
@@ -111,6 +125,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               const Icon = item.icon;
               const isActive = location === item.href;
               const itemKey = item.disabled ? `disabled-${index}` : item.href;
+              const isExpanded = expandedItems.has(item.href);
+              const hasChildren = item.children && item.children.length > 0;
               
               if (item.disabled) {
                 return (
@@ -135,18 +151,69 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               
               return (
                 <div key={item.href}>
-                  <Link href={item.href}>
-                    <Button
-                      variant="ghost"
-                      className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                        isActive ? "bg-slate-800 text-white" : ""
-                      }`}
-                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <Icon className="w-5 h-5 mr-3" />
-                      {item.label}
-                    </Button>
-                  </Link>
+                  {hasChildren ? (
+                    // Parent item with submenu
+                    <>
+                      <Button
+                        variant="ghost"
+                        onClick={() => toggleSubmenu(item.href)}
+                        className={`w-full justify-between text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                          isActive ? "bg-slate-800 text-white" : ""
+                        }`}
+                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <div className="flex items-center">
+                          <Icon className="w-5 h-5 mr-3" />
+                          {item.label}
+                        </div>
+                        <ChevronDown 
+                          className={`w-4 h-4 transition-transform duration-200 ${
+                            isExpanded ? "rotate-180" : ""
+                          }`} 
+                        />
+                      </Button>
+                      
+                      {/* Submenu items */}
+                      {isExpanded && (
+                        <div className="ml-6 mt-1 space-y-1">
+                          {item.children?.map((child) => {
+                            const ChildIcon = child.icon;
+                            const isChildActive = location === child.href || location.includes(child.href);
+                            
+                            return (
+                              <Link key={child.href} href={child.href}>
+                                <Button
+                                  variant="ghost"
+                                  className={`w-full justify-start text-slate-400 hover:text-white hover:bg-slate-800/30 text-sm ${
+                                    isChildActive ? "bg-slate-800/50 text-white" : ""
+                                  }`}
+                                  data-testid={`nav-submenu-${child.label.toLowerCase().replace(/\s+/g, '-')}`}
+                                >
+                                  <ChildIcon className="w-4 h-4 mr-3" />
+                                  {child.label}
+                                </Button>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    // Regular item without submenu
+                    <Link href={item.href}>
+                      <Button
+                        variant="ghost"
+                        className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                          isActive ? "bg-slate-800 text-white" : ""
+                        }`}
+                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <Icon className="w-5 h-5 mr-3" />
+                        {item.label}
+                      </Button>
+                    </Link>
+                  )}
+                  
                   {item.separator && (
                     <div className="border-b border-slate-700/50 my-2" />
                   )}

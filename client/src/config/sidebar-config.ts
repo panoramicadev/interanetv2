@@ -14,7 +14,8 @@ import {
   TrendingUp,
   Receipt,
   CheckCircle2,
-  FileCheck
+  FileCheck,
+  ChevronDown
 } from "lucide-react";
 
 interface SidebarItem {
@@ -24,6 +25,7 @@ interface SidebarItem {
   disabled?: boolean;
   comingSoon?: boolean;
   separator?: boolean; // Para mostrar separador después del item
+  children?: SidebarItem[]; // Para submenús desplegables
 }
 
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
@@ -47,16 +49,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/ordenes",
       label: "Transacciones Históricas",
       icon: Receipt,
-    },
-    {
-      href: "/presupuestos",
-      label: "Cotizaciones",
-      icon: FileText,
-    },
-    {
-      href: "/pedidos",
-      label: "Pedidos",
-      icon: CheckCircle2,
     },
     {
       href: "/usuarios",
@@ -88,6 +80,18 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
+      children: [
+        {
+          href: "/tomador-pedidos?tab=cotizaciones",
+          label: "Cotizaciones",
+          icon: FileText,
+        },
+        {
+          href: "/tomador-pedidos?tab=pedidos",
+          label: "Pedidos",
+          icon: CheckCircle2,
+        },
+      ],
     },
     {
       href: "/tareas",
@@ -131,16 +135,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Receipt,
     },
     {
-      href: "/presupuestos",
-      label: "Cotizaciones",
-      icon: FileText,
-    },
-    {
-      href: "/pedidos",
-      label: "Pedidos",
-      icon: CheckCircle2,
-    },
-    {
       href: "/usuarios",
       label: "Gestión de Usuarios",
       icon: User,
@@ -170,6 +164,18 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
+      children: [
+        {
+          href: "/tomador-pedidos?tab=cotizaciones",
+          label: "Cotizaciones",
+          icon: FileText,
+        },
+        {
+          href: "/tomador-pedidos?tab=pedidos",
+          label: "Pedidos",
+          icon: CheckCircle2,
+        },
+      ],
     },
     {
       href: "/tareas",
@@ -206,22 +212,24 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/ordenes",
       label: "Transacciones Históricas",
       icon: Receipt,
-    },
-    {
-      href: "/presupuestos",
-      label: "Cotizaciones",
-      icon: FileText,
-    },
-    {
-      href: "/pedidos",
-      label: "Pedidos",
-      icon: CheckCircle2,
       separator: true, // Separador antes de Tomador de Pedidos
     },
     {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
+      children: [
+        {
+          href: "/tomador-pedidos?tab=cotizaciones",
+          label: "Cotizaciones",
+          icon: FileText,
+        },
+        {
+          href: "/tomador-pedidos?tab=pedidos",
+          label: "Pedidos",
+          icon: CheckCircle2,
+        },
+      ],
     },
     {
       href: "/tareas",
