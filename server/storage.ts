@@ -7451,10 +7451,20 @@ export class DatabaseStorage implements IStorage {
       for (let i = 0; i < nvvData.length; i++) {
         const data = nvvData[i];
         try {
+          // Calculate the new columns as requested
+          const caprco2 = parseFloat(data.CAPRCO2?.toString() || '0');
+          const caprex2 = parseFloat(data.CAPREX2?.toString() || '0');
+          const ppprne = parseFloat(data.PPPRNE?.toString() || '0');
+          
+          const cantidadPendiente = caprco2 - caprex2;
+          const totalPendiente = ppprne * cantidadPendiente;
+          
           await db.insert(nvvPendingSales).values({
             ...data,
             importBatch,
             importedAt: new Date(),
+            cantidadPendiente: cantidadPendiente.toString(),
+            totalPendiente: totalPendiente.toString(),
           });
           result.successfulImports++;
         } catch (error) {
