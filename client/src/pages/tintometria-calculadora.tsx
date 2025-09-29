@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
@@ -33,15 +33,222 @@ interface CostCalculation {
   suggestedPrice?: number;
 }
 
+// Color wheel component
+const ColorWheel = ({ onColorSelect, selectedColor }: { 
+  onColorSelect: (color: Color) => void;
+  selectedColor: Color | null;
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawn, setIsDrawn] = useState(false);
+  
+  const { data: colores = [] } = useQuery<Color[]>({
+    queryKey: ['/api/tintometria/colores'],
+  });
+
+  // Paleta de colores con posiciones angulares
+  const colorMap = [
+    { angle: 0, color: '#FF0000', name: 'Rojo', keywords: ['rojo', 'red', 'cereza'] },
+    { angle: 30, color: '#FF8000', name: 'Naranja', keywords: ['naranja', 'orange', 'atardecer'] },
+    { angle: 60, color: '#FFFF00', name: 'Amarillo', keywords: ['amarillo', 'yellow', 'sol'] },
+    { angle: 90, color: '#80FF00', name: 'Lima', keywords: ['lima', 'lime'] },
+    { angle: 120, color: '#00FF00', name: 'Verde', keywords: ['verde', 'green', 'bosque'] },
+    { angle: 150, color: '#00FF80', name: 'Verde Azul', keywords: ['verde', 'azul'] },
+    { angle: 180, color: '#00FFFF', name: 'Cian', keywords: ['cian', 'cyan'] },
+    { angle: 210, color: '#0080FF', name: 'Azul Claro', keywords: ['azul', 'blue'] },
+    { angle: 240, color: '#0000FF', name: 'Azul', keywords: ['azul', 'blue', 'océano', 'marino'] },
+    { angle: 270, color: '#8000FF', name: 'Violeta', keywords: ['violeta', 'purple', 'real'] },
+    { angle: 300, color: '#FF00FF', name: 'Magenta', keywords: ['magenta'] },
+    { angle: 330, color: '#FF0080', name: 'Rosa', keywords: ['rosa', 'pink'] },
+    { angle: -1, color: '#FFFFFF', name: 'Blanco', keywords: ['blanco', 'white', 'nieve'] },
+    { angle: -2, color: '#808080', name: 'Gris', keywords: ['gris', 'gray', 'perla'] },
+    { angle: -3, color: '#000000', name: 'Negro', keywords: ['negro', 'black', 'profundo'] },
+  ];
+
+  const findMatchingColor = (colorInfo: typeof colorMap[0]) => {
+    return colores.find(color => 
+      colorInfo.keywords.some(keyword => 
+        color.nombreColor.toLowerCase().includes(keyword.toLowerCase())
+      )
+    );
+  };
+
+  const drawColorWheel = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 10;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw color wheel
+    const segments = 360;
+    for (let i = 0; i < segments; i++) {
+      const angle = (i * Math.PI * 2) / segments;
+      const nextAngle = ((i + 1) * Math.PI * 2) / segments;
+      
+      const hue = (i / segments) * 360;
+      
+      // Draw multiple rings for saturation
+      for (let r = 0; r < radius; r += 2) {
+        const saturation = (r / radius) * 100;
+        const lightness = 50 + (1 - r / radius) * 30; // Lighter towards center
+        
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r, angle, nextAngle);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        ctx.stroke();
+      }
+    }
+    
+    // Draw white center
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 30, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+    ctx.strokeStyle = '#CCCCCC';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Draw black, gray, white sections at bottom
+    const bottomY = centerY + radius + 20;
+    const sectionWidth = 40;
+    
+    // White
+    ctx.beginPath();
+    ctx.rect(centerX - 60, bottomY, sectionWidth, 30);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+    ctx.strokeStyle = '#CCCCCC';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Gray
+    ctx.beginPath();
+    ctx.rect(centerX - 20, bottomY, sectionWidth, 30);
+    ctx.fillStyle = '#808080';
+    ctx.fill();
+    ctx.strokeStyle = '#CCCCCC';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    // Black
+    ctx.beginPath();
+    ctx.rect(centerX + 20, bottomY, sectionWidth, 30);
+    ctx.fillStyle = '#000000';
+    ctx.fill();
+    ctx.strokeStyle = '#CCCCCC';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    setIsDrawn(true);
+  }, []);
+
+  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 10;
+    
+    // Check if click is in the wheel
+    const dx = x - centerX;
+    const dy = y - centerY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance <= radius) {
+      // Calculate angle
+      let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      if (angle < 0) angle += 360;
+      
+      // Find closest color
+      let closestColor = colorMap[0];
+      let minDiff = 360;
+      
+      for (const colorInfo of colorMap) {
+        if (colorInfo.angle < 0) continue; // Skip special colors
+        const diff = Math.abs(angle - colorInfo.angle);
+        const diffWrapped = Math.abs(angle - colorInfo.angle + 360);
+        const diffWrapped2 = Math.abs(angle - colorInfo.angle - 360);
+        const minColorDiff = Math.min(diff, diffWrapped, diffWrapped2);
+        
+        if (minColorDiff < minDiff) {
+          minDiff = minColorDiff;
+          closestColor = colorInfo;
+        }
+      }
+      
+      const matchingColor = findMatchingColor(closestColor);
+      if (matchingColor) {
+        onColorSelect(matchingColor);
+      }
+    }
+    
+    // Check clicks on bottom sections
+    const bottomY = centerY + radius + 20;
+    if (y >= bottomY && y <= bottomY + 30) {
+      if (x >= centerX - 60 && x <= centerX - 20) {
+        // White clicked
+        const whiteColor = findMatchingColor(colorMap.find(c => c.angle === -1)!);
+        if (whiteColor) onColorSelect(whiteColor);
+      } else if (x >= centerX - 20 && x <= centerX + 20) {
+        // Gray clicked
+        const grayColor = findMatchingColor(colorMap.find(c => c.angle === -2)!);
+        if (grayColor) onColorSelect(grayColor);
+      } else if (x >= centerX + 20 && x <= centerX + 60) {
+        // Black clicked
+        const blackColor = findMatchingColor(colorMap.find(c => c.angle === -3)!);
+        if (blackColor) onColorSelect(blackColor);
+      }
+    }
+  };
+
+  React.useEffect(() => {
+    if (colores.length > 0 && !isDrawn) {
+      drawColorWheel();
+    }
+  }, [colores, drawColorWheel, isDrawn]);
+
+  return (
+    <div className="flex flex-col items-center space-y-4">
+      <canvas
+        ref={canvasRef}
+        width={300}
+        height={350}
+        className="cursor-pointer border rounded-lg"
+        onClick={handleCanvasClick}
+        data-testid="color-wheel"
+      />
+      {selectedColor && (
+        <div className="text-center p-3 bg-secondary/50 rounded-lg">
+          <div className="font-medium">{selectedColor.nombreColor}</div>
+          <div className="text-sm text-muted-foreground">Código: {selectedColor.colorId}</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function TintometriaCalculadora() {
   const { toast } = useToast();
-  const [selectedColorId, setSelectedColorId] = useState('');
+  const [selectedColor, setSelectedColor] = useState<Color | null>(null);
   const [selectedEnvaseId, setSelectedEnvaseId] = useState('');
   const [calculation, setCalculation] = useState<CostCalculation | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  // Queries for colores and envases
-  const { data: colores = [], isLoading: loadingColores } = useQuery<Color[]>({
+  // Query for envases
+  const { data: colores = [] } = useQuery<Color[]>({
     queryKey: ['/api/tintometria/colores'],
   });
 
@@ -50,7 +257,7 @@ export default function TintometriaCalculadora() {
   });
 
   const handleCalculate = async () => {
-    if (!selectedColorId || !selectedEnvaseId) {
+    if (!selectedColor || !selectedEnvaseId) {
       toast({
         title: 'Campos requeridos',
         description: 'Por favor selecciona un color y un envase',
@@ -64,7 +271,7 @@ export default function TintometriaCalculadora() {
       const response = await apiRequest('/api/tintometria/calculate', {
         method: 'POST',
         data: {
-          colorId: selectedColorId,
+          colorId: selectedColor.colorId,
           envaseId: selectedEnvaseId,
         },
       });
@@ -86,7 +293,7 @@ export default function TintometriaCalculadora() {
   };
 
   const resetCalculation = () => {
-    setSelectedColorId('');
+    setSelectedColor(null);
     setSelectedEnvaseId('');
     setCalculation(null);
   };
@@ -117,23 +324,11 @@ export default function TintometriaCalculadora() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="color-select">Color</Label>
-              <Select 
-                value={selectedColorId} 
-                onValueChange={setSelectedColorId}
-                disabled={loadingColores}
-              >
-                <SelectTrigger id="color-select" data-testid="select-color">
-                  <SelectValue placeholder={loadingColores ? "Cargando colores..." : "Selecciona un color"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {colores.map((color: Color) => (
-                    <SelectItem key={color.colorId} value={color.colorId}>
-                      {color.nombreColor} ({color.colorId})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Color</Label>
+              <ColorWheel 
+                onColorSelect={setSelectedColor} 
+                selectedColor={selectedColor}
+              />
             </div>
 
             <div className="space-y-2">
@@ -159,7 +354,7 @@ export default function TintometriaCalculadora() {
             <div className="flex gap-2 pt-4">
               <Button 
                 onClick={handleCalculate}
-                disabled={isCalculating || !selectedColorId || !selectedEnvaseId}
+                disabled={isCalculating || !selectedColor || !selectedEnvaseId}
                 className="flex-1"
                 data-testid="button-calculate"
               >
@@ -209,7 +404,7 @@ export default function TintometriaCalculadora() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="space-y-2">
                     <div className="font-medium text-muted-foreground">Color:</div>
-                    <div data-testid="result-color">{calculation.colorId}</div>
+                    <div data-testid="result-color">{selectedColor?.nombreColor}</div>
                   </div>
                   <div className="space-y-2">
                     <div className="font-medium text-muted-foreground">Envase:</div>
