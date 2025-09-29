@@ -21,7 +21,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 // HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
@@ -254,6 +254,33 @@ function EditOrderForm({ order, onClose }: EditOrderFormProps) {
 }
 
 export default function TomadorPedidos() {
+  const [location, navigate] = useLocation();
+  
+  // Tab management with URL sync
+  const getActiveTabFromUrl = () => {
+    const searchParams = new URLSearchParams(location.split('?')[1] || '');
+    const tab = searchParams.get('tab');
+    return tab === 'cotizaciones' || tab === 'pedidos' ? tab : 'constructor';
+  };
+  
+  const [activeTab, setActiveTab] = useState(getActiveTabFromUrl);
+  
+  // Update URL when tab changes
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab);
+    const currentPath = location.split('?')[0];
+    if (newTab === 'constructor') {
+      navigate(currentPath); // Remove query param for default tab
+    } else {
+      navigate(`${currentPath}?tab=${newTab}`);
+    }
+  };
+  
+  // Update active tab when URL changes
+  useEffect(() => {
+    setActiveTab(getActiveTabFromUrl());
+  }, [location]);
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [showQuoteBuilder, setShowQuoteBuilder] = useState(false);
@@ -1363,37 +1390,54 @@ export default function TomadorPedidos() {
         : 'px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4'
     }`}>
       <div className={`space-y-6 ${isMobile ? 'space-y-5' : ''}`}>
-        {/* Header - Subtle Mobile Design */}
+        {/* Header */}
         <div className={`${isMobile ? 'space-y-3' : 'space-y-4'}`}>
-          <div className={`${isMobile ? 'space-y-4' : 'flex justify-between items-start'}`}>
-            <div>
-              <h1 className={`font-semibold text-foreground ${
-                isMobile ? 'text-xl mb-1' : 'text-2xl sm:text-3xl'
-              }`}>
-                Tomador de Pedidos
-              </h1>
-              <p className={`text-muted-foreground ${
-                isMobile ? 'text-sm' : ''
-              }`}>
-                Busca clientes y crea pedidos
-              </p>
-            </div>
-            <Button
-              onClick={handleCreateQuoteForNewClient}
-              className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
-                isMobile ? 'w-full h-10 text-sm font-medium' : ''
-              }`}
-              size={isMobile ? "sm" : "lg"}
-              data-testid="button-create-quote-new-client"
-            >
-              <Calculator className="w-4 h-4" />
-              {isMobile ? "Nuevo Presupuesto" : "Crear Presupuesto"}
-            </Button>
+          <div>
+            <h1 className={`font-semibold text-foreground ${
+              isMobile ? 'text-xl mb-1' : 'text-2xl sm:text-3xl'
+            }`}>
+              Tomador de Pedidos
+            </h1>
+            <p className={`text-muted-foreground ${
+              isMobile ? 'text-sm' : ''
+            }`}>
+              Constructor de presupuestos, cotizaciones y pedidos
+            </p>
           </div>
         </div>
 
-        {/* Client Search Section - Mobile Optimized */}
-        <Card className={isMobile ? 'border-2 shadow-md' : ''}>
+        {/* Main Tabs */}
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="constructor" data-testid="tab-constructor">
+              Constructor
+            </TabsTrigger>
+            <TabsTrigger value="cotizaciones" data-testid="tab-cotizaciones">
+              Cotizaciones
+            </TabsTrigger>
+            <TabsTrigger value="pedidos" data-testid="tab-pedidos">
+              Pedidos
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="constructor" className="space-y-6">
+            {/* Create Quote Button */}
+            <div className={`${isMobile ? 'space-y-4' : 'flex justify-end'}`}>
+              <Button
+                onClick={handleCreateQuoteForNewClient}
+                className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
+                  isMobile ? 'w-full h-10 text-sm font-medium' : ''
+                }`}
+                size={isMobile ? "sm" : "lg"}
+                data-testid="button-create-quote-new-client"
+              >
+                <Calculator className="w-4 h-4" />
+                {isMobile ? "Nuevo Presupuesto" : "Crear Presupuesto"}
+              </Button>
+            </div>
+
+            {/* Client Search Section - Mobile Optimized */}
+            <Card className={isMobile ? 'border-2 shadow-md' : ''}>
           <CardHeader className={isMobile ? 'pb-4' : ''}>
             <CardTitle className={`flex items-center gap-2 ${
               isMobile ? 'text-xl' : ''
@@ -1674,6 +1718,36 @@ export default function TomadorPedidos() {
             )}
           </CardContent>
         </Card>
+      </div>
+    </div>
+          </TabsContent>
+
+          <TabsContent value="cotizaciones" className="space-y-6">
+            {/* Placeholder for Quotes List Component */}
+            <div className="text-center py-12">
+              <FileText className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Cotizaciones
+              </h3>
+              <p className="text-gray-500">
+                Vista de cotizaciones en desarrollo...
+              </p>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="pedidos" className="space-y-6">
+            {/* Placeholder for Orders List Component */}
+            <div className="text-center py-12">
+              <Package className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Pedidos
+              </h3>
+              <p className="text-gray-500">
+                Vista de pedidos en desarrollo...
+              </p>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
 
