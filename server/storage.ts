@@ -7448,35 +7448,74 @@ export class DatabaseStorage implements IStorage {
     };
 
     try {
-      for (let i = 0; i < nvvData.length; i++) {
-        const data = nvvData[i];
-        try {
-          // Calculate the new columns as requested
-          const caprco2 = parseFloat(data.CAPRCO2?.toString() || '0');
-          const caprex2 = parseFloat(data.CAPREX2?.toString() || '0');
-          const ppprne = parseFloat(data.PPPRNE?.toString() || '0');
-          
-          const cantidadPendiente = caprco2 - caprex2;
-          const totalPendiente = ppprne * cantidadPendiente;
-          
-          await db.insert(nvvPendingSales).values({
-            ...data,
-            importBatch,
-            importedAt: new Date(),
-            cantidadPendiente: cantidadPendiente.toString(),
-            totalPendiente: totalPendiente.toString(),
-          });
-          result.successfulImports++;
-        } catch (error) {
-          console.error(`Error importing NVV row ${i + 1}:`, error);
-          result.errors.push({
-            row: i + 1,
-            message: error instanceof Error ? error.message : 'Error desconocido',
-            data: data,
-          });
+      const BATCH_SIZE = 100;
+      let totalInserted = 0;
+      let totalSkipped = 0;
+
+      // Process in batches to handle large imports efficiently
+      for (let i = 0; i < nvvData.length; i += BATCH_SIZE) {
+        const batch = nvvData.slice(i, i + BATCH_SIZE);
+        const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(nvvData.length / BATCH_SIZE);
+        
+        // Get unique IDMAEEDO values from this batch to check for duplicates
+        const batchIds = Array.from(new Set(batch.map(t => t.IDMAEEDO)));
+        
+        // Check which IDMAEEDO values already exist in NVV database
+        const validBatchIds = batchIds.filter(id => id != null && id !== '').map(id => id!.toString());
+        
+        const existingIds = validBatchIds.length > 0 ? await db
+          .select({ IDMAEEDO: nvvPendingSales.IDMAEEDO })
+          .from(nvvPendingSales)
+          .where(inArray(nvvPendingSales.IDMAEEDO, validBatchIds.map(id => sql`${id}::numeric`))) : [];
+        
+        const existingIdSet = new Set(existingIds.map(row => row.IDMAEEDO?.toString()));
+        
+        // Filter out NVV records with existing IDMAEEDO (avoid duplicates)
+        const newNvvRecords = batch.filter(nvvRecord => 
+          !existingIdSet.has(nvvRecord.IDMAEEDO?.toString() || '')
+        );
+        
+        const batchSkipped = batch.length - newNvvRecords.length;
+
+        // Process each new record with calculations
+        for (let j = 0; j < newNvvRecords.length; j++) {
+          const data = newNvvRecords[j];
+          try {
+            // Calculate the new columns as requested
+            const caprco2 = parseFloat(data.CAPRCO2?.toString() || '0');
+            const caprex2 = parseFloat(data.CAPREX2?.toString() || '0');
+            const ppprne = parseFloat(data.PPPRNE?.toString() || '0');
+            
+            const cantidadPendiente = caprco2 - caprex2;
+            const totalPendiente = ppprne * cantidadPendiente;
+            
+            await db.insert(nvvPendingSales).values({
+              ...data,
+              importBatch,
+              importedAt: new Date(),
+              cantidadPendiente: cantidadPendiente.toString(),
+              totalPendiente: totalPendiente.toString(),
+            });
+            result.successfulImports++;
+            totalInserted++;
+          } catch (error) {
+            console.error(`Error importing NVV row ${i + j + 1}:`, error);
+            result.errors.push({
+              row: i + j + 1,
+              message: error instanceof Error ? error.message : 'Error desconocido',
+              data: data,
+            });
+          }
         }
+        
+        totalSkipped += batchSkipped;
+        
+        console.log(`📦 NVV Batch ${batchNumber}/${totalBatches}: Inserted ${newNvvRecords.length}, Skipped ${batchSkipped} duplicates`);
       }
 
+      console.log(`✅ NVV Import completed: ${totalInserted} new records imported, ${totalSkipped} duplicates skipped`);
+      
       if (result.errors.length > 0) {
         result.success = result.successfulImports > 0;
       }
@@ -7486,7 +7525,7 @@ export class DatabaseStorage implements IStorage {
       result.success = false;
       result.errors.push({
         row: 0,
-        message: 'Error general durante la importación',
+        message: 'Error general durante la importación: ' + (error instanceof Error ? error.message : 'Error desconocido'),
       });
     }
 
