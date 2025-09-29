@@ -34,6 +34,8 @@ import Carrito from "@/pages/carrito";
 import QuotesPage from "@/pages/quotes";
 import OrdersPage from "@/pages/orders";
 import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
+import TintometriaAdmin from "@/pages/tintometria-admin";
+import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -104,6 +106,16 @@ function Router() {
             <Route path="/tomador-pedidos" component={TomadorPedidos} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
+            
+            {/* Rutas de Tintometría */}
+            <Route path="/tintometria" component={() => {
+              // Redirect to admin by default
+              window.location.replace('/tintometria/admin');
+              return null;
+            }} />
+            <Route path="/tintometria/admin" component={TintometriaAdmin} />
+            <Route path="/tintometria/calculadora" component={TintometriaCalculadora} />
+            
             <Route path="/segment/:segmentName" component={SegmentDetail} />
             <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
             <Route path="/client/:clientName" component={ClientDetail} />
