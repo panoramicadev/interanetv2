@@ -849,7 +849,8 @@ export default function TomadorPedidos() {
         savedQuote = await response.json();
 
         // Delete existing items and add new ones
-        const existingItems = await apiRequest(`/api/quotes/${editingQuoteId}/items`).catch(() => []);
+        const existingItemsResponse = await apiRequest(`/api/quotes/${editingQuoteId}/items`).catch(() => null);
+        const existingItems = existingItemsResponse ? await existingItemsResponse.json() : [];
         for (const existingItem of existingItems) {
           await apiRequest(`/api/quote-items/${existingItem.id}`, { method: 'DELETE' }).catch(() => {});
         }
@@ -1448,7 +1449,8 @@ export default function TomadorPedidos() {
         quote = await response.json();
 
         // Delete existing items and add new ones
-        const existingItems = await apiRequest(`/api/quotes/${editingQuoteId}/items`).catch(() => []);
+        const existingItemsResponse = await apiRequest(`/api/quotes/${editingQuoteId}/items`).catch(() => null);
+        const existingItems = existingItemsResponse ? await existingItemsResponse.json() : [];
         for (const existingItem of existingItems) {
           await apiRequest(`/api/quote-items/${existingItem.id}`, { method: 'DELETE' }).catch(() => {});
         }
