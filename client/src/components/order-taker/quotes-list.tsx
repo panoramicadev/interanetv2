@@ -126,20 +126,11 @@ export default function QuotesList() {
   // Mutation to duplicate quote for editing
   const duplicateQuoteMutation = useMutation({
     mutationFn: async (quoteId: string) => {
-      console.log('🔄 Iniciando duplicación de quote:', quoteId);
-      try {
-        const result = await apiRequest(`/api/quotes/${quoteId}/duplicate`, {
-          method: 'POST',
-        });
-        console.log('✅ API Response recibida:', result);
-        return result;
-      } catch (error) {
-        console.error('❌ Error en mutationFn:', error);
-        throw error;
-      }
+      return await apiRequest(`/api/quotes/${quoteId}/duplicate`, {
+        method: 'POST',
+      });
     },
     onSuccess: (newQuote) => {
-      console.log('✅ Duplicación exitosa, newQuote:', newQuote);
       toast({
         title: "Cotización duplicada",
         description: `Nueva cotización #${newQuote.quoteNumber} creada para editar. Abriendo editor...`,
@@ -152,9 +143,7 @@ export default function QuotesList() {
       });
       
       // Navigate immediately to tomador de pedidos with the new quote ID
-      const navigationUrl = `/tomador-pedidos?quoteId=${newQuote.id}`;
-      console.log('🔄 Navegando a:', navigationUrl);
-      navigate(navigationUrl);
+      navigate(`/tomador-pedidos?quoteId=${newQuote.id}`);
     },
     onError: (error: any) => {
       toast({
