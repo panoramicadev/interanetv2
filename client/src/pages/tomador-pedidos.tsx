@@ -313,8 +313,11 @@ export default function TomadorPedidos() {
   const loadQuoteForEditing = async (quoteId: string) => {
     try {
       // Load quote and items using consistent apiRequest
-      const quote = await apiRequest(`/api/quotes/${quoteId}`);
-      const items = await apiRequest(`/api/quotes/${quoteId}/items`).catch(() => []); // Fallback to empty array if items endpoint fails
+      const quoteResponse = await apiRequest(`/api/quotes/${quoteId}`);
+      const quote = await quoteResponse.json();
+      
+      const itemsResponse = await apiRequest(`/api/quotes/${quoteId}/items`).catch(() => null);
+      const items = itemsResponse ? await itemsResponse.json() : [];
       
       // Set editing mode
       setEditingQuoteId(quoteId);
