@@ -1410,89 +1410,114 @@ export default function TomadorPedidos() {
             {debouncedSearchTerm.length >= 2 && (
               <div className="space-y-4">
                 {isLoadingClients ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {[...Array(3)].map((_, i) => (
-                      <div key={i} className="flex items-center space-x-4 p-4 border rounded-lg">
-                        <Skeleton className="h-12 w-12 rounded-full" />
-                        <div className="space-y-2 flex-1">
-                          <Skeleton className="h-4 w-[250px]" />
-                          <Skeleton className="h-4 w-[200px]" />
-                        </div>
-                        <Skeleton className="h-10 w-32" />
-                      </div>
+                      <Card key={i} className={isMobile ? 'border-2' : ''}>
+                        <CardContent className={`${isMobile ? 'p-6' : 'p-4'} space-y-4`}>
+                          <div className="flex items-center space-x-4">
+                            <Skeleton className={`${isMobile ? 'h-14 w-14' : 'h-12 w-12'} rounded-full`} />
+                            <div className="space-y-2 flex-1">
+                              <Skeleton className="h-4 w-[250px]" />
+                              <Skeleton className="h-4 w-[200px]" />
+                              <Skeleton className="h-3 w-[180px]" />
+                            </div>
+                          </div>
+                          <div className={`${isMobile ? 'grid grid-cols-2 gap-3' : 'flex gap-2'}`}>
+                            <Skeleton className={`${isMobile ? 'h-12' : 'h-10'} flex-1`} />
+                            <Skeleton className={`${isMobile ? 'h-12' : 'h-10'} flex-1`} />
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 ) : clients.length > 0 ? (
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                  <div className={`space-y-4 max-h-96 overflow-y-auto ${isMobile ? 'space-y-6' : ''}`}>
                     {clients.map((client: Client) => (
-                      <div
+                      <Card
                         key={client.id}
-                        className={`p-4 border rounded-lg hover:bg-muted/50 transition-colors ${
-                          isMobile ? 'space-y-4' : 'flex items-center justify-between'
+                        className={`hover:shadow-md transition-all duration-200 ${
+                          isMobile ? 'border-2 shadow-sm' : ''
                         }`}
                       >
-                        <div className={`${isMobile ? 'space-y-3' : 'flex items-center space-x-4 flex-1'}`}>
-                          <div className={`${isMobile ? 'flex items-center space-x-3' : 'contents'}`}>
-                            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                              <User className="w-6 h-6 text-primary" />
+                        <CardContent className={`${isMobile ? 'p-6' : 'p-4'}`}>
+                          {/* Client Header */}
+                          <div className="flex items-start space-x-4 mb-4">
+                            <div className={`${isMobile ? 'w-14 h-14' : 'w-12 h-12'} bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0`}>
+                              <User className={`${isMobile ? 'w-7 h-7' : 'w-6 h-6'} text-primary`} />
                             </div>
-                            <div className={`space-y-1 ${isMobile ? 'flex-1' : 'flex-1 min-w-0'}`}>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="font-medium text-foreground truncate" data-testid={`text-client-name-${client.id}`}>
+                            <div className="flex-1 min-w-0 space-y-2">
+                              <div>
+                                <h3 className={`font-semibold text-foreground ${isMobile ? 'text-lg leading-tight' : 'text-base'}`} data-testid={`text-client-name-${client.id}`}>
                                   {client.nokoen}
                                 </h3>
                                 {client.rten && (
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge variant="outline" className={`${isMobile ? 'text-sm mt-1' : 'text-xs mt-1'} font-medium`}>
                                     RUT: {client.rten}
                                   </Badge>
                                 )}
                               </div>
-                              <div className="space-y-1 text-sm text-muted-foreground">
+                              
+                              {/* Client Details */}
+                              <div className="space-y-2">
                                 {client.dien && (
-                                  <div className="flex items-center gap-1">
-                                    <MapPin className="w-3 h-3" />
-                                    <span className="truncate">{client.dien}{client.cmen ? `, ${client.cmen}` : ''}</span>
+                                  <div className="flex items-center gap-2">
+                                    <MapPin className={`${isMobile ? 'w-4 h-4' : 'w-3 h-3'} text-muted-foreground flex-shrink-0`} />
+                                    <span className={`text-muted-foreground ${isMobile ? 'text-sm leading-relaxed' : 'text-sm'}`}>
+                                      {client.dien}{client.cmen ? `, ${client.cmen}` : ''}
+                                    </span>
                                   </div>
                                 )}
                                 {client.foen && (
-                                  <div className="flex items-center gap-1">
-                                    <Phone className="w-3 h-3" />
-                                    <span>{client.foen}</span>
+                                  <div className="flex items-center gap-2">
+                                    <Phone className={`${isMobile ? 'w-4 h-4' : 'w-3 h-3'} text-muted-foreground flex-shrink-0`} />
+                                    <span className={`text-muted-foreground ${isMobile ? 'text-sm' : 'text-sm'}`}>
+                                      {client.foen}
+                                    </span>
                                   </div>
                                 )}
                                 {client.crlt && (
-                                  <div className="text-xs">
-                                    Límite crédito: {formatCurrency(Number(client.crlt))} | 
-                                    Disponible: {formatCurrency(Number(client.cren) || 0)}
+                                  <div className={`${isMobile ? 'p-3 bg-muted/50 rounded-md' : ''} ${isMobile ? 'text-sm' : 'text-xs'} text-muted-foreground`}>
+                                    <div className="flex justify-between items-center">
+                                      <span>Límite crédito:</span>
+                                      <span className="font-medium">{formatCurrency(Number(client.crlt))}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-1">
+                                      <span>Disponible:</span>
+                                      <span className="font-medium text-green-600">{formatCurrency(Number(client.cren) || 0)}</span>
+                                    </div>
                                   </div>
                                 )}
                               </div>
                             </div>
                           </div>
-                        </div>
-                        <div className={`${isMobile ? 'flex gap-2' : 'flex items-center gap-2 ml-4'}`}>
-                          <Button
-                            variant="outline"
-                            data-testid={`button-create-quote-${client.id}`}
-                            onClick={() => handleCreateQuoteForClient(client)}
-                            className={`flex items-center gap-2 ${isMobile ? 'flex-1 h-12' : ''}`}
-                            size={isMobile ? "lg" : "default"}
-                          >
-                            <Calculator className="w-4 h-4" />
-                            {isMobile ? "Presupuesto" : "Presupuesto"}
-                          </Button>
-                          <Button
-                            data-testid={`button-create-order-${client.id}`}
-                            onClick={() => handleCreateOrder(client)}
-                            disabled={createOrderMutation.isPending}
-                            className={`flex items-center gap-2 ${isMobile ? 'flex-1 h-12' : ''}`}
-                            size={isMobile ? "lg" : "default"}
-                          >
-                            <ShoppingCart className="w-4 h-4" />
-                            {createOrderMutation.isPending ? "Creando..." : (isMobile ? "Pedido" : "Crear Pedido")}
-                          </Button>
-                        </div>
-                      </div>
+                          
+                          {/* Action Buttons - Optimized for Touch */}
+                          <div className={`${isMobile ? 'grid grid-cols-2 gap-3' : 'flex items-center gap-2'}`}>
+                            <Button
+                              variant="outline"
+                              data-testid={`button-create-quote-${client.id}`}
+                              onClick={() => handleCreateQuoteForClient(client)}
+                              className={`flex items-center justify-center gap-2 ${
+                                isMobile ? 'h-12 text-base font-medium' : 'h-10'
+                              }`}
+                            >
+                              <Calculator className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
+                              Presupuesto
+                            </Button>
+                            <Button
+                              data-testid={`button-create-order-${client.id}`}
+                              onClick={() => handleCreateOrder(client)}
+                              disabled={createOrderMutation.isPending}
+                              className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
+                                isMobile ? 'h-12 text-base font-medium' : 'h-10'
+                              }`}
+                            >
+                              <ShoppingCart className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
+                              {createOrderMutation.isPending ? "Creando..." : "Pedido"}
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 ) : (
