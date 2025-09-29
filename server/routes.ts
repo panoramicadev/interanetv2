@@ -5350,7 +5350,7 @@ export function registerRoutes(app: Express): Server {
 
   // Get NVV pending sales data
   app.get('/api/nvv/pending', requireAuth, asyncHandler(async (req: any, res: any) => {
-    const { status, salesperson, segment, startDate, endDate, limit = 100, offset = 0 } = req.query;
+    const { status, salesperson, segment, startDate, endDate, limit = 500, offset = 0 } = req.query;
     
     const options: any = {
       limit: parseInt(limit),
@@ -5365,6 +5365,20 @@ export function registerRoutes(app: Express): Server {
 
     const pendingSales = await storage.getNvvPendingSales(options);
     res.json(pendingSales);
+  }));
+
+  // Get NVV total summary without date filters
+  app.get('/api/nvv/total', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const totalSummary = await storage.getNvvTotalSummary();
+      res.json(totalSummary);
+    } catch (error) {
+      console.error('Error fetching NVV total summary:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener sumatoria total NVV'
+      });
+    }
   }));
 
   // Get NVV summary metrics

@@ -7493,6 +7493,33 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  async getNvvTotalSummary(): Promise<{
+    totalAmount: number;
+    totalRecords: number;
+  }> {
+    try {
+      // Get total amount from totalPendiente column (direct sum)
+      const totalResult = await db
+        .select({
+          totalAmount: sql`COALESCE(SUM(CAST(${nvvPendingSales.totalPendiente} AS NUMERIC)), 0)`,
+          totalRecords: sql`COUNT(*)`
+        })
+        .from(nvvPendingSales);
+
+      const result = totalResult[0];
+      return {
+        totalAmount: parseFloat(result.totalAmount?.toString() || '0'),
+        totalRecords: parseInt(result.totalRecords?.toString() || '0')
+      };
+    } catch (error) {
+      console.error('Error fetching NVV total summary:', error);
+      return {
+        totalAmount: 0,
+        totalRecords: 0
+      };
+    }
+  }
+
   async getNvvPendingSales(options: {
     status?: string;
     salesperson?: string;
