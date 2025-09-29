@@ -16,8 +16,10 @@ import {
   Send,
   Package,
   Copy,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 
@@ -100,6 +102,7 @@ export default function QuotesList() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
   const { toast } = useToast();
+  const { user } = useAuth();
   const [, navigate] = useLocation();
 
   // Build query parameters
@@ -156,6 +159,41 @@ export default function QuotesList() {
 
   const handleDuplicateForEdit = (quoteId: string) => {
     duplicateQuoteMutation.mutate(quoteId);
+  };
+
+  // Mutation to delete quote
+  const deleteQuoteMutation = useMutation({
+    mutationFn: async (quoteId: string) => {
+      return await apiRequest(`/api/quotes/${quoteId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Cotización eliminada",
+        description: "La cotización ha sido eliminada exitosamente.",
+      });
+      // Invalidate all quote queries
+      queryClient.invalidateQueries({ 
+        predicate: (query) => 
+          typeof query.queryKey[0] === 'string' && 
+          (query.queryKey[0] as string).startsWith('/api/quotes')
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al eliminar",
+        description: error.message || "No se pudo eliminar la cotización",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteQuote = (quoteId: string, quoteNumber: string) => {
+    // Simple confirmation using window.confirm
+    if (window.confirm(`¿Estás seguro de que deseas eliminar la cotización ${quoteNumber}? Esta acción no se puede deshacer.`)) {
+      deleteQuoteMutation.mutate(quoteId);
+    }
   };
 
   const formatCurrency = (amount: string | number) => {
@@ -432,6 +470,17 @@ export default function QuotesList() {
                               >
                                 <Copy className="w-4 h-4 mr-2" />
                                 {duplicateQuoteMutation.isPending ? 'Duplicando...' : 'Duplicar para editar'}
+                              </DropdownMenuItem>
+                            )}
+                            {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                              <DropdownMenuItem 
+                                data-testid={`button-delete-quote-${quote.id}`}
+                                onClick={() => handleDeleteQuote(quote.id, quote.quoteNumber)}
+                                disabled={deleteQuoteMutation.isPending}
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                {deleteQuoteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
                               </DropdownMenuItem>
                             )}
                             {(quote.status === 'accepted' || quote.status === 'sent') && (
