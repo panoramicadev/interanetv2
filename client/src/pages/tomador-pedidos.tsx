@@ -2854,8 +2854,8 @@ export default function TomadorPedidos() {
       </DialogContent>
     </Dialog>
     
-    {/* Mobile Bottom Navigation Bar */}
-    {isMobile && (
+    {/* Mobile Bottom Navigation Bar - Hidden per user request */}
+    {/* {isMobile && (
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t-2 border-orange-200 px-4 py-3 z-50">
         <div className="flex items-center justify-around max-w-md mx-auto">
           <div className="text-center">
@@ -2912,10 +2912,10 @@ export default function TomadorPedidos() {
           </div>
         </div>
       </div>
-    )}
+    )} */}
     
-    {/* Add bottom padding to prevent content being hidden behind mobile nav */}
-    {isMobile && <div className="h-20" />}
+    {/* Bottom padding removed since mobile nav is hidden */}
+    {/* {isMobile && <div className="h-20" />} */}
     </>
   );
 }
