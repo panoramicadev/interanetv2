@@ -202,6 +202,49 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     }
   };
 
+  // Mutation to update quote status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ quoteId, status }: { quoteId: string; status: Quote['status'] }) => {
+      return await apiRequest(`/api/quotes/${quoteId}/status`, {
+        method: 'PATCH',
+        data: { status }
+      });
+    },
+    onSuccess: (updatedQuote: any) => {
+      toast({
+        title: "Estado actualizado",
+        description: `Cotización ${updatedQuote?.quoteNumber || 'N/A'} actualizada exitosamente.`,
+      });
+      // Invalidate all quote queries
+      queryClient.invalidateQueries({ 
+        predicate: (query) => 
+          typeof query.queryKey[0] === 'string' && 
+          (query.queryKey[0] as string).startsWith('/api/quotes')
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al actualizar estado",
+        description: error.message || "No se pudo actualizar el estado",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStatusChange = (quoteId: string, newStatus: Quote['status'], quoteNumber: string) => {
+    const statusLabels: Record<Quote['status'], string> = {
+      draft: 'borrador',
+      sent: 'enviada',
+      accepted: 'aprobada',
+      rejected: 'cancelada',
+      converted: 'convertida a pedido'
+    };
+    
+    if (window.confirm(`¿Estás seguro de que deseas cambiar el estado de la cotización ${quoteNumber} a "${statusLabels[newStatus]}"?`)) {
+      updateStatusMutation.mutate({ quoteId, status: newStatus });
+    }
+  };
+
   // Function to open quote in edit mode
   const handleEditQuote = (quoteId: string) => {
     if (onEditQuote) {
@@ -376,8 +419,6 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   <TableHead className="text-left">Cotización</TableHead>
                   <TableHead className="text-left">Cliente</TableHead>
                   <TableHead className="text-left">Estado</TableHead>
-                  <TableHead className="text-left">Monto</TableHead>
-                  <TableHead className="text-left">Válida hasta</TableHead>
                   <TableHead className="text-left">Creada</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
@@ -386,7 +427,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={5} className="text-center py-8">
                         <div className="animate-pulse flex space-x-4">
                           <div className="flex-1 space-y-2 py-1">
                             <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -432,33 +473,6 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       </TableCell>
                       
                       <TableCell className="py-4">
-                        <div className="font-medium text-gray-900" data-testid={`total-amount-${quote.id}`}>
-                          {formatCurrency(quote.total)}
-                        </div>
-                        {quote.discount && parseFloat(quote.discount) > 0 && (
-                          <div className="text-sm text-green-600">
-                            Descuento: {formatCurrency(quote.discount)}
-                          </div>
-                        )}
-                      </TableCell>
-                      
-                      <TableCell className="py-4">
-                        {quote.validUntil ? (
-                          <div>
-                            <div className="text-sm text-gray-900">
-                              {formatDate(quote.validUntil)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              <Clock className="w-3 h-3 inline mr-1" />
-                              {new Date(quote.validUntil) < new Date() ? 'Vencida' : 'Vigente'}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">Sin vencimiento</span>
-                        )}
-                      </TableCell>
-                      
-                      <TableCell className="py-4">
                         <div className="text-sm text-gray-900">
                           {formatDate(quote.createdAt)}
                         </div>
@@ -485,6 +499,51 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                               <FileText className="w-4 h-4 mr-2" />
                               Ver / Editar
                             </DropdownMenuItem>
+                            
+                            {/* Status change options */}
+                            {quote.status === 'draft' && (
+                              <DropdownMenuItem 
+                                data-testid={`status-sent-${quote.id}`}
+                                onClick={() => handleStatusChange(quote.id, 'sent', quote.quoteNumber)}
+                                disabled={updateStatusMutation.isPending}
+                              >
+                                <Send className="w-4 h-4 mr-2" />
+                                Marcar como enviada
+                              </DropdownMenuItem>
+                            )}
+                            
+                            {quote.status === 'sent' && (
+                              <>
+                                <DropdownMenuItem 
+                                  data-testid={`status-accepted-${quote.id}`}
+                                  onClick={() => handleStatusChange(quote.id, 'accepted', quote.quoteNumber)}
+                                  disabled={updateStatusMutation.isPending}
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-2" />
+                                  Marcar como aprobada
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  data-testid={`status-rejected-${quote.id}`}
+                                  onClick={() => handleStatusChange(quote.id, 'rejected', quote.quoteNumber)}
+                                  disabled={updateStatusMutation.isPending}
+                                >
+                                  <XCircle className="w-4 h-4 mr-2" />
+                                  Marcar como cancelada
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            
+                            {(quote.status === 'rejected' || quote.status === 'accepted') && (
+                              <DropdownMenuItem 
+                                data-testid={`status-draft-${quote.id}`}
+                                onClick={() => handleStatusChange(quote.id, 'draft', quote.quoteNumber)}
+                                disabled={updateStatusMutation.isPending}
+                              >
+                                <FileText className="w-4 h-4 mr-2" />
+                                Volver a borrador
+                              </DropdownMenuItem>
+                            )}
+                            
                             {(quote.status === 'draft' || quote.status === 'sent' || quote.status === 'accepted' || quote.status === 'rejected') && (
                               <DropdownMenuItem 
                                 data-testid={`button-duplicate-quote-${quote.id}`}
@@ -519,7 +578,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12">
+                    <TableCell colSpan={5} className="text-center py-12">
                       <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">
                         No hay cotizaciones

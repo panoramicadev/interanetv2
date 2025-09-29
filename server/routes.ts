@@ -3860,6 +3860,37 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Update quote status
+  app.patch('/api/quotes/:id/status', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const user = req.user;
+      
+      const quote = await storage.getQuoteById(id);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+      
+      // Role-based access control
+      if (user.role === 'salesperson' && quote.createdBy !== user.id) {
+        return res.status(403).json({ message: "Not authorized to update this quote" });
+      }
+      
+      // Validate status
+      const validStatuses = ["draft", "sent", "accepted", "rejected", "converted"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: "Invalid status value" });
+      }
+      
+      const updatedQuote = await storage.updateQuote(id, { status });
+      res.json(updatedQuote);
+    } catch (error) {
+      console.error("Error updating quote status:", error);
+      res.status(500).json({ message: "Failed to update quote status" });
+    }
+  });
+
   app.delete('/api/quotes/:id', requireAuth, async (req: any, res) => {
     try {
       const { id } = req.params;
