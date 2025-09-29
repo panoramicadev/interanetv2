@@ -1408,35 +1408,23 @@ export default function TomadorPedidos() {
           </div>
         </div>
 
-        {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="constructor" data-testid="tab-constructor">
-              Constructor
-            </TabsTrigger>
-            <TabsTrigger value="recientes" data-testid="tab-recientes">
-              Pedidos Recientes
-            </TabsTrigger>
-          </TabsList>
+        {/* Create Quote Button */}
+        <div className={`${isMobile ? 'space-y-4' : 'flex justify-end'}`}>
+          <Button
+            onClick={handleCreateQuoteForNewClient}
+            className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
+              isMobile ? 'w-full h-10 text-sm font-medium' : ''
+            }`}
+            size={isMobile ? "sm" : "lg"}
+            data-testid="button-create-quote-new-client"
+          >
+            <Calculator className="w-4 h-4" />
+            {isMobile ? "Nuevo Presupuesto" : "Crear Presupuesto"}
+          </Button>
+        </div>
 
-          <TabsContent value="constructor" className="space-y-6">
-            {/* Create Quote Button */}
-            <div className={`${isMobile ? 'space-y-4' : 'flex justify-end'}`}>
-              <Button
-                onClick={handleCreateQuoteForNewClient}
-                className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
-                  isMobile ? 'w-full h-10 text-sm font-medium' : ''
-                }`}
-                size={isMobile ? "sm" : "lg"}
-                data-testid="button-create-quote-new-client"
-              >
-                <Calculator className="w-4 h-4" />
-                {isMobile ? "Nuevo Presupuesto" : "Crear Presupuesto"}
-              </Button>
-            </div>
-
-            {/* Client Search Section - Mobile Optimized */}
-            <Card className={isMobile ? 'border-2 shadow-md' : ''}>
+        {/* Client Search Section - Mobile Optimized */}
+        <Card className={isMobile ? 'border-2 shadow-md' : ''}>
           <CardHeader className={isMobile ? 'pb-4' : ''}>
             <CardTitle className={`flex items-center gap-2 ${
               isMobile ? 'text-xl' : ''
@@ -1612,149 +1600,38 @@ export default function TomadorPedidos() {
           </CardContent>
         </Card>
 
-        {/* Recent Orders Section */}
+        {/* Cotizaciones y Pedidos Recientes */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5" />
-              Pedidos Recientes
+              <FileText className="h-5 w-5" />
+              Cotizaciones y Pedidos Recientes
             </CardTitle>
             <CardDescription>
-              Los últimos pedidos creados en el sistema
+              Historial de cotizaciones y pedidos creados en el sistema
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingOrders ? (
-              <div className="space-y-3">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 border rounded">
-                    <div className="space-y-2 flex-1">
-                      <Skeleton className="h-4 w-[200px]" />
-                      <Skeleton className="h-3 w-[150px]" />
-                    </div>
-                    <Skeleton className="h-6 w-20" />
-                  </div>
-                ))}
-              </div>
-            ) : orders.length > 0 ? (
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {orders.slice(0, 10).map((order: Order) => (
-                  <div
-                    key={order.id}
-                    className="flex items-center justify-between p-3 border rounded hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium" data-testid={`text-order-number-${order.id}`}>
-                          {order.orderNumber}
-                        </span>
-                        <span className="text-muted-foreground">-</span>
-                        <span data-testid={`text-order-client-${order.id}`}>
-                          {order.clientName}
-                        </span>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {order.createdAt ? new Date(order.createdAt).toLocaleDateString('es-CL', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        }) : 'Fecha no disponible'}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={getStatusBadgeVariant(order.status || 'draft')}>
-                        {getStatusLabel(order.status || 'draft')}
-                      </Badge>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-8 w-8 p-0"
-                            data-testid={`button-actions-${order.id}`}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleViewOrder(order.id)}
-                            data-testid={`action-view-${order.id}`}
-                          >
-                            <Eye className="mr-2 h-4 w-4" />
-                            Ver detalles
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleEditOrder(order.id)}
-                            data-testid={`action-edit-${order.id}`}
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteOrder(order.id)}
-                            className="text-destructive"
-                            data-testid={`action-delete-${order.id}`}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <ShoppingCart className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No hay pedidos recientes</p>
-                <p className="text-sm">Los pedidos aparecerán aquí una vez que sean creados</p>
-              </div>
-            )}
+            <Tabs defaultValue="cotizaciones" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="cotizaciones">
+                  Cotizaciones
+                </TabsTrigger>
+                <TabsTrigger value="pedidos">
+                  Pedidos
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="cotizaciones" className="space-y-4">
+                <QuotesList />
+              </TabsContent>
+              
+              <TabsContent value="pedidos" className="space-y-4">
+                <OrdersList />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
-          </TabsContent>
-
-          <TabsContent value="recientes" className="space-y-6">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Cotizaciones y Pedidos Recientes
-                  </CardTitle>
-                  <CardDescription>
-                    Historial de cotizaciones y pedidos creados en el sistema
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Tabs defaultValue="cotizaciones" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 mb-4">
-                      <TabsTrigger value="cotizaciones">
-                        Cotizaciones
-                      </TabsTrigger>
-                      <TabsTrigger value="pedidos">
-                        Pedidos
-                      </TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="cotizaciones" className="space-y-4">
-                      <QuotesList />
-                    </TabsContent>
-                    
-                    <TabsContent value="pedidos" className="space-y-4">
-                      <OrdersList />
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
       </div>
     </div>
 
