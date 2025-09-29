@@ -13,7 +13,8 @@ import {
   DollarSign,
   TrendingUp,
   Receipt,
-  CheckCircle2
+  CheckCircle2,
+  FileCheck
 } from "lucide-react";
 
 interface SidebarItem {
@@ -93,7 +94,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Panel de Tareas",
       icon: ClipboardList,
     },
-
+    {
+      href: "/visitas-tecnicas",
+      label: "Visita Técnica",
+      icon: FileCheck,
+    },
     {
       href: "#tintometria",
       label: "Calcular Tintometría",
@@ -171,7 +176,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Panel de Tareas",
       icon: ClipboardList,
     },
-
+    {
+      href: "/visitas-tecnicas",
+      label: "Visita Técnica",
+      icon: FileCheck,
+    },
     {
       href: "#tintometria",
       label: "Calcular Tintometría",
@@ -219,7 +228,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Panel de Tareas",
       icon: ClipboardList,
     },
-
+    {
+      href: "/visitas-tecnicas",
+      label: "Visita Técnica",
+      icon: FileCheck,
+    },
     {
       href: "#tintometria",
       label: "Calcular Tintometría",
