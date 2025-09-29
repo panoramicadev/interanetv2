@@ -699,6 +699,7 @@ export interface IStorage {
     offset?: number;
   }): Promise<Order[]>;
   getOrderById(id: string): Promise<Order | undefined>;
+  getOrderItemById(id: string): Promise<OrderItem | undefined>;
   updateOrder(id: string, order: Partial<InsertOrder>): Promise<Order>;
   deleteOrder(id: string): Promise<void>;
   
@@ -710,7 +711,7 @@ export interface IStorage {
   
   // Enhanced Order operations with items CRUD
   getOrderWithItems(id: string): Promise<(Order & { items: OrderItem[] }) | undefined>;
-  addOrderItem(orderId: string, item: InsertOrderItem): Promise<OrderItem>;
+  addOrderItem(orderId: string, item: AddOrderItemInput): Promise<OrderItem>;
   updateOrderItemById(itemId: string, updates: Partial<InsertOrderItem>): Promise<OrderItem>;
   deleteOrderItemById(itemId: string): Promise<void>;
   recalculateOrderTotals(orderId: string): Promise<Order>;
@@ -6577,6 +6578,15 @@ export class DatabaseStorage implements IStorage {
     return order;
   }
 
+  async getOrderItemById(id: string): Promise<OrderItem | undefined> {
+    const [item] = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.id, id));
+
+    return item;
+  }
+
   async updateOrder(id: string, order: Partial<InsertOrder>): Promise<Order> {
     const [updatedOrder] = await db
       .update(orders)
@@ -6655,7 +6665,7 @@ export class DatabaseStorage implements IStorage {
     return { ...order, items };
   }
 
-  async addOrderItem(orderId: string, item: InsertOrderItem): Promise<OrderItem> {
+  async addOrderItem(orderId: string, item: AddOrderItemInput): Promise<OrderItem> {
     // Calculate total price
     const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
     const unitPrice = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) : (item.unitPrice || 0);
