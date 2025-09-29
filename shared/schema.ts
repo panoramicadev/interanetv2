@@ -2302,18 +2302,27 @@ export type InsertComunaRegionMapping = z.infer<typeof insertComunaRegionMapping
 // File Uploads Registry
 // ==============================================
 
-// Track all CSV file uploads for data import history
+// Track all CSV file uploads for data import history and image ZIP imports
 export const fileUploads = pgTable("file_uploads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  fileType: varchar("file_type").notNull(), // 'sales', 'products', 'nvv', 'prices', etc.
+  fileType: varchar("file_type").notNull(), // 'sales', 'products', 'nvv', 'prices', 'image_zip', etc.
   fileName: varchar("file_name").notNull(), // Original filename
   uploadedBy: varchar("uploaded_by").notNull(), // User ID who uploaded the file
   uploadedAt: timestamp("uploaded_at").defaultNow(), // When file was uploaded
   recordsImported: integer("records_imported").default(0), // How many records were imported
   recordsErrors: integer("records_errors").default(0), // How many records failed
-  status: varchar("status").default("success"), // 'success', 'partial', 'error'
+  status: varchar("status").default("pending"), // 'pending', 'processing', 'success', 'partial', 'error', 'cancelled'
   errorMessage: text("error_message"), // Error details if import failed
   fileSize: integer("file_size"), // File size in bytes
+  // Extended fields for image ZIP import tracking
+  totalFiles: integer("total_files").default(0), // Total files in ZIP to process
+  processedFiles: integer("processed_files").default(0), // Files processed so far
+  successfulFiles: integer("successful_files").default(0), // Files successfully uploaded
+  failedFiles: integer("failed_files").default(0), // Files that failed
+  progressData: jsonb("progress_data"), // JSON for detailed progress tracking
+  resultData: jsonb("result_data"), // JSON for detailed results (matched/unmatched products, errors)
+  isCompleted: boolean("is_completed").default(false), // Whether job is done (success/error/partial)
+  completedAt: timestamp("completed_at"), // When job finished
   createdAt: timestamp("created_at").defaultNow(),
 });
 
