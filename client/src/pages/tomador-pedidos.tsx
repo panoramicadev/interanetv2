@@ -17,6 +17,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 //import panoramicaLogoPath from "@assets/Diseño sin título (27)_1757959070748.png"; // Commented due to special chars in filename"
+import QuotesList from "@/components/order-taker/quotes-list";
+import OrdersList from "@/components/order-taker/orders-list";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -1718,34 +1720,14 @@ export default function TomadorPedidos() {
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
           </TabsContent>
 
           <TabsContent value="cotizaciones" className="space-y-6">
-            {/* Placeholder for Quotes List Component */}
-            <div className="text-center py-12">
-              <FileText className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Cotizaciones
-              </h3>
-              <p className="text-gray-500">
-                Vista de cotizaciones en desarrollo...
-              </p>
-            </div>
+            <QuotesList />
           </TabsContent>
 
           <TabsContent value="pedidos" className="space-y-6">
-            {/* Placeholder for Orders List Component */}
-            <div className="text-center py-12">
-              <Package className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Pedidos
-              </h3>
-              <p className="text-gray-500">
-                Vista de pedidos en desarrollo...
-              </p>
-            </div>
+            <OrdersList />
           </TabsContent>
         </Tabs>
       </div>
