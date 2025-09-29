@@ -2637,3 +2637,166 @@ export type InsertFirmaDigital = z.infer<typeof insertFirmaDigitalSchema>;
 
 export type Evidencia = typeof evidencias.$inferSelect;
 export type InsertEvidencia = z.infer<typeof insertEvidenciaSchema>;
+
+// =============================================================================
+// TINTOMETRÍA SYSTEM TABLES
+// =============================================================================
+
+// 1. Pigmentos table
+export const pigments = pgTable("pigments", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  pigmentoCode: text("pigmento_code").unique().notNull(),
+  nombre: text("nombre").notNull(),
+  compatibleBase: text("compatible_base").notNull(), // "Agua" / "Solvente"
+  costoKgClp: numeric("costo_kg_clp", { precision: 15, scale: 2 }).notNull(),
+  proveedor: text("proveedor"),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// 2. Bases table
+export const bases = pgTable("bases", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  baseId: text("base_id").unique().notNull(),
+  tipoBase: text("tipo_base").notNull(), // "Agua" / "Solvente"
+  colorBase: text("color_base").notNull(), // "Blanco" / "Incoloro"
+  costoKgClp: numeric("costo_kg_clp", { precision: 15, scale: 2 }).notNull(),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// 3. Envases table
+export const envases = pgTable("envases", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  envaseId: text("envase_id").unique().notNull(),
+  material: text("material").notNull(), // "Plástico" / "Metálico"
+  capacidad: text("capacidad").notNull(), // "BD", "BD5", "1/4", "GL", "BD4"
+  kgPorEnvase: numeric("kg_por_envase", { precision: 10, scale: 3 }).notNull(),
+  costoEnvaseClp: numeric("costo_envase_clp", { precision: 15, scale: 2 }).notNull(),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// 4. Colores table
+export const colores = pgTable("colores", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  colorId: text("color_id").unique().notNull(),
+  nombreColor: text("nombre_color").notNull(),
+  baseId: text("base_id").notNull().references(() => bases.baseId),
+  observaciones: text("observaciones"),
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// 5. Recetas table
+export const recetas = pgTable("recetas", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  colorId: text("color_id").notNull().references(() => colores.colorId),
+  pigmentoCode: text("pigmento_code").notNull().references(() => pigments.pigmentoCode),
+  fraccionPeso: numeric("fraccion_peso", { precision: 10, scale: 6 }).notNull(), // proporción sobre 1 kg final
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// 6. Parámetros table
+export const parametros = pgTable("parametros", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  parametro: text("parametro").unique().notNull(),
+  valor: numeric("valor", { precision: 15, scale: 6 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Relations for tintometría system
+export const tintometriaRelations = relations(colores, ({ one, many }) => ({
+  base: one(bases, {
+    fields: [colores.baseId],
+    references: [bases.baseId],
+  }),
+  recetas: many(recetas),
+}));
+
+export const recetasRelations = relations(recetas, ({ one }) => ({
+  color: one(colores, {
+    fields: [recetas.colorId],
+    references: [colores.colorId],
+  }),
+  pigmento: one(pigments, {
+    fields: [recetas.pigmentoCode],
+    references: [pigments.pigmentoCode],
+  }),
+}));
+
+// Insert schemas for tintometría system
+export const insertPigmentSchema = createInsertSchema(pigments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  costoKgClp: z.number().positive("El costo por kg debe ser mayor a 0"),
+  compatibleBase: z.enum(["Agua", "Solvente"]),
+});
+
+export const insertBaseSchema = createInsertSchema(bases).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  costoKgClp: z.number().positive("El costo por kg debe ser mayor a 0"),
+  tipoBase: z.enum(["Agua", "Solvente"]),
+  colorBase: z.enum(["Blanco", "Incoloro"]),
+});
+
+export const insertEnvaseSchema = createInsertSchema(envases).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  kgPorEnvase: z.number().positive("El peso por envase debe ser mayor a 0"),
+  costoEnvaseClp: z.number().positive("El costo del envase debe ser mayor a 0"),
+  material: z.enum(["Plástico", "Metálico"]),
+  capacidad: z.enum(["BD", "BD5", "1/4", "GL", "BD4"]),
+});
+
+export const insertColorSchema = createInsertSchema(colores).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertRecetaSchema = createInsertSchema(recetas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  fraccionPeso: z.number().positive("La fracción de peso debe ser mayor a 0").max(1, "La fracción de peso no puede ser mayor a 1"),
+});
+
+export const insertParametroSchema = createInsertSchema(parametros).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Export types for tintometría system
+export type Pigment = typeof pigments.$inferSelect;
+export type InsertPigment = z.infer<typeof insertPigmentSchema>;
+
+export type Base = typeof bases.$inferSelect;
+export type InsertBase = z.infer<typeof insertBaseSchema>;
+
+export type Envase = typeof envases.$inferSelect;
+export type InsertEnvase = z.infer<typeof insertEnvaseSchema>;
+
+export type Color = typeof colores.$inferSelect;
+export type InsertColor = z.infer<typeof insertColorSchema>;
+
+export type Receta = typeof recetas.$inferSelect;
+export type InsertReceta = z.infer<typeof insertRecetaSchema>;
+
+export type Parametro = typeof parametros.$inferSelect;
+export type InsertParametro = z.infer<typeof insertParametroSchema>;
