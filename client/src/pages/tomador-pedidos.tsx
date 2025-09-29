@@ -1669,7 +1669,7 @@ export default function TomadorPedidos() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Cotizaciones y Pedidos Recientes
+              Cotizaciones y Tomador de Pedidos
             </CardTitle>
             <CardDescription>
               Historial de cotizaciones y pedidos creados en el sistema
