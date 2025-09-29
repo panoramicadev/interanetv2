@@ -96,6 +96,25 @@ import {
   type InsertEvidencia,
   type FileUpload,
   type InsertFileUpload,
+  // Tintometría tables
+  pigments,
+  bases,
+  envases,
+  colores,
+  recetas,
+  parametros,
+  type Pigment,
+  type InsertPigment,
+  type Base,
+  type InsertBase,
+  type Envase,
+  type InsertEnvase,
+  type Color,
+  type InsertColor,
+  type Receta,
+  type InsertReceta,
+  type Parametro,
+  type InsertParametro,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, gte, lte, lt, inArray, or, isNull, isNotNull } from "drizzle-orm";
@@ -8031,6 +8050,425 @@ export class DatabaseStorage implements IStorage {
       return firmaCreada;
     } catch (error) {
       console.error('Error creating firma digital:', error);
+      throw error;
+    }
+  }
+
+  // =============================================================================
+  // TINTOMETRÍA SYSTEM METHODS
+  // =============================================================================
+
+  // PIGMENTS CRUD
+  async getAllPigments(): Promise<Pigment[]> {
+    try {
+      return await db.select().from(pigments).orderBy(pigments.nombre);
+    } catch (error) {
+      console.error('Error getting all pigments:', error);
+      throw error;
+    }
+  }
+
+  async getPigmentById(id: number): Promise<Pigment | null> {
+    try {
+      const [pigment] = await db.select().from(pigments).where(eq(pigments.id, id));
+      return pigment || null;
+    } catch (error) {
+      console.error('Error getting pigment by id:', error);
+      throw error;
+    }
+  }
+
+  async createPigment(data: InsertPigment): Promise<Pigment> {
+    try {
+      const [pigmentCreated] = await db.insert(pigments).values(data).returning();
+      return pigmentCreated;
+    } catch (error) {
+      console.error('Error creating pigment:', error);
+      throw error;
+    }
+  }
+
+  async updatePigment(id: number, data: Partial<InsertPigment>): Promise<Pigment> {
+    try {
+      const [pigmentUpdated] = await db.update(pigments)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(pigments.id, id))
+        .returning();
+      return pigmentUpdated;
+    } catch (error) {
+      console.error('Error updating pigment:', error);
+      throw error;
+    }
+  }
+
+  async deletePigment(id: number): Promise<void> {
+    try {
+      await db.delete(pigments).where(eq(pigments.id, id));
+    } catch (error) {
+      console.error('Error deleting pigment:', error);
+      throw error;
+    }
+  }
+
+  // BASES CRUD
+  async getAllBases(): Promise<Base[]> {
+    try {
+      return await db.select().from(bases).orderBy(bases.baseId);
+    } catch (error) {
+      console.error('Error getting all bases:', error);
+      throw error;
+    }
+  }
+
+  async getBaseById(id: number): Promise<Base | null> {
+    try {
+      const [base] = await db.select().from(bases).where(eq(bases.id, id));
+      return base || null;
+    } catch (error) {
+      console.error('Error getting base by id:', error);
+      throw error;
+    }
+  }
+
+  async createBase(data: InsertBase): Promise<Base> {
+    try {
+      const [baseCreated] = await db.insert(bases).values(data).returning();
+      return baseCreated;
+    } catch (error) {
+      console.error('Error creating base:', error);
+      throw error;
+    }
+  }
+
+  async updateBase(id: number, data: Partial<InsertBase>): Promise<Base> {
+    try {
+      const [baseUpdated] = await db.update(bases)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(bases.id, id))
+        .returning();
+      return baseUpdated;
+    } catch (error) {
+      console.error('Error updating base:', error);
+      throw error;
+    }
+  }
+
+  async deleteBase(id: number): Promise<void> {
+    try {
+      await db.delete(bases).where(eq(bases.id, id));
+    } catch (error) {
+      console.error('Error deleting base:', error);
+      throw error;
+    }
+  }
+
+  // ENVASES CRUD
+  async getAllEnvases(): Promise<Envase[]> {
+    try {
+      return await db.select().from(envases).orderBy(envases.envaseId);
+    } catch (error) {
+      console.error('Error getting all envases:', error);
+      throw error;
+    }
+  }
+
+  async getEnvaseById(id: number): Promise<Envase | null> {
+    try {
+      const [envase] = await db.select().from(envases).where(eq(envases.id, id));
+      return envase || null;
+    } catch (error) {
+      console.error('Error getting envase by id:', error);
+      throw error;
+    }
+  }
+
+  async createEnvase(data: InsertEnvase): Promise<Envase> {
+    try {
+      const [envaseCreated] = await db.insert(envases).values(data).returning();
+      return envaseCreated;
+    } catch (error) {
+      console.error('Error creating envase:', error);
+      throw error;
+    }
+  }
+
+  async updateEnvase(id: number, data: Partial<InsertEnvase>): Promise<Envase> {
+    try {
+      const [envaseUpdated] = await db.update(envases)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(envases.id, id))
+        .returning();
+      return envaseUpdated;
+    } catch (error) {
+      console.error('Error updating envase:', error);
+      throw error;
+    }
+  }
+
+  async deleteEnvase(id: number): Promise<void> {
+    try {
+      await db.delete(envases).where(eq(envases.id, id));
+    } catch (error) {
+      console.error('Error deleting envase:', error);
+      throw error;
+    }
+  }
+
+  // COLORES CRUD
+  async getAllColores(): Promise<Color[]> {
+    try {
+      return await db.select().from(colores).orderBy(colores.nombreColor);
+    } catch (error) {
+      console.error('Error getting all colores:', error);
+      throw error;
+    }
+  }
+
+  async getColorById(id: number): Promise<Color | null> {
+    try {
+      const [color] = await db.select().from(colores).where(eq(colores.id, id));
+      return color || null;
+    } catch (error) {
+      console.error('Error getting color by id:', error);
+      throw error;
+    }
+  }
+
+  async createColor(data: InsertColor): Promise<Color> {
+    try {
+      const [colorCreated] = await db.insert(colores).values(data).returning();
+      return colorCreated;
+    } catch (error) {
+      console.error('Error creating color:', error);
+      throw error;
+    }
+  }
+
+  async updateColor(id: number, data: Partial<InsertColor>): Promise<Color> {
+    try {
+      const [colorUpdated] = await db.update(colores)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(colores.id, id))
+        .returning();
+      return colorUpdated;
+    } catch (error) {
+      console.error('Error updating color:', error);
+      throw error;
+    }
+  }
+
+  async deleteColor(id: number): Promise<void> {
+    try {
+      await db.delete(colores).where(eq(colores.id, id));
+    } catch (error) {
+      console.error('Error deleting color:', error);
+      throw error;
+    }
+  }
+
+  // RECETAS CRUD
+  async getAllRecetas(): Promise<Receta[]> {
+    try {
+      return await db.select().from(recetas).orderBy(recetas.colorId);
+    } catch (error) {
+      console.error('Error getting all recetas:', error);
+      throw error;
+    }
+  }
+
+  async getRecetasByColorId(colorId: string): Promise<Receta[]> {
+    try {
+      return await db.select().from(recetas).where(eq(recetas.colorId, colorId));
+    } catch (error) {
+      console.error('Error getting recetas by color id:', error);
+      throw error;
+    }
+  }
+
+  async getRecetaById(id: number): Promise<Receta | null> {
+    try {
+      const [receta] = await db.select().from(recetas).where(eq(recetas.id, id));
+      return receta || null;
+    } catch (error) {
+      console.error('Error getting receta by id:', error);
+      throw error;
+    }
+  }
+
+  async createReceta(data: InsertReceta): Promise<Receta> {
+    try {
+      const [recetaCreated] = await db.insert(recetas).values(data).returning();
+      return recetaCreated;
+    } catch (error) {
+      console.error('Error creating receta:', error);
+      throw error;
+    }
+  }
+
+  async updateReceta(id: number, data: Partial<InsertReceta>): Promise<Receta> {
+    try {
+      const [recetaUpdated] = await db.update(recetas)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(recetas.id, id))
+        .returning();
+      return recetaUpdated;
+    } catch (error) {
+      console.error('Error updating receta:', error);
+      throw error;
+    }
+  }
+
+  async deleteReceta(id: number): Promise<void> {
+    try {
+      await db.delete(recetas).where(eq(recetas.id, id));
+    } catch (error) {
+      console.error('Error deleting receta:', error);
+      throw error;
+    }
+  }
+
+  // PARÁMETROS CRUD
+  async getAllParametros(): Promise<Parametro[]> {
+    try {
+      return await db.select().from(parametros).orderBy(parametros.parametro);
+    } catch (error) {
+      console.error('Error getting all parametros:', error);
+      throw error;
+    }
+  }
+
+  async getParametroById(id: number): Promise<Parametro | null> {
+    try {
+      const [parametro] = await db.select().from(parametros).where(eq(parametros.id, id));
+      return parametro || null;
+    } catch (error) {
+      console.error('Error getting parametro by id:', error);
+      throw error;
+    }
+  }
+
+  async getParametroByName(parametro: string): Promise<Parametro | null> {
+    try {
+      const [param] = await db.select().from(parametros).where(eq(parametros.parametro, parametro));
+      return param || null;
+    } catch (error) {
+      console.error('Error getting parametro by name:', error);
+      throw error;
+    }
+  }
+
+  async createParametro(data: InsertParametro): Promise<Parametro> {
+    try {
+      const [parametroCreated] = await db.insert(parametros).values(data).returning();
+      return parametroCreated;
+    } catch (error) {
+      console.error('Error creating parametro:', error);
+      throw error;
+    }
+  }
+
+  async updateParametro(id: number, data: Partial<InsertParametro>): Promise<Parametro> {
+    try {
+      const [parametroUpdated] = await db.update(parametros)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(parametros.id, id))
+        .returning();
+      return parametroUpdated;
+    } catch (error) {
+      console.error('Error updating parametro:', error);
+      throw error;
+    }
+  }
+
+  async deleteParametro(id: number): Promise<void> {
+    try {
+      await db.delete(parametros).where(eq(parametros.id, id));
+    } catch (error) {
+      console.error('Error deleting parametro:', error);
+      throw error;
+    }
+  }
+
+  // TINTOMETRÍA CALCULATION METHODS
+  async calculateColorCost(colorId: string, envaseId: string): Promise<{
+    colorId: string;
+    envaseId: string;
+    baseId: string;
+    baseCost: number;
+    pigmentsCost: number;
+    envaseData: Envase;
+    totalPaintCost: number;
+    totalCost: number;
+    suggestedPrice?: number;
+  } | null> {
+    try {
+      // Get color and verify it exists
+      const [color] = await db.select().from(colores).where(eq(colores.colorId, colorId));
+      if (!color) return null;
+
+      // Get envase and verify it exists
+      const [envase] = await db.select().from(envases).where(eq(envases.envaseId, envaseId));
+      if (!envase) return null;
+
+      // Get base cost
+      const [base] = await db.select().from(bases).where(eq(bases.baseId, color.baseId));
+      if (!base) return null;
+
+      // Get recetas for this color
+      const recetasColor = await db.select({
+        pigmentoCode: recetas.pigmentoCode,
+        fraccionPeso: recetas.fraccionPeso,
+        pigmentoCosto: pigments.costoKgClp
+      })
+      .from(recetas)
+      .leftJoin(pigments, eq(recetas.pigmentoCode, pigments.pigmentoCode))
+      .where(eq(recetas.colorId, colorId));
+
+      // Calculate paint weight (kg for this container)
+      const paintWeightKg = Number(envase.kgPorEnvase);
+
+      // Calculate base cost (usually most of the weight)
+      const totalFraccionPigmentos = recetasColor.reduce((sum, receta) => 
+        sum + Number(receta.fraccionPeso), 0);
+      const fraccionBase = Math.max(0, 1 - totalFraccionPigmentos);
+      const baseCost = fraccionBase * paintWeightKg * Number(base.costoKgClp);
+
+      // Calculate pigments cost
+      const pigmentsCost = recetasColor.reduce((sum, receta) => {
+        const pigmentWeight = Number(receta.fraccionPeso) * paintWeightKg;
+        const pigmentCost = pigmentWeight * Number(receta.pigmentoCosto || 0);
+        return sum + pigmentCost;
+      }, 0);
+
+      // Total paint cost (base + pigments)
+      const totalPaintCost = baseCost + pigmentsCost;
+
+      // Total cost including container
+      const totalCost = totalPaintCost + Number(envase.costoEnvaseClp);
+
+      // Get suggested price multiplier parameter (if exists)
+      const [priceMultiplierParam] = await db.select()
+        .from(parametros)
+        .where(eq(parametros.parametro, 'precio_multiplicador'));
+
+      const suggestedPrice = priceMultiplierParam 
+        ? totalCost * Number(priceMultiplierParam.valor)
+        : undefined;
+
+      return {
+        colorId,
+        envaseId,
+        baseId: color.baseId,
+        baseCost,
+        pigmentsCost,
+        envaseData: envase,
+        totalPaintCost,
+        totalCost,
+        suggestedPrice
+      };
+
+    } catch (error) {
+      console.error('Error calculating color cost:', error);
       throw error;
     }
   }
