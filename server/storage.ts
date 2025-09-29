@@ -7389,8 +7389,10 @@ export class DatabaseStorage implements IStorage {
       if (originalItems.length > 0) {
         const newItemsData = originalItems.map(item => ({
           quoteId: newQuote.id,
+          type: item.type,
           productName: item.productName,
           productCode: item.productCode,
+          customSku: item.customSku,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice,
