@@ -7448,11 +7448,17 @@ export class DatabaseStorage implements IStorage {
     };
 
     try {
+      // STEP 1: Clear all existing NVV data before importing new data
+      console.log('🗑️ Clearing existing NVV data before new import...');
+      const deleteResult = await db.delete(nvvPendingSales);
+      const deletedCount = deleteResult.rowCount || 0;
+      console.log(`✅ Cleared ${deletedCount} existing NVV records`);
+
       const BATCH_SIZE = 100;
       let totalInserted = 0;
       let totalSkipped = 0;
 
-      // Process in batches to handle large imports efficiently
+      // STEP 2: Process in batches to handle large imports efficiently
       for (let i = 0; i < nvvData.length; i += BATCH_SIZE) {
         const batch = nvvData.slice(i, i + BATCH_SIZE);
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
