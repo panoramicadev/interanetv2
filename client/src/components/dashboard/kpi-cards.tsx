@@ -199,7 +199,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       testId: "kpi-total-sales"
     },
     {
-      title: "Órdenes",
+      title: "Notas de Venta",
       value: formatNumber(metrics?.totalOrders || 0),
       change: ordersChange.text,
       changeColor: ordersChange.color,
@@ -283,10 +283,114 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     );
   };
 
+  // Renderizar tarjeta personalizada para Notas de Venta
+  const renderOrdersCard = (kpi: any) => {
+    const nvvTotal = Number(nvvTotalData?.totalAmount || 0);
+    const salesTotal = Number(metrics?.totalSales || 0);
+    const combinedTotal = salesTotal + nvvTotal;
+
+    return (
+      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex-1 mb-2 lg:mb-0">
+            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
+              {kpi.title}
+            </p>
+            <div className="relative">
+              <p 
+                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+                data-testid={kpi.testId}
+                title={kpi.value}
+              >
+                {kpi.value}
+              </p>
+              {kpi.comparison && (
+                <Badge 
+                  className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
+                  data-testid={`${kpi.testId}-comparison-badge`}
+                >
+                  {kpi.comparison.text}
+                </Badge>
+              )}
+            </div>
+            <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
+              {kpi.change}
+            </p>
+            {/* Subtítulo: Total Combinado */}
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(combinedTotal)}`}>
+                Total Combinado: {formatCurrency(combinedTotal)}
+              </p>
+            </div>
+          </div>
+          <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
+            <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Renderizar tarjeta personalizada para Unidades Vendidas
+  const renderUnitsCard = (kpi: any) => {
+    const totalOrders = metrics?.totalOrders || 0;
+
+    return (
+      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex-1 mb-2 lg:mb-0">
+            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
+              {kpi.title}
+            </p>
+            <div className="relative">
+              <p 
+                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+                data-testid={kpi.testId}
+                title={kpi.value}
+              >
+                {kpi.value}
+              </p>
+              {kpi.comparison && (
+                <Badge 
+                  className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
+                  data-testid={`${kpi.testId}-comparison-badge`}
+                >
+                  {kpi.comparison.text}
+                </Badge>
+              )}
+            </div>
+            <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
+              {kpi.change}
+            </p>
+            {/* Subtítulo: Cantidad de órdenes */}
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-700">
+                {formatNumber(totalOrders)} {totalOrders === 1 ? 'orden' : 'órdenes'}
+              </p>
+            </div>
+          </div>
+          <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
+            <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-      {kpis.map((kpi) => (
-        kpi.title === "Ventas Totales" ? renderSalesCard(kpi) : (
+      {kpis.map((kpi) => {
+        // Renderizar tarjetas especiales
+        if (kpi.title === "Ventas Totales") {
+          return renderSalesCard(kpi);
+        } else if (kpi.title === "Notas de Venta") {
+          return renderOrdersCard(kpi);
+        } else if (kpi.title === "Unidades Vendidas") {
+          return renderUnitsCard(kpi);
+        }
+        
+        // Renderizar tarjeta normal para el resto
+        return (
           <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
               <div className="flex-1 mb-2 lg:mb-0">
@@ -319,8 +423,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               </div>
             </div>
           </div>
-        )
-      ))}
+        );
+      })}
     </div>
   );
 }
