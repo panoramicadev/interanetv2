@@ -17,6 +17,7 @@ import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
 import { ecommerceProducts, salesTransactions, fileUploads } from "../shared/schema";
 import { eq, and, isNotNull, ne } from "drizzle-orm";
+import { emailService } from "./services/email";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -4214,6 +4215,62 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching quote with items:", error);
       res.status(500).json({ message: "Failed to fetch quote with items" });
+    }
+  });
+
+  // Send quote PDF via email
+  app.post('/api/quotes/:id/send-email', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      const { pdfBase64, recipientEmail } = req.body;
+
+      if (!pdfBase64) {
+        return res.status(400).json({ message: "PDF data is required" });
+      }
+
+      // Check if email service is configured
+      if (!emailService.isConfigured()) {
+        return res.status(503).json({ 
+          message: "Email service not configured. Please contact administrator.",
+          configured: false
+        });
+      }
+
+      // Get quote to verify access and get quote details
+      const quote = await storage.getQuoteById(id);
+      if (!quote) {
+        return res.status(404).json({ message: "Quote not found" });
+      }
+
+      // Role-based access control
+      const canSend = user.role === 'admin' || user.role === 'supervisor' || quote.createdBy === user.id;
+      if (!canSend) {
+        return res.status(403).json({ message: "Not authorized to send this quote" });
+      }
+
+      // Convert base64 to buffer
+      const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+
+      // Send email with default recipient or custom one
+      const recipient = recipientEmail || 'contacto@pinturaspanoramica.cl';
+      await emailService.sendQuoteEmail(
+        quote.quoteNumber,
+        quote.clientName,
+        pdfBuffer,
+        recipient
+      );
+
+      res.json({ 
+        message: "Email sent successfully",
+        sentTo: recipient
+      });
+    } catch (error) {
+      console.error("Error sending quote email:", error);
+      res.status(500).json({ 
+        message: "Failed to send email",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 

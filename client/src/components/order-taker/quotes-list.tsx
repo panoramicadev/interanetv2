@@ -17,11 +17,13 @@ import {
   Package,
   Copy,
   Trash2,
+  Mail,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
+import html2pdf from "html2pdf.js";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -243,6 +245,152 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
     if (window.confirm(`¿Estás seguro de que deseas cambiar el estado de la cotización ${quoteNumber} a "${statusLabels[newStatus]}"?`)) {
       updateStatusMutation.mutate({ quoteId, status: newStatus });
     }
+  };
+
+  // Mutation to send email with PDF
+  const sendEmailMutation = useMutation({
+    mutationFn: async (quoteId: string) => {
+      // Fetch quote details with items
+      const quoteResponse = await apiRequest(`/api/quotes/${quoteId}/with-items`);
+      const quoteData = await quoteResponse.json();
+      
+      // Generate PDF as base64
+      const pdfBase64 = await generatePDFAsBase64(quoteData);
+      
+      // Send email
+      return await apiRequest(`/api/quotes/${quoteId}/send-email`, {
+        method: 'POST',
+        data: {
+          pdfBase64,
+          recipientEmail: 'contacto@pinturaspanoramica.cl'
+        }
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Correo enviado",
+        description: "El correo con el PDF de la cotización ha sido enviado exitosamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al enviar correo",
+        description: error.message || "No se pudo enviar el correo. Verifica la configuración SMTP.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSendEmail = (quoteId: string, quoteNumber: string) => {
+    if (window.confirm(`¿Deseas enviar el PDF de la cotización ${quoteNumber} a contacto@pinturaspanoramica.cl?`)) {
+      sendEmailMutation.mutate(quoteId);
+    }
+  };
+
+  // Generate PDF as base64 for email (simplified version)
+  const generatePDFAsBase64 = async (quoteData: any): Promise<string> => {
+    const quote = quoteData;
+    const items = quoteData.items || [];
+    
+    const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', { 
+      day: '2-digit',
+      month: '2-digit', 
+      year: 'numeric'
+    });
+
+    const subtotal = parseFloat(quote.subtotal || "0");
+    const tax = parseFloat(quote.taxAmount || "0");
+    const total = parseFloat(quote.total || "0");
+
+    const formatCurrency = (amount: number) => `$${Math.round(amount).toLocaleString('es-CL').replace(/,/g, '.')}`;
+
+    const escapeHtml = (text: string | null | undefined) => {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    };
+
+    const productRows = items.map((item: any) => {
+      const unitPrice = parseFloat(item.unitPrice);
+      const lineTotal = parseFloat(item.totalPrice);
+      
+      return `
+        <tr>
+          <td>
+            <div style="font-weight: 600; color: #1f2937; font-size: 13px;">${escapeHtml(item.productName)}</div>
+            ${item.productCode || item.customSku ? `<div style="color: #6b7280; font-size: 11px; margin-top: 2px;">SKU: ${escapeHtml(item.productCode || item.customSku)}</div>` : ''}
+          </td>
+          <td style="text-align: center;">UN</td>
+          <td style="text-align: center;">${parseFloat(item.quantity)}</td>
+          <td style="text-align: right;">${formatCurrency(unitPrice)}</td>
+          <td style="text-align: right; color: #fd6301; font-weight: 600;">${formatCurrency(lineTotal)}</td>
+        </tr>`;
+    }).join('');
+
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #333; font-size: 14px; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 2px solid #fd6301; padding-bottom: 15px; }
+    .header h1 { color: #fd6301; margin: 0; font-size: 24px; }
+    table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    th { background: #fd6301; color: white; padding: 8px; text-align: left; }
+    td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+    .totals { background: #f8fafc; padding: 15px; margin: 15px 0; }
+    .total-row { display: flex; justify-content: space-between; margin: 6px 0; }
+    .final-total { font-size: 16px; font-weight: bold; border-top: 2px solid #e2e8f0; padding-top: 10px; color: #fd6301; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div><div style="width: 220px; height: 60px; background: #f3f4f6; display: flex; align-items: center; justify-content: center;">Logo Panorámica</div></div>
+    <div style="text-align: right;"><h1>COTIZACIÓN</h1><p>Fecha: ${quoteDate}</p><p>N°: ${escapeHtml(quote.quoteNumber)}</p></div>
+  </div>
+  <div style="background: #fff7ed; border: 1px solid #fdba74; padding: 12px; margin: 15px 0;">
+    <p><strong>Cliente:</strong> ${escapeHtml(quote.clientName)}</p>
+    ${quote.clientRut ? `<p><strong>RUT:</strong> ${escapeHtml(quote.clientRut)}</p>` : ''}
+  </div>
+  <table>
+    <thead><tr><th>Producto</th><th style="text-align: center;">Unidad</th><th style="text-align: center;">Cant.</th><th style="text-align: right;">Precio</th><th style="text-align: right;">Total</th></tr></thead>
+    <tbody>${productRows}</tbody>
+  </table>
+  <div class="totals">
+    <div class="total-row"><span>Subtotal:</span><span>${formatCurrency(subtotal)}</span></div>
+    <div class="total-row"><span>IVA (19%):</span><span>${formatCurrency(tax)}</span></div>
+    <div class="total-row final-total"><span>Total Final:</span><span>${formatCurrency(total)}</span></div>
+  </div>
+</body>
+</html>`;
+
+    const element = document.createElement('div');
+    element.innerHTML = htmlContent;
+    element.style.position = 'absolute';
+    element.style.left = '-9999px';
+    document.body.appendChild(element);
+
+    const opt = {
+      margin: 0,
+      filename: `Cotizacion_${quote.quoteNumber}.pdf`,
+      image: { type: 'jpeg' as const, quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
+    document.body.removeChild(element);
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(pdfBlob);
+    });
   };
 
   // Function to open quote in edit mode
@@ -498,6 +646,15 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                             >
                               <FileText className="w-4 h-4 mr-2" />
                               Ver / Editar
+                            </DropdownMenuItem>
+                            
+                            <DropdownMenuItem 
+                              data-testid={`send-email-${quote.id}`}
+                              onClick={() => handleSendEmail(quote.id, quote.quoteNumber)}
+                              disabled={sendEmailMutation.isPending}
+                            >
+                              <Mail className="w-4 h-4 mr-2" />
+                              {sendEmailMutation.isPending ? 'Enviando correo...' : 'Enviar por correo'}
                             </DropdownMenuItem>
                             
                             {/* Status change options */}

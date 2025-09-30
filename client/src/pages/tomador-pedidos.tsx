@@ -22,11 +22,12 @@ import OrdersList from "@/components/order-taker/orders-list";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
+import html2pdf from "html2pdf.js";
 // HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
 
 // Validation schema for edit order form
@@ -947,6 +948,15 @@ export default function TomadorPedidos() {
             queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
             
             console.log(`Quote ${savedQuote.quoteNumber} converted to order ${convertedOrder.orderNumber}`);
+            
+            // Send email automatically after conversion to order
+            try {
+              await sendQuoteEmailWithPDF(savedQuote, savedItems);
+              console.log('Email sent successfully after order conversion');
+            } catch (emailError) {
+              console.warn('Could not send email after order conversion:', emailError);
+              // Don't fail the whole operation if email fails
+            }
           }
         } catch (error) {
           console.warn('Could not convert quote to order, but quote was saved successfully:', error);
@@ -1400,6 +1410,401 @@ export default function TomadorPedidos() {
   // Legacy PDF download function (kept for compatibility, but now just calls the integrated function)
   const downloadPDF = () => {
     saveQuoteAndDownloadPDF();
+  };
+
+  // Generate PDF as base64 for email sending (doesn't open/download)
+  const generatePDFAsBase64 = async (quote: Quote, items: any[]): Promise<string> => {
+    try {
+      // Format data for Chilean standards
+      const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', { 
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric'
+      });
+
+      // Calculate totals with proper formatting
+      const subtotal = parseFloat(quote.subtotal || "0");
+      const discount = 0;
+      const netTotal = subtotal - discount;
+      const tax = parseFloat(quote.taxAmount || "0");
+      const total = parseFloat(quote.total || "0");
+
+      // Format currency in Chilean format (CLP with dots as thousand separators)
+      const formatCurrency = (amount: number) => `$${Math.round(amount).toLocaleString('es-CL').replace(/,/g, '.')}`;
+
+      // XSS protection helper function
+      const escapeHtml = (text: string | null | undefined) => {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      };
+
+      // Build products table rows HTML with XSS protection
+      const productRows = items.map(item => {
+        const unitPrice = parseFloat(item.unitPrice);
+        const lineTotal = parseFloat(item.totalPrice);
+        const productUnit = escapeHtml(item.productUnit) || "UN";
+        
+        return `
+          <tr>
+            <td>
+              <div class="product-name">${escapeHtml(item.productName)}</div>
+              ${item.productCode || item.customSku ? `<div class="product-code">SKU: ${escapeHtml(item.productCode || item.customSku)}</div>` : ''}
+            </td>
+            <td class="text-center">${productUnit}</td>
+            <td class="text-center">${parseFloat(item.quantity)}</td>
+            <td class="text-right">${formatCurrency(unitPrice)}</td>
+            <td class="text-right" style="color: #fd6301; font-weight: 600;">${formatCurrency(lineTotal)}</td>
+          </tr>`;
+      }).join('');
+
+      // Build complete HTML (same as generatePDFFromQuote but for conversion to PDF)
+      const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Cotización ${quote.quoteNumber}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #fd6301;
+      padding-bottom: 15px;
+    }
+    .header-right {
+      text-align: right;
+    }
+    .header h1 {
+      color: #fd6301;
+      margin: 0;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .header-info {
+      font-size: 13px;
+      color: #374151;
+      margin-top: 8px;
+    }
+    .section {
+      margin-bottom: 15px;
+    }
+    .section h3 {
+      color: #fd6301;
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .client-info {
+      background-color: #fff7ed;
+      border: 1px solid #fdba74;
+      padding: 12px;
+      border-radius: 6px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .client-info p {
+      margin: 0 0 8px 0;
+    }
+    .client-observations {
+      grid-column: 1 / -1;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #fdba74;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15px;
+      font-size: 13px;
+    }
+    th {
+      background: linear-gradient(to right, #fd6301, #e55100);
+      color: white;
+      padding: 8px;
+      text-align: left;
+      font-weight: bold;
+      font-size: 12px;
+    }
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .product-name {
+      font-weight: 600;
+      color: #1f2937;
+      font-size: 13px;
+    }
+    .product-code {
+      color: #6b7280;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .totals {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 6px 0;
+      font-size: 14px;
+    }
+    .total-row span:first-child {
+      color: #374151;
+      font-weight: 500;
+    }
+    .total-row span:last-child {
+      font-weight: 600;
+    }
+    .final-total {
+      font-size: 16px;
+      font-weight: bold;
+      border-top: 2px solid #e2e8f0;
+      padding-top: 10px;
+      margin-top: 8px;
+    }
+    .final-total span:last-child {
+      color: #fd6301;
+    }
+    .terms {
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+    }
+    .terms h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #374151;
+    }
+    .terms ul {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .terms li {
+      margin-bottom: 4px;
+    }
+    .payment-info {
+      background-color: #fff7ed;
+      border: 1px solid #fdba74;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+    .payment-info h4 {
+      color: #ea580c;
+      margin: 0 0 10px 0;
+      font-size: 14px;
+    }
+    .payment-info p {
+      margin: 0 0 8px 0;
+    }
+    .payment-section {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <div style="width: 220px; height: 60px; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center;">
+          <span style="color: #6b7280;">Logo Panorámica</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <h1>COTIZACIÓN</h1>
+        <div class="header-info">
+          <p><strong>Fecha:</strong> ${quoteDate}</p>
+          <p><strong>Cotización N°:</strong> ${escapeHtml(quote.quoteNumber)}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Información del Cliente</h3>
+      <div class="client-info">
+        <p><strong>RUT:</strong> ${escapeHtml(quote.clientRut) || 'No especificado'}</p>
+        <p><strong>Cliente:</strong> ${escapeHtml(quote.clientName)}</p>
+        <p><strong>Email:</strong> ${escapeHtml(quote.clientEmail) || 'No especificado'}</p>
+        <p><strong>Teléfono:</strong> ${escapeHtml(quote.clientPhone) || 'No especificado'}</p>
+        <p><strong>Dirección:</strong> ${escapeHtml(quote.clientAddress) || 'No especificada'}</p>
+        <p><strong>Ubicación:</strong> Chile</p>
+        ${quote.notes ? `<div class="client-observations"><p><strong>Observaciones:</strong> ${escapeHtml(quote.notes)}</p></div>` : ''}
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Detalle de Productos</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th class="text-center">Unidad</th>
+            <th class="text-center">Cant.</th>
+            <th class="text-right">Precio</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${productRows}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="totals">
+        <div class="total-row">
+          <span>Subtotal:</span>
+          <span>${formatCurrency(subtotal)}</span>
+        </div>
+        <div class="total-row">
+          <span>Subtotal neto:</span>
+          <span>${formatCurrency(netTotal)}</span>
+        </div>
+        <div class="total-row">
+          <span>IVA (19%):</span>
+          <span>${formatCurrency(tax)}</span>
+        </div>
+        <div class="total-row final-total">
+          <span>Total Final:</span>
+          <span>${formatCurrency(total)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="terms">
+        <h4>Términos y Condiciones</h4>
+        <ul>
+          <li>Precios válidos por 7 días hábiles desde la emisión de esta cotización.</li>
+          <li>Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.</li>
+          <li>Los productos están sujetos a disponibilidad de stock.</li>
+          <li>Condiciones de pago: según acuerdo comercial.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="payment-info">
+        <h4>Información de Pagos</h4>
+        <div class="payment-section">
+          <p><strong>Link de pagos con tarjetas:</strong><br>
+          https://micrositios.getnet.cl/pinturaspanoramica</p>
+        </div>
+        <div class="payment-section">
+          <p><strong>Pagos con transferencia dirigirlos a:</strong><br>
+          Pintureria Panoramica Limitada<br>
+          RUT: 78.652.260-9<br>
+          Cuenta Corriente Banco Santander: 2592916-0<br>
+          Email: contacto@pinturaspanoramica.cl</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+      // Create temporary element for html2pdf
+      const element = document.createElement('div');
+      element.innerHTML = htmlContent;
+      element.style.position = 'absolute';
+      element.style.left = '-9999px';
+      document.body.appendChild(element);
+
+      // Generate PDF using html2pdf.js
+      const opt = {
+        margin: 0,
+        filename: `Cotizacion_${quote.quoteNumber}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      // Generate and get base64
+      const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
+      
+      // Clean up
+      document.body.removeChild(element);
+
+      // Convert blob to base64
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(pdfBlob);
+      });
+
+    } catch (error) {
+      console.error('Error generating PDF as base64:', error);
+      throw error;
+    }
+  };
+
+  // Send quote email with PDF attachment
+  const sendQuoteEmailWithPDF = async (quote: Quote, items: any[]) => {
+    try {
+      console.log('Generating PDF for email...');
+      const pdfBase64 = await generatePDFAsBase64(quote, items);
+      
+      console.log('Sending email...');
+      const response = await apiRequest(`/api/quotes/${quote.id}/send-email`, {
+        method: 'POST',
+        data: {
+          pdfBase64,
+          recipientEmail: 'contacto@pinturaspanoramica.cl'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Email sent successfully:', result);
+        return true;
+      } else {
+        const error = await response.json();
+        console.error('Failed to send email:', error);
+        throw new Error(error.message || 'Failed to send email');
+      }
+    } catch (error) {
+      console.error('Error sending quote email:', error);
+      throw error;
+    }
   };
 
   // Save quote
