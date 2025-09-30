@@ -895,7 +895,7 @@ export function NvvDashboard() {
               <Table className="min-w-max">
                 <TableHeader className="sticky top-0 bg-white z-10">
                   <TableRow>
-                    <TableHead className="min-w-[160px]">Fecha/Hora Incorporación</TableHead>
+                    <TableHead className="min-w-[140px]">Fecha Documento</TableHead>
                     <TableHead className="min-w-[120px]">Mes NVV</TableHead>
                     <TableHead className="min-w-[100px]">Vendedor</TableHead>
                     <TableHead className="min-w-[150px]">Cliente (NOKOEN)</TableHead>
@@ -924,8 +924,8 @@ export function NvvDashboard() {
                     
                     return (
                       <TableRow key={record.id} data-testid={`row-nvv-${record.id}`}>
-                        <TableCell className="min-w-[160px] text-sm" data-testid={`text-created-${record.id}`}>
-                          {formatDateTime(record.createdAt)}
+                        <TableCell className="min-w-[140px] text-sm" data-testid={`text-docdate-${record.id}`}>
+                          {formatFEEMDO(record.FEEMDO || '')}
                         </TableCell>
                         <TableCell className="min-w-[120px]" data-testid={`text-month-${record.id}`}>
                           {getMonthFromFEEMDO(record.FEEMDO || '')}
