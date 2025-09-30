@@ -1017,6 +1017,24 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Client Analytics & Sales Team - Full Width Column */}
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            <TopClientsPanel 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+            />
+          </div>
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            <TopSalespeoplePanel 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+            />
+          </div>
+
           {/* Ventas por Segmento - Full Width Chart - Ocultar cuando hay filtro activo */}
           {globalFilter.type === "all" && (
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
@@ -1047,44 +1065,14 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Packaging Metrics - Two Columns */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <PackagingSalesMetrics 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-              />
-            </div>
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <PackagingUnitsMetrics 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-              />
-            </div>
-          </div>
-
-          {/* Client Analytics & Sales Team - Two Columns */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <TopClientsPanel 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-              />
-            </div>
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <TopSalespeoplePanel 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-              />
-            </div>
+          {/* Packaging Metrics - Full Width */}
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            <PackagingSalesMetrics 
+              selectedPeriod={selectedPeriod} 
+              filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+            />
           </div>
 
           {/* Transactions - Full Width */}
