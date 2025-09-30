@@ -7458,60 +7458,49 @@ export class DatabaseStorage implements IStorage {
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(nvvData.length / BATCH_SIZE);
         
-        // Get unique IDMAEEDO values from this batch to check for duplicates
-        const batchIds = Array.from(new Set(batch.map(t => t.IDMAEEDO)));
-        
-        // Check which IDMAEEDO values already exist in NVV database
-        const validBatchIds = batchIds.filter(id => id != null && id !== '').map(id => id!.toString());
-        
-        const existingIds = validBatchIds.length > 0 ? await db
-          .select({ IDMAEEDO: nvvPendingSales.IDMAEEDO })
-          .from(nvvPendingSales)
-          .where(inArray(nvvPendingSales.IDMAEEDO, validBatchIds.map(id => sql`${id}::numeric`))) : [];
-        
-        const existingIdSet = new Set(existingIds.map(row => row.IDMAEEDO?.toString()));
-        
-        // Filter out NVV records with existing IDMAEEDO (avoid duplicates)
-        const newNvvRecords = batch.filter(nvvRecord => 
-          !existingIdSet.has(nvvRecord.IDMAEEDO?.toString() || '')
-        );
-        
-        const batchSkipped = batch.length - newNvvRecords.length;
+        // Prepare batch records with calculations
+        const recordsToInsert = batch.map(data => {
+          // Calculate the new columns as requested
+          const caprco2 = parseFloat(data.CAPRCO2?.toString() || '0');
+          const caprex2 = parseFloat(data.CAPREX2?.toString() || '0');
+          const ppprne = parseFloat(data.PPPRNE?.toString() || '0');
+          
+          const cantidadPendiente = caprco2 - caprex2;
+          const totalPendiente = ppprne * cantidadPendiente;
+          
+          return {
+            ...data,
+            importBatch,
+            importedAt: new Date(),
+            cantidadPendiente: cantidadPendiente.toString(),
+            totalPendiente: totalPendiente.toString(),
+          };
+        });
 
-        // Process each new record with calculations
-        for (let j = 0; j < newNvvRecords.length; j++) {
-          const data = newNvvRecords[j];
-          try {
-            // Calculate the new columns as requested
-            const caprco2 = parseFloat(data.CAPRCO2?.toString() || '0');
-            const caprex2 = parseFloat(data.CAPREX2?.toString() || '0');
-            const ppprne = parseFloat(data.PPPRNE?.toString() || '0');
-            
-            const cantidadPendiente = caprco2 - caprex2;
-            const totalPendiente = ppprne * cantidadPendiente;
-            
-            await db.insert(nvvPendingSales).values({
-              ...data,
-              importBatch,
-              importedAt: new Date(),
-              cantidadPendiente: cantidadPendiente.toString(),
-              totalPendiente: totalPendiente.toString(),
-            });
-            result.successfulImports++;
-            totalInserted++;
-          } catch (error) {
-            console.error(`Error importing NVV row ${i + j + 1}:`, error);
-            result.errors.push({
-              row: i + j + 1,
-              message: error instanceof Error ? error.message : 'Error desconocido',
-              data: data,
-            });
-          }
+        try {
+          // Use UPSERT with onConflictDoNothing to skip duplicates automatically
+          // PostgreSQL will handle duplicate detection via UNIQUE constraint
+          const insertResult = await db
+            .insert(nvvPendingSales)
+            .values(recordsToInsert)
+            .onConflictDoNothing({ target: nvvPendingSales.IDMAEEDO });
+          
+          // Count successful inserts (rowCount returns number of inserted rows, excluding conflicts)
+          const batchInserted = insertResult.rowCount || 0;
+          const batchSkipped = batch.length - batchInserted;
+          
+          totalInserted += batchInserted;
+          totalSkipped += batchSkipped;
+          result.successfulImports += batchInserted;
+          
+          console.log(`📦 NVV Batch ${batchNumber}/${totalBatches}: Inserted ${batchInserted}, Skipped ${batchSkipped} duplicates`);
+        } catch (error) {
+          console.error(`Error importing NVV batch ${batchNumber}:`, error);
+          result.errors.push({
+            row: i + 1,
+            message: `Batch ${batchNumber} error: ` + (error instanceof Error ? error.message : 'Error desconocido'),
+          });
         }
-        
-        totalSkipped += batchSkipped;
-        
-        console.log(`📦 NVV Batch ${batchNumber}/${totalBatches}: Inserted ${newNvvRecords.length}, Skipped ${batchSkipped} duplicates`);
       }
 
       console.log(`✅ NVV Import completed: ${totalInserted} new records imported, ${totalSkipped} duplicates skipped`);
