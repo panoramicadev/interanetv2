@@ -37,11 +37,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
-      href: "/nvv",
-      label: "Notas de Venta (NVV)",
-      icon: TrendingUp,
-    },
-    {
       href: "/metas",
       label: "Gestión de Metas",
       icon: Target,
@@ -50,6 +45,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/ordenes",
       label: "Facturas",
       icon: Receipt,
+      children: [
+        {
+          href: "/nvv",
+          label: "Notas de Venta",
+          icon: TrendingUp,
+        },
+      ],
     },
     {
       href: "/usuarios",
@@ -124,11 +126,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
-      href: "/nvv",
-      label: "Notas de Venta (NVV)",
-      icon: TrendingUp,
-    },
-    {
       href: "/metas",
       label: "Gestión de Metas",
       icon: Target,
@@ -137,6 +134,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/ordenes",
       label: "Facturas",
       icon: Receipt,
+      children: [
+        {
+          href: "/nvv",
+          label: "Notas de Venta",
+          icon: TrendingUp,
+        },
+      ],
     },
     {
       href: "/usuarios",
