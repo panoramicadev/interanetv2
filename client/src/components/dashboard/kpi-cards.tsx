@@ -288,6 +288,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const nvvTotal = Number(nvvTotalData?.totalAmount || 0);
     const salesTotal = Number(metrics?.totalSales || 0);
     const combinedTotal = salesTotal + nvvTotal;
+    const nvvFormatted = formatCurrency(nvvTotal);
 
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
@@ -300,9 +301,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
               <p 
                 className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
                 data-testid={kpi.testId}
-                title={kpi.value}
+                title={nvvFormatted}
               >
-                {kpi.value}
+                {nvvFormatted}
               </p>
               {kpi.comparison && (
                 <Badge 
