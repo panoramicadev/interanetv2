@@ -19,6 +19,13 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 - **Sidebar Integration**: Added "Panel de Tareas" menu item positioned above "Crear Presupuesto" for admin and supervisor users
 - **Assignment Capabilities**: Supports assigning tasks to individual users or entire segments with flexible recipient selection
 
+### NVV Smart Filtering (September 30, 2025)
+- **Automatic Completed Order Exclusion**: NVV import now cross-references sales_transactions table to automatically exclude orders that have been completed
+- **Business Logic**: If a NUDO exists in sales_transactions, it's considered a completed sale and excluded from pending sales (NVV) import
+- **Performance Optimization**: Uses Set-based lookup for efficient filtering of large datasets
+- **Import Statistics**: Enhanced logging shows three categories - inserted records, duplicates skipped, and completed orders excluded
+- **Data Integrity**: Ensures NVV dashboard only displays truly pending sales, eliminating confusion from already-completed orders
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
