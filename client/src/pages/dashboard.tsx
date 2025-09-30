@@ -735,8 +735,8 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
-            /* Desktop Layout: Grid structure to maintain order */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 w-full items-start">
+            /* Desktop Layout: Single line flex layout */
+            <div className="flex flex-wrap items-start gap-4 lg:gap-6 w-full">
               {/* Filter Type Selector */}
               <div className="flex items-center justify-between sm:justify-start space-x-3">
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
