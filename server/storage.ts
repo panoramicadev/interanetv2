@@ -7454,15 +7454,33 @@ export class DatabaseStorage implements IStorage {
       const deletedCount = deleteResult.rowCount || 0;
       console.log(`✅ Cleared ${deletedCount} existing NVV records`);
 
+      // STEP 2: Get all NUDO from sales_transactions (completed orders)
+      console.log('🔍 Fetching completed orders from sales_transactions...');
+      const completedOrders = await db
+        .select({ nudo: salesTransactions.nudo })
+        .from(salesTransactions);
+      
+      const completedNudoSet = new Set(completedOrders.map(row => row.nudo?.toString().trim()));
+      console.log(`📊 Found ${completedNudoSet.size} completed orders in sales_transactions`);
+
+      // STEP 3: Filter NVV data to exclude completed orders
+      const pendingNvvData = nvvData.filter(record => {
+        const recordNudo = record.NUDO?.toString().trim();
+        return recordNudo && !completedNudoSet.has(recordNudo);
+      });
+      
+      const excludedByCompleted = nvvData.length - pendingNvvData.length;
+      console.log(`🎯 Filtered: ${pendingNvvData.length} pending orders, ${excludedByCompleted} excluded (already completed)`);
+
       const BATCH_SIZE = 100;
       let totalInserted = 0;
       let totalSkipped = 0;
 
-      // STEP 2: Process in batches to handle large imports efficiently
-      for (let i = 0; i < nvvData.length; i += BATCH_SIZE) {
-        const batch = nvvData.slice(i, i + BATCH_SIZE);
+      // STEP 4: Process pending orders in batches
+      for (let i = 0; i < pendingNvvData.length; i += BATCH_SIZE) {
+        const batch = pendingNvvData.slice(i, i + BATCH_SIZE);
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(nvvData.length / BATCH_SIZE);
+        const totalBatches = Math.ceil(pendingNvvData.length / BATCH_SIZE);
         
         // Prepare batch records with calculations
         const recordsToInsert = batch.map(data => {
@@ -7509,7 +7527,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      console.log(`✅ NVV Import completed: ${totalInserted} new records imported, ${totalSkipped} duplicates skipped`);
+      console.log(`✅ NVV Import completed: ${totalInserted} new records imported, ${totalSkipped} duplicates skipped, ${excludedByCompleted} excluded (already completed)`);
       
       if (result.errors.length > 0) {
         result.success = result.successfulImports > 0;
