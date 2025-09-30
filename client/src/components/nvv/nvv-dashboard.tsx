@@ -92,6 +92,8 @@ interface NvvRecord {
   // System fields
   status?: string;
   importBatch?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const statusLabels: Record<string, string> = {
@@ -180,6 +182,23 @@ export function NvvDashboard() {
       month: '2-digit',
       day: '2-digit'
     }).format(new Date(dateString));
+  };
+
+  const formatDateTime = (dateTimeString: string | null | undefined) => {
+    if (!dateTimeString) return 'No disponible';
+    try {
+      const date = new Date(dateTimeString);
+      return new Intl.DateTimeFormat('es-CL', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).format(date);
+    } catch (error) {
+      return 'Fecha inválida';
+    }
   };
 
   // Updated to use the pre-calculated totalPendiente column from database
@@ -876,6 +895,7 @@ export function NvvDashboard() {
               <Table className="min-w-max">
                 <TableHeader className="sticky top-0 bg-white z-10">
                   <TableRow>
+                    <TableHead className="min-w-[160px]">Fecha/Hora Incorporación</TableHead>
                     <TableHead className="min-w-[120px]">Mes NVV</TableHead>
                     <TableHead className="min-w-[100px]">Vendedor</TableHead>
                     <TableHead className="min-w-[150px]">Cliente (NOKOEN)</TableHead>
@@ -904,6 +924,9 @@ export function NvvDashboard() {
                     
                     return (
                       <TableRow key={record.id} data-testid={`row-nvv-${record.id}`}>
+                        <TableCell className="min-w-[160px] text-sm" data-testid={`text-created-${record.id}`}>
+                          {formatDateTime(record.createdAt)}
+                        </TableCell>
                         <TableCell className="min-w-[120px]" data-testid={`text-month-${record.id}`}>
                           {getMonthFromFEEMDO(record.FEEMDO || '')}
                         </TableCell>
