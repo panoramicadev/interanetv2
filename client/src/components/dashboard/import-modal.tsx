@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Upload, X, Download, AlertTriangle, Calendar, Database, FileText } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { LoadingOverlay } from "@/components/ui/loading-spinner";
 
 interface ImportModalProps {
   open: boolean;
@@ -196,26 +197,32 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      if (!newOpen) {
-        resetState();
-      }
-      onOpenChange(newOpen);
-    }}>
-      <DialogContent className={showPreview ? "sm:max-w-2xl" : "sm:max-w-md"}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            {showPreview ? "Confirmar Importación" : "Importar Datos CSV"}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              data-testid="button-close-modal"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      {(previewMutation.isPending || replaceMutation.isPending) && (
+        <LoadingOverlay 
+          message={previewMutation.isPending ? "Analizando archivo..." : "Importando datos..."}
+        />
+      )}
+      <Dialog open={open} onOpenChange={(newOpen) => {
+        if (!newOpen) {
+          resetState();
+        }
+        onOpenChange(newOpen);
+      }}>
+        <DialogContent className={showPreview ? "sm:max-w-2xl" : "sm:max-w-md"}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              {showPreview ? "Confirmar Importación" : "Importar Datos CSV"}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onOpenChange(false)}
+                data-testid="button-close-modal"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
         
         {!showPreview ? (
           // File Selection Screen
@@ -368,5 +375,6 @@ export default function ImportModal({ open, onOpenChange }: ImportModalProps) {
         )}
       </DialogContent>
     </Dialog>
+    </>
   );
 }
