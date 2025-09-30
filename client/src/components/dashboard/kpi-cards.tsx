@@ -14,11 +14,13 @@ interface SalesMetrics {
   totalOrders: number;
   totalUnits: number;
   activeCustomers: number;
+  gdvSales: number;
   previousMonthSales?: number;
   previousMonthTransactions?: number;
   previousMonthOrders?: number;
   previousMonthUnits?: number;
   previousMonthCustomers?: number;
+  previousMonthGdvSales?: number;
 }
 
 interface NvvMetrics {
@@ -178,13 +180,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const salesChange = calculateChange(metrics?.totalSales || 0, metrics?.previousMonthSales);
   const ordersChange = calculateChange(metrics?.totalOrders || 0, metrics?.previousMonthOrders);
   const unitsChange = calculateChange(metrics?.totalUnits || 0, metrics?.previousMonthUnits);
-  const customersChange = calculateChange(metrics?.activeCustomers || 0, metrics?.previousMonthCustomers);
+  const gdvChange = calculateChange(metrics?.gdvSales || 0, metrics?.previousMonthGdvSales);
 
   // Calculate comparison changes
   const salesComparison = calculateComparisonChange(metrics?.totalSales || 0, comparisonMetrics?.totalSales);
   const ordersComparison = calculateComparisonChange(metrics?.totalOrders || 0, comparisonMetrics?.totalOrders);
   const unitsComparison = calculateComparisonChange(metrics?.totalUnits || 0, comparisonMetrics?.totalUnits);
-  const customersComparison = calculateComparisonChange(metrics?.activeCustomers || 0, comparisonMetrics?.activeCustomers);
+  const gdvComparison = calculateComparisonChange(metrics?.gdvSales || 0, comparisonMetrics?.gdvSales);
 
   const kpis = [
     {
@@ -221,22 +223,23 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       testId: "kpi-units"
     },
     {
-      title: "Clientes Activos",
-      value: formatNumber(metrics?.activeCustomers || 0),
-      change: customersChange.text,
-      changeColor: customersChange.color,
-      comparison: customersComparison,
-      icon: Users,
+      title: "Ventas GDV",
+      value: formatCurrency(metrics?.gdvSales || 0),
+      change: gdvChange.text,
+      changeColor: gdvChange.color,
+      comparison: gdvComparison,
+      icon: DollarSign,
       bgColor: "bg-purple-100 dark:bg-purple-900/20",
       iconColor: "text-purple-600",
-      testId: "kpi-customers"
+      testId: "kpi-gdv-sales"
     },
   ];
 
   // Renderizar tarjeta personalizada para Ventas Totales
   const renderSalesCard = (kpi: any) => {
     const nvvTotal = Number(nvvTotalData?.totalAmount || 0);
-    const combinedTotal = Number(metrics?.totalSales || 0) + nvvTotal;
+    const gdvSales = Number(metrics?.gdvSales || 0);
+    const combinedTotal = Number(metrics?.totalSales || 0) + gdvSales + nvvTotal;
 
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
@@ -265,8 +268,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
               {kpi.change}
             </p>
-            {/* Información adicional de NVV */}
+            {/* Información adicional de NVV y GDV */}
             <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`GDV: ${formatCurrency(gdvSales)}`}>
+                GDV: {formatCurrency(gdvSales)}
+              </p>
               <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`NVV: ${formatCurrency(nvvTotal)}`}>
                 NVV: {formatCurrency(nvvTotal)}
               </p>
@@ -287,7 +293,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const renderOrdersCard = (kpi: any) => {
     const nvvTotal = Number(nvvTotalData?.totalAmount || 0);
     const salesTotal = Number(metrics?.totalSales || 0);
-    const combinedTotal = salesTotal + nvvTotal;
+    const gdvSales = Number(metrics?.gdvSales || 0);
+    const combinedTotal = salesTotal + gdvSales + nvvTotal;
     const nvvFormatted = formatCurrency(nvvTotal);
 
     return (

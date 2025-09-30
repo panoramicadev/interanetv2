@@ -1117,6 +1117,7 @@ export class DatabaseStorage implements IStorage {
     totalOrders: number;
     totalUnits: number;
     activeCustomers: number;
+    gdvSales: number;
   }> {
     const { startDate, endDate, salesperson, segment, client, supplier } = filters;
     const conditions = [];
@@ -1147,13 +1148,16 @@ export class DatabaseStorage implements IStorage {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Calculate metrics using MONTO field directly - NCV already comes with negative values
+    // totalSales EXCLUDES TIDO='GDV' to avoid double counting
+    // gdvSales is calculated separately for TIDO = 'GDV' transactions only
     const [metrics] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN ${salesTransactions.monto} ELSE 0 END), 0)`,
         totalTransactions: sql<number>`COUNT(*)`,
         totalOrders: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
+        gdvSales: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} = 'GDV' THEN ${salesTransactions.monto} ELSE 0 END), 0)`,
       })
       .from(salesTransactions)
       .where(whereClause);
@@ -1164,6 +1168,7 @@ export class DatabaseStorage implements IStorage {
       totalOrders: Number(metrics.totalOrders),
       totalUnits: Number(metrics.totalUnits),
       activeCustomers: Number(metrics.activeCustomers),
+      gdvSales: Number(metrics.gdvSales),
     };
   }
 
