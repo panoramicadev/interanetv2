@@ -811,7 +811,7 @@ export default function VisitasTecnicasPage() {
               </DialogDescription>
             </DialogHeader>
             
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 max-h-[60vh]">
               <div className="space-y-6 pr-4">
                 {selectedProducts.map((product, index) => (
                   <Card key={product.productId} className="border-2">
