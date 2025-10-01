@@ -3331,11 +3331,11 @@ export default function TomadorPedidos() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex gap-3 justify-center items-center">
                   <Button
                     onClick={downloadPDF}
                     variant="outline"
-                    className="flex-1 h-12"
+                    className="h-12 min-w-[160px]"
                     data-testid="mobile-button-download-pdf"
                   >
                     <FileText className="w-4 h-4 mr-2" />
@@ -3343,7 +3343,7 @@ export default function TomadorPedidos() {
                   </Button>
                   <Button
                     onClick={sendOrder}
-                    className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
+                    className="h-12 min-w-[180px] bg-orange-500 hover:bg-orange-600"
                     data-testid="mobile-button-send-order"
                   >
                     <Mail className="w-4 h-4 mr-2" />
@@ -3789,11 +3789,11 @@ export default function TomadorPedidos() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-3 justify-center items-center">
                     <Button
                       onClick={downloadPDF}
                       variant="outline"
-                      className="flex-1"
+                      className="min-w-[160px]"
                       data-testid="modal-button-download-pdf"
                     >
                       <FileText className="w-4 h-4 mr-2" />
@@ -3802,7 +3802,7 @@ export default function TomadorPedidos() {
                     {!savedQuoteId ? (
                       <Button
                         onClick={saveQuote}
-                        className="flex-1"
+                        className="min-w-[140px]"
                         disabled={!quoteForm.clientName || cart.length === 0}
                         data-testid="modal-button-save-quote"
                       >
@@ -3811,7 +3811,7 @@ export default function TomadorPedidos() {
                     ) : (
                       <Button
                         onClick={sendOrder}
-                        className="flex-1 bg-orange-500 hover:bg-orange-600"
+                        className="min-w-[180px] bg-orange-500 hover:bg-orange-600"
                         data-testid="modal-button-send-order"
                       >
                         <Mail className="w-4 h-4 mr-2" />
