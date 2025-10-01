@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -80,35 +80,65 @@ export default function VisitasTecnicasPage() {
   const [visitStep, setVisitStep] = useState<'basic' | 'products' | 'evaluation'>('basic');
   const [visitData, setVisitData] = useState({
     clienteId: '',
+    clienteName: '',
     nombreObra: '',
     direccionObra: '',
     fechaVisita: new Date().toISOString().split('T')[0],
   });
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [clientSearchTerm, setClientSearchTerm] = useState("");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const clientDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (clientDropdownRef.current && !clientDropdownRef.current.contains(event.target as Node)) {
+        setShowClientDropdown(false);
+      }
+    };
+
+    if (showClientDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showClientDropdown]);
 
   const handleNewVisit = () => {
     setShowNewVisitModal(true);
     setVisitStep('basic');
     setVisitData({
       clienteId: '',
+      clienteName: '',
       nombreObra: '',
       direccionObra: '',
       fechaVisita: new Date().toISOString().split('T')[0],
     });
     setSelectedProducts([]);
     setProductSearchTerm("");
+    setClientSearchTerm("");
+    setShowClientDropdown(false);
   };
   
   const handleCloseModal = () => {
     setShowNewVisitModal(false);
     setVisitStep('basic');
+    setClientSearchTerm("");
+    setShowClientDropdown(false);
   };
 
-  // Query para obtener la lista de clientes
-  const { data: clients = [] } = useQuery<Client[]>({
-    queryKey: ['/api/clients/list'],
-    enabled: showNewVisitModal,
+  // Query para buscar clientes (AJAX search)
+  const { data: clientSearchResults = [], isLoading: searchingClients } = useQuery<Client[]>({
+    queryKey: ['/api/clients/search', clientSearchTerm],
+    queryFn: async () => {
+      if (!clientSearchTerm || clientSearchTerm.length < 2) {
+        return [];
+      }
+      const response = await apiRequest(`/api/clients/search?q=${encodeURIComponent(clientSearchTerm)}`);
+      return response.json();
+    },
+    enabled: showNewVisitModal && clientSearchTerm.length >= 2,
   });
 
   // Query para obtener la lista de productos
@@ -526,25 +556,67 @@ export default function VisitasTecnicasPage() {
             </DialogHeader>
             
             <div className="space-y-4">
-              <div className="space-y-2">
+              <div className="space-y-2 relative" ref={clientDropdownRef}>
                 <label className="text-sm font-medium">Cliente *</label>
-                <Select 
-                  value={visitData.clienteId} 
-                  onValueChange={(value) => setVisitData(prev => ({ ...prev, clienteId: value }))}
-                >
-                  <SelectTrigger data-testid="select-cliente">
-                    <SelectValue placeholder="Selecciona un cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="h-64">
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
+                <div className="relative">
+                  <Input
+                    placeholder="Escribe para buscar cliente..."
+                    value={visitData.clienteName || clientSearchTerm}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setClientSearchTerm(value);
+                      setShowClientDropdown(true);
+                      if (!value) {
+                        setVisitData(prev => ({ ...prev, clienteId: '', clienteName: '' }));
+                      }
+                    }}
+                    onFocus={() => {
+                      if (clientSearchTerm.length >= 2) {
+                        setShowClientDropdown(true);
+                      }
+                    }}
+                    data-testid="input-search-cliente"
+                    className="pr-10"
+                  />
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Escribe al menos 2 caracteres para buscar
+                </p>
+                
+                {showClientDropdown && clientSearchTerm.length >= 2 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-64 overflow-y-auto">
+                    {searchingClients ? (
+                      <div className="p-3 text-sm text-gray-500 text-center">
+                        Buscando...
+                      </div>
+                    ) : clientSearchResults.length === 0 ? (
+                      <div className="p-3 text-sm text-gray-500 text-center">
+                        No se encontraron clientes
+                      </div>
+                    ) : (
+                      clientSearchResults.map((client) => (
+                        <button
+                          key={client.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-sm"
+                          onClick={() => {
+                            setVisitData(prev => ({ 
+                              ...prev, 
+                              clienteId: client.id,
+                              clienteName: client.nokoen 
+                            }));
+                            setClientSearchTerm('');
+                            setShowClientDropdown(false);
+                          }}
+                          data-testid={`option-cliente-${client.id}`}
+                        >
                           {client.nokoen}
-                        </SelectItem>
-                      ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
