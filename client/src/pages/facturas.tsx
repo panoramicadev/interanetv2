@@ -90,8 +90,21 @@ export default function Facturas() {
     }
   }, [filterType, selectedDate, selectedYear, startDate, endDate]);
 
+  // Construct query parameters based on user role
+  const getQueryKey = () => {
+    let baseQuery = `/api/sales/transactions?limit=200&period=${selectedPeriod}&filterType=${filterType}`;
+    
+    // If user is a salesperson, filter by their name
+    if (user?.role === 'salesperson' && (user as any)?.salespersonName) {
+      baseQuery += `&salesperson=${encodeURIComponent((user as any).salespersonName)}`;
+    }
+    
+    return baseQuery;
+  };
+
   const { data: allTransactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/sales/transactions?limit=200&period=${selectedPeriod}&filterType=${filterType}${(user as any)?.salespersonName ? `&salesperson=${encodeURIComponent((user as any).salespersonName)}` : ''}`],
+    queryKey: [getQueryKey()],
+    enabled: !!user, // Only run query when user is loaded
   });
 
   const handleTransactionClick = (transaction: Transaction) => {

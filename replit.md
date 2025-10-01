@@ -6,6 +6,12 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ## Recent Changes
 
+### Invoice Access Control (October 2025)
+- **Role-Based Filtering**: Implemented server-side and client-side filtering for invoice/transaction access
+- **Salesperson Restrictions**: Salespeople can only view their own invoices/transactions in both Facturas and Órdenes pages
+- **Security Enhancement**: Backend enforces filtering based on authenticated user role, preventing unauthorized access
+- **Admin/Supervisor Access**: Administrators and supervisors maintain full access to all invoices across the system
+
 ### Dashboard Unification (September 2025)
 - **Supervisor & Admin Dashboard**: Supervisors now use the identical dashboard as administrators, providing full access to all management capabilities except file upload functionality
 - **Goals Management**: Supervisors now see and manage all system goals (identical to administrators) instead of being limited to their assigned area

@@ -1111,10 +1111,22 @@ export function registerRoutes(app: Express): Server {
       const { startDate, endDate, salesperson, segment, limit, offset, period, filterType } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
+      // Enforce role-based access control for salespeople
+      let salespersonFilter = salesperson as string;
+      if (req.user?.role === 'salesperson') {
+        // Force filter to authenticated user's salesperson name
+        salespersonFilter = (req.user as any).salespersonName;
+        
+        // If salesperson name is not available, return empty result for security
+        if (!salespersonFilter) {
+          return res.json([]);
+        }
+      }
+      
       const transactions = await storage.getSalesTransactions({
         startDate: (startDate as string) || dateRange.startDate,
         endDate: (endDate as string) || dateRange.endDate,
-        salesperson: salesperson as string,
+        salesperson: salespersonFilter,
         segment: segment as string,
         limit: limit ? parseInt(limit as string) : undefined,
         offset: offset ? parseInt(offset as string) : undefined,
