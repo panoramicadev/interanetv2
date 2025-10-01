@@ -36,6 +36,7 @@ import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
+import Facturas from "@/pages/facturas";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -103,6 +104,7 @@ function Router() {
               return null;
             }} />
             <Route path="/metas" component={Metas} />
+            <Route path="/facturas" component={Facturas} />
             <Route path="/tomador-pedidos" component={TomadorPedidos} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
