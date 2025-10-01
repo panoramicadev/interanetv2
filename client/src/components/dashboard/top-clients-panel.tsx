@@ -57,7 +57,7 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Clientes</h2>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/mis-clientes">
+          <Link href="/clients">
             <Button
               variant="ghost"
               size="sm"
