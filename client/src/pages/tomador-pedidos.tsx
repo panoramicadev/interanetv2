@@ -4341,20 +4341,19 @@ export default function TomadorPedidos() {
 
                 const htmlContent = generatePDFHTML(quote, items);
                 
-                // Create a temporary container with proper sizing
-                const container = document.createElement('div');
-                container.innerHTML = htmlContent;
-                container.style.position = 'absolute';
-                container.style.left = '-9999px';
-                container.style.top = '0';
-                container.style.width = '800px'; // Explicit width is crucial
-                container.style.visibility = 'hidden'; // Better than negative position
-                document.body.appendChild(container);
-
-                // Wait for content to fully render and images to load
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-                // Generate PDF with optimized settings
+                // Create a new window to render the PDF
+                const printWindow = window.open('', '_blank', 'width=800,height=600');
+                if (!printWindow) {
+                  throw new Error("No se pudo abrir la ventana del PDF.");
+                }
+                
+                printWindow.document.write(htmlContent);
+                printWindow.document.close();
+                
+                // Wait for images and content to load
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                // Generate PDF from the window
                 const opt = {
                   margin: [10, 10, 10, 10] as [number, number, number, number],
                   filename: `Presupuesto-${quote.quoteNumber}.pdf`,
@@ -4362,19 +4361,23 @@ export default function TomadorPedidos() {
                   html2canvas: { 
                     scale: 2, 
                     useCORS: true,
-                    logging: false,
-                    width: 800,
-                    windowWidth: 800,
-                    allowTaint: false,
+                    logging: true,
+                    allowTaint: true,
                     backgroundColor: '#ffffff'
                   },
                   jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
                 };
 
-                await html2pdf().set(opt).from(container).save();
+                await html2pdf().set(opt).from(printWindow.document.body).save();
                 
-                // Clean up
-                document.body.removeChild(container);
+                // Clean up - close the window
+                setTimeout(() => {
+                  try {
+                    printWindow.close();
+                  } catch (e) {
+                    console.log('Could not close print window');
+                  }
+                }, 500);
 
               } catch (error) {
                 console.error('Error downloading PDF:', error);
