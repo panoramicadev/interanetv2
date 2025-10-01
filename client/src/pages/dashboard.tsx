@@ -1015,6 +1015,16 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Ventas por Segmento - Full Width Chart - Ocultar cuando hay filtro activo */}
+          {globalFilter.type === "all" && (
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <SegmentChart 
+                selectedPeriod={selectedPeriod} 
+                filterType={filterType}
+              />
+            </div>
+          )}
+
           {/* Sales Team & Client Analytics - Full Width Column */}
           <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
             <TopSalespeoplePanel 
@@ -1032,16 +1042,6 @@ export default function Dashboard() {
               salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
             />
           </div>
-
-          {/* Ventas por Segmento - Full Width Chart - Ocultar cuando hay filtro activo */}
-          {globalFilter.type === "all" && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <SegmentChart 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-              />
-            </div>
-          )}
 
           {/* Products Chart */}
           <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
