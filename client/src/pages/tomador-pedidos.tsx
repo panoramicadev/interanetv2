@@ -2114,7 +2114,7 @@ export default function TomadorPedidos() {
       };
 
       // Generate and get base64
-      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+      const pdfBlob = await html2pdf().set(opt).from(container).output('blob');
       
       // Clean up
       document.body.removeChild(container);
