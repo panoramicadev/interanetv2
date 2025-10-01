@@ -256,6 +256,11 @@ export interface IStorage {
     sales: number;
   }>>;
   
+  getAvailablePeriods(): Promise<{
+    months: Array<{ value: string; label: string }>;
+    years: Array<{ value: string; label: string }>;
+  }>;
+  
   // Packaging metrics operations
   getPackagingMetrics(filters?: {
     startDate?: string;
@@ -1494,6 +1499,50 @@ export class DatabaseStorage implements IStorage {
       period: r.period,
       sales: Number(r.sales),
     }));
+  }
+
+  async getAvailablePeriods(): Promise<{
+    months: Array<{ value: string; label: string }>;
+    years: Array<{ value: string; label: string }>;
+  }> {
+    // Get unique months with data
+    const monthResults = await db
+      .select({
+        yearMonth: sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`,
+      })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.feemdo} IS NOT NULL`)
+      .groupBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`)
+      .orderBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') DESC`);
+
+    // Get unique years with data
+    const yearResults = await db
+      .select({
+        year: sql<string>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::text`,
+      })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.feemdo} IS NOT NULL`)
+      .groupBy(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`)
+      .orderBy(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) DESC`);
+
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                       "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+    const months = monthResults.map((r: any) => {
+      const [year, month] = r.yearMonth.split('-');
+      const monthName = monthNames[parseInt(month) - 1];
+      return {
+        value: r.yearMonth,
+        label: `${monthName} ${year}`
+      };
+    });
+
+    const years = yearResults.map((r: any) => ({
+      value: r.year,
+      label: r.year
+    }));
+
+    return { months, years };
   }
 
   // Packaging metrics operations
