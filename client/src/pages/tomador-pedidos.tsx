@@ -4316,28 +4316,32 @@ export default function TomadorPedidos() {
 
                 const htmlContent = generatePDFHTML(quote, items);
                 
-                // Create a temporary container (same method that works for preview)
+                // Create a temporary container with proper sizing
                 const container = document.createElement('div');
                 container.innerHTML = htmlContent;
                 container.style.position = 'absolute';
                 container.style.left = '-9999px';
                 container.style.top = '0';
+                container.style.width = '800px'; // Explicit width is crucial
+                container.style.visibility = 'hidden'; // Better than negative position
                 document.body.appendChild(container);
 
-                // Wait for content to fully render
-                await new Promise(resolve => setTimeout(resolve, 300));
+                // Wait for content to fully render and images to load
+                await new Promise(resolve => setTimeout(resolve, 500));
 
-                // Generate PDF with same settings as preview
+                // Generate PDF with optimized settings
                 const opt = {
                   margin: [10, 10, 10, 10] as [number, number, number, number],
                   filename: `Presupuesto-${quote.quoteNumber}.pdf`,
-                  image: { type: 'jpeg' as const, quality: 0.98 },
+                  image: { type: 'jpeg' as const, quality: 0.95 },
                   html2canvas: { 
                     scale: 2, 
                     useCORS: true,
                     logging: false,
                     width: 800,
-                    windowWidth: 800
+                    windowWidth: 800,
+                    allowTaint: false,
+                    backgroundColor: '#ffffff'
                   },
                   jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
                 };
