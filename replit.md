@@ -6,6 +6,13 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ## Recent Changes
 
+### Quote Sharing Enhancement (October 1, 2025)
+- **Email Integration**: "Enviar por Correo" button now opens the device's email client with PDF automatically attached
+- **Web Share API**: Uses native Web Share API on mobile devices for seamless sharing via email, WhatsApp, etc.
+- **Fallback Support**: Desktop browsers automatically download PDF and open mailto: link for manual attachment
+- **Mobile PDF Optimization**: Responsive CSS media queries ensure PDFs render perfectly on mobile screens with reduced font sizes and compact spacing
+- **UX Improvement**: "Nuevo Presupuesto" button hides during client search on mobile to prevent screen clutter
+
 ### Invoice Access Control (October 2025)
 - **Role-Based Filtering**: Implemented server-side and client-side filtering for invoice/transaction access
 - **Salesperson Restrictions**: Salespeople can only view their own invoices/transactions in both Facturas and Órdenes pages
