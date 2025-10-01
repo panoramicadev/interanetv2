@@ -5853,12 +5853,23 @@ export function registerRoutes(app: Express): Server {
   // Create nueva visita técnica
   app.post('/api/visitas-tecnicas', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
+      console.log('📝 Recibiendo datos de visita técnica:', JSON.stringify(req.body, null, 2));
+      
       // Validar datos básicos requeridos
       const { nombreObra, direccionObra, fechaVisita, tecnicoId } = req.body;
       
+      console.log('🔍 Validando campos:', { nombreObra, direccionObra, fechaVisita, tecnicoId });
+      
       if (!nombreObra || !direccionObra || !fechaVisita || !tecnicoId) {
+        const camposFaltantes = [];
+        if (!nombreObra) camposFaltantes.push('nombreObra');
+        if (!direccionObra) camposFaltantes.push('direccionObra');
+        if (!fechaVisita) camposFaltantes.push('fechaVisita');
+        if (!tecnicoId) camposFaltantes.push('tecnicoId');
+        
+        console.error('❌ Faltan campos:', camposFaltantes);
         return res.status(400).json({
-          message: 'Faltan campos requeridos: nombreObra, direccionObra, fechaVisita, tecnicoId'
+          message: `Faltan campos requeridos: ${camposFaltantes.join(', ')}`
         });
       }
 
