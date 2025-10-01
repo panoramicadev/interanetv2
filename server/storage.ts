@@ -8229,6 +8229,8 @@ export class DatabaseStorage implements IStorage {
     try {
       const { search, estado, tecnico, limit = 20, offset = 0 } = options;
       
+      console.log('🔍 getListadoVisitasTecnicas - Opciones:', options);
+      
       // Build base query
       let query = db
         .select({
@@ -8271,6 +8273,8 @@ export class DatabaseStorage implements IStorage {
       // Execute query with pagination
       const results = await query.limit(limit).offset(offset);
       
+      console.log('📊 Resultados de query:', results.length, results);
+      
       // For each visit, count productos and reclamos
       const visitaIds = results.map(r => r.id);
       const productosCountMap: Record<string, number> = {};
@@ -8305,7 +8309,7 @@ export class DatabaseStorage implements IStorage {
       }
       
       // Format results
-      return results.map(r => ({
+      const formattedResults = results.map(r => ({
         id: r.id,
         nombreObra: r.nombreObra,
         fechaVisita: r.fechaVisita,
@@ -8317,6 +8321,10 @@ export class DatabaseStorage implements IStorage {
         productosEvaluados: productosCountMap[r.id] || 0,
         reclamosTotal: reclamosCountMap[r.id] || 0
       }));
+      
+      console.log('✅ Resultados formateados:', formattedResults);
+      
+      return formattedResults;
     } catch (error) {
       console.error('Error getting listado visitas técnicas:', error);
       return [];
