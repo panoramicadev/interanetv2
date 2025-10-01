@@ -403,6 +403,7 @@ export default function TomadorPedidos() {
   const [showPdfViewer, setShowPdfViewer] = useState(false); // Control PDF viewer visibility
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null); // Store PDF blob URL
   const [defaultMobileTab, setDefaultMobileTab] = useState<"client" | "products" | "cart">("client"); // Default tab for mobile
+  const [isSavingQuote, setIsSavingQuote] = useState(false); // Track if quote is being saved
   
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
     ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
@@ -2185,6 +2186,7 @@ export default function TomadorPedidos() {
       return;
     }
 
+    setIsSavingQuote(true);
     try {
       // Calculate totals
       const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -2313,6 +2315,8 @@ export default function TomadorPedidos() {
         description: "Error al guardar el presupuesto",
         variant: "destructive",
       });
+    } finally {
+      setIsSavingQuote(false);
     }
   };
 
@@ -3394,11 +3398,18 @@ export default function TomadorPedidos() {
                   </Button>
                   <Button
                     onClick={saveQuote}
-                    disabled={!quoteForm.clientName || cart.length === 0}
+                    disabled={!quoteForm.clientName || cart.length === 0 || isSavingQuote}
                     className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
                     data-testid="mobile-button-save-quote"
                   >
-                    Guardar
+                    {isSavingQuote ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                        Guardando...
+                      </>
+                    ) : (
+                      'Guardar'
+                    )}
                   </Button>
                 </div>
               ) : (
@@ -3415,11 +3426,18 @@ export default function TomadorPedidos() {
                   {(!savedQuoteId || hasUnsavedChanges) ? (
                     <Button
                       onClick={saveQuote}
-                      disabled={!quoteForm.clientName || cart.length === 0}
+                      disabled={!quoteForm.clientName || cart.length === 0 || isSavingQuote}
                       className="w-full h-12 bg-orange-500 hover:bg-orange-600"
                       data-testid="mobile-button-save-quote"
                     >
-                      Guardar
+                      {isSavingQuote ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                          Guardando...
+                        </>
+                      ) : (
+                        'Guardar'
+                      )}
                     </Button>
                   ) : (
                     <Button
@@ -3875,10 +3893,17 @@ export default function TomadorPedidos() {
                       <Button
                         onClick={saveQuote}
                         className="w-full bg-orange-500 hover:bg-orange-600"
-                        disabled={!quoteForm.clientName || cart.length === 0}
+                        disabled={!quoteForm.clientName || cart.length === 0 || isSavingQuote}
                         data-testid="modal-button-save-quote"
                       >
-                        Guardar
+                        {isSavingQuote ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                            Guardando...
+                          </>
+                        ) : (
+                          'Guardar'
+                        )}
                       </Button>
                     )}
                     {savedQuoteId && !hasUnsavedChanges && (
