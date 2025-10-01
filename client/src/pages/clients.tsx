@@ -642,7 +642,12 @@ export default function Clients() {
                   const creditStatus = getCreditStatus(client.cren, client.crlt, client.crsd);
                   
                   return (
-                    <TableRow key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50" data-testid={`row-client-${client.id}`}>
+                    <TableRow 
+                      key={client.id} 
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" 
+                      onClick={() => openClientDetails(client)}
+                      data-testid={`row-client-${client.id}`}
+                    >
                       <TableCell className="font-medium min-w-[200px] sm:min-w-0">
                         <div>
                           <div className="font-semibold text-gray-900 dark:text-white">
@@ -727,7 +732,10 @@ export default function Clients() {
                           variant="ghost" 
                           size="sm" 
                           className="h-8 w-8 p-0"
-                          onClick={() => openClientDetails(client)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openClientDetails(client);
+                          }}
                           data-testid={`button-view-client-${client.id}`}
                         >
                           <Eye className="h-4 w-4" />
