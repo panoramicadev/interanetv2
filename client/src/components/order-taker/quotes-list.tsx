@@ -568,7 +568,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
             <Table>
               <TableHeader>
                 <TableRow className="border-b border-gray-200">
-                  <TableHead className="text-left">Cotización</TableHead>
+                  <TableHead className="text-left hidden md:table-cell">Cotización</TableHead>
                   <TableHead className="text-left">Cliente</TableHead>
                   <TableHead className="text-left">Creado por</TableHead>
                   <TableHead className="text-left">Estado</TableHead>
@@ -598,7 +598,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                       data-testid={`quote-row-${quote.id}`}
                       onClick={() => handleEditQuote(quote.id)}
                     >
-                      <TableCell className="py-4">
+                      <TableCell className="py-4 hidden md:table-cell">
                         <div className="font-medium text-gray-900" data-testid={`quote-number-${quote.id}`}>
                           #{quote.quoteNumber}
                         </div>
