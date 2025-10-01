@@ -13,7 +13,6 @@ import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
 import ImportModal from "@/components/dashboard/import-modal";
-import OrdersModal from "@/components/dashboard/orders-modal";
 import logoPath from "@assets/logo_1757532115858.png";
 
 interface DashboardLayoutProps {
@@ -25,7 +24,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showOrdersModal, setShowOrdersModal] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const handleLogout = () => {
@@ -200,20 +198,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         </div>
                       )}
                     </>
-                  ) : item.modal === 'orders' ? (
-                    // Modal trigger item
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setShowOrdersModal(true);
-                        setIsMobileOpen(false);
-                      }}
-                      className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
-                      data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                    >
-                      <Icon className="w-5 h-5 mr-3" />
-                      {item.label}
-                    </Button>
                   ) : (
                     // Regular item without submenu
                     <Link href={item.href}>
@@ -293,12 +277,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           onOpenChange={setShowImportModal}
         />
       )}
-
-      {/* Orders Modal */}
-      <OrdersModal 
-        open={showOrdersModal} 
-        onOpenChange={setShowOrdersModal}
-      />
     </div>
   );
 }

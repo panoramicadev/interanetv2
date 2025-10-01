@@ -27,7 +27,6 @@ interface SidebarItem {
   comingSoon?: boolean;
   separator?: boolean; // Para mostrar separador después del item
   children?: SidebarItem[]; // Para submenús desplegables
-  modal?: 'orders'; // Para items que abren modales en lugar de navegar
 }
 
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
@@ -43,10 +42,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Target,
     },
     {
-      href: "#",
+      href: "/ordenes",
       label: "Facturas",
       icon: Receipt,
-      modal: 'orders',
     },
     {
       href: "/nvv",
@@ -131,10 +129,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Target,
     },
     {
-      href: "#",
+      href: "/ordenes",
       label: "Facturas",
       icon: Receipt,
-      modal: 'orders',
     },
     {
       href: "/nvv",
@@ -219,10 +216,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: DollarSign,
     },
     {
-      href: "#",
+      href: "/ordenes",
       label: "Facturas",
       icon: Receipt,
-      modal: 'orders',
     },
     {
       href: "/nvv",
