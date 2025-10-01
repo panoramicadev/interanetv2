@@ -645,7 +645,8 @@ export default function Clients() {
                   return (
                     <TableRow 
                       key={client.id} 
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50" 
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" 
+                      onClick={() => window.location.href = `/client/${encodeURIComponent(client.nokoen)}`}
                       data-testid={`row-client-${client.id}`}
                     >
                       <TableCell className="font-medium min-w-[200px] sm:min-w-0">
@@ -727,7 +728,7 @@ export default function Clients() {
                         </Badge>
                       </TableCell>
                       
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Link href={`/client/${encodeURIComponent(client.nokoen)}`}>
                           <Button 
                             variant="ghost" 
