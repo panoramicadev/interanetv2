@@ -812,8 +812,8 @@ export default function VisitasTecnicasPage() {
               </DialogDescription>
             </DialogHeader>
             
-            <ScrollArea className="flex-1 max-h-[60vh]">
-              <div className="space-y-6 pr-4">
+            <div className="overflow-y-auto max-h-[60vh] pr-2">
+              <div className="space-y-6">
                 {selectedProducts.map((product, index) => (
                   <Card key={product.productId} className="border-2">
                     <CardHeader className="pb-3">
@@ -925,9 +925,9 @@ export default function VisitasTecnicasPage() {
                   </Card>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
             
-            <div className="flex justify-between gap-3 pt-4 border-t">
+            <div className="flex justify-between gap-3 pt-4 border-t mt-4">
               <Button 
                 variant="outline" 
                 onClick={() => setVisitStep('products')} 
