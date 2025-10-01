@@ -4350,34 +4350,20 @@ export default function TomadorPedidos() {
                 printWindow.document.write(htmlContent);
                 printWindow.document.close();
                 
-                // Wait for images and content to load
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                
-                // Generate PDF from the window
-                const opt = {
-                  margin: [10, 10, 10, 10] as [number, number, number, number],
-                  filename: `Presupuesto-${quote.quoteNumber}.pdf`,
-                  image: { type: 'jpeg' as const, quality: 0.95 },
-                  html2canvas: { 
-                    scale: 2, 
-                    useCORS: true,
-                    logging: true,
-                    allowTaint: true,
-                    backgroundColor: '#ffffff'
-                  },
-                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+                // Wait for images and content to load, then trigger print dialog
+                printWindow.onload = () => {
+                  setTimeout(() => {
+                    printWindow.print();
+                    // Close window after printing (user can cancel)
+                    setTimeout(() => {
+                      try {
+                        printWindow.close();
+                      } catch (e) {
+                        // User may have already closed it
+                      }
+                    }, 1000);
+                  }, 500);
                 };
-
-                await html2pdf().set(opt).from(printWindow.document.body).save();
-                
-                // Clean up - close the window
-                setTimeout(() => {
-                  try {
-                    printWindow.close();
-                  } catch (e) {
-                    console.log('Could not close print window');
-                  }
-                }, 500);
 
               } catch (error) {
                 console.error('Error downloading PDF:', error);
