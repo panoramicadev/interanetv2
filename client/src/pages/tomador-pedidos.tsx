@@ -262,99 +262,207 @@ function EditOrderForm({ order, onClose }: EditOrderFormProps) {
 const pdfStyles = StyleSheet.create({
   page: {
     padding: 40,
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'Helvetica',
+    color: '#333',
   },
-  header: {
-    marginBottom: 20,
+  headerSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 25,
+    paddingBottom: 15,
     borderBottom: '2 solid #fd6301',
-    paddingBottom: 10,
   },
-  title: {
+  logoContainer: {
+    width: '50%',
+  },
+  headerRight: {
+    width: '45%',
+    alignItems: 'flex-end',
+  },
+  mainTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fd6301',
-    marginBottom: 5,
+    marginBottom: 6,
   },
-  subtitle: {
-    fontSize: 14,
-    marginBottom: 5,
+  dateText: {
+    fontSize: 9,
+    color: '#666',
+    marginBottom: 3,
   },
-  section: {
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 12,
+  quoteNumber: {
+    fontSize: 10,
     fontWeight: 'bold',
-    marginBottom: 8,
     color: '#333',
   },
-  infoRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
+  section: {
+    marginBottom: 16,
   },
-  label: {
-    width: 120,
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    paddingBottom: 4,
+    borderBottom: '1 solid #e5e7eb',
+  },
+  clientGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  clientField: {
+    width: '48%',
+    marginBottom: 6,
+    marginRight: '2%',
+  },
+  fieldLabel: {
+    fontSize: 8,
+    color: '#666',
+    marginBottom: 2,
+  },
+  fieldValue: {
+    fontSize: 9,
+    color: '#333',
     fontWeight: 'bold',
   },
-  value: {
-    flex: 1,
-  },
   table: {
-    marginTop: 10,
-    marginBottom: 15,
+    marginTop: 5,
   },
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#f3f4f6',
-    padding: 8,
-    fontWeight: 'bold',
+    borderTop: '1 solid #d1d5db',
     borderBottom: '1 solid #d1d5db',
+    paddingVertical: 8,
+    paddingHorizontal: 5,
+  },
+  tableHeaderText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#374151',
   },
   tableRow: {
     flexDirection: 'row',
-    padding: 8,
     borderBottom: '1 solid #e5e7eb',
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+    minHeight: 35,
   },
-  col1: { width: '40%' },
-  col2: { width: '15%', textAlign: 'center' },
-  col3: { width: '22%', textAlign: 'right' },
-  col4: { width: '23%', textAlign: 'right' },
+  col1: { width: '43%' },
+  col2: { width: '14%', textAlign: 'center' },
+  col3: { width: '14%', textAlign: 'center' },
+  col4: { width: '14%', textAlign: 'right' },
+  col5: { width: '15%', textAlign: 'right' },
+  productName: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  productSku: {
+    fontSize: 8,
+    color: '#6b7280',
+  },
+  cellText: {
+    fontSize: 9,
+    color: '#333',
+  },
   totalsSection: {
-    marginTop: 20,
-    alignItems: 'flex-end',
+    marginTop: 15,
+    marginLeft: 'auto',
+    width: 220,
+    paddingTop: 10,
+    borderTop: '1 solid #d1d5db',
   },
   totalRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 5,
-    width: '50%',
+    justifyContent: 'space-between',
+    paddingVertical: 3,
   },
   totalLabel: {
-    width: 150,
-    textAlign: 'right',
-    paddingRight: 10,
+    fontSize: 9,
+    color: '#4b5563',
   },
   totalValue: {
-    width: 100,
-    textAlign: 'right',
+    fontSize: 9,
     fontWeight: 'bold',
+    color: '#111827',
+    textAlign: 'right',
   },
-  grandTotal: {
-    fontSize: 14,
-    color: '#059669',
+  grandTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 7,
+    marginTop: 5,
+    paddingHorizontal: 8,
+    backgroundColor: '#fef3e2',
+    borderRadius: 3,
+    borderTop: '2 solid #fd6301',
+  },
+  grandTotalLabel: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#fd6301',
+  },
+  grandTotalValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#fd6301',
+  },
+  termsSection: {
+    marginTop: 18,
+    padding: 10,
+    backgroundColor: '#f9fafb',
+    borderRadius: 4,
+    border: '1 solid #e5e7eb',
+  },
+  termsTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  termItem: {
+    fontSize: 8,
+    color: '#4b5563',
+    marginBottom: 3,
+    marginLeft: 10,
+    lineHeight: 1.4,
+  },
+  paymentSection: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: '#fef3e2',
+    borderRadius: 4,
+    border: '1 solid #fd6301',
+  },
+  paymentTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#fd6301',
+    marginBottom: 6,
+  },
+  paymentText: {
+    fontSize: 8,
+    color: '#333',
+    marginBottom: 2,
+    lineHeight: 1.3,
+  },
+  paymentLabel: {
     fontWeight: 'bold',
   },
   footer: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 25,
     left: 40,
     right: 40,
     textAlign: 'center',
-    fontSize: 8,
-    color: '#666',
+    fontSize: 7,
+    color: '#9ca3af',
+    paddingTop: 6,
     borderTop: '1 solid #e5e7eb',
-    paddingTop: 10,
   },
 });
 
@@ -366,120 +474,153 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
   };
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return 'Sin especificar';
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-CL');
+    const day = date.getDate();
+    const month = date.toLocaleDateString('es-CL', { month: 'long' });
+    const year = date.getFullYear();
+    return `${day} de ${month} de ${year}`;
   };
 
   return (
     <Document>
       <Page size="A4" style={pdfStyles.page}>
-        {/* Header */}
-        <View style={pdfStyles.header}>
-          <Text style={pdfStyles.title}>PINTURAS PANORÁMICA</Text>
-          <Text style={pdfStyles.subtitle}>Presupuesto {quote.quoteNumber}</Text>
+        {/* Header Section with Logo */}
+        <View style={pdfStyles.headerSection}>
+          <View style={pdfStyles.logoContainer}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#fd6301' }}>PINTURAS</Text>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#fd6301' }}>PANORÁMICA</Text>
+            <Text style={{ fontSize: 7, color: '#666', marginTop: 2 }}>30 años sirviendo a Chile</Text>
+          </View>
+          <View style={pdfStyles.headerRight}>
+            <Text style={pdfStyles.mainTitle}>COTIZACIÓN</Text>
+            <Text style={pdfStyles.dateText}>Fecha: {formatDate(quote.createdAt)}</Text>
+            <Text style={pdfStyles.quoteNumber}>Cotización N°: {quote.quoteNumber}</Text>
+          </View>
         </View>
 
         {/* Client Information */}
         <View style={pdfStyles.section}>
           <Text style={pdfStyles.sectionTitle}>Información del Cliente</Text>
-          <View style={pdfStyles.infoRow}>
-            <Text style={pdfStyles.label}>Nombre:</Text>
-            <Text style={pdfStyles.value}>{quote.clientName || 'N/A'}</Text>
-          </View>
-          {quote.clientRut && quote.clientRut.trim() !== '' && (
-            <View style={pdfStyles.infoRow}>
-              <Text style={pdfStyles.label}>RUT:</Text>
-              <Text style={pdfStyles.value}>{quote.clientRut}</Text>
-            </View>
-          )}
-          {quote.clientEmail && quote.clientEmail.trim() !== '' && (
-            <View style={pdfStyles.infoRow}>
-              <Text style={pdfStyles.label}>Email:</Text>
-              <Text style={pdfStyles.value}>{quote.clientEmail}</Text>
-            </View>
-          )}
-          {quote.clientPhone && quote.clientPhone.trim() !== '' && (
-            <View style={pdfStyles.infoRow}>
-              <Text style={pdfStyles.label}>Teléfono:</Text>
-              <Text style={pdfStyles.value}>{quote.clientPhone}</Text>
-            </View>
-          )}
-          {quote.clientAddress && quote.clientAddress.trim() !== '' && (
-            <View style={pdfStyles.infoRow}>
-              <Text style={pdfStyles.label}>Dirección:</Text>
-              <Text style={pdfStyles.value}>{quote.clientAddress}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Quote Details */}
-        <View style={pdfStyles.section}>
-          <Text style={pdfStyles.sectionTitle}>Detalles del Presupuesto</Text>
-          <View style={pdfStyles.infoRow}>
-            <Text style={pdfStyles.label}>Fecha:</Text>
-            <Text style={pdfStyles.value}>{formatDate(quote.createdAt)}</Text>
-          </View>
-          {quote.validUntil && formatDate(quote.validUntil) !== 'N/A' && (
-            <View style={pdfStyles.infoRow}>
-              <Text style={pdfStyles.label}>Válido hasta:</Text>
-              <Text style={pdfStyles.value}>{formatDate(quote.validUntil)}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Items Table */}
-        <View style={pdfStyles.table}>
-          <Text style={pdfStyles.sectionTitle}>Productos</Text>
-          <View style={pdfStyles.tableHeader}>
-            <Text style={pdfStyles.col1}>Producto</Text>
-            <Text style={pdfStyles.col2}>Cantidad</Text>
-            <Text style={pdfStyles.col3}>Precio Unit.</Text>
-            <Text style={pdfStyles.col4}>Total</Text>
-          </View>
-          {items.map((item, index) => {
-            const productLabel = item.productCode && item.productCode.trim() !== ''
-              ? `${item.productName} (${item.productCode})`
-              : item.productName;
-            return (
-              <View key={index} style={pdfStyles.tableRow}>
-                <Text style={pdfStyles.col1}>{productLabel}</Text>
-                <Text style={pdfStyles.col2}>{item.quantity}</Text>
-                <Text style={pdfStyles.col3}>{formatCurrency(item.unitPrice)}</Text>
-                <Text style={pdfStyles.col4}>{formatCurrency(item.totalPrice)}</Text>
+          <View style={pdfStyles.clientGrid}>
+            {quote.clientRut && quote.clientRut.trim() !== '' && (
+              <View style={pdfStyles.clientField}>
+                <Text style={pdfStyles.fieldLabel}>RUT:</Text>
+                <Text style={pdfStyles.fieldValue}>{quote.clientRut}</Text>
               </View>
-            );
-          })}
+            )}
+            <View style={pdfStyles.clientField}>
+              <Text style={pdfStyles.fieldLabel}>Cliente:</Text>
+              <Text style={pdfStyles.fieldValue}>{quote.clientName || 'Sin especificar'}</Text>
+            </View>
+            {quote.clientEmail && quote.clientEmail.trim() !== '' && (
+              <View style={pdfStyles.clientField}>
+                <Text style={pdfStyles.fieldLabel}>Email:</Text>
+                <Text style={pdfStyles.fieldValue}>{quote.clientEmail}</Text>
+              </View>
+            )}
+            {quote.clientPhone && quote.clientPhone.trim() !== '' && (
+              <View style={pdfStyles.clientField}>
+                <Text style={pdfStyles.fieldLabel}>Teléfono:</Text>
+                <Text style={pdfStyles.fieldValue}>{quote.clientPhone}</Text>
+              </View>
+            )}
+            {quote.clientAddress && quote.clientAddress.trim() !== '' && (
+              <View style={pdfStyles.clientField}>
+                <Text style={pdfStyles.fieldLabel}>Ubicación:</Text>
+                <Text style={pdfStyles.fieldValue}>{quote.clientAddress}</Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        {/* Totals */}
+        {/* Products Table */}
+        <View style={pdfStyles.section}>
+          <Text style={pdfStyles.sectionTitle}>Detalle de Productos</Text>
+          <View style={pdfStyles.table}>
+            <View style={pdfStyles.tableHeader}>
+              <Text style={[pdfStyles.tableHeaderText, pdfStyles.col1]}>Producto</Text>
+              <Text style={[pdfStyles.tableHeaderText, pdfStyles.col2]}>Unidad</Text>
+              <Text style={[pdfStyles.tableHeaderText, pdfStyles.col3]}>Cant.</Text>
+              <Text style={[pdfStyles.tableHeaderText, pdfStyles.col4]}>Precio</Text>
+              <Text style={[pdfStyles.tableHeaderText, pdfStyles.col5]}>Total</Text>
+            </View>
+            {items.map((item, index) => (
+              <View key={index} style={pdfStyles.tableRow}>
+                <View style={pdfStyles.col1}>
+                  <Text style={pdfStyles.productName}>{item.productName}</Text>
+                  {item.productCode && item.productCode.trim() !== '' && (
+                    <Text style={pdfStyles.productSku}>SKU: {item.productCode}</Text>
+                  )}
+                </View>
+                <Text style={[pdfStyles.cellText, pdfStyles.col2]}>UN</Text>
+                <Text style={[pdfStyles.cellText, pdfStyles.col3]}>{item.quantity}</Text>
+                <Text style={[pdfStyles.cellText, pdfStyles.col4]}>{formatCurrency(item.unitPrice)}</Text>
+                <Text style={[pdfStyles.cellText, pdfStyles.col5]}>{formatCurrency(item.totalPrice)}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Totals Section */}
         <View style={pdfStyles.totalsSection}>
           <View style={pdfStyles.totalRow}>
             <Text style={pdfStyles.totalLabel}>Subtotal:</Text>
             <Text style={pdfStyles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
           </View>
           <View style={pdfStyles.totalRow}>
+            <Text style={pdfStyles.totalLabel}>Subtotal neto:</Text>
+            <Text style={pdfStyles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
+          </View>
+          <View style={pdfStyles.totalRow}>
             <Text style={pdfStyles.totalLabel}>IVA (19%):</Text>
             <Text style={pdfStyles.totalValue}>{formatCurrency(quote.taxAmount)}</Text>
           </View>
-          <View style={pdfStyles.totalRow}>
-            <Text style={[pdfStyles.totalLabel, pdfStyles.grandTotal]}>Total:</Text>
-            <Text style={[pdfStyles.totalValue, pdfStyles.grandTotal]}>{formatCurrency(quote.total)}</Text>
+          <View style={pdfStyles.grandTotalRow}>
+            <Text style={pdfStyles.grandTotalLabel}>Total Final:</Text>
+            <Text style={pdfStyles.grandTotalValue}>{formatCurrency(quote.total)}</Text>
           </View>
         </View>
 
-        {/* Notes */}
+        {/* Notes Section */}
         {quote.notes && quote.notes.trim() !== '' && (
           <View style={pdfStyles.section}>
-            <Text style={pdfStyles.sectionTitle}>Notas</Text>
-            <Text>{quote.notes}</Text>
+            <Text style={pdfStyles.sectionTitle}>Notas Adicionales</Text>
+            <Text style={{ fontSize: 8, color: '#4b5563', lineHeight: 1.4 }}>{quote.notes}</Text>
           </View>
         )}
 
+        {/* Terms and Conditions */}
+        <View style={pdfStyles.termsSection}>
+          <Text style={pdfStyles.termsTitle}>Términos y Condiciones</Text>
+          <Text style={pdfStyles.termItem}>• Precios válidos por 7 días hábiles desde la emisión de esta cotización.</Text>
+          <Text style={pdfStyles.termItem}>• Todos los precios están expresados en pesos chilenos (CLP) e incluyen IVA.</Text>
+          <Text style={pdfStyles.termItem}>• Los productos están sujetos a disponibilidad de stock.</Text>
+          <Text style={pdfStyles.termItem}>• Condiciones de pago: según acuerdo comercial.</Text>
+        </View>
+
+        {/* Payment Information */}
+        <View style={pdfStyles.paymentSection}>
+          <Text style={pdfStyles.paymentTitle}>Información de Pagos</Text>
+          <Text style={pdfStyles.paymentText}>
+            <Text style={pdfStyles.paymentLabel}>Link de pagos con tarjetas:</Text>
+          </Text>
+          <Text style={[pdfStyles.paymentText, { color: '#fd6301', marginBottom: 6 }]}>
+            https://micrositios.getnet.cl/pinturaspanoramica
+          </Text>
+          <Text style={pdfStyles.paymentText}>
+            <Text style={pdfStyles.paymentLabel}>Pagos con transferencia dirigirlos a:</Text>
+          </Text>
+          <Text style={pdfStyles.paymentText}>Pintureria Panoramica Limitada</Text>
+          <Text style={pdfStyles.paymentText}>RUT: 78.652.260-9</Text>
+          <Text style={pdfStyles.paymentText}>Cuenta Corriente Banco Santander: 2592916-0</Text>
+          <Text style={pdfStyles.paymentText}>Email: contacto@pinturaspanoramica.cl</Text>
+        </View>
+
         {/* Footer */}
         <View style={pdfStyles.footer}>
-          <Text>Pinturas Panorámica - 30 años sirviendo a Chile</Text>
-          <Text>Este presupuesto fue generado electrónicamente</Text>
+          <Text>Pinturas Panorámica - www.pinturaspanoramica.cl</Text>
+          <Text>Este documento fue generado electrónicamente</Text>
         </View>
       </Page>
     </Document>
