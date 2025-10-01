@@ -2652,34 +2652,22 @@ export default function TomadorPedidos() {
                                 </div>
                               </div>
                               
-                              {/* Client Details - Compact Inline Layout */}
-                              <div className={`${isMobile ? 'space-y-1' : 'space-y-1'}`}>
+                              {/* Client Details */}
+                              <div className={`${isMobile ? 'space-y-2' : 'space-y-2'}`}>
                                 {client.dien && (
                                   <div className="flex items-start gap-2">
-                                    <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                    <span className="text-xs text-muted-foreground leading-relaxed">
+                                    <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                    <span className="text-sm text-muted-foreground leading-relaxed">
                                       {client.dien}{client.cmen ? `, ${client.cmen}` : ''}
                                     </span>
                                   </div>
                                 )}
                                 {client.foen && (
                                   <div className="flex items-center gap-2">
-                                    <Phone className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                                    <span className="text-xs text-muted-foreground">
+                                    <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="text-sm text-muted-foreground">
                                       {client.foen}
                                     </span>
-                                  </div>
-                                )}
-                                
-                                {/* Credit Info - Compact Inline Design */}
-                                {client.crlt && (
-                                  <div className={`${isMobile ? 'bg-muted/30 rounded-lg p-2 mt-2' : 'mt-2'} text-xs`}>
-                                    <div className={`${isMobile ? 'grid grid-cols-2 gap-x-2 gap-y-1' : 'flex justify-between items-center'}`}>
-                                      <span className="text-muted-foreground">Límite:</span>
-                                      <span className="font-medium text-right">{formatCurrency(Number(client.crlt))}</span>
-                                      <span className="text-muted-foreground">Disponible:</span>
-                                      <span className="font-medium text-green-600 text-right">{formatCurrency(Number(client.cren) || 0)}</span>
-                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -2687,14 +2675,14 @@ export default function TomadorPedidos() {
                           </div>
                           
                           {/* Action Button */}
-                          <div className="mt-3">
+                          <div className="mt-4">
                             <Button
-                              data-testid={`button-create-quote-${client.id}`}
+                              data-testid={`button-create-quote-order-${client.id}`}
                               onClick={() => handleCreateQuoteForClient(client)}
-                              className="w-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 h-10 text-sm font-medium"
+                              className="w-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 h-11 text-base font-medium"
                             >
-                              <ShoppingCart className="w-4 h-4" />
-                              Pedido / Presupuesto
+                              <Calculator className="w-4 h-4" />
+                              Presupuesto / Pedido
                             </Button>
                           </div>
                         </CardContent>
@@ -2809,58 +2797,36 @@ export default function TomadorPedidos() {
                                 </div>
                                 
                                 {/* Client Details */}
-                                <div className="space-y-1">
+                                <div className="space-y-2">
                                   {client.dien && (
                                     <div className="flex items-start gap-2">
-                                      <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0 mt-0.5" />
-                                      <span className="text-xs text-muted-foreground leading-relaxed">
+                                      <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                      <span className="text-sm text-muted-foreground leading-relaxed">
                                         {client.dien}{client.cmen ? `, ${client.cmen}` : ''}
                                       </span>
                                     </div>
                                   )}
                                   {client.foen && (
                                     <div className="flex items-center gap-2">
-                                      <Phone className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                                      <span className="text-xs text-muted-foreground">
+                                      <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                      <span className="text-sm text-muted-foreground">
                                         {client.foen}
                                       </span>
-                                    </div>
-                                  )}
-                                  
-                                  {/* Credit Info */}
-                                  {client.crlt && (
-                                    <div className="mt-2 text-xs">
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-muted-foreground">Límite:</span>
-                                        <span className="font-medium">{formatCurrency(Number(client.crlt))}</span>
-                                        <span className="text-muted-foreground">Disponible:</span>
-                                        <span className="font-medium text-green-600">{formatCurrency(Number(client.cren) || 0)}</span>
-                                      </div>
                                     </div>
                                   )}
                                 </div>
                               </div>
                             </div>
                             
-                            {/* Action Buttons */}
-                            <div className="flex items-center gap-2 mt-4">
+                            {/* Action Button */}
+                            <div className="flex items-center mt-4">
                               <Button
-                                variant="outline"
-                                data-testid={`button-create-quote-${client.id}`}
+                                data-testid={`button-create-quote-order-${client.id}`}
                                 onClick={() => handleCreateQuoteForClient(client)}
-                                className="flex items-center justify-center gap-2 h-10"
+                                className="w-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 h-11"
                               >
                                 <Calculator className="w-4 h-4" />
-                                Presupuesto
-                              </Button>
-                              <Button
-                                data-testid={`button-create-order-${client.id}`}
-                                onClick={() => handleCreateOrder(client)}
-                                disabled={createOrderMutation.isPending}
-                                className="bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 h-10"
-                              >
-                                <ShoppingCart className="w-4 h-4" />
-                                {createOrderMutation.isPending ? "Creando..." : "Pedido"}
+                                Presupuesto / Pedido
                               </Button>
                             </div>
                           </CardContent>
