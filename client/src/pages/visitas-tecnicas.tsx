@@ -201,12 +201,27 @@ export default function VisitasTecnicasPage() {
   // Query para estadísticas del dashboard
   const { data: estadisticas, isLoading: loadingStats } = useQuery<EstadisticasVisitas>({
     queryKey: ['/api/visitas-tecnicas/estadisticas', filtroMes],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/visitas-tecnicas/estadisticas/${filtroMes}`);
+      return response.json();
+    },
     enabled: activeTab === 'dashboard',
   });
 
   // Query para listado de visitas
   const { data: visitas, isLoading: loadingVisitas } = useQuery<VisitaResumen[]>({
     queryKey: ['/api/visitas-tecnicas/listado', searchTerm, filterEstado],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (filterEstado && filterEstado !== 'all') params.append('estado', filterEstado);
+      
+      const queryString = params.toString();
+      const url = `/api/visitas-tecnicas/listado${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await apiRequest(url);
+      return response.json();
+    },
     enabled: activeTab === 'listado',
   });
 
