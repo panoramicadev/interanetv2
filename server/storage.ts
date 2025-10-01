@@ -2173,14 +2173,13 @@ export class DatabaseStorage implements IStorage {
   async getProductsForDropdown(): Promise<Array<{ id: string; kopr: string; name: string; ud02pr: string }>> {
     const result = await db
       .select({
-        id: products.id,
-        kopr: products.kopr,
-        name: products.name,
-        ud02pr: products.ud02pr,
+        id: priceList.id,
+        kopr: priceList.codigo,
+        name: priceList.producto,
+        ud02pr: priceList.unidad,
       })
-      .from(products)
-      .where(sql`${products.name} IS NOT NULL`)
-      .orderBy(asc(products.name))
+      .from(priceList)
+      .orderBy(asc(priceList.producto))
       .limit(5000);
     
     return result as Array<{ id: string; kopr: string; name: string; ud02pr: string }>;
