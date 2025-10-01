@@ -48,14 +48,57 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     // Debug logging
     console.log('[DEBUG] Resolving comparison period:', { comparePeriod, currentPeriod, filterType });
     
-    // If it's already a specific period like "2025-08", return as is
-    if (comparePeriod.match(/^\d{4}-\d{2}$/) || comparePeriod.match(/^\d{4}$/)) {
+    // If it's already a specific period like "2025-08", "2025", "2025-08-15", or a range, return as is
+    if (comparePeriod.match(/^\d{4}-\d{2}$/) || comparePeriod.match(/^\d{4}$/) || comparePeriod.match(/^\d{4}-\d{2}-\d{2}$/) || comparePeriod.includes('_')) {
       console.log('[DEBUG] Already specific period, returning as-is:', comparePeriod);
       return comparePeriod;
     }
     
     // Parse current period to determine comparison period
     switch (comparePeriod) {
+      // DAY comparisons
+      case "previous-day": {
+        if (filterType === "day" && currentPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const currentDate = new Date(currentPeriod);
+          currentDate.setDate(currentDate.getDate() - 1);
+          const result = currentDate.toISOString().split('T')[0];
+          console.log('[DEBUG] Previous day resolved to:', result);
+          return result;
+        }
+        break;
+      }
+      case "previous-week": {
+        if (filterType === "day" && currentPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const currentDate = new Date(currentPeriod);
+          currentDate.setDate(currentDate.getDate() - 7);
+          const result = currentDate.toISOString().split('T')[0];
+          console.log('[DEBUG] Previous week resolved to:', result);
+          return result;
+        }
+        break;
+      }
+      case "same-day-last-week": {
+        if (filterType === "day" && currentPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const currentDate = new Date(currentPeriod);
+          currentDate.setDate(currentDate.getDate() - 7);
+          const result = currentDate.toISOString().split('T')[0];
+          console.log('[DEBUG] Same day last week resolved to:', result);
+          return result;
+        }
+        break;
+      }
+      case "same-day-last-month": {
+        if (filterType === "day" && currentPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const currentDate = new Date(currentPeriod);
+          currentDate.setMonth(currentDate.getMonth() - 1);
+          const result = currentDate.toISOString().split('T')[0];
+          console.log('[DEBUG] Same day last month resolved to:', result);
+          return result;
+        }
+        break;
+      }
+      
+      // MONTH comparisons
       case "previous-month": {
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
           const [year, month] = currentPeriod.split('-').map(Number);
@@ -67,35 +110,72 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         }
         break;
       }
-      case "previous-year": {
-        if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
-          const [year, month] = currentPeriod.split('-');
-          const result = `${parseInt(year) - 1}-${month}`;
-          console.log('[DEBUG] Previous year resolved to:', result);
-          return result;
-        }
-        if (filterType === "year" && currentPeriod.match(/^\d{4}$/)) {
-          const result = `${parseInt(currentPeriod) - 1}`;
-          console.log('[DEBUG] Previous year (year filter) resolved to:', result);
-          return result;
-        }
-        break;
-      }
       case "same-month-last-year": {
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
           const [year, month] = currentPeriod.split('-');
           const result = `${parseInt(year) - 1}-${month}`;
           console.log('[DEBUG] Same month last year resolved to:', result);
           return result;
-        } else {
-          console.warn('[DEBUG] Could not resolve same-month-last-year - invalid format:', { currentPeriod, filterType });
+        }
+        break;
+      }
+      
+      // YEAR comparisons
+      case "previous-year": {
+        if (filterType === "year" && currentPeriod.match(/^\d{4}$/)) {
+          const result = `${parseInt(currentPeriod) - 1}`;
+          console.log('[DEBUG] Previous year resolved to:', result);
+          return result;
+        }
+        break;
+      }
+      
+      // RANGE comparisons
+      case "previous-30-days": {
+        if (filterType === "range" && currentPeriod.includes('_')) {
+          const [fromStr] = currentPeriod.split('_');
+          const fromDate = new Date(fromStr);
+          const toDate = new Date(fromDate);
+          toDate.setDate(toDate.getDate() - 1); // End is one day before the current range start
+          const newFromDate = new Date(toDate);
+          newFromDate.setDate(newFromDate.getDate() - 29); // 30 days total
+          const result = `${newFromDate.toISOString().split('T')[0]}_${toDate.toISOString().split('T')[0]}`;
+          console.log('[DEBUG] Previous 30 days resolved to:', result);
+          return result;
+        }
+        break;
+      }
+      case "previous-90-days": {
+        if (filterType === "range" && currentPeriod.includes('_')) {
+          const [fromStr] = currentPeriod.split('_');
+          const fromDate = new Date(fromStr);
+          const toDate = new Date(fromDate);
+          toDate.setDate(toDate.getDate() - 1); // End is one day before the current range start
+          const newFromDate = new Date(toDate);
+          newFromDate.setDate(newFromDate.getDate() - 89); // 90 days total
+          const result = `${newFromDate.toISOString().split('T')[0]}_${toDate.toISOString().split('T')[0]}`;
+          console.log('[DEBUG] Previous 90 days resolved to:', result);
+          return result;
+        }
+        break;
+      }
+      case "same-period-last-year": {
+        if (filterType === "range" && currentPeriod.includes('_')) {
+          const [fromStr, toStr] = currentPeriod.split('_');
+          const fromDate = new Date(fromStr);
+          const toDate = new Date(toStr);
+          fromDate.setFullYear(fromDate.getFullYear() - 1);
+          toDate.setFullYear(toDate.getFullYear() - 1);
+          const result = `${fromDate.toISOString().split('T')[0]}_${toDate.toISOString().split('T')[0]}`;
+          console.log('[DEBUG] Same period last year resolved to:', result);
+          return result;
         }
         break;
       }
     }
     
-    console.warn('[DEBUG] No pattern matched, returning original:', comparePeriod);
-    return ""; // Return empty string instead of original if no pattern matches to prevent errors
+    console.warn('[DEBUG] No pattern matched, returning empty:', { comparePeriod, currentPeriod, filterType });
+    return ""; // Return empty string if no pattern matches to prevent errors
   };
 
   const resolvedComparePeriod = resolveComparisonPeriod(comparePeriod || "", selectedPeriod, filterType);
