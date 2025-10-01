@@ -324,6 +324,30 @@ export default function Dashboard() {
     }
   }, [filterType, selectedDate, selectedYear, dateRange]);
 
+  // Generate dynamic month options for month selector
+  const generateMonthOptions = () => {
+    const options = [];
+    const currentDate = new Date();
+    
+    // Generate last 12 months (current month + 11 previous months)
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const yearMonth = format(date, "yyyy-MM");
+      const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+      const monthName = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+      options.push({ value: yearMonth, label: monthName });
+    }
+    
+    // Add dynamic options
+    options.push(
+      { value: "current-month", label: "Mes actual" },
+      { value: "last-month", label: "Mes anterior" }
+    );
+    
+    return options;
+  };
+
   // Generate dynamic comparison options based on current filter type
   const generateComparisonOptions = () => {
     const options = [{ value: "none", label: "Ninguno" }];
@@ -556,13 +580,11 @@ export default function Dashboard() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200">
-                                  <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                                  <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                                  <SelectItem value="2025-07">Julio 2025</SelectItem>
-                                  <SelectItem value="2025-06">Junio 2025</SelectItem>
-                                  <SelectItem value="2025-05">Mayo 2025</SelectItem>
-                                  <SelectItem value="current-month">Mes actual</SelectItem>
-                                  <SelectItem value="last-month">Mes anterior</SelectItem>
+                                  {generateMonthOptions().map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             )}
@@ -833,13 +855,11 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-gray-200">
-                      <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                      <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                      <SelectItem value="2025-07">Julio 2025</SelectItem>
-                      <SelectItem value="2025-06">Junio 2025</SelectItem>
-                      <SelectItem value="2025-05">Mayo 2025</SelectItem>
-                      <SelectItem value="current-month">Mes actual</SelectItem>
-                      <SelectItem value="last-month">Mes anterior</SelectItem>
+                      {generateMonthOptions().map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}
