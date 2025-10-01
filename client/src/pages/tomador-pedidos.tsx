@@ -3441,19 +3441,9 @@ export default function TomadorPedidos() {
       <Dialog open={showQuoteBuilder} onOpenChange={setShowQuoteBuilder}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden p-0">
           <DialogHeader className="p-6 pb-4">
-            <DialogTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Calculator className="w-6 h-6" />
-                Constructor de Presupuesto
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={resetQuoteBuilder}
-                data-testid="button-close-quote-builder"
-              >
-                <X className="w-4 h-4" />
-              </Button>
+            <DialogTitle className="flex items-center gap-2">
+              <Calculator className="w-6 h-6" />
+              Constructor de Presupuesto
             </DialogTitle>
           </DialogHeader>
         
