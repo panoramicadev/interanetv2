@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -644,8 +645,7 @@ export default function Clients() {
                   return (
                     <TableRow 
                       key={client.id} 
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer" 
-                      onClick={() => openClientDetails(client)}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50" 
                       data-testid={`row-client-${client.id}`}
                     >
                       <TableCell className="font-medium min-w-[200px] sm:min-w-0">
@@ -728,18 +728,16 @@ export default function Clients() {
                       </TableCell>
                       
                       <TableCell>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openClientDetails(client);
-                          }}
-                          data-testid={`button-view-client-${client.id}`}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <Link href={`/client/${encodeURIComponent(client.nokoen)}`}>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0"
+                            data-testid={`button-view-client-${client.id}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
                       </TableCell>
                     </TableRow>
                   );
