@@ -22,7 +22,7 @@ import OrdersList from "@/components/order-taker/orders-list";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download, Share2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
@@ -4282,44 +4282,96 @@ export default function TomadorPedidos() {
 
                 const htmlContent = generatePDFHTML(quote, items);
                 
-                // Create a new window to render the PDF
-                const printWindow = window.open('', '_blank', 'width=800,height=600');
-                if (!printWindow) {
-                  throw new Error("No se pudo abrir la ventana del PDF.");
+                // Create a temporary container with proper styles
+                const container = document.createElement('div');
+                container.style.position = 'absolute';
+                container.style.left = '-9999px';
+                container.style.width = '800px';
+                container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
+                container.style.background = 'white';
+                container.style.padding = '20px';
+                
+                // Parse HTML and extract body content
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlContent, 'text/html');
+                
+                // Extract and inject styles
+                const styleElement = doc.querySelector('style');
+                if (styleElement) {
+                  const newStyle = document.createElement('style');
+                  newStyle.textContent = styleElement.textContent;
+                  container.appendChild(newStyle);
                 }
                 
-                printWindow.document.write(htmlContent);
-                printWindow.document.close();
+                // Extract and inject body content
+                const bodyContent = doc.body.innerHTML;
+                const contentDiv = document.createElement('div');
+                contentDiv.innerHTML = bodyContent;
+                container.appendChild(contentDiv);
                 
-                // Wait for images and content to load, then trigger print dialog
-                printWindow.onload = () => {
-                  setTimeout(() => {
-                    printWindow.print();
-                    // Close window after printing (user can cancel)
-                    setTimeout(() => {
-                      try {
-                        printWindow.close();
-                      } catch (e) {
-                        // User may have already closed it
-                      }
-                    }, 1000);
-                  }, 500);
+                document.body.appendChild(container);
+
+                // Wait for content to render
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Generate PDF using html2pdf.js
+                const opt = {
+                  margin: [10, 10, 10, 10] as [number, number, number, number],
+                  filename: `Presupuesto-${quote.quoteNumber}.pdf`,
+                  image: { type: 'jpeg' as const, quality: 0.98 },
+                  html2canvas: { scale: 2, useCORS: true },
+                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
                 };
 
+                // Generate PDF blob
+                const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
+                
+                // Clean up
+                document.body.removeChild(container);
+                
+                // Create file for sharing
+                const file = new File([pdfBlob], `Presupuesto-${quote.quoteNumber}.pdf`, { type: 'application/pdf' });
+
+                // Try to use Web Share API (best for mobile)
+                if (navigator.share) {
+                  try {
+                    await navigator.share({
+                      title: `Presupuesto ${quote.quoteNumber}`,
+                      text: `Presupuesto para ${quote.clientName}\n\nTotal: ${formatCurrency(parseFloat(quote.total || "0"))}`,
+                      files: [file]
+                    });
+                    console.log('PDF shared successfully via Web Share API');
+                    return; // Success - exit function
+                  } catch (shareError: any) {
+                    // User cancelled or share failed, continue to fallback
+                    console.log('Web Share API failed or cancelled:', shareError.message);
+                  }
+                }
+                
+                // Fallback: Download the PDF
+                const url = URL.createObjectURL(pdfBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Presupuesto-${quote.quoteNumber}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
               } catch (error) {
-                console.error('Error downloading PDF:', error);
+                console.error('Error sharing PDF:', error);
                 toast({
                   title: "Error",
-                  description: "No se pudo descargar el archivo",
+                  description: "No se pudo compartir el archivo",
                   variant: "destructive",
                 });
               }
             }}
             className="w-full h-12 bg-orange-500 hover:bg-orange-600"
-            data-testid="button-download-pdf-file"
+            data-testid="button-share-pdf-file"
           >
-            <Download className="w-4 h-4 mr-2" />
-            Descargar Archivo
+            <Share2 className="w-4 h-4 mr-2" />
+            Compartir
           </Button>
         </div>
       </SheetContent>
