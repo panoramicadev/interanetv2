@@ -3362,7 +3362,7 @@ export default function TomadorPedidos() {
                     data-testid="mobile-button-download-pdf"
                   >
                     <FileText className="w-4 h-4 mr-2" />
-                    Descargar PDF
+                    Visualizar PDF
                   </Button>
                   {(!savedQuoteId || hasUnsavedChanges) ? (
                     <Button
@@ -3828,7 +3828,7 @@ export default function TomadorPedidos() {
                       data-testid="modal-button-download-pdf"
                     >
                       <FileText className="w-4 h-4 mr-2" />
-                      Descargar PDF
+                      Visualizar PDF
                     </Button>
                     {(!savedQuoteId || hasUnsavedChanges) && (
                       <Button
