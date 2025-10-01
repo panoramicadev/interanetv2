@@ -8344,7 +8344,38 @@ export class DatabaseStorage implements IStorage {
   async getVisitaTecnicaById(id: string) {
     try {
       const [visita] = await db.select().from(visitasTecnicas).where(eq(visitasTecnicas.id, id));
-      return visita;
+      
+      if (!visita) return null;
+
+      // Get productos evaluados for this visit
+      const productosEval = await db
+        .select()
+        .from(productosEvaluados)
+        .where(eq(productosEvaluados.visitaId, id));
+
+      // For each producto, get its evaluacion tecnica
+      const productosConEvaluacion = await Promise.all(
+        productosEval.map(async (prod) => {
+          const [evaluacion] = await db
+            .select()
+            .from(evaluacionesTecnicas)
+            .where(eq(evaluacionesTecnicas.productoEvaluadoId, prod.id));
+
+          return {
+            id: prod.id,
+            productId: prod.productoId,
+            sku: prod.sku,
+            name: prod.nombre,
+            formato: prod.formato,
+            evaluacion: evaluacion || {}
+          };
+        })
+      );
+
+      return {
+        ...visita,
+        productos: productosConEvaluacion
+      };
     } catch (error) {
       console.error('Error getting visita técnica by id:', error);
       return null;

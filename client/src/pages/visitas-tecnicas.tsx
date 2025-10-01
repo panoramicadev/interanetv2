@@ -76,6 +76,8 @@ export default function VisitasTecnicasPage() {
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [filtroMes, setFiltroMes] = useState<string>("current");
   const [showNewVisitModal, setShowNewVisitModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
   
   // Estados para el flujo de creación de visita
   const [visitStep, setVisitStep] = useState<'basic' | 'products' | 'evaluation'>('basic');
@@ -223,6 +225,17 @@ export default function VisitasTecnicasPage() {
       return response.json();
     },
     enabled: activeTab === 'listado',
+  });
+
+  // Query para obtener detalles completos de una visita
+  const { data: visitaDetalle, isLoading: loadingDetalle } = useQuery<any>({
+    queryKey: ['/api/visitas-tecnicas', selectedVisitId],
+    queryFn: async () => {
+      if (!selectedVisitId) return null;
+      const response = await apiRequest(`/api/visitas-tecnicas/${selectedVisitId}`);
+      return response.json();
+    },
+    enabled: !!selectedVisitId && showDetailModal,
   });
 
   const formatDate = (dateString: string) => {
@@ -477,12 +490,18 @@ export default function VisitasTecnicasPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" data-testid={`button-ver-${visita.id}`}>
+                  <div className="w-full sm:w-auto">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => {
+                        setSelectedVisitId(visita.id);
+                        setShowDetailModal(true);
+                      }}
+                      data-testid={`button-ver-${visita.id}`}
+                    >
                       Ver Detalle
-                    </Button>
-                    <Button variant="outline" size="sm" data-testid={`button-pdf-${visita.id}`}>
-                      <FileText className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -1054,6 +1073,151 @@ export default function VisitasTecnicasPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Dialog para ver detalles de visita */}
+      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalle de Visita Técnica</DialogTitle>
+            <DialogDescription>
+              Información completa de la inspección técnica realizada
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingDetalle ? (
+            <div className="space-y-4">
+              <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+              <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
+            </div>
+          ) : visitaDetalle ? (
+            <div className="space-y-6">
+              {/* Información general */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Información General</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm font-medium text-muted-foreground">Obra:</span>
+                      <p className="font-medium">{visitaDetalle.nombreObra}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-muted-foreground">Dirección:</span>
+                      <p className="font-medium">{visitaDetalle.direccionObra}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-muted-foreground">Fecha:</span>
+                      <p className="font-medium">{formatDate(visitaDetalle.fechaVisita)}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-muted-foreground">Estado:</span>
+                      <div className="mt-1">{getEstadoBadge(visitaDetalle.estado)}</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Productos evaluados */}
+              {visitaDetalle.productos && visitaDetalle.productos.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Productos Evaluados</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {visitaDetalle.productos.map((producto: any, index: number) => (
+                        <Card key={index} className="border-2">
+                          <CardContent className="pt-6">
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <h4 className="font-semibold text-base">{producto.name}</h4>
+                                  <p className="text-sm text-muted-foreground">SKU: {producto.sku}</p>
+                                  <p className="text-sm text-muted-foreground">Formato: {producto.formato}</p>
+                                </div>
+                                {producto.evaluacion?.aplicacion && (
+                                  <Badge variant={producto.evaluacion.aplicacion === 'correcta' ? 'default' : 'destructive'}>
+                                    {producto.evaluacion.aplicacion}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {producto.evaluacion && (
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 p-3 bg-muted/50 rounded-lg">
+                                  {producto.evaluacion.color && (
+                                    <div>
+                                      <span className="text-xs font-medium text-muted-foreground">Color:</span>
+                                      <p className="text-sm">{producto.evaluacion.color}</p>
+                                    </div>
+                                  )}
+                                  {producto.evaluacion.lote && (
+                                    <div>
+                                      <span className="text-xs font-medium text-muted-foreground">Lote:</span>
+                                      <p className="text-sm">{producto.evaluacion.lote}</p>
+                                    </div>
+                                  )}
+                                  {producto.evaluacion.fechaLlegada && (
+                                    <div>
+                                      <span className="text-xs font-medium text-muted-foreground">Fecha Llegada:</span>
+                                      <p className="text-sm">{formatDate(producto.evaluacion.fechaLlegada)}</p>
+                                    </div>
+                                  )}
+                                  {producto.evaluacion.m2Aplicados && (
+                                    <div>
+                                      <span className="text-xs font-medium text-muted-foreground">M² Aplicados:</span>
+                                      <p className="text-sm">{producto.evaluacion.m2Aplicados} m²</p>
+                                    </div>
+                                  )}
+                                  {producto.evaluacion.avance && (
+                                    <div>
+                                      <span className="text-xs font-medium text-muted-foreground">Avance:</span>
+                                      <p className="text-sm">{producto.evaluacion.avance}%</p>
+                                    </div>
+                                  )}
+                                  {producto.evaluacion.clima && (
+                                    <div>
+                                      <span className="text-xs font-medium text-muted-foreground">Clima:</span>
+                                      <p className="text-sm capitalize">{producto.evaluacion.clima}</p>
+                                    </div>
+                                  )}
+                                  {producto.evaluacion.dilucion && (
+                                    <div>
+                                      <span className="text-xs font-medium text-muted-foreground">Dilución:</span>
+                                      <p className="text-sm">{producto.evaluacion.dilucion}%</p>
+                                    </div>
+                                  )}
+                                  {producto.evaluacion.evidenciaDeficiencia && (
+                                    <div className="col-span-2 md:col-span-3">
+                                      <span className="text-xs font-medium text-muted-foreground">Deficiencia:</span>
+                                      <p className="text-sm">{producto.evaluacion.evidenciaDeficiencia}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-8 text-center text-muted-foreground">
+                    <p>No hay productos evaluados en esta visita</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground py-8">
+              <p>No se pudieron cargar los detalles de la visita</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
