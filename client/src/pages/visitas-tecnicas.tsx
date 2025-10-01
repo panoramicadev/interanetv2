@@ -132,13 +132,13 @@ export default function VisitasTecnicasPage() {
   const { data: clientSearchResults = [], isLoading: searchingClients } = useQuery<Client[]>({
     queryKey: ['/api/clients/search', clientSearchTerm],
     queryFn: async () => {
-      if (!clientSearchTerm || clientSearchTerm.length < 2) {
+      if (!clientSearchTerm || clientSearchTerm.length < 3) {
         return [];
       }
       const response = await apiRequest(`/api/clients/search?q=${encodeURIComponent(clientSearchTerm)}`);
       return response.json();
     },
-    enabled: showNewVisitModal && clientSearchTerm.length >= 2,
+    enabled: showNewVisitModal && clientSearchTerm.length >= 3,
   });
 
   // Query para obtener la lista de productos
@@ -571,7 +571,7 @@ export default function VisitasTecnicasPage() {
                       }
                     }}
                     onFocus={() => {
-                      if (clientSearchTerm.length >= 2) {
+                      if (clientSearchTerm.length >= 3) {
                         setShowClientDropdown(true);
                       }
                     }}
@@ -581,10 +581,10 @@ export default function VisitasTecnicasPage() {
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Escribe al menos 2 caracteres para buscar
+                  Escribe al menos 3 caracteres para buscar
                 </p>
                 
-                {showClientDropdown && clientSearchTerm.length >= 2 && (
+                {showClientDropdown && clientSearchTerm.length >= 3 && (
                   <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-64 overflow-y-auto">
                     {searchingClients ? (
                       <div className="p-3 text-sm text-gray-500 text-center">
