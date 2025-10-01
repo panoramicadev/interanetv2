@@ -47,6 +47,14 @@ export default function SegmentDetail() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
 
+  // Fetch available periods
+  const { data: availablePeriods } = useQuery<{
+    months: Array<{ value: string; label: string }>;
+    years: Array<{ value: string; label: string }>;
+  }>({
+    queryKey: ['/api/sales/available-periods'],
+  });
+
   // Update selected period when filter type changes
   useEffect(() => {
     switch (filterType) {
@@ -270,11 +278,11 @@ export default function SegmentDetail() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
-                    <SelectItem value="2025">2025</SelectItem>
-                    <SelectItem value="2024">2024</SelectItem>
-                    <SelectItem value="2023">2023</SelectItem>
-                    <SelectItem value="2022">2022</SelectItem>
-                    <SelectItem value="2021">2021</SelectItem>
+                    {availablePeriods?.years.map((year) => (
+                      <SelectItem key={year.value} value={year.value}>
+                        {year.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               ) : (
@@ -283,13 +291,11 @@ export default function SegmentDetail() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
-                    <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                    <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                    <SelectItem value="2025-07">Julio 2025</SelectItem>
-                    <SelectItem value="2025-06">Junio 2025</SelectItem>
-                    <SelectItem value="2025-05">Mayo 2025</SelectItem>
-                    <SelectItem value="current-month">Mes actual</SelectItem>
-                    <SelectItem value="last-month">Mes anterior</SelectItem>
+                    {availablePeriods?.months.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               )}
