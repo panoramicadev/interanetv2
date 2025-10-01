@@ -3386,11 +3386,11 @@ export default function TomadorPedidos() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
                   <Button
                     onClick={downloadPDF}
                     variant="outline"
-                    className="flex-1 h-12"
+                    className="w-full h-12"
                     data-testid="mobile-button-download-pdf"
                   >
                     <FileText className="w-4 h-4 mr-2" />
@@ -3400,7 +3400,7 @@ export default function TomadorPedidos() {
                     <Button
                       onClick={saveQuote}
                       disabled={!quoteForm.clientName || cart.length === 0}
-                      className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
+                      className="w-full h-12 bg-orange-500 hover:bg-orange-600"
                       data-testid="mobile-button-save-quote"
                     >
                       Guardar
@@ -3408,7 +3408,7 @@ export default function TomadorPedidos() {
                   ) : (
                     <Button
                       onClick={sendOrder}
-                      className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
+                      className="w-full h-12 bg-orange-500 hover:bg-orange-600"
                       data-testid="mobile-button-send-order"
                     >
                       <Mail className="w-4 h-4 mr-2" />
@@ -3855,11 +3855,11 @@ export default function TomadorPedidos() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3 justify-center items-center">
+                  <div className="flex flex-col gap-2 items-center">
                     <Button
                       onClick={downloadPDF}
                       variant="outline"
-                      className="min-w-[160px]"
+                      className="w-full max-w-[240px]"
                       data-testid="modal-button-download-pdf"
                     >
                       <FileText className="w-4 h-4 mr-2" />
@@ -3868,7 +3868,7 @@ export default function TomadorPedidos() {
                     {(!savedQuoteId || hasUnsavedChanges) && (
                       <Button
                         onClick={saveQuote}
-                        className="min-w-[140px] bg-orange-500 hover:bg-orange-600"
+                        className="w-full max-w-[240px] bg-orange-500 hover:bg-orange-600"
                         disabled={!quoteForm.clientName || cart.length === 0}
                         data-testid="modal-button-save-quote"
                       >
@@ -3878,7 +3878,7 @@ export default function TomadorPedidos() {
                     {savedQuoteId && !hasUnsavedChanges && (
                       <Button
                         onClick={sendOrder}
-                        className="min-w-[180px] bg-orange-500 hover:bg-orange-600"
+                        className="w-full max-w-[240px] bg-orange-500 hover:bg-orange-600"
                         data-testid="modal-button-send-order"
                       >
                         <Mail className="w-4 h-4 mr-2" />
