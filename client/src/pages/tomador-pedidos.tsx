@@ -365,6 +365,7 @@ export default function TomadorPedidos() {
   
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [showClientSearch, setShowClientSearch] = useState(false); // Control client search visibility in mobile
   const [showQuoteBuilder, setShowQuoteBuilder] = useState(false);
   const [selectedClientForQuote, setSelectedClientForQuote] = useState<Client | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -2057,36 +2058,46 @@ export default function TomadorPedidos() {
         </div>
 
         {/* Client Search Section - Mobile Optimized */}
-        <Card className={isMobile ? 'border-2 shadow-md' : ''}>
-          <CardHeader className={isMobile ? 'pb-4' : ''}>
-            <CardTitle className={`flex items-center gap-2 ${
-              isMobile ? 'text-xl' : ''
-            }`}>
-              <Search className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
-              Buscar Cliente
-            </CardTitle>
-            <CardDescription className={isMobile ? 'text-base' : ''}>
-              Ingresa el nombre del cliente para buscar en la base de datos
-            </CardDescription>
-          </CardHeader>
-          <CardContent className={`space-y-4 ${isMobile ? 'space-y-6 pt-2' : ''}`}>
-            <div className="relative">
-              <Search className={`absolute left-4 text-muted-foreground ${
-                isMobile ? 'top-4 h-5 w-5' : 'top-3 h-4 w-4'
-              }`} />
-              <Input
-                data-testid="input-client-search"
-                placeholder={isMobile ? "Buscar cliente..." : "Buscar por nombre de cliente..."}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className={`${
-                  isMobile 
-                    ? 'pl-12 h-14 text-base rounded-xl border-2 focus:border-orange-400' 
-                    : 'pl-10'
-                }`}
-                style={{ fontSize: isMobile ? '16px' : undefined }} // Prevent zoom on iOS
-              />
-            </div>
+        {isMobile ? (
+          // Mobile: Button to toggle search
+          showClientSearch ? (
+            <Card className="border-2 shadow-md">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Search className="w-6 h-6" />
+                    Buscar Cliente
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowClientSearch(false);
+                      setSearchTerm("");
+                      setDebouncedSearchTerm("");
+                    }}
+                    data-testid="button-close-client-search"
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+                <CardDescription className="text-base">
+                  Ingresa el nombre del cliente para buscar en la base de datos
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-2">
+                <div className="relative">
+                  <Search className="absolute left-4 top-4 h-5 w-5 text-muted-foreground" />
+                  <Input
+                    data-testid="input-client-search"
+                    placeholder="Buscar cliente..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-12 h-14 text-base rounded-xl border-2 focus:border-orange-400"
+                    style={{ fontSize: '16px' }} // Prevent zoom on iOS
+                    autoFocus
+                  />
+                </div>
 
             {/* Search Results */}
             {debouncedSearchTerm.length >= 2 && (
@@ -2232,6 +2243,173 @@ export default function TomadorPedidos() {
             )}
           </CardContent>
         </Card>
+          ) : (
+            <Button
+              onClick={() => setShowClientSearch(true)}
+              variant="outline"
+              className="w-full h-14 border-2 border-dashed hover:border-orange-400 hover:bg-orange-50"
+              data-testid="button-open-client-search"
+            >
+              <Search className="w-5 h-5 mr-2" />
+              Buscar Cliente
+            </Button>
+          )
+        ) : (
+          // Desktop: Always show search
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                Buscar Cliente
+              </CardTitle>
+              <CardDescription>
+                Ingresa el nombre del cliente para buscar en la base de datos
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-4 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  data-testid="input-client-search"
+                  placeholder="Buscar por nombre de cliente..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* Search Results */}
+              {debouncedSearchTerm.length >= 2 && (
+                <div className="space-y-4">
+                  {isLoadingClients ? (
+                    <div className="space-y-3">
+                      {[...Array(3)].map((_, i) => (
+                        <Card key={i}>
+                          <CardContent className="p-4 space-y-3">
+                            <div className="flex items-center space-x-4">
+                              <Skeleton className="h-12 w-12 rounded-full" />
+                              <div className="space-y-2 flex-1">
+                                <Skeleton className="h-4 w-[200px]" />
+                                <Skeleton className="h-3 w-[150px]" />
+                                <Skeleton className="h-3 w-[120px]" />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Skeleton className="h-10 flex-1" />
+                              <Skeleton className="h-10 flex-1" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : clients.length > 0 ? (
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                      {clients.map((client: Client) => (
+                        <Card
+                          key={client.id}
+                          className="hover:shadow-md transition-all duration-200"
+                        >
+                          <CardContent className="p-4">
+                            {/* Client Header */}
+                            <div className="flex items-start space-x-4 mb-4">
+                              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                <User className="w-6 h-6 text-primary" />
+                              </div>
+                              
+                              <div className="flex-1 min-w-0">
+                                {/* Client Name and RUT */}
+                                <div className="mb-3">
+                                  <div className="flex items-center gap-3 flex-wrap">
+                                    <div className="flex-1 min-w-0">
+                                      <h3 className="font-semibold text-foreground text-base mb-1" data-testid={`text-client-name-${client.id}`}>
+                                        {client.nokoen}
+                                      </h3>
+                                      {client.rten && (
+                                        <Badge variant="outline" className="text-xs font-medium">
+                                          RUT: {client.rten}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Client Details */}
+                                <div className="space-y-1">
+                                  {client.dien && (
+                                    <div className="flex items-start gap-2">
+                                      <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0 mt-0.5" />
+                                      <span className="text-xs text-muted-foreground leading-relaxed">
+                                        {client.dien}{client.cmen ? `, ${client.cmen}` : ''}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {client.foen && (
+                                    <div className="flex items-center gap-2">
+                                      <Phone className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                                      <span className="text-xs text-muted-foreground">
+                                        {client.foen}
+                                      </span>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Credit Info */}
+                                  {client.crlt && (
+                                    <div className="mt-2 text-xs">
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Límite:</span>
+                                        <span className="font-medium">{formatCurrency(Number(client.crlt))}</span>
+                                        <span className="text-muted-foreground">Disponible:</span>
+                                        <span className="font-medium text-green-600">{formatCurrency(Number(client.cren) || 0)}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2 mt-4">
+                              <Button
+                                variant="outline"
+                                data-testid={`button-create-quote-${client.id}`}
+                                onClick={() => handleCreateQuoteForClient(client)}
+                                className="flex items-center justify-center gap-2 h-10"
+                              >
+                                <Calculator className="w-4 h-4" />
+                                Presupuesto
+                              </Button>
+                              <Button
+                                data-testid={`button-create-order-${client.id}`}
+                                onClick={() => handleCreateOrder(client)}
+                                disabled={createOrderMutation.isPending}
+                                className="bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 h-10"
+                              >
+                                <ShoppingCart className="w-4 h-4" />
+                                {createOrderMutation.isPending ? "Creando..." : "Pedido"}
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>No se encontraron clientes con "{debouncedSearchTerm}"</p>
+                      <p className="text-sm">Intenta con un término de búsqueda diferente</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {searchTerm.length > 0 && searchTerm.length < 2 && (
+                <div className="text-center py-4 text-muted-foreground">
+                  <p className="text-sm">Ingresa al menos 2 caracteres para buscar clientes</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Cotizaciones y Pedidos Recientes */}
         <Card>
