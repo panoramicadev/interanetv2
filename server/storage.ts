@@ -328,6 +328,7 @@ export interface IStorage {
   getUniqueEntityTypes(): Promise<string[]>;
   getClientsForDropdown(): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
   getProductsForDropdown(): Promise<Array<{ id: string; kopr: string; name: string; ud02pr: string }>>;
+  searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
   
   // Client categorization for salespeople
   getSalespersonClientsAnalysis(salesperson: string): Promise<{
@@ -2183,6 +2184,24 @@ export class DatabaseStorage implements IStorage {
       .limit(5000);
     
     return result as Array<{ id: string; kopr: string; name: string; ud02pr: string }>;
+  }
+
+  async searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string }>> {
+    const searchPattern = `%${searchTerm}%`;
+    const result = await db
+      .select({
+        id: clients.id,
+        nokoen: clients.nokoen,
+        koen: clients.koen,
+      })
+      .from(clients)
+      .where(
+        sql`${clients.nokoen} ILIKE ${searchPattern}`
+      )
+      .orderBy(asc(clients.nokoen))
+      .limit(50);
+    
+    return result as Array<{ id: string; nokoen: string; koen: string }>;
   }
 
   // Sales data for goals comparison

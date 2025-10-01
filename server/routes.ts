@@ -703,13 +703,20 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get simplified list of clients for dropdowns (id, nokoen, koen only)
-  app.get('/api/clients/list', requireAuth, async (req, res) => {
+  // Search clients by name (AJAX search with query parameter)
+  app.get('/api/clients/search', requireAuth, async (req, res) => {
     try {
-      const clients = await storage.getClientsForDropdown();
+      const { q } = req.query;
+      const searchTerm = typeof q === 'string' ? q.trim() : '';
+      
+      if (!searchTerm || searchTerm.length < 2) {
+        return res.json([]);
+      }
+      
+      const clients = await storage.searchClientsByName(searchTerm);
       res.json(clients);
     } catch (error) {
-      console.error('Error al obtener lista de clientes:', error);
+      console.error('Error al buscar clientes:', error);
       res.status(500).json({ error: 'Error interno del servidor' });
     }
   });
