@@ -1488,22 +1488,38 @@ export default function TomadorPedidos() {
 
   // Download or view PDF based on device
   const downloadPDF = async () => {
-    if (!savedQuoteId) {
-      toast({
-        title: "Error",
-        description: "Debe guardar el presupuesto primero",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
-      // Fetch saved quote and items
-      const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
-      const quote = await quoteResponse.json();
-      
-      const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
-      const items = await itemsResponse.json();
+      let quote, items;
+
+      if (savedQuoteId) {
+        // Fetch saved quote and items
+        const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
+        quote = await quoteResponse.json();
+        
+        const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
+        items = await itemsResponse.json();
+      } else {
+        // Use current form data for unsaved quotes
+        quote = {
+          quoteNumber: 'BORRADOR',
+          clientName: quoteForm.clientName || 'Sin especificar',
+          clientEmail: quoteForm.clientEmail || '',
+          clientPhone: quoteForm.clientPhone || '',
+          status: 'draft',
+          notes: quoteForm.notes || '',
+          createdAt: new Date().toISOString(),
+          total: cart.reduce((sum, item) => sum + item.totalPrice, 0)
+        };
+        
+        items = cart.map(item => ({
+          productName: item.productName,
+          sku: item.customSku || item.productCode || '',
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          productUnit: item.productUnit || 'UN'
+        }));
+      }
 
       // Generate PDF HTML
       const htmlContent = generatePDFHTML(quote, items);
@@ -2089,7 +2105,7 @@ export default function TomadorPedidos() {
 
       // Generate PDF using html2pdf.js
       const opt = {
-        margin: [10, 10, 10, 10],
+        margin: [10, 10, 10, 10] as [number, number, number, number],
         filename: `Cotizacion_${quote.quoteNumber}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
@@ -2356,7 +2372,7 @@ export default function TomadorPedidos() {
 
       // Generate PDF using html2pdf.js
       const opt = {
-        margin: [10, 10, 10, 10],
+        margin: [10, 10, 10, 10] as [number, number, number, number],
         filename: `Presupuesto-${quote.quoteNumber}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
@@ -3855,11 +3871,11 @@ export default function TomadorPedidos() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-2 items-center">
+                  <div className="flex flex-col gap-2">
                     <Button
                       onClick={downloadPDF}
                       variant="outline"
-                      className="w-full max-w-[240px]"
+                      className="w-full"
                       data-testid="modal-button-download-pdf"
                     >
                       <FileText className="w-4 h-4 mr-2" />
@@ -3868,7 +3884,7 @@ export default function TomadorPedidos() {
                     {(!savedQuoteId || hasUnsavedChanges) && (
                       <Button
                         onClick={saveQuote}
-                        className="w-full max-w-[240px] bg-orange-500 hover:bg-orange-600"
+                        className="w-full bg-orange-500 hover:bg-orange-600"
                         disabled={!quoteForm.clientName || cart.length === 0}
                         data-testid="modal-button-save-quote"
                       >
@@ -3878,7 +3894,7 @@ export default function TomadorPedidos() {
                     {savedQuoteId && !hasUnsavedChanges && (
                       <Button
                         onClick={sendOrder}
-                        className="w-full max-w-[240px] bg-orange-500 hover:bg-orange-600"
+                        className="w-full bg-orange-500 hover:bg-orange-600"
                         data-testid="modal-button-send-order"
                       >
                         <Mail className="w-4 h-4 mr-2" />
@@ -4344,7 +4360,7 @@ export default function TomadorPedidos() {
 
                 // Generate PDF
                 const opt = {
-                  margin: [10, 10, 10, 10],
+                  margin: [10, 10, 10, 10] as [number, number, number, number],
                   filename: `Presupuesto-${quote.quoteNumber}.pdf`,
                   image: { type: 'jpeg' as const, quality: 0.98 },
                   html2canvas: { scale: 2, useCORS: true },
