@@ -399,6 +399,7 @@ export default function TomadorPedidos() {
   const [customDiscountInput, setCustomDiscountInput] = useState("");
   const [priceInputMode, setPriceInputMode] = useState<"price" | "discount">("price");
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null); // Track if current quote is saved
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); // Track if quote has been edited
   const [showPdfViewer, setShowPdfViewer] = useState(false); // Control PDF viewer visibility
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null); // Store PDF blob URL
   const [defaultMobileTab, setDefaultMobileTab] = useState<"client" | "products" | "cart">("client"); // Default tab for mobile
@@ -427,6 +428,9 @@ export default function TomadorPedidos() {
       productUnit: "UN", // Default unit for custom products
     };
     setCart(prev => [...prev, newItem]);
+    if (savedQuoteId) {
+      setHasUnsavedChanges(true);
+    }
     setShowCustomProductModal(false);
     setCustomProduct(INITIAL_CUSTOM_PRODUCT);
     toast({ title: 'Producto personalizado agregado' });
@@ -629,6 +633,7 @@ export default function TomadorPedidos() {
     setProductSearchTerm("");
     setEditingQuoteId(null); // Clear editing state
     setSavedQuoteId(null); // Clear saved state
+    setHasUnsavedChanges(false); // Reset unsaved changes flag
     setDefaultMobileTab("client"); // Reset to default tab
   };
 
@@ -750,6 +755,9 @@ export default function TomadorPedidos() {
       };
       
       setCart(prev => [...prev, newItem]);
+      if (savedQuoteId) {
+        setHasUnsavedChanges(true);
+      }
       toast({
         title: "Producto agregado",
         description: `${product.producto} agregado al presupuesto`,
@@ -769,6 +777,10 @@ export default function TomadorPedidos() {
         ? { ...item, quantity: newQuantity, totalPrice: item.unitPrice * newQuantity }
         : item
     ));
+    
+    if (savedQuoteId) {
+      setHasUnsavedChanges(true);
+    }
   };
 
   // Update cart item price tier
@@ -852,6 +864,9 @@ export default function TomadorPedidos() {
   // Remove item from cart
   const removeFromCart = (itemId: string) => {
     setCart(prev => prev.filter(item => item.id !== itemId));
+    if (savedQuoteId) {
+      setHasUnsavedChanges(true);
+    }
     toast({
       title: "Producto eliminado",
       description: "Producto eliminado del presupuesto",
@@ -2273,6 +2288,7 @@ export default function TomadorPedidos() {
       // Mark quote as saved and store ID for PDF and order actions
       setSavedQuoteId(quote.id);
       setEditingQuoteId(quote.id);
+      setHasUnsavedChanges(false); // Reset unsaved changes flag
 
     } catch (error) {
       console.error('Error saving quote:', error);
@@ -3146,6 +3162,9 @@ export default function TomadorPedidos() {
                                     };
 
                                     setCart(prev => [...prev, newItem]);
+                                    if (savedQuoteId) {
+                                      setHasUnsavedChanges(true);
+                                    }
                                     toast({
                                       title: "Producto agregado",
                                       description: `${product.producto} agregado al presupuesto`,
@@ -3369,34 +3388,37 @@ export default function TomadorPedidos() {
               ) : (
                 <div className="flex flex-col gap-2">
                   <div className="flex gap-2">
-                    <Button
-                      onClick={downloadPDF}
-                      variant="outline"
-                      className="flex-1 h-12"
-                      data-testid="mobile-button-download-pdf"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Descargar PDF
-                    </Button>
-                    <Button
-                      onClick={saveQuote}
-                      disabled={!quoteForm.clientName || cart.length === 0}
-                      className="flex-1 h-12"
-                      data-testid="mobile-button-save-quote"
-                    >
-                      Guardar
-                    </Button>
+                    {hasUnsavedChanges ? (
+                      <Button
+                        onClick={saveQuote}
+                        disabled={!quoteForm.clientName || cart.length === 0}
+                        className="w-full h-12 bg-orange-500 hover:bg-orange-600"
+                        data-testid="mobile-button-save-quote"
+                      >
+                        Guardar Cambios
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={downloadPDF}
+                        variant="outline"
+                        className="flex-1 h-12"
+                        data-testid="mobile-button-download-pdf"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Descargar PDF
+                      </Button>
+                    )}
+                    {!hasUnsavedChanges && savedQuoteId && (
+                      <Button
+                        onClick={sendOrder}
+                        className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
+                        data-testid="mobile-button-send-order"
+                      >
+                        <Mail className="w-4 h-4 mr-2" />
+                        Enviar
+                      </Button>
+                    )}
                   </div>
-                  {savedQuoteId && (
-                    <Button
-                      onClick={sendOrder}
-                      className="w-full h-12 bg-orange-500 hover:bg-orange-600"
-                      data-testid="mobile-button-send-order"
-                    >
-                      <Mail className="w-4 h-4 mr-2" />
-                      Enviar por Correo
-                    </Button>
-                  )}
                 </div>
               )}
             </div>
@@ -3838,24 +3860,28 @@ export default function TomadorPedidos() {
                   </div>
 
                   <div className="flex gap-3 justify-center items-center">
-                    <Button
-                      onClick={downloadPDF}
-                      variant="outline"
-                      className="min-w-[160px]"
-                      data-testid="modal-button-download-pdf"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Descargar PDF
-                    </Button>
-                    <Button
-                      onClick={saveQuote}
-                      className="min-w-[140px]"
-                      disabled={!quoteForm.clientName || cart.length === 0}
-                      data-testid="modal-button-save-quote"
-                    >
-                      Guardar
-                    </Button>
-                    {savedQuoteId && (
+                    {!hasUnsavedChanges && (
+                      <Button
+                        onClick={downloadPDF}
+                        variant="outline"
+                        className="min-w-[160px]"
+                        data-testid="modal-button-download-pdf"
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Descargar PDF
+                      </Button>
+                    )}
+                    {hasUnsavedChanges && (
+                      <Button
+                        onClick={saveQuote}
+                        className="min-w-[140px] bg-orange-500 hover:bg-orange-600"
+                        disabled={!quoteForm.clientName || cart.length === 0}
+                        data-testid="modal-button-save-quote"
+                      >
+                        Guardar Cambios
+                      </Button>
+                    )}
+                    {!hasUnsavedChanges && savedQuoteId && (
                       <Button
                         onClick={sendOrder}
                         className="min-w-[180px] bg-orange-500 hover:bg-orange-600"
