@@ -1043,16 +1043,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Ventas por Comuna - Full Width Chart - Ocultar cuando hay filtro activo */}
-          {globalFilter.type === "all" && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <ComunasChart 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-              />
-            </div>
-          )}
-
           {/* Products Chart */}
           <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
             <TopProductsChart 
