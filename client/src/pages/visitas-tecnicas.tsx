@@ -188,8 +188,7 @@ export default function VisitasTecnicasPage() {
     mutationFn: async (data: any) => {
       return await apiRequest('/api/visitas-tecnicas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        data: data,
       });
     },
     onSuccess: () => {
