@@ -6,6 +6,14 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ## Recent Changes
 
+### PDF Generation Migration (October 1, 2025)
+- **React-PDF Integration**: Migrated from html2pdf.js to @react-pdf/renderer for reliable PDF generation
+- **Native PDF Generation**: PDFs are now generated programmatically without HTML-to-canvas conversion, eliminating layout collapse issues
+- **Consistent Rendering**: All PDFs render correctly across mobile and desktop with proper content height
+- **Component-Based Approach**: PDF documents defined as React components with StyleSheet for professional formatting
+- **Performance Improvement**: Faster PDF generation without DOM manipulation or temporary containers
+- **File Size Optimization**: PDFs now have proper content instead of empty 3KB files
+
 ### Quote Sharing Enhancement (October 1, 2025)
 - **Email Integration**: "Enviar por Correo" button now opens the device's email client with PDF automatically attached
 - **Web Share API**: Uses native Web Share API on mobile devices for seamless sharing via email, WhatsApp, etc.
