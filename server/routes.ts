@@ -703,6 +703,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get simplified list of clients for dropdowns (id, nokoen, koen only)
+  app.get('/api/clients/list', requireAuth, async (req, res) => {
+    try {
+      const clients = await storage.getClientsForDropdown();
+      res.json(clients);
+    } catch (error) {
+      console.error('Error al obtener lista de clientes:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
   app.get('/api/clients/:koen', requireAuth, async (req, res) => {
     try {
       const { koen } = req.params;
@@ -2531,6 +2542,17 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching prices:", error);
       res.status(500).json({ message: "Failed to fetch prices" });
+    }
+  });
+
+  // Get simplified list of products for dropdowns (id, kopr, name, ud02pr only)
+  app.get('/api/products/list', requireAuth, async (req: any, res) => {
+    try {
+      const products = await storage.getProductsForDropdown();
+      res.json(products);
+    } catch (error) {
+      console.error('Error al obtener lista de productos:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
     }
   });
 

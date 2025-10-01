@@ -326,6 +326,8 @@ export interface IStorage {
   getUniqueSuppliers(): Promise<string[]>;
   getUniqueBusinessTypes(): Promise<string[]>;
   getUniqueEntityTypes(): Promise<string[]>;
+  getClientsForDropdown(): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
+  getProductsForDropdown(): Promise<Array<{ id: string; kopr: string; name: string; ud02pr: string }>>;
   
   // Client categorization for salespeople
   getSalespersonClientsAnalysis(salesperson: string): Promise<{
@@ -2150,6 +2152,37 @@ export class DatabaseStorage implements IStorage {
     return result
       .map(row => row.tien?.trim())
       .filter(type => type && type.length > 0) as string[];
+  }
+
+  async getClientsForDropdown(): Promise<Array<{ id: string; nokoen: string; koen: string }>> {
+    const result = await db
+      .select({
+        id: clients.id,
+        nokoen: clients.nokoen,
+        koen: clients.koen,
+      })
+      .from(clients)
+      .where(sql`${clients.nokoen} IS NOT NULL`)
+      .orderBy(asc(clients.nokoen))
+      .limit(5000);
+    
+    return result as Array<{ id: string; nokoen: string; koen: string }>;
+  }
+
+  async getProductsForDropdown(): Promise<Array<{ id: string; kopr: string; name: string; ud02pr: string }>> {
+    const result = await db
+      .select({
+        id: products.id,
+        kopr: products.kopr,
+        name: products.name,
+        ud02pr: products.ud02pr,
+      })
+      .from(products)
+      .where(sql`${products.name} IS NOT NULL`)
+      .orderBy(asc(products.name))
+      .limit(5000);
+    
+    return result as Array<{ id: string; kopr: string; name: string; ud02pr: string }>;
   }
 
   // Sales data for goals comparison
