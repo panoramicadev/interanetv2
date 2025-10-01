@@ -399,6 +399,8 @@ export default function TomadorPedidos() {
   const [customDiscountInput, setCustomDiscountInput] = useState("");
   const [priceInputMode, setPriceInputMode] = useState<"price" | "discount">("price");
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null); // Track if current quote is saved
+  const [showPdfViewer, setShowPdfViewer] = useState(false); // Control PDF viewer visibility
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null); // Store PDF blob URL
   
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
     ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
@@ -1464,9 +1466,226 @@ export default function TomadorPedidos() {
     }
   };
 
-  // Legacy PDF download function (kept for compatibility, but now just calls the integrated function)
-  const downloadPDF = () => {
-    saveQuoteAndDownloadPDF();
+  // Download or view PDF based on device
+  const downloadPDF = async () => {
+    if (!savedQuoteId) {
+      toast({
+        title: "Error",
+        description: "Debe guardar el presupuesto primero",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Fetch saved quote and items
+      const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
+      const quote = await quoteResponse.json();
+      
+      const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
+      const items = await itemsResponse.json();
+
+      // Generate PDF HTML
+      const htmlContent = generatePDFHTML(quote, items);
+
+      if (isMobile) {
+        // For mobile: Create blob and show in viewer
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        setPdfBlobUrl(url);
+        setShowPdfViewer(true);
+      } else {
+        // For desktop: Open in new window as before
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        if (printWindow) {
+          printWindow.document.write(htmlContent);
+          printWindow.document.close();
+          
+          printWindow.onload = () => {
+            setTimeout(() => {
+              printWindow.print();
+              setTimeout(() => {
+                try {
+                  printWindow.close();
+                } catch (e) {
+                  // Ignore errors if user manually closed window
+                }
+              }, 1000);
+            }, 500);
+          };
+        } else {
+          throw new Error("No se pudo abrir la ventana del PDF.");
+        }
+      }
+
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error",
+        description: "Error al generar el PDF",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Helper function to generate PDF HTML content
+  const generatePDFHTML = (quote: Quote, items: any[]): string => {
+    const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', { 
+      day: '2-digit',
+      month: '2-digit', 
+      year: 'numeric'
+    });
+
+    const subtotal = parseFloat(quote.subtotal || "0");
+    const discount = 0;
+    const netTotal = subtotal - discount;
+    const tax = parseFloat(quote.taxAmount || "0");
+    const total = parseFloat(quote.total || "0");
+
+    const formatCurrency = (amount: number) => `$${Math.round(amount).toLocaleString('es-CL').replace(/,/g, '.')}`;
+
+    const escapeHtml = (text: string | null | undefined) => {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    };
+
+    const productRows = items.map(item => {
+      const unitPrice = parseFloat(item.unitPrice);
+      const lineTotal = parseFloat(item.totalPrice);
+      const productUnit = escapeHtml(item.productUnit) || "UN";
+      
+      return `
+        <tr>
+          <td>
+            <div class="product-name">${escapeHtml(item.productName)}</div>
+            ${item.productCode || item.customSku ? `<div class="product-code">SKU: ${escapeHtml(item.productCode || item.customSku)}</div>` : ''}
+          </td>
+          <td class="text-center">${productUnit}</td>
+          <td class="text-center">${parseFloat(item.quantity)}</td>
+          <td class="text-right">${formatCurrency(unitPrice)}</td>
+          <td class="text-right" style="color: #fd6301; font-weight: 600;">${formatCurrency(lineTotal)}</td>
+        </tr>`;
+    }).join('');
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Presupuesto ${escapeHtml(quote.quoteNumber)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; padding: 20px; background: white; }
+    .container { max-width: 800px; margin: 0 auto; }
+    .header { background: linear-gradient(135deg, #fd6301 0%, #ff8c42 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; }
+    .header h1 { font-size: 28px; margin-bottom: 8px; }
+    .quote-number { font-size: 18px; opacity: 0.9; }
+    .section { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .section-title { font-size: 16px; font-weight: 600; color: #fd6301; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #fd6301; }
+    .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .info-item { padding: 8px 0; }
+    .info-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .info-value { font-size: 14px; color: #1e293b; font-weight: 500; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th { background: #f8fafc; padding: 12px; text-align: left; font-size: 12px; font-weight: 600; color: #475569; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; }
+    td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+    .product-name { font-weight: 500; color: #1e293b; }
+    .product-code { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .totals { margin-top: 20px; }
+    .total-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
+    .total-row.final { background: #fd6301; color: white; padding: 15px; border-radius: 8px; margin-top: 10px; font-size: 18px; font-weight: 700; }
+    .notes { background: #f8fafc; padding: 15px; border-radius: 6px; border-left: 4px solid #fd6301; margin-top: 20px; }
+    .notes-title { font-weight: 600; color: #fd6301; margin-bottom: 8px; }
+    .notes-content { color: #475569; font-size: 14px; line-height: 1.6; }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>PRESUPUESTO</h1>
+      <div class="quote-number">N° ${escapeHtml(quote.quoteNumber)}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Información del Cliente</div>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Cliente</div>
+          <div class="info-value">${escapeHtml(quote.clientName)}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Fecha</div>
+          <div class="info-value">${quoteDate}</div>
+        </div>
+        ${quote.clientEmail ? `
+        <div class="info-item">
+          <div class="info-label">Email</div>
+          <div class="info-value">${escapeHtml(quote.clientEmail)}</div>
+        </div>` : ''}
+        ${quote.clientPhone ? `
+        <div class="info-item">
+          <div class="info-label">Teléfono</div>
+          <div class="info-value">${escapeHtml(quote.clientPhone)}</div>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Detalle de Productos</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th class="text-center">Unidad</th>
+            <th class="text-center">Cantidad</th>
+            <th class="text-right">Precio Unit.</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${productRows}
+        </tbody>
+      </table>
+
+      <div class="totals">
+        <div class="total-row">
+          <span>Subtotal:</span>
+          <span>${formatCurrency(subtotal)}</span>
+        </div>
+        <div class="total-row">
+          <span>IVA (19%):</span>
+          <span>${formatCurrency(tax)}</span>
+        </div>
+        <div class="total-row final">
+          <span>TOTAL:</span>
+          <span>${formatCurrency(total)}</span>
+        </div>
+      </div>
+    </div>
+
+    ${quote.notes ? `
+    <div class="notes">
+      <div class="notes-title">Notas</div>
+      <div class="notes-content">${escapeHtml(quote.notes)}</div>
+    </div>` : ''}
+
+    <div class="no-print" style="margin-top: 20px; text-align: center;">
+      <button onclick="window.print()" style="padding: 10px 20px; background-color: #fd6301; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
+        Imprimir / Descargar PDF
+      </button>
+    </div>
+  </div>
+</body>
+</html>`;
   };
 
   // Generate PDF as base64 for email sending (doesn't open/download)
@@ -3941,6 +4160,36 @@ export default function TomadorPedidos() {
       </DialogContent>
     </Dialog>
     
+    {/* PDF Viewer for Mobile */}
+    <Sheet open={showPdfViewer} onOpenChange={(open) => {
+      setShowPdfViewer(open);
+      if (!open && pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+        setPdfBlobUrl(null);
+      }
+    }}>
+      <SheetContent side="bottom" className="h-[95vh] p-0">
+        <SheetHeader className="p-4 border-b">
+          <SheetTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Vista Previa del Presupuesto
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Visualización del PDF del presupuesto
+          </SheetDescription>
+        </SheetHeader>
+        <div className="h-[calc(95vh-60px)] w-full">
+          {pdfBlobUrl && (
+            <iframe
+              src={pdfBlobUrl}
+              className="w-full h-full border-0"
+              title="Vista previa del presupuesto"
+            />
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+
     {/* Mobile Bottom Navigation Bar - Hidden per user request */}
     {/* {isMobile && (
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t-2 border-orange-200 px-4 py-3 z-50">
