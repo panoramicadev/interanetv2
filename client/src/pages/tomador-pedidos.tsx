@@ -1709,12 +1709,6 @@ export default function TomadorPedidos() {
       <div class="notes-title">Notas</div>
       <div class="notes-content">${escapeHtml(quote.notes)}</div>
     </div>` : ''}
-
-    <div class="no-print" style="margin-top: 20px; text-align: center;">
-      <button onclick="window.print()" style="padding: 10px 20px; background-color: #fd6301; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">
-        Imprimir / Descargar PDF
-      </button>
-    </div>
   </div>
 </body>
 </html>`;
@@ -4249,16 +4243,26 @@ export default function TomadorPedidos() {
 
                 const htmlContent = generatePDFHTML(quote, items);
                 
-                // Create downloadable file
-                const blob = new Blob([htmlContent], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `Presupuesto-${quote.quoteNumber}.html`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                // Create temporary element for html2pdf
+                const element = document.createElement('div');
+                element.innerHTML = htmlContent;
+                element.style.position = 'absolute';
+                element.style.left = '-9999px';
+                document.body.appendChild(element);
+
+                // Generate PDF using html2pdf.js
+                const opt = {
+                  margin: 0,
+                  filename: `Presupuesto-${quote.quoteNumber}.pdf`,
+                  image: { type: 'jpeg' as const, quality: 0.98 },
+                  html2canvas: { scale: 2, useCORS: true },
+                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+                };
+
+                await html2pdf().set(opt).from(element).save();
+                
+                // Clean up
+                document.body.removeChild(element);
 
                 toast({
                   title: "PDF descargado",
