@@ -27,6 +27,7 @@ interface SidebarItem {
   comingSoon?: boolean;
   separator?: boolean; // Para mostrar separador después del item
   children?: SidebarItem[]; // Para submenús desplegables
+  modal?: 'orders'; // Para items que abren modales en lugar de navegar
 }
 
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
@@ -42,16 +43,15 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Target,
     },
     {
-      href: "/ordenes",
+      href: "#",
       label: "Facturas",
       icon: Receipt,
-      children: [
-        {
-          href: "/nvv",
-          label: "Notas de Venta",
-          icon: TrendingUp,
-        },
-      ],
+      modal: 'orders',
+    },
+    {
+      href: "/nvv",
+      label: "Notas de Venta (NVV)",
+      icon: TrendingUp,
     },
     {
       href: "/usuarios",
@@ -131,16 +131,15 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Target,
     },
     {
-      href: "/ordenes",
+      href: "#",
       label: "Facturas",
       icon: Receipt,
-      children: [
-        {
-          href: "/nvv",
-          label: "Notas de Venta",
-          icon: TrendingUp,
-        },
-      ],
+      modal: 'orders',
+    },
+    {
+      href: "/nvv",
+      label: "Notas de Venta (NVV)",
+      icon: TrendingUp,
     },
     {
       href: "/usuarios",
@@ -220,9 +219,15 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: DollarSign,
     },
     {
-      href: "/ordenes",
+      href: "#",
       label: "Facturas",
       icon: Receipt,
+      modal: 'orders',
+    },
+    {
+      href: "/nvv",
+      label: "Notas de Venta (NVV)",
+      icon: TrendingUp,
       separator: true, // Separador antes de Tomador de Pedidos
     },
     {
