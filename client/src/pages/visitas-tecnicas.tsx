@@ -90,6 +90,7 @@ export default function VisitasTecnicasPage() {
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
+  const [productEvaluations, setProductEvaluations] = useState<Record<string, string>>({});
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -119,6 +120,7 @@ export default function VisitasTecnicasPage() {
     setProductSearchTerm("");
     setClientSearchTerm("");
     setShowClientDropdown(false);
+    setProductEvaluations({});
   };
   
   const handleCloseModal = () => {
@@ -851,12 +853,23 @@ export default function VisitasTecnicasPage() {
                         <Input type="number" min="0" max="100" placeholder="Porcentaje de avance" data-testid={`input-avance-${index}`} />
                       </div>
 
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Condiciones Climáticas</label>
+                          <Input placeholder="Ej: Soleado, 20°C" data-testid={`input-clima-${index}`} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">% Dilución</label>
+                          <Input type="number" min="0" max="100" placeholder="Porcentaje de dilución" data-testid={`input-dilucion-${index}`} />
+                        </div>
+                      </div>
+
                       <div className="border-t pt-3 space-y-3">
                         <h4 className="font-medium text-sm">Evaluación Técnica</h4>
                         
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Aplicación</label>
-                          <Select>
+                          <Select onValueChange={(value) => setProductEvaluations(prev => ({ ...prev, [product.productId]: value }))}>
                             <SelectTrigger data-testid={`select-aplicacion-${index}`}>
                               <SelectValue placeholder="Seleccionar evaluación" />
                             </SelectTrigger>
@@ -866,6 +879,17 @@ export default function VisitasTecnicasPage() {
                             </SelectContent>
                           </Select>
                         </div>
+
+                        {productEvaluations[product.productId] === 'deficiente' && (
+                          <div className="space-y-2 bg-red-50 p-3 rounded-lg border border-red-200">
+                            <label className="text-sm font-medium text-red-900">Evidencia de Deficiencia *</label>
+                            <Input 
+                              placeholder="Describir el problema encontrado..." 
+                              data-testid={`input-evidencia-${index}`}
+                              className="bg-white"
+                            />
+                          </div>
+                        )}
 
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Observaciones Técnicas</label>
