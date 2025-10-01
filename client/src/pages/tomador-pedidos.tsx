@@ -2265,7 +2265,7 @@ export default function TomadorPedidos() {
     }
   };
 
-  // Send order from saved quote
+  // Send order - Opens email client with PDF attached
   const sendOrder = async () => {
     if (!savedQuoteId) {
       toast({
@@ -2277,72 +2277,87 @@ export default function TomadorPedidos() {
     }
 
     try {
-      // Calculate totals
-      const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-      const tax = subtotal * 0.19;
-      const total = subtotal + tax;
+      // Fetch saved quote and items
+      const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
+      const quote = await quoteResponse.json();
+      
+      const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
+      const items = await itemsResponse.json();
 
-      // Create order from quote data
-      const orderData = {
-        clientName: quoteForm.clientName,
-        clientEmail: quoteForm.clientEmail || null,
-        clientPhone: quoteForm.clientPhone || null,
-        clientAddress: quoteForm.clientAddress || null,
-        subtotal: subtotal.toString(),
-        taxAmount: tax.toString(),
-        total: total.toString(),
-        notes: quoteForm.notes || null,
-        status: "pending" as const,
+      // Generate PDF HTML
+      const htmlContent = generatePDFHTML(quote, items);
+      
+      // Create temporary element for html2pdf
+      const element = document.createElement('div');
+      element.innerHTML = htmlContent;
+      element.style.position = 'absolute';
+      element.style.left = '-9999px';
+      document.body.appendChild(element);
+
+      // Generate PDF using html2pdf.js
+      const opt = {
+        margin: 0,
+        filename: `Presupuesto-${quote.quoteNumber}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
       };
 
-      const response = await apiRequest('/api/orders', {
-        method: 'POST',
-        data: orderData
-      });
-      const order = await response.json();
+      // Generate PDF blob
+      const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
+      
+      // Clean up
+      document.body.removeChild(element);
+      
+      // Create file for sharing
+      const file = new File([pdfBlob], `Presupuesto-${quote.quoteNumber}.pdf`, { type: 'application/pdf' });
 
-      // Add order items from cart
-      for (const item of cart) {
-        const itemData = {
-          orderId: order.id,
-          type: item.type,
-          productName: item.productName,
-          productCode: item.productCode,
-          customSku: item.customSku,
-          quantity: item.quantity.toString(),
-          unitPrice: item.unitPrice.toString(),
-          totalPrice: item.totalPrice.toString(),
-          costOfProduction: item.costOfProduction?.toString(),
-          profitMargin: item.profitMargin?.toString(),
-          pricingMode: item.pricingMode,
-        };
-
-        await apiRequest(`/api/orders/${order.id}/items`, {
-          method: 'POST',
-          data: itemData
-        });
+      // Try to use Web Share API (best for mobile)
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: `Presupuesto ${quote.quoteNumber}`,
+            text: `Presupuesto para ${quote.clientName}\n\nTotal: ${formatCurrency(parseFloat(quote.total || "0"))}`,
+            files: [file]
+          });
+          console.log('PDF shared successfully via Web Share API');
+          return; // Success - exit function
+        } catch (shareError: any) {
+          // If share failed or was cancelled, fall through to download method
+          console.log('Web Share failed or cancelled, using download method:', shareError.message);
+        }
       }
+      
+      // Fallback: Download PDF and open mailto
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Presupuesto-${quote.quoteNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // Open mailto link
+      const subject = encodeURIComponent(`Presupuesto ${quote.quoteNumber} - ${quote.clientName}`);
+      const body = encodeURIComponent(`Adjunto encontrarás el presupuesto ${quote.quoteNumber}.\n\nCliente: ${quote.clientName}\nTotal: ${formatCurrency(parseFloat(quote.total || "0"))}\n\nSaludos,\nPinturas Panorámica`);
+      const mailtoLink = `mailto:${quote.clientEmail || ''}?subject=${subject}&body=${body}`;
+      
+      // Small delay to ensure download starts before mailto opens
+      setTimeout(() => {
+        window.location.href = mailtoLink;
+      }, 500);
 
       toast({
-        title: "Pedido enviado",
-        description: `Pedido ${order.orderNumber} creado exitosamente`,
+        title: "Preparando correo",
+        description: "Se descargó el PDF. Adjúntalo manualmente al correo",
       });
-
-      // Invalidate orders query to refresh the list
-      queryClient.invalidateQueries({ 
-        predicate: (query) => 
-          typeof query.queryKey[0] === 'string' && 
-          (query.queryKey[0] as string).startsWith('/api/orders')
-      });
-
-      // Close and reset after sending order
-      resetQuoteBuilder();
 
     } catch (error) {
-      console.error('Error sending order:', error);
+      console.error('Error preparing email:', error);
       toast({
         title: "Error",
-        description: "Error al enviar el pedido",
+        description: "No se pudo preparar el correo",
         variant: "destructive",
       });
     }
@@ -3337,8 +3352,8 @@ export default function TomadorPedidos() {
                     className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
                     data-testid="mobile-button-send-order"
                   >
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    Enviar Pedido
+                    <Mail className="w-4 h-4 mr-2" />
+                    Enviar por Correo
                   </Button>
                 </div>
               )}
@@ -3805,8 +3820,8 @@ export default function TomadorPedidos() {
                         className="flex-1 bg-orange-500 hover:bg-orange-600"
                         data-testid="modal-button-send-order"
                       >
-                        <ShoppingCart className="w-4 h-4 mr-2" />
-                        Enviar Pedido
+                        <Mail className="w-4 h-4 mr-2" />
+                        Enviar por Correo
                       </Button>
                     )}
                   </div>
