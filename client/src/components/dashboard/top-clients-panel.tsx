@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 
 interface TopClient {
@@ -24,7 +25,6 @@ interface TopClientsPanelProps {
 export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson }: TopClientsPanelProps) {
   const [displayedCount, setDisplayedCount] = useState(10); // Start with 10 clients
   const apiLimit = 5000; // Get all data from API
-  const [, navigate] = useLocation();
   
   const { data: topClientsResponse, isLoading } = useQuery<TopClientsResponse>({
     queryKey: [`/api/sales/top-clients?limit=${apiLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
