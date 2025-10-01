@@ -709,7 +709,7 @@ export function registerRoutes(app: Express): Server {
       const { q } = req.query;
       const searchTerm = typeof q === 'string' ? q.trim() : '';
       
-      if (!searchTerm || searchTerm.length < 2) {
+      if (!searchTerm || searchTerm.length < 3) {
         return res.json([]);
       }
       
