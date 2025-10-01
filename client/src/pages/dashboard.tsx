@@ -410,10 +410,10 @@ export default function Dashboard() {
         
       case "range":
         options.push(
-          { value: "previous-30-days", label: "30 días anteriores" },
-          { value: "previous-90-days", label: "90 días anteriores" },
-          { value: "same-period-last-year", label: "Mismo período año anterior" },
-          { value: "custom-range", label: "Rango personalizado..." }
+          { value: "same-range-previous-period", label: "Mismo rango período anterior" },
+          { value: "same-range-previous-month", label: "Mismo rango mes anterior" },
+          { value: "same-range-previous-year", label: "Mismo rango año anterior" },
+          { value: "custom-range", label: "Personalizado" }
         );
         break;
     }
