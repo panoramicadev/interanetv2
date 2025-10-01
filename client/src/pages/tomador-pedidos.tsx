@@ -2040,20 +2040,28 @@ export default function TomadorPedidos() {
 </body>
 </html>`;
 
-      // Create temporary element for html2pdf
-      const element = document.createElement('div');
-      element.innerHTML = htmlContent;
-      element.style.position = 'absolute';
-      element.style.left = '-9999px';
-      element.style.width = '800px'; // Set explicit width for rendering
-      document.body.appendChild(element);
+      // Create a temporary iframe to render the PDF correctly
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.left = '-9999px';
+      iframe.style.width = '800px';
+      iframe.style.height = '1200px';
+      document.body.appendChild(iframe);
 
-      // Wait a moment for styles to apply
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Write HTML content to iframe
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) throw new Error('No se pudo crear el iframe para el PDF');
+      
+      iframeDoc.open();
+      iframeDoc.write(htmlContent);
+      iframeDoc.close();
+
+      // Wait for content to render
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Generate PDF using html2pdf.js
       const opt = {
-        margin: 0,
+        margin: [10, 10, 10, 10],
         filename: `Cotizacion_${quote.quoteNumber}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
@@ -2061,10 +2069,10 @@ export default function TomadorPedidos() {
       };
 
       // Generate and get base64
-      const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
+      const pdfBlob = await html2pdf().set(opt).from(iframeDoc.body).outputPdf('blob');
       
       // Clean up
-      document.body.removeChild(element);
+      document.body.removeChild(iframe);
 
       // Convert blob to base64
       return new Promise((resolve, reject) => {
@@ -2285,20 +2293,28 @@ export default function TomadorPedidos() {
       // Generate PDF HTML
       const htmlContent = generatePDFHTML(quote, items);
       
-      // Create temporary element for html2pdf
-      const element = document.createElement('div');
-      element.innerHTML = htmlContent;
-      element.style.position = 'absolute';
-      element.style.left = '-9999px';
-      element.style.width = '800px'; // Set explicit width for rendering
-      document.body.appendChild(element);
+      // Create a temporary iframe to render the PDF correctly
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.left = '-9999px';
+      iframe.style.width = '800px';
+      iframe.style.height = '1200px';
+      document.body.appendChild(iframe);
 
-      // Wait a moment for styles to apply
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Write HTML content to iframe
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) throw new Error('No se pudo crear el iframe para el PDF');
+      
+      iframeDoc.open();
+      iframeDoc.write(htmlContent);
+      iframeDoc.close();
+
+      // Wait for content to render
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Generate PDF using html2pdf.js
       const opt = {
-        margin: 0,
+        margin: [10, 10, 10, 10],
         filename: `Presupuesto-${quote.quoteNumber}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
@@ -2306,10 +2322,10 @@ export default function TomadorPedidos() {
       };
 
       // Generate PDF blob
-      const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
+      const pdfBlob = await html2pdf().set(opt).from(iframeDoc.body).outputPdf('blob');
       
       // Clean up
-      document.body.removeChild(element);
+      document.body.removeChild(iframe);
       
       // Create file for sharing
       const file = new File([pdfBlob], `Presupuesto-${quote.quoteNumber}.pdf`, { type: 'application/pdf' });
@@ -4237,30 +4253,40 @@ export default function TomadorPedidos() {
 
                 const htmlContent = generatePDFHTML(quote, items);
                 
-                // Create temporary element for html2pdf
-                const element = document.createElement('div');
-                element.innerHTML = htmlContent;
-                element.style.position = 'absolute';
-                element.style.left = '-9999px';
-                element.style.width = '800px'; // Set explicit width for rendering
-                document.body.appendChild(element);
+                // Create a temporary iframe to render the PDF correctly
+                const iframe = document.createElement('iframe');
+                iframe.style.position = 'absolute';
+                iframe.style.left = '-9999px';
+                iframe.style.width = '800px';
+                iframe.style.height = '1200px';
+                document.body.appendChild(iframe);
 
-                // Wait a moment for styles to apply
-                await new Promise(resolve => setTimeout(resolve, 100));
+                // Write HTML content to iframe
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (iframeDoc) {
+                  iframeDoc.open();
+                  iframeDoc.write(htmlContent);
+                  iframeDoc.close();
 
-                // Generate PDF using html2pdf.js
-                const opt = {
-                  margin: 0,
-                  filename: `Presupuesto-${quote.quoteNumber}.pdf`,
-                  image: { type: 'jpeg' as const, quality: 0.98 },
-                  html2canvas: { scale: 2, useCORS: true },
-                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
-                };
+                  // Wait for content to render
+                  await new Promise(resolve => setTimeout(resolve, 500));
 
-                await html2pdf().set(opt).from(element).save();
-                
-                // Clean up
-                document.body.removeChild(element);
+                  // Generate PDF from iframe body
+                  const opt = {
+                    margin: [10, 10, 10, 10],
+                    filename: `Presupuesto-${quote.quoteNumber}.pdf`,
+                    image: { type: 'jpeg' as const, quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+                  };
+
+                  await html2pdf().set(opt).from(iframeDoc.body).save();
+                  
+                  // Clean up
+                  document.body.removeChild(iframe);
+                } else {
+                  throw new Error('No se pudo crear el iframe para el PDF');
+                }
 
                 toast({
                   title: "PDF descargado",
