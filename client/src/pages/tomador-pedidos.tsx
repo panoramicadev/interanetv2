@@ -4248,7 +4248,11 @@ export default function TomadorPedidos() {
                 element.innerHTML = htmlContent;
                 element.style.position = 'absolute';
                 element.style.left = '-9999px';
+                element.style.width = '800px'; // Set explicit width for rendering
                 document.body.appendChild(element);
+
+                // Wait a moment for styles to apply
+                await new Promise(resolve => setTimeout(resolve, 100));
 
                 // Generate PDF using html2pdf.js
                 const opt = {
