@@ -398,6 +398,7 @@ export default function TomadorPedidos() {
   const [customPriceInput, setCustomPriceInput] = useState("");
   const [customDiscountInput, setCustomDiscountInput] = useState("");
   const [priceInputMode, setPriceInputMode] = useState<"price" | "discount">("price");
+  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null); // Track if current quote is saved
   
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
     ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
@@ -621,6 +622,7 @@ export default function TomadorPedidos() {
     setCart([]);
     setProductSearchTerm("");
     setEditingQuoteId(null); // Clear editing state
+    setSavedQuoteId(null); // Clear saved state
   };
 
   // Order action handlers
@@ -1998,13 +2000,98 @@ export default function TomadorPedidos() {
           (query.queryKey[0] as string).startsWith('/api/quotes')
       });
 
-      resetQuoteBuilder();
+      // Mark quote as saved and store ID for PDF and order actions
+      setSavedQuoteId(quote.id);
+      setEditingQuoteId(quote.id);
 
     } catch (error) {
       console.error('Error saving quote:', error);
       toast({
         title: "Error",
         description: "Error al guardar el presupuesto",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Send order from saved quote
+  const sendOrder = async () => {
+    if (!savedQuoteId) {
+      toast({
+        title: "Error",
+        description: "Debe guardar el presupuesto primero",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Calculate totals
+      const subtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+      const tax = subtotal * 0.19;
+      const total = subtotal + tax;
+
+      // Create order from quote data
+      const orderData = {
+        clientName: quoteForm.clientName,
+        clientEmail: quoteForm.clientEmail || null,
+        clientPhone: quoteForm.clientPhone || null,
+        clientAddress: quoteForm.clientAddress || null,
+        subtotal: subtotal.toString(),
+        taxAmount: tax.toString(),
+        total: total.toString(),
+        notes: quoteForm.notes || null,
+        status: "pending" as const,
+      };
+
+      const response = await apiRequest('/api/orders', {
+        method: 'POST',
+        data: orderData
+      });
+      const order = await response.json();
+
+      // Add order items from cart
+      for (const item of cart) {
+        const itemData = {
+          orderId: order.id,
+          type: item.type,
+          productName: item.productName,
+          productCode: item.productCode,
+          customSku: item.customSku,
+          quantity: item.quantity.toString(),
+          unitPrice: item.unitPrice.toString(),
+          totalPrice: item.totalPrice.toString(),
+          costOfProduction: item.costOfProduction?.toString(),
+          profitMargin: item.profitMargin?.toString(),
+          pricingMode: item.pricingMode,
+        };
+
+        await apiRequest(`/api/orders/${order.id}/items`, {
+          method: 'POST',
+          data: itemData
+        });
+      }
+
+      toast({
+        title: "Pedido enviado",
+        description: `Pedido ${order.orderNumber} creado exitosamente`,
+      });
+
+      // Invalidate orders query to refresh the list
+      queryClient.invalidateQueries({ 
+        predicate: (query) => 
+          typeof query.queryKey[0] === 'string' && 
+          (query.queryKey[0] as string).startsWith('/api/orders')
+      });
+
+      // Close and reset after sending order
+      resetQuoteBuilder();
+
+    } catch (error) {
+      console.error('Error sending order:', error);
+      toast({
+        title: "Error",
+        description: "Error al enviar el pedido",
         variant: "destructive",
       });
     }
@@ -2962,25 +3049,46 @@ export default function TomadorPedidos() {
             
             {/* Sticky Bottom Actions for Mobile */}
             <div className="border-t p-4 bg-background">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={resetQuoteBuilder}
-                  className="flex-1 h-12"
-                  data-testid="mobile-button-cancel"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={saveQuoteAndDownloadPDF}
-                  disabled={!quoteForm.clientName || cart.length === 0}
-                  className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
-                  data-testid="mobile-button-save-quote"
-                >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Crear PDF
-                </Button>
-              </div>
+              {!savedQuoteId ? (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={resetQuoteBuilder}
+                    className="flex-1 h-12"
+                    data-testid="mobile-button-cancel"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={saveQuote}
+                    disabled={!quoteForm.clientName || cart.length === 0}
+                    className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
+                    data-testid="mobile-button-save-quote"
+                  >
+                    Guardar
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={downloadPDF}
+                    variant="outline"
+                    className="flex-1 h-12"
+                    data-testid="mobile-button-download-pdf"
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Descargar PDF
+                  </Button>
+                  <Button
+                    onClick={sendOrder}
+                    className="flex-1 h-12 bg-orange-500 hover:bg-orange-600"
+                    data-testid="mobile-button-send-order"
+                  >
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Enviar Pedido
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </SheetContent>
@@ -3429,14 +3537,25 @@ export default function TomadorPedidos() {
                       <FileText className="w-4 h-4 mr-2" />
                       Descargar PDF
                     </Button>
-                    <Button
-                      onClick={saveQuote}
-                      className="flex-1"
-                      disabled={!quoteForm.clientName || cart.length === 0}
-                      data-testid="modal-button-save-quote"
-                    >
-                      Guardar
-                    </Button>
+                    {!savedQuoteId ? (
+                      <Button
+                        onClick={saveQuote}
+                        className="flex-1"
+                        disabled={!quoteForm.clientName || cart.length === 0}
+                        data-testid="modal-button-save-quote"
+                      >
+                        Guardar
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={sendOrder}
+                        className="flex-1 bg-orange-500 hover:bg-orange-600"
+                        data-testid="modal-button-send-order"
+                      >
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        Enviar Pedido
+                      </Button>
+                    )}
                   </div>
                 </>
               )}
