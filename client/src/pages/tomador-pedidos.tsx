@@ -2600,29 +2600,15 @@ export default function TomadorPedidos() {
                             </div>
                           </div>
                           
-                          {/* Action Buttons - More Compact */}
-                          <div className={`${isMobile ? 'grid grid-cols-2 gap-2 mt-3' : 'flex items-center gap-2 mt-4'}`}>
+                          {/* Action Button */}
+                          <div className="mt-3">
                             <Button
-                              variant="outline"
                               data-testid={`button-create-quote-${client.id}`}
                               onClick={() => handleCreateQuoteForClient(client)}
-                              className={`flex items-center justify-center gap-2 ${
-                                isMobile ? 'h-10 text-sm font-medium' : 'h-10'
-                              }`}
-                            >
-                              <Calculator className="w-4 h-4" />
-                              {isMobile ? "Presup." : "Presupuesto"}
-                            </Button>
-                            <Button
-                              data-testid={`button-create-order-${client.id}`}
-                              onClick={() => handleCreateOrder(client)}
-                              disabled={createOrderMutation.isPending}
-                              className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
-                                isMobile ? 'h-10 text-sm font-medium' : 'h-10'
-                              }`}
+                              className="w-full bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 h-10 text-sm font-medium"
                             >
                               <ShoppingCart className="w-4 h-4" />
-                              {createOrderMutation.isPending ? "Creando..." : "Pedido"}
+                              Pedido / Presupuesto
                             </Button>
                           </div>
                         </CardContent>
