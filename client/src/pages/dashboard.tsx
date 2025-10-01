@@ -533,7 +533,7 @@ export default function Dashboard() {
                                     selected={localDateRange}
                                     onSelect={setLocalDateRange}
                                     initialFocus
-                                    numberOfMonths={2}
+                                    numberOfMonths={1}
                                   />
                                 </PopoverContent>
                               </Popover>
@@ -810,7 +810,7 @@ export default function Dashboard() {
                         onSelect={setDateRange}
                         initialFocus
                         data-testid="date-range-calendar"
-                        numberOfMonths={2}
+                        numberOfMonths={1}
                       />
                     </PopoverContent>
                   </Popover>
