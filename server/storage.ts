@@ -7099,11 +7099,18 @@ export class DatabaseStorage implements IStorage {
     clientName?: string;
     limit?: number;
     offset?: number;
-  }): Promise<Quote[]> {
+  }): Promise<any[]> {
     const limit = filters?.limit || 50;
     const offset = filters?.offset || 0;
     
-    let query = db.select().from(quotes);
+    let query = db.select({
+      quote: quotes,
+      creatorEmail: users.email,
+      creatorFirstName: users.firstName,
+      creatorLastName: users.lastName,
+    })
+    .from(quotes)
+    .leftJoin(users, eq(quotes.createdBy, users.id));
     
     const conditions = [];
     if (filters?.createdBy) {
@@ -7124,8 +7131,17 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(quotes.createdAt))
       .limit(limit)
       .offset(offset);
-      
-    return result;
+    
+    // Flatten the result to include creator info directly on quote object
+    return result.map(row => ({
+      ...row.quote,
+      creatorEmail: row.creatorEmail,
+      creatorFirstName: row.creatorFirstName,
+      creatorLastName: row.creatorLastName,
+      creatorName: row.creatorFirstName && row.creatorLastName 
+        ? `${row.creatorFirstName} ${row.creatorLastName}`
+        : row.creatorEmail || 'Usuario desconocido'
+    }));
   }
 
   async getQuoteById(id: string): Promise<Quote | undefined> {

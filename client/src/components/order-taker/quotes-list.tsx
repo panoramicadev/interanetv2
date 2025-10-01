@@ -60,6 +60,10 @@ interface Quote {
   clientPhone?: string;
   clientAddress?: string;
   createdBy: string;
+  creatorName?: string;
+  creatorEmail?: string;
+  creatorFirstName?: string;
+  creatorLastName?: string;
   status: "draft" | "sent" | "accepted" | "rejected" | "converted";
   validUntil?: string;
   notes?: string;
@@ -566,6 +570,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                 <TableRow className="border-b border-gray-200">
                   <TableHead className="text-left">Cotización</TableHead>
                   <TableHead className="text-left">Cliente</TableHead>
+                  <TableHead className="text-left">Creado por</TableHead>
                   <TableHead className="text-left">Estado</TableHead>
                   <TableHead className="text-left">Creada</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
@@ -614,6 +619,22 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                             RUT: {quote.clientRut}
                           </div>
                         )}
+                      </TableCell>
+
+                      <TableCell className="py-4">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="text-sm text-gray-900 font-medium">
+                              {quote.creatorName || 'Usuario desconocido'}
+                            </div>
+                            {quote.creatorEmail && (
+                              <div className="text-xs text-gray-500">
+                                {quote.creatorEmail}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </TableCell>
                       
                       <TableCell className="py-4">
