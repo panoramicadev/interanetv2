@@ -91,7 +91,7 @@ export default function VisitasTecnicasPage() {
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
-  const [productEvaluations, setProductEvaluations] = useState<Record<string, string>>({});
+  const [productEvaluations, setProductEvaluations] = useState<Record<string, any>>({});
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -129,6 +129,17 @@ export default function VisitasTecnicasPage() {
     setVisitStep('basic');
     setClientSearchTerm("");
     setShowClientDropdown(false);
+  };
+  
+  // Helper para actualizar los datos de evaluación de un producto
+  const updateProductEvaluation = (productId: string, field: string, value: any) => {
+    setProductEvaluations(prev => ({
+      ...prev,
+      [productId]: {
+        ...(prev[productId] || {}),
+        [field]: value
+      }
+    }));
   };
 
   // Query para buscar clientes (AJAX search)
@@ -830,38 +841,80 @@ export default function VisitasTecnicasPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Color</label>
-                          <Input placeholder="Color del producto" data-testid={`input-color-${index}`} />
+                          <Input 
+                            placeholder="Color del producto" 
+                            data-testid={`input-color-${index}`}
+                            value={productEvaluations[product.productId]?.color || ''}
+                            onChange={(e) => updateProductEvaluation(product.productId, 'color', e.target.value)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Lote</label>
-                          <Input placeholder="Número de lote" data-testid={`input-lote-${index}`} />
+                          <Input 
+                            placeholder="Número de lote" 
+                            data-testid={`input-lote-${index}`}
+                            value={productEvaluations[product.productId]?.lote || ''}
+                            onChange={(e) => updateProductEvaluation(product.productId, 'lote', e.target.value)}
+                          />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Fecha de Llegada</label>
-                          <Input type="date" data-testid={`input-fecha-llegada-${index}`} />
+                          <Input 
+                            type="date" 
+                            data-testid={`input-fecha-llegada-${index}`}
+                            value={productEvaluations[product.productId]?.fechaLlegada || ''}
+                            onChange={(e) => updateProductEvaluation(product.productId, 'fechaLlegada', e.target.value)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium">M² Aplicados</label>
-                          <Input type="number" placeholder="Metros cuadrados" data-testid={`input-m2-${index}`} />
+                          <Input 
+                            type="number" 
+                            placeholder="Metros cuadrados" 
+                            data-testid={`input-m2-${index}`}
+                            value={productEvaluations[product.productId]?.m2Aplicados || ''}
+                            onChange={(e) => updateProductEvaluation(product.productId, 'm2Aplicados', e.target.value)}
+                          />
                         </div>
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-sm font-medium">% Avance</label>
-                        <Input type="number" min="0" max="100" placeholder="Porcentaje de avance" data-testid={`input-avance-${index}`} />
+                        <Input 
+                          type="number" 
+                          min="0" 
+                          max="100" 
+                          placeholder="Porcentaje de avance" 
+                          data-testid={`input-avance-${index}`}
+                          value={productEvaluations[product.productId]?.avance || ''}
+                          onChange={(e) => updateProductEvaluation(product.productId, 'avance', e.target.value)}
+                        />
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Condiciones Climáticas</label>
-                          <Input placeholder="Ej: Soleado, 20°C" data-testid={`input-clima-${index}`} />
+                          <Input 
+                            placeholder="Ej: Soleado, 20°C" 
+                            data-testid={`input-clima-${index}`}
+                            value={productEvaluations[product.productId]?.clima || ''}
+                            onChange={(e) => updateProductEvaluation(product.productId, 'clima', e.target.value)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium">% Dilución</label>
-                          <Input type="number" min="0" max="100" placeholder="Porcentaje de dilución" data-testid={`input-dilucion-${index}`} />
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            max="100" 
+                            placeholder="Porcentaje de dilución" 
+                            data-testid={`input-dilucion-${index}`}
+                            value={productEvaluations[product.productId]?.dilucion || ''}
+                            onChange={(e) => updateProductEvaluation(product.productId, 'dilucion', e.target.value)}
+                          />
                         </div>
                       </div>
 
@@ -870,7 +923,10 @@ export default function VisitasTecnicasPage() {
                         
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Aplicación</label>
-                          <Select onValueChange={(value) => setProductEvaluations(prev => ({ ...prev, [product.productId]: value }))}>
+                          <Select 
+                            value={productEvaluations[product.productId]?.aplicacion || ''}
+                            onValueChange={(value) => updateProductEvaluation(product.productId, 'aplicacion', value)}
+                          >
                             <SelectTrigger data-testid={`select-aplicacion-${index}`}>
                               <SelectValue placeholder="Seleccionar evaluación" />
                             </SelectTrigger>
@@ -881,20 +937,27 @@ export default function VisitasTecnicasPage() {
                           </Select>
                         </div>
 
-                        {productEvaluations[product.productId] === 'deficiente' && (
+                        {productEvaluations[product.productId]?.aplicacion === 'deficiente' && (
                           <div className="space-y-2 bg-red-50 p-3 rounded-lg border border-red-200">
                             <label className="text-sm font-medium text-red-900">Evidencia de Deficiencia *</label>
                             <Input 
                               placeholder="Describir el problema encontrado..." 
                               data-testid={`input-evidencia-${index}`}
                               className="bg-white"
+                              value={productEvaluations[product.productId]?.evidenciaDeficiencia || ''}
+                              onChange={(e) => updateProductEvaluation(product.productId, 'evidenciaDeficiencia', e.target.value)}
                             />
                           </div>
                         )}
 
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Observaciones Técnicas</label>
-                          <Input placeholder="Observaciones sobre el producto..." data-testid={`input-observaciones-${index}`} />
+                          <Input 
+                            placeholder="Observaciones sobre el producto..." 
+                            data-testid={`input-observaciones-${index}`}
+                            value={productEvaluations[product.productId]?.observaciones || ''}
+                            onChange={(e) => updateProductEvaluation(product.productId, 'observaciones', e.target.value)}
+                          />
                         </div>
 
                         <div className="space-y-2 border-t pt-3">
@@ -945,13 +1008,26 @@ export default function VisitasTecnicasPage() {
                 </Button>
                 <Button 
                   onClick={() => {
+                    if (!user?.id) {
+                      alert('Error: Usuario no autenticado');
+                      return;
+                    }
+                    
+                    // Combinar productos seleccionados con sus evaluaciones
+                    const productosConEvaluacion = selectedProducts.map(product => ({
+                      ...product,
+                      evaluacion: productEvaluations[product.productId] || {}
+                    }));
+                    
                     // Crear la visita con todos los datos
                     const visitCompleteData = {
                       ...visitData,
-                      tecnicoId: user?.id,
-                      productos: selectedProducts,
+                      tecnicoId: user.id,
+                      productos: productosConEvaluacion,
                       estado: 'completada'
                     };
+                    
+                    console.log('Enviando visita técnica:', visitCompleteData);
                     createVisitMutation.mutate(visitCompleteData);
                   }}
                   disabled={createVisitMutation.isPending}
