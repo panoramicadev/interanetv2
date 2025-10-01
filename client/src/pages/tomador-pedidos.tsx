@@ -3367,24 +3367,36 @@ export default function TomadorPedidos() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex gap-3 justify-center items-center">
-                  <Button
-                    onClick={downloadPDF}
-                    variant="outline"
-                    className="h-12 min-w-[160px]"
-                    data-testid="mobile-button-download-pdf"
-                  >
-                    <FileText className="w-4 h-4 mr-2" />
-                    Descargar PDF
-                  </Button>
-                  <Button
-                    onClick={sendOrder}
-                    className="h-12 min-w-[180px] bg-orange-500 hover:bg-orange-600"
-                    data-testid="mobile-button-send-order"
-                  >
-                    <Mail className="w-4 h-4 mr-2" />
-                    Enviar por Correo
-                  </Button>
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={downloadPDF}
+                      variant="outline"
+                      className="flex-1 h-12"
+                      data-testid="mobile-button-download-pdf"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Descargar PDF
+                    </Button>
+                    <Button
+                      onClick={saveQuote}
+                      disabled={!quoteForm.clientName || cart.length === 0}
+                      className="flex-1 h-12"
+                      data-testid="mobile-button-save-quote"
+                    >
+                      Guardar
+                    </Button>
+                  </div>
+                  {savedQuoteId && (
+                    <Button
+                      onClick={sendOrder}
+                      className="w-full h-12 bg-orange-500 hover:bg-orange-600"
+                      data-testid="mobile-button-send-order"
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Enviar por Correo
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -3835,16 +3847,15 @@ export default function TomadorPedidos() {
                       <FileText className="w-4 h-4 mr-2" />
                       Descargar PDF
                     </Button>
-                    {!savedQuoteId ? (
-                      <Button
-                        onClick={saveQuote}
-                        className="min-w-[140px]"
-                        disabled={!quoteForm.clientName || cart.length === 0}
-                        data-testid="modal-button-save-quote"
-                      >
-                        Guardar
-                      </Button>
-                    ) : (
+                    <Button
+                      onClick={saveQuote}
+                      className="min-w-[140px]"
+                      disabled={!quoteForm.clientName || cart.length === 0}
+                      data-testid="modal-button-save-quote"
+                    >
+                      Guardar
+                    </Button>
+                    {savedQuoteId && (
                       <Button
                         onClick={sendOrder}
                         className="min-w-[180px] bg-orange-500 hover:bg-orange-600"
