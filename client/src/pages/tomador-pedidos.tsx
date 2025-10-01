@@ -2072,49 +2072,64 @@ export default function TomadorPedidos() {
 </body>
 </html>`;
 
-      // Create a temporary container with proper styles
+      // Create a temporary container visible for proper rendering
       const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.style.width = '800px';
-      container.style.fontFamily = 'Arial, sans-serif';
-      container.style.background = 'white';
-      container.style.padding = '20px';
+      container.style.position = 'fixed';
+      container.style.top = '0';
+      container.style.left = '0';
+      container.style.width = '210mm'; // A4 width
+      container.style.minHeight = '297mm'; // A4 height
+      container.style.backgroundColor = 'white';
+      container.style.zIndex = '-1';
+      container.style.opacity = '0';
+      container.style.pointerEvents = 'none';
       
-      // Parse HTML and extract body content
+      // Parse HTML and set directly
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlContent, 'text/html');
       
-      // Extract and inject styles
+      // Create wrapper to contain both style and content
+      const wrapper = document.createElement('div');
+      
+      // Inject styles
       const styleElement = doc.querySelector('style');
       if (styleElement) {
         const newStyle = document.createElement('style');
         newStyle.textContent = styleElement.textContent;
-        container.appendChild(newStyle);
+        wrapper.appendChild(newStyle);
       }
       
-      // Extract and inject body content
+      // Inject body content
       const bodyContent = doc.body.innerHTML;
       const contentDiv = document.createElement('div');
       contentDiv.innerHTML = bodyContent;
-      container.appendChild(contentDiv);
+      contentDiv.style.width = '100%';
+      contentDiv.style.padding = '20px';
+      wrapper.appendChild(contentDiv);
       
+      container.appendChild(wrapper);
       document.body.appendChild(container);
 
-      // Wait for content to render
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for content to fully render
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Generate PDF using html2pdf.js
       const opt = {
         margin: [10, 10, 10, 10] as [number, number, number, number],
         filename: `Cotizacion_${quote.quoteNumber}.pdf`,
         image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true,
+          logging: false,
+          width: 794, // A4 width in pixels at 96 DPI
+          windowWidth: 794
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
       };
 
       // Generate and get base64
-      const pdfBlob = await html2pdf().set(opt).from(container).output('blob');
+      const pdfBlob = await html2pdf().set(opt).from(wrapper).output('blob');
       
       // Clean up
       document.body.removeChild(container);
