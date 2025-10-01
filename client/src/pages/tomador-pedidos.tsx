@@ -3386,8 +3386,8 @@ export default function TomadorPedidos() {
                       className="w-full h-12 bg-orange-500 hover:bg-orange-600"
                       data-testid="mobile-button-send-order"
                     >
-                      <Mail className="w-4 h-4 mr-2" />
-                      Enviar
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Compartir
                     </Button>
                   )}
                 </div>
