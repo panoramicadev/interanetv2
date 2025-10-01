@@ -203,6 +203,52 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         }
         break;
       }
+      case "same-range-previous-period": {
+        if (filterType === "range" && currentPeriod.includes('_')) {
+          const [fromStr, toStr] = currentPeriod.split('_');
+          const fromDate = new Date(fromStr);
+          const toDate = new Date(toStr);
+          const durationDays = Math.floor((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+          const newToDate = new Date(fromDate);
+          newToDate.setDate(newToDate.getDate() - 1);
+          const newFromDate = new Date(newToDate);
+          newFromDate.setDate(newFromDate.getDate() - durationDays);
+          const result = `${newFromDate.toISOString().split('T')[0]}_${newToDate.toISOString().split('T')[0]}`;
+          console.log('[DEBUG] Same range previous period resolved to:', result);
+          return result;
+        }
+        break;
+      }
+      case "same-range-previous-month": {
+        if (filterType === "range" && currentPeriod.includes('_')) {
+          const [fromStr, toStr] = currentPeriod.split('_');
+          const fromDate = new Date(fromStr);
+          const toDate = new Date(toStr);
+          const newFromDate = new Date(fromDate);
+          newFromDate.setMonth(newFromDate.getMonth() - 1);
+          const newToDate = new Date(toDate);
+          newToDate.setMonth(newToDate.getMonth() - 1);
+          const result = `${newFromDate.toISOString().split('T')[0]}_${newToDate.toISOString().split('T')[0]}`;
+          console.log('[DEBUG] Same range previous month resolved to:', result);
+          return result;
+        }
+        break;
+      }
+      case "same-range-previous-year": {
+        if (filterType === "range" && currentPeriod.includes('_')) {
+          const [fromStr, toStr] = currentPeriod.split('_');
+          const fromDate = new Date(fromStr);
+          const toDate = new Date(toStr);
+          const newFromDate = new Date(fromDate);
+          newFromDate.setFullYear(newFromDate.getFullYear() - 1);
+          const newToDate = new Date(toDate);
+          newToDate.setFullYear(newToDate.getFullYear() - 1);
+          const result = `${newFromDate.toISOString().split('T')[0]}_${newToDate.toISOString().split('T')[0]}`;
+          console.log('[DEBUG] Same range previous year resolved to:', result);
+          return result;
+        }
+        break;
+      }
     }
     
     console.warn('[DEBUG] No pattern matched, returning empty:', { comparePeriod, currentPeriod, filterType });
