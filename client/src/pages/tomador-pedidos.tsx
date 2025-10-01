@@ -3335,6 +3335,22 @@ export default function TomadorPedidos() {
                               </div>
                             );
                           })()}
+                          {/* Custom Price Button (Desktop) */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingPriceItem(item.id);
+                              setCustomPriceInput(item.unitPrice.toString());
+                              setCustomDiscountInput("");
+                              setPriceInputMode("price");
+                            }}
+                            className="w-full h-7 text-xs mt-2"
+                            data-testid={`desktop-custom-price-${item.id}`}
+                          >
+                            <Edit className="w-3 h-3 mr-1" />
+                            Precio Personalizado
+                          </Button>
                         </div>
                         <Button
                           variant="ghost"
