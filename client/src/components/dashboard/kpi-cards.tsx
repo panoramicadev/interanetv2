@@ -415,8 +415,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
               {kpi.comparison ? kpi.comparison.text : kpi.change}
             </p>
-            {/* Total Combinado */}
+            {/* Ventas + GDV y Total Combinado */}
             <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Ventas + GDV: ${formatCurrency(salesTotal + gdvSales)}`}>
+                Ventas + GDV: {formatCurrency(salesTotal + gdvSales)}
+              </p>
               <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(totalCombinado)}`}>
                 Total Combinado: {formatCurrency(totalCombinado)}
               </p>
