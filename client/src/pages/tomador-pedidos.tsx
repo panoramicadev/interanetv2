@@ -2465,36 +2465,19 @@ export default function TomadorPedidos() {
           </Card>
         )}
 
-        {/* Cotizaciones y Pedidos Recientes */}
+        {/* Cotizaciones Recientes */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Cotizaciones y Tomador de Pedidos
+              Cotizaciones Recientes
             </CardTitle>
             <CardDescription>
-              Historial de cotizaciones y pedidos creados en el sistema
+              Historial de cotizaciones creadas en el sistema
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="cotizaciones" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="cotizaciones">
-                  Cotizaciones
-                </TabsTrigger>
-                <TabsTrigger value="pedidos">
-                  Pedidos
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="cotizaciones" className="space-y-4">
-                <QuotesList onEditQuote={loadQuoteForEditing} />
-              </TabsContent>
-              
-              <TabsContent value="pedidos" className="space-y-4">
-                <OrdersList />
-              </TabsContent>
-            </Tabs>
+            <QuotesList onEditQuote={loadQuoteForEditing} />
           </CardContent>
         </Card>
       </div>
