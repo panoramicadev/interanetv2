@@ -385,27 +385,27 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
           <Text style={pdfStyles.sectionTitle}>Información del Cliente</Text>
           <View style={pdfStyles.infoRow}>
             <Text style={pdfStyles.label}>Nombre:</Text>
-            <Text style={pdfStyles.value}>{quote.clientName}</Text>
+            <Text style={pdfStyles.value}>{quote.clientName || 'N/A'}</Text>
           </View>
-          {quote.clientRut && (
+          {quote.clientRut && quote.clientRut.trim() !== '' && (
             <View style={pdfStyles.infoRow}>
               <Text style={pdfStyles.label}>RUT:</Text>
               <Text style={pdfStyles.value}>{quote.clientRut}</Text>
             </View>
           )}
-          {quote.clientEmail && (
+          {quote.clientEmail && quote.clientEmail.trim() !== '' && (
             <View style={pdfStyles.infoRow}>
               <Text style={pdfStyles.label}>Email:</Text>
               <Text style={pdfStyles.value}>{quote.clientEmail}</Text>
             </View>
           )}
-          {quote.clientPhone && (
+          {quote.clientPhone && quote.clientPhone.trim() !== '' && (
             <View style={pdfStyles.infoRow}>
               <Text style={pdfStyles.label}>Teléfono:</Text>
               <Text style={pdfStyles.value}>{quote.clientPhone}</Text>
             </View>
           )}
-          {quote.clientAddress && (
+          {quote.clientAddress && quote.clientAddress.trim() !== '' && (
             <View style={pdfStyles.infoRow}>
               <Text style={pdfStyles.label}>Dirección:</Text>
               <Text style={pdfStyles.value}>{quote.clientAddress}</Text>
@@ -420,7 +420,7 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
             <Text style={pdfStyles.label}>Fecha:</Text>
             <Text style={pdfStyles.value}>{formatDate(quote.createdAt)}</Text>
           </View>
-          {quote.validUntil && (
+          {quote.validUntil && formatDate(quote.validUntil) !== 'N/A' && (
             <View style={pdfStyles.infoRow}>
               <Text style={pdfStyles.label}>Válido hasta:</Text>
               <Text style={pdfStyles.value}>{formatDate(quote.validUntil)}</Text>
@@ -437,17 +437,19 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
             <Text style={pdfStyles.col3}>Precio Unit.</Text>
             <Text style={pdfStyles.col4}>Total</Text>
           </View>
-          {items.map((item, index) => (
-            <View key={index} style={pdfStyles.tableRow}>
-              <Text style={pdfStyles.col1}>
-                {item.productName}
-                {item.productCode && ` (${item.productCode})`}
-              </Text>
-              <Text style={pdfStyles.col2}>{item.quantity}</Text>
-              <Text style={pdfStyles.col3}>{formatCurrency(item.unitPrice)}</Text>
-              <Text style={pdfStyles.col4}>{formatCurrency(item.totalPrice)}</Text>
-            </View>
-          ))}
+          {items.map((item, index) => {
+            const productLabel = item.productCode && item.productCode.trim() !== ''
+              ? `${item.productName} (${item.productCode})`
+              : item.productName;
+            return (
+              <View key={index} style={pdfStyles.tableRow}>
+                <Text style={pdfStyles.col1}>{productLabel}</Text>
+                <Text style={pdfStyles.col2}>{item.quantity}</Text>
+                <Text style={pdfStyles.col3}>{formatCurrency(item.unitPrice)}</Text>
+                <Text style={pdfStyles.col4}>{formatCurrency(item.totalPrice)}</Text>
+              </View>
+            );
+          })}
         </View>
 
         {/* Totals */}
@@ -467,7 +469,7 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
         </View>
 
         {/* Notes */}
-        {quote.notes && (
+        {quote.notes && quote.notes.trim() !== '' && (
           <View style={pdfStyles.section}>
             <Text style={pdfStyles.sectionTitle}>Notas</Text>
             <Text>{quote.notes}</Text>
@@ -627,8 +629,6 @@ export default function TomadorPedidos() {
   const [priceInputMode, setPriceInputMode] = useState<"price" | "discount">("price");
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null); // Track if current quote is saved
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); // Track if quote has been edited
-  const [showPdfViewer, setShowPdfViewer] = useState(false); // Control PDF viewer visibility
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null); // Store PDF blob URL
   const [defaultMobileTab, setDefaultMobileTab] = useState<"client" | "products" | "cart">("client"); // Default tab for mobile
   const [isSavingQuote, setIsSavingQuote] = useState(false); // Track if quote is being saved
   
@@ -1755,15 +1755,19 @@ export default function TomadorPedidos() {
 
       // Generate PDF using React-PDF
       const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
+      const url = URL.createObjectURL(pdfBlob);
 
       if (isMobile) {
-        // For mobile: Create blob URL and show in viewer
-        const url = URL.createObjectURL(pdfBlob);
-        setPdfBlobUrl(url);
-        setShowPdfViewer(true);
+        // For mobile: Download the PDF directly (iframes don't work reliably on mobile)
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Presupuesto-${quote.quoteNumber}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       } else {
         // For desktop: Open PDF in new window
-        const url = URL.createObjectURL(pdfBlob);
         window.open(url, '_blank');
       }
 
@@ -4406,96 +4410,6 @@ export default function TomadorPedidos() {
         </div>
       </DialogContent>
     </Dialog>
-    
-    {/* PDF Viewer for Mobile */}
-    <Sheet open={showPdfViewer} onOpenChange={(open) => {
-      setShowPdfViewer(open);
-      if (!open && pdfBlobUrl) {
-        URL.revokeObjectURL(pdfBlobUrl);
-        setPdfBlobUrl(null);
-      }
-    }}>
-      <SheetContent side="bottom" className="h-[95vh] p-0 flex flex-col">
-        <SheetHeader className="p-4 border-b">
-          <SheetTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Vista Previa del Presupuesto
-          </SheetTitle>
-          <SheetDescription className="sr-only">
-            Visualización del PDF del presupuesto
-          </SheetDescription>
-        </SheetHeader>
-        <div className="flex-1 w-full overflow-hidden">
-          {pdfBlobUrl && (
-            <iframe
-              src={pdfBlobUrl}
-              className="w-full h-full border-0"
-              title="Vista previa del presupuesto"
-            />
-          )}
-        </div>
-        <div className="border-t p-4 bg-background">
-          <Button
-            onClick={async () => {
-              if (!savedQuoteId) return;
-              try {
-                const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
-                const quote = await quoteResponse.json();
-                
-                const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
-                const items = await itemsResponse.json();
-
-                // Generate PDF using React-PDF
-                const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
-                
-                // Create file for sharing
-                const file = new File([pdfBlob], `Presupuesto-${quote.quoteNumber}.pdf`, { type: 'application/pdf' });
-
-                // Try to use Web Share API (best for mobile)
-                if (navigator.share) {
-                  try {
-                    await navigator.share({
-                      title: `Presupuesto ${quote.quoteNumber}`,
-                      text: `Presupuesto para ${quote.clientName}\n\nTotal: ${formatCurrency(parseFloat(quote.total || "0"))}`,
-                      files: [file]
-                    });
-                    console.log('PDF shared successfully via Web Share API');
-                    return; // Success - exit function
-                  } catch (shareError: any) {
-                    // User cancelled or share failed, continue to fallback
-                    console.log('Web Share API failed or cancelled:', shareError.message);
-                  }
-                }
-                
-                // Fallback: Download the PDF
-                const url = URL.createObjectURL(pdfBlob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `Presupuesto-${quote.quoteNumber}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-              } catch (error) {
-                console.error('Error sharing PDF:', error);
-                toast({
-                  title: "Error",
-                  description: "No se pudo compartir el archivo",
-                  variant: "destructive",
-                });
-              }
-            }}
-            className="w-full h-12 bg-orange-500 hover:bg-orange-600"
-            data-testid="button-share-pdf-file"
-          >
-            <Share2 className="w-4 h-4 mr-2" />
-            Compartir
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
-
     {/* Mobile Bottom Navigation Bar - Hidden per user request */}
     {/* {isMobile && (
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t-2 border-orange-200 px-4 py-3 z-50">
