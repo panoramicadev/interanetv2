@@ -54,6 +54,16 @@ export default function Dashboard() {
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
   
+  // Query to fetch available periods with data
+  const { data: availablePeriods } = useQuery({
+    queryKey: ["/api/sales/available-periods"],
+    queryFn: async () => {
+      const res = await fetch("/api/sales/available-periods", { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+  });
+
   // Query to check if goals exist (only for months) 
   const { data: goalsProgress } = useQuery({
     queryKey: ["/api/goals/progress", selectedPeriod, globalFilter],
@@ -324,28 +334,20 @@ export default function Dashboard() {
     }
   }, [filterType, selectedDate, selectedYear, dateRange]);
 
-  // Generate dynamic month options for month selector
-  const generateMonthOptions = () => {
-    const options = [];
-    const currentDate = new Date();
-    
-    // Generate last 12 months (current month + 11 previous months)
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      const yearMonth = format(date, "yyyy-MM");
-      const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-                         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-      const monthName = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-      options.push({ value: yearMonth, label: monthName });
+  // Get month options from backend (only periods with data)
+  const getMonthOptions = () => {
+    if (!availablePeriods || !availablePeriods.months) {
+      return [];
     }
-    
-    // Add dynamic options
-    options.push(
-      { value: "current-month", label: "Mes actual" },
-      { value: "last-month", label: "Mes anterior" }
-    );
-    
-    return options;
+    return availablePeriods.months;
+  };
+
+  // Get year options from backend (only years with data)
+  const getYearOptions = () => {
+    if (!availablePeriods || !availablePeriods.years) {
+      return [];
+    }
+    return availablePeriods.years;
   };
 
   // Generate dynamic comparison options based on current filter type
@@ -567,11 +569,11 @@ export default function Dashboard() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200">
-                                  <SelectItem value="2025">2025</SelectItem>
-                                  <SelectItem value="2024">2024</SelectItem>
-                                  <SelectItem value="2023">2023</SelectItem>
-                                  <SelectItem value="2022">2022</SelectItem>
-                                  <SelectItem value="2021">2021</SelectItem>
+                                  {getYearOptions().map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                             ) : (
@@ -580,7 +582,7 @@ export default function Dashboard() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200">
-                                  {generateMonthOptions().map((option) => (
+                                  {getMonthOptions().map((option) => (
                                     <SelectItem key={option.value} value={option.value}>
                                       {option.label}
                                     </SelectItem>
@@ -842,11 +844,11 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-gray-200">
-                      <SelectItem value="2025">2025</SelectItem>
-                      <SelectItem value="2024">2024</SelectItem>
-                      <SelectItem value="2023">2023</SelectItem>
-                      <SelectItem value="2022">2022</SelectItem>
-                      <SelectItem value="2021">2021</SelectItem>
+                      {getYearOptions().map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 ) : (
@@ -855,7 +857,7 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-gray-200">
-                      {generateMonthOptions().map((option) => (
+                      {getMonthOptions().map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>

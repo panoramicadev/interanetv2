@@ -395,6 +395,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Available periods endpoint - returns months and years with actual data
+  app.get('/api/sales/available-periods', requireAuth, async (req, res) => {
+    try {
+      const periods = await storage.getAvailablePeriods();
+      res.json(periods);
+    } catch (error) {
+      console.error("Error fetching available periods:", error);
+      res.status(500).json({ message: "Failed to fetch available periods" });
+    }
+  });
+
   // Vendedor-specific metrics endpoint
   app.get('/api/sales/metrics/salesperson/:salespersonName', requireAuth, async (req, res) => {
     try {
