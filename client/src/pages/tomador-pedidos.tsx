@@ -2317,11 +2317,17 @@ export default function TomadorPedidos() {
       // Generate PDF HTML
       const htmlContent = generatePDFHTML(quote, items);
       
-      // Create a temporary container with proper styles
+      // Create a temporary container with proper styles for layout calculation
       const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
+      container.style.position = 'fixed';
+      container.style.top = '0';
+      container.style.left = '0';
       container.style.width = '800px';
+      container.style.minHeight = '1000px';
+      container.style.visibility = 'hidden';
+      container.style.pointerEvents = 'none';
+      container.style.overflow = 'auto';
+      container.style.zIndex = '-9999';
       container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
       container.style.background = 'white';
       container.style.padding = '20px';
@@ -2346,8 +2352,10 @@ export default function TomadorPedidos() {
       
       document.body.appendChild(container);
 
-      // Wait for content to render
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for layout to settle
+      await new Promise(resolve => requestAnimationFrame(() => {
+        setTimeout(resolve, 300);
+      }));
 
       // Generate PDF using html2pdf.js
       const opt = {
@@ -4282,11 +4290,17 @@ export default function TomadorPedidos() {
 
                 const htmlContent = generatePDFHTML(quote, items);
                 
-                // Create a temporary container with proper styles
+                // Create a temporary container with proper styles for layout calculation
                 const container = document.createElement('div');
-                container.style.position = 'absolute';
-                container.style.left = '-9999px';
+                container.style.position = 'fixed';
+                container.style.top = '0';
+                container.style.left = '0';
                 container.style.width = '800px';
+                container.style.minHeight = '1000px';
+                container.style.visibility = 'hidden';
+                container.style.pointerEvents = 'none';
+                container.style.overflow = 'auto';
+                container.style.zIndex = '-9999';
                 container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
                 container.style.background = 'white';
                 container.style.padding = '20px';
@@ -4311,8 +4325,10 @@ export default function TomadorPedidos() {
                 
                 document.body.appendChild(container);
 
-                // Wait for content to render
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // Wait for layout to settle
+                await new Promise(resolve => requestAnimationFrame(() => {
+                  setTimeout(resolve, 300);
+                }));
 
                 // Generate PDF using html2pdf.js
                 const opt = {
