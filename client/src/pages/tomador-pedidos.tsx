@@ -394,6 +394,10 @@ export default function TomadorPedidos() {
   const [selectedOrderForView, setSelectedOrderForView] = useState<Order | null>(null);
   const [selectedOrderForEdit, setSelectedOrderForEdit] = useState<Order | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState<string | null>(null);
+  const [editingPriceItem, setEditingPriceItem] = useState<string | null>(null); // Item ID for custom price editing
+  const [customPriceInput, setCustomPriceInput] = useState("");
+  const [customDiscountInput, setCustomDiscountInput] = useState("");
+  const [priceInputMode, setPriceInputMode] = useState<"price" | "discount">("price");
   
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
     ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
@@ -783,6 +787,56 @@ export default function TomadorPedidos() {
     toast({
       title: "Precio actualizado",
       description: `Se cambió el precio del producto`,
+    });
+  };
+
+  // Apply custom price (manual price or discount percentage)
+  const applyCustomPrice = () => {
+    if (!editingPriceItem) return;
+
+    const item = cart.find(i => i.id === editingPriceItem);
+    if (!item) return;
+
+    let newUnitPrice: number;
+
+    if (priceInputMode === "price") {
+      // Manual price
+      const manualPrice = parseFloat(customPriceInput);
+      if (isNaN(manualPrice) || manualPrice < 0) {
+        toast({
+          title: "Precio inválido",
+          description: "Ingresa un precio válido",
+          variant: "destructive"
+        });
+        return;
+      }
+      newUnitPrice = manualPrice;
+    } else {
+      // Discount percentage
+      const discountPercent = parseFloat(customDiscountInput);
+      if (isNaN(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+        toast({
+          title: "Descuento inválido",
+          description: "Ingresa un porcentaje entre 0 y 100",
+          variant: "destructive"
+        });
+        return;
+      }
+      newUnitPrice = item.unitPrice * (1 - discountPercent / 100);
+    }
+
+    setCart(prev => prev.map(i =>
+      i.id === editingPriceItem
+        ? { ...i, unitPrice: newUnitPrice, totalPrice: newUnitPrice * i.quantity }
+        : i
+    ));
+
+    setEditingPriceItem(null);
+    setCustomPriceInput("");
+    setCustomDiscountInput("");
+    toast({
+      title: "Precio personalizado aplicado",
+      description: `Nuevo precio: ${formatCurrency(newUnitPrice)}`,
     });
   };
 
@@ -2801,6 +2855,45 @@ export default function TomadorPedidos() {
                                 </Button>
                               </div>
 
+                              {/* Price Tier Selection for Standard Products (Mobile) */}
+                              {item.type === "standard" && item.tierPrices && item.tierPrices.length > 1 && (
+                                <div className="space-y-2">
+                                  <label className="text-xs text-muted-foreground">Precio:</label>
+                                  <Select
+                                    value={item.priceTier || 'lista'}
+                                    onValueChange={(newTier) => updateCartItemPriceTier(item.id, newTier as PriceTier)}
+                                  >
+                                    <SelectTrigger className="h-9 text-sm" data-testid={`mobile-select-tier-${item.id}`}>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {item.tierPrices.map((tier) => (
+                                        <SelectItem key={tier.key} value={tier.key}>
+                                          {tier.label}: {formatCurrency(tier.price)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
+
+                              {/* Custom Price Button (Mobile) */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingPriceItem(item.id);
+                                  setCustomPriceInput(item.unitPrice.toString());
+                                  setCustomDiscountInput("");
+                                  setPriceInputMode("price");
+                                }}
+                                className="w-full h-8 text-xs"
+                                data-testid={`mobile-custom-price-${item.id}`}
+                              >
+                                <Edit className="w-3 h-3 mr-1" />
+                                Precio Personalizado
+                              </Button>
+
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-1">
                                   <Button
@@ -3612,6 +3705,118 @@ export default function TomadorPedidos() {
               data-testid="button-confirm-delete"
             >
               Eliminar
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Custom Price/Discount Dialog */}
+    <Dialog open={!!editingPriceItem} onOpenChange={() => setEditingPriceItem(null)}>
+      <DialogContent className={`${isMobile ? 'max-w-[95vw]' : 'max-w-md'}`}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Edit className="w-5 h-5" />
+            Precio Personalizado
+          </DialogTitle>
+          <DialogDescription>
+            Ingresa un precio manual o aplica un porcentaje de descuento
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {/* Toggle Price Mode */}
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant={priceInputMode === "price" ? "default" : "outline"}
+              onClick={() => setPriceInputMode("price")}
+              className="h-10"
+            >
+              Precio Manual
+            </Button>
+            <Button
+              variant={priceInputMode === "discount" ? "default" : "outline"}
+              onClick={() => setPriceInputMode("discount")}
+              className="h-10"
+            >
+              % Descuento
+            </Button>
+          </div>
+
+          {/* Input for Manual Price */}
+          {priceInputMode === "price" && (
+            <div>
+              <Label htmlFor="custom-price-input">Precio Unitario</Label>
+              <Input
+                id="custom-price-input"
+                type="number"
+                value={customPriceInput}
+                onChange={(e) => setCustomPriceInput(e.target.value)}
+                placeholder="Ej: 10000"
+                className="h-12 text-base"
+                style={{ fontSize: '16px' }}
+                inputMode="decimal"
+                data-testid="input-custom-price"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Ingresa el precio por unidad en pesos chilenos
+              </p>
+            </div>
+          )}
+
+          {/* Input for Discount Percentage */}
+          {priceInputMode === "discount" && (
+            <div>
+              <Label htmlFor="custom-discount-input">Porcentaje de Descuento</Label>
+              <Input
+                id="custom-discount-input"
+                type="number"
+                value={customDiscountInput}
+                onChange={(e) => setCustomDiscountInput(e.target.value)}
+                placeholder="Ej: 15"
+                className="h-12 text-base"
+                style={{ fontSize: '16px' }}
+                inputMode="decimal"
+                min="0"
+                max="100"
+                data-testid="input-custom-discount"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Ingresa un valor entre 0 y 100 (%)
+              </p>
+              {customDiscountInput && editingPriceItem && (() => {
+                const item = cart.find(i => i.id === editingPriceItem);
+                if (!item) return null;
+                const discountPercent = parseFloat(customDiscountInput);
+                if (isNaN(discountPercent)) return null;
+                const newPrice = item.unitPrice * (1 - discountPercent / 100);
+                return (
+                  <p className="text-sm font-medium text-green-600 mt-2">
+                    Nuevo precio: {formatCurrency(newPrice)}
+                  </p>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-2 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setEditingPriceItem(null);
+                setCustomPriceInput("");
+                setCustomDiscountInput("");
+              }}
+              data-testid="button-cancel-custom-price"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={applyCustomPrice}
+              className="bg-orange-500 hover:bg-orange-600"
+              data-testid="button-apply-custom-price"
+            >
+              Aplicar
             </Button>
           </div>
         </div>
