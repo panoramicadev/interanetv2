@@ -210,8 +210,19 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
       endDate = new Date(period);
       break;
     case 'month':
-      // period format: "2025-09" 
-      if (period.includes('-')) {
+      // Handle special month values
+      if (period === 'current-month') {
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        startDate = new Date(currentYear, currentMonth, 1);
+        endDate = new Date(currentYear, currentMonth + 1, 0);
+      } else if (period === 'last-month') {
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        startDate = new Date(currentYear, currentMonth - 1, 1);
+        endDate = new Date(currentYear, currentMonth, 0);
+      } else if (period.includes('-')) {
+        // period format: "2025-09" 
         const [year, month] = period.split('-');
         startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
         endDate = new Date(parseInt(year), parseInt(month), 0);
