@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { 
   DollarSign, 
   ShoppingCart, 
   Package, 
   Users 
 } from "lucide-react";
+import { format } from "date-fns";
 
 interface SalesMetrics {
   totalSales: number;
@@ -102,6 +102,22 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       case "previous-month": {
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
           const [year, month] = currentPeriod.split('-').map(Number);
+          const currentDate = new Date();
+          const currentYear = currentDate.getFullYear();
+          const currentMonth = currentDate.getMonth() + 1; // 0-indexed to 1-indexed
+          
+          // Si es el mes actual, comparar hasta el día actual
+          if (year === currentYear && month === currentMonth) {
+            const dayOfMonth = currentDate.getDate();
+            const previousMonthDate = new Date(year, month - 2, 1); // mes anterior
+            const fromDate = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), 1);
+            const toDate = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), dayOfMonth);
+            const result = `${format(fromDate, 'yyyy-MM-dd')}_${format(toDate, 'yyyy-MM-dd')}`;
+            console.log('[DEBUG] Previous month (current month mode - until day', dayOfMonth, ') resolved to:', result);
+            return result;
+          }
+          
+          // Si es un mes pasado, comparar el mes completo anterior
           const date = new Date(year, month - 1, 1);
           date.setMonth(date.getMonth() - 1);
           const result = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -112,8 +128,23 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       }
       case "same-month-last-year": {
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
-          const [year, month] = currentPeriod.split('-');
-          const result = `${parseInt(year) - 1}-${month}`;
+          const [year, month] = currentPeriod.split('-').map(Number);
+          const currentDate = new Date();
+          const currentYear = currentDate.getFullYear();
+          const currentMonth = currentDate.getMonth() + 1;
+          
+          // Si es el mes actual, comparar hasta el día actual del año pasado
+          if (year === currentYear && month === currentMonth) {
+            const dayOfMonth = currentDate.getDate();
+            const fromDate = new Date(year - 1, month - 1, 1);
+            const toDate = new Date(year - 1, month - 1, dayOfMonth);
+            const result = `${format(fromDate, 'yyyy-MM-dd')}_${format(toDate, 'yyyy-MM-dd')}`;
+            console.log('[DEBUG] Same month last year (current month mode - until day', dayOfMonth, ') resolved to:', result);
+            return result;
+          }
+          
+          // Si es un mes pasado, comparar el mes completo del año pasado
+          const result = `${year - 1}-${String(month).padStart(2, '0')}`;
           console.log('[DEBUG] Same month last year resolved to:', result);
           return result;
         }
@@ -240,20 +271,21 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     };
   };
 
-  // Calculate percentage changes vs comparison period
-  const calculateComparisonChange = (current: number, comparison: number | undefined) => {
-    if (!comparePeriod || comparePeriod === "none" || comparison === undefined || comparison === null || comparison === 0) {
+  // Calculate amount changes vs comparison period
+  const calculateComparisonChange = (current: number, comparison: number | undefined, isCurrency: boolean = true) => {
+    if (!comparePeriod || comparePeriod === "none" || comparison === undefined || comparison === null) {
       return null;
     }
     
-    const change = ((current - comparison) / comparison) * 100;
-    const sign = change >= 0 ? "+" : "";
-    const bgColor = change >= 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
+    const difference = current - comparison;
+    const sign = difference >= 0 ? "+" : "";
+    const color = difference >= 0 ? "text-green-600" : "text-red-600";
+    const formattedDiff = isCurrency ? formatCurrency(Math.abs(difference)) : formatNumber(Math.abs(difference));
     
     return {
-      text: `${sign}${change.toFixed(1)}%`,
-      bgColor,
-      value: change
+      text: `${sign}${formattedDiff}`,
+      color,
+      value: difference
     };
   };
 
@@ -263,10 +295,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const gdvChange = calculateChange(metrics?.gdvSales || 0, metrics?.previousMonthGdvSales);
 
   // Calculate comparison changes
-  const salesComparison = calculateComparisonChange(metrics?.totalSales || 0, comparisonMetrics?.totalSales);
-  const ordersComparison = calculateComparisonChange(metrics?.totalOrders || 0, comparisonMetrics?.totalOrders);
-  const unitsComparison = calculateComparisonChange(metrics?.totalUnits || 0, comparisonMetrics?.totalUnits);
-  const gdvComparison = calculateComparisonChange(metrics?.gdvSales || 0, comparisonMetrics?.gdvSales);
+  const salesComparison = calculateComparisonChange(metrics?.totalSales || 0, comparisonMetrics?.totalSales, true);
+  const ordersComparison = calculateComparisonChange(metrics?.totalOrders || 0, comparisonMetrics?.totalOrders, false);
+  const unitsComparison = calculateComparisonChange(metrics?.totalUnits || 0, comparisonMetrics?.totalUnits, false);
+  const gdvComparison = calculateComparisonChange(metrics?.gdvSales || 0, comparisonMetrics?.gdvSales, true);
 
   const kpis = [
     {
@@ -324,25 +356,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
               {kpi.title}
             </p>
-            <div className="relative">
-              <p 
-                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
-                data-testid={kpi.testId}
-                title={kpi.value}
-              >
-                {kpi.value}
-              </p>
-              {kpi.comparison && (
-                <Badge 
-                  className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
-                  data-testid={`${kpi.testId}-comparison-badge`}
-                >
-                  {kpi.comparison.text}
-                </Badge>
-              )}
-            </div>
-            <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
-              {kpi.change}
+            <p 
+              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+              data-testid={kpi.testId}
+              title={kpi.value}
+            >
+              {kpi.value}
+            </p>
+            <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+              {kpi.comparison ? kpi.comparison.text : kpi.change}
             </p>
           </div>
           <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
@@ -368,25 +390,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
               {kpi.title}
             </p>
-            <div className="relative">
-              <p 
-                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
-                data-testid={kpi.testId}
-                title={nvvFormatted}
-              >
-                {nvvFormatted}
-              </p>
-              {kpi.comparison && (
-                <Badge 
-                  className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
-                  data-testid={`${kpi.testId}-comparison-badge`}
-                >
-                  {kpi.comparison.text}
-                </Badge>
-              )}
-            </div>
-            <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
-              {kpi.change}
+            <p 
+              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+              data-testid={kpi.testId}
+              title={nvvFormatted}
+            >
+              {nvvFormatted}
+            </p>
+            <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+              {kpi.comparison ? kpi.comparison.text : kpi.change}
             </p>
             {/* Información adicional de GDV, NVV y Total Combinado */}
             <div className="mt-2 pt-2 border-t border-gray-100">
@@ -420,25 +432,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
               {kpi.title}
             </p>
-            <div className="relative">
-              <p 
-                className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
-                data-testid={kpi.testId}
-                title={kpi.value}
-              >
-                {kpi.value}
-              </p>
-              {kpi.comparison && (
-                <Badge 
-                  className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
-                  data-testid={`${kpi.testId}-comparison-badge`}
-                >
-                  {kpi.comparison.text}
-                </Badge>
-              )}
-            </div>
-            <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
-              {kpi.change}
+            <p 
+              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+              data-testid={kpi.testId}
+              title={kpi.value}
+            >
+              {kpi.value}
+            </p>
+            <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+              {kpi.comparison ? kpi.comparison.text : kpi.change}
             </p>
             {/* Subtítulo: Cantidad de órdenes */}
             <div className="mt-2 pt-2 border-t border-gray-100">
@@ -475,25 +477,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
                   {kpi.title}
                 </p>
-                <div className="relative">
-                  <p 
-                    className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
-                    data-testid={kpi.testId}
-                    title={kpi.value}
-                  >
-                    {kpi.value}
-                  </p>
-                  {kpi.comparison && (
-                    <Badge 
-                      className={`absolute -top-1 -right-1 text-xs px-1 py-0.5 ${kpi.comparison.bgColor}`}
-                      data-testid={`${kpi.testId}-comparison-badge`}
-                    >
-                      {kpi.comparison.text}
-                    </Badge>
-                  )}
-                </div>
-                <p className={`text-xs sm:text-sm font-medium ${kpi.changeColor} hidden sm:block`}>
-                  {kpi.change}
+                <p 
+                  className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+                  data-testid={kpi.testId}
+                  title={kpi.value}
+                >
+                  {kpi.value}
+                </p>
+                <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+                  {kpi.comparison ? kpi.comparison.text : kpi.change}
                 </p>
               </div>
               <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
