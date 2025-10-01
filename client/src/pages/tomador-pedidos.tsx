@@ -28,6 +28,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 import html2pdf from "html2pdf.js";
+import { Document, Page, Text, View, StyleSheet, pdf, Image } from '@react-pdf/renderer';
 // HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
 
 // Validation schema for edit order form
@@ -256,6 +257,232 @@ function EditOrderForm({ order, onClose }: EditOrderFormProps) {
     </Form>
   );
 }
+
+// React-PDF styles
+const pdfStyles = StyleSheet.create({
+  page: {
+    padding: 40,
+    fontSize: 10,
+    fontFamily: 'Helvetica',
+  },
+  header: {
+    marginBottom: 20,
+    borderBottom: '2 solid #fd6301',
+    paddingBottom: 10,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fd6301',
+    marginBottom: 5,
+  },
+  subtitle: {
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  section: {
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#333',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  label: {
+    width: 120,
+    fontWeight: 'bold',
+  },
+  value: {
+    flex: 1,
+  },
+  table: {
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#f3f4f6',
+    padding: 8,
+    fontWeight: 'bold',
+    borderBottom: '1 solid #d1d5db',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    padding: 8,
+    borderBottom: '1 solid #e5e7eb',
+  },
+  col1: { width: '40%' },
+  col2: { width: '15%', textAlign: 'center' },
+  col3: { width: '22%', textAlign: 'right' },
+  col4: { width: '23%', textAlign: 'right' },
+  totalsSection: {
+    marginTop: 20,
+    alignItems: 'flex-end',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 5,
+    width: '50%',
+  },
+  totalLabel: {
+    width: 150,
+    textAlign: 'right',
+    paddingRight: 10,
+  },
+  totalValue: {
+    width: 100,
+    textAlign: 'right',
+    fontWeight: 'bold',
+  },
+  grandTotal: {
+    fontSize: 14,
+    color: '#059669',
+    fontWeight: 'bold',
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 40,
+    right: 40,
+    textAlign: 'center',
+    fontSize: 8,
+    color: '#666',
+    borderTop: '1 solid #e5e7eb',
+    paddingTop: 10,
+  },
+});
+
+// React-PDF Document Component
+const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
+  const formatCurrency = (value: number | string) => {
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    return `$${num.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-CL');
+  };
+
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page}>
+        {/* Header */}
+        <View style={pdfStyles.header}>
+          <Text style={pdfStyles.title}>PINTURAS PANORÁMICA</Text>
+          <Text style={pdfStyles.subtitle}>Presupuesto {quote.quoteNumber}</Text>
+        </View>
+
+        {/* Client Information */}
+        <View style={pdfStyles.section}>
+          <Text style={pdfStyles.sectionTitle}>Información del Cliente</Text>
+          <View style={pdfStyles.infoRow}>
+            <Text style={pdfStyles.label}>Nombre:</Text>
+            <Text style={pdfStyles.value}>{quote.clientName}</Text>
+          </View>
+          {quote.clientRut && (
+            <View style={pdfStyles.infoRow}>
+              <Text style={pdfStyles.label}>RUT:</Text>
+              <Text style={pdfStyles.value}>{quote.clientRut}</Text>
+            </View>
+          )}
+          {quote.clientEmail && (
+            <View style={pdfStyles.infoRow}>
+              <Text style={pdfStyles.label}>Email:</Text>
+              <Text style={pdfStyles.value}>{quote.clientEmail}</Text>
+            </View>
+          )}
+          {quote.clientPhone && (
+            <View style={pdfStyles.infoRow}>
+              <Text style={pdfStyles.label}>Teléfono:</Text>
+              <Text style={pdfStyles.value}>{quote.clientPhone}</Text>
+            </View>
+          )}
+          {quote.clientAddress && (
+            <View style={pdfStyles.infoRow}>
+              <Text style={pdfStyles.label}>Dirección:</Text>
+              <Text style={pdfStyles.value}>{quote.clientAddress}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Quote Details */}
+        <View style={pdfStyles.section}>
+          <Text style={pdfStyles.sectionTitle}>Detalles del Presupuesto</Text>
+          <View style={pdfStyles.infoRow}>
+            <Text style={pdfStyles.label}>Fecha:</Text>
+            <Text style={pdfStyles.value}>{formatDate(quote.createdAt)}</Text>
+          </View>
+          {quote.validUntil && (
+            <View style={pdfStyles.infoRow}>
+              <Text style={pdfStyles.label}>Válido hasta:</Text>
+              <Text style={pdfStyles.value}>{formatDate(quote.validUntil)}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Items Table */}
+        <View style={pdfStyles.table}>
+          <Text style={pdfStyles.sectionTitle}>Productos</Text>
+          <View style={pdfStyles.tableHeader}>
+            <Text style={pdfStyles.col1}>Producto</Text>
+            <Text style={pdfStyles.col2}>Cantidad</Text>
+            <Text style={pdfStyles.col3}>Precio Unit.</Text>
+            <Text style={pdfStyles.col4}>Total</Text>
+          </View>
+          {items.map((item, index) => (
+            <View key={index} style={pdfStyles.tableRow}>
+              <Text style={pdfStyles.col1}>
+                {item.productName}
+                {item.productCode && ` (${item.productCode})`}
+              </Text>
+              <Text style={pdfStyles.col2}>{item.quantity}</Text>
+              <Text style={pdfStyles.col3}>{formatCurrency(item.unitPrice)}</Text>
+              <Text style={pdfStyles.col4}>{formatCurrency(item.totalPrice)}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Totals */}
+        <View style={pdfStyles.totalsSection}>
+          <View style={pdfStyles.totalRow}>
+            <Text style={pdfStyles.totalLabel}>Subtotal:</Text>
+            <Text style={pdfStyles.totalValue}>{formatCurrency(quote.subtotal)}</Text>
+          </View>
+          <View style={pdfStyles.totalRow}>
+            <Text style={pdfStyles.totalLabel}>IVA (19%):</Text>
+            <Text style={pdfStyles.totalValue}>{formatCurrency(quote.taxAmount)}</Text>
+          </View>
+          <View style={pdfStyles.totalRow}>
+            <Text style={[pdfStyles.totalLabel, pdfStyles.grandTotal]}>Total:</Text>
+            <Text style={[pdfStyles.totalValue, pdfStyles.grandTotal]}>{formatCurrency(quote.total)}</Text>
+          </View>
+        </View>
+
+        {/* Notes */}
+        {quote.notes && (
+          <View style={pdfStyles.section}>
+            <Text style={pdfStyles.sectionTitle}>Notas</Text>
+            <Text>{quote.notes}</Text>
+          </View>
+        )}
+
+        {/* Footer */}
+        <View style={pdfStyles.footer}>
+          <Text>Pinturas Panorámica - 30 años sirviendo a Chile</Text>
+          <Text>Este presupuesto fue generado electrónicamente</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+};
 
 export default function TomadorPedidos() {
   const [location, navigate] = useLocation();
@@ -1506,53 +1733,38 @@ export default function TomadorPedidos() {
           clientName: quoteForm.clientName || 'Sin especificar',
           clientEmail: quoteForm.clientEmail || '',
           clientPhone: quoteForm.clientPhone || '',
+          clientRut: quoteForm.clientRut || '',
+          clientAddress: quoteForm.clientAddress || '',
+          validUntil: quoteForm.validUntil || null,
           status: 'draft',
           notes: quoteForm.notes || '',
           createdAt: new Date().toISOString(),
-          total: cart.reduce((sum, item) => sum + item.totalPrice, 0)
+          subtotal: cart.reduce((sum, item) => sum + item.totalPrice, 0),
+          taxAmount: cart.reduce((sum, item) => sum + item.totalPrice, 0) * 0.19,
+          total: cart.reduce((sum, item) => sum + item.totalPrice, 0) * 1.19
         };
         
         items = cart.map(item => ({
           productName: item.productName,
-          sku: item.customSku || item.productCode || '',
+          productCode: item.customSku || item.productCode || '',
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-          productUnit: item.productUnit || 'UN'
+          totalPrice: item.totalPrice
         }));
       }
 
-      // Generate PDF HTML
-      const htmlContent = generatePDFHTML(quote, items);
+      // Generate PDF using React-PDF
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
 
       if (isMobile) {
-        // For mobile: Create blob and show in viewer
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
+        // For mobile: Create blob URL and show in viewer
+        const url = URL.createObjectURL(pdfBlob);
         setPdfBlobUrl(url);
         setShowPdfViewer(true);
       } else {
-        // For desktop: Open in new window as before
-        const printWindow = window.open('', '_blank', 'width=800,height=600');
-        if (printWindow) {
-          printWindow.document.write(htmlContent);
-          printWindow.document.close();
-          
-          printWindow.onload = () => {
-            setTimeout(() => {
-              printWindow.print();
-              setTimeout(() => {
-                try {
-                  printWindow.close();
-                } catch (e) {
-                  // Ignore errors if user manually closed window
-                }
-              }, 1000);
-            }, 500);
-          };
-        } else {
-          throw new Error("No se pudo abrir la ventana del PDF.");
-        }
+        // For desktop: Open PDF in new window
+        const url = URL.createObjectURL(pdfBlob);
+        window.open(url, '_blank');
       }
 
     } catch (error) {
@@ -2314,63 +2526,8 @@ export default function TomadorPedidos() {
       const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
       const items = await itemsResponse.json();
 
-      // Generate PDF HTML
-      const htmlContent = generatePDFHTML(quote, items);
-      
-      // Create a temporary container with proper styles for layout calculation
-      const container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.top = '0';
-      container.style.left = '0';
-      container.style.width = '800px';
-      container.style.minHeight = '1000px';
-      container.style.visibility = 'hidden';
-      container.style.pointerEvents = 'none';
-      container.style.overflow = 'auto';
-      container.style.zIndex = '-9999';
-      container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
-      container.style.background = 'white';
-      container.style.padding = '20px';
-      
-      // Parse HTML and extract body content
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, 'text/html');
-      
-      // Extract and inject styles
-      const styleElement = doc.querySelector('style');
-      if (styleElement) {
-        const newStyle = document.createElement('style');
-        newStyle.textContent = styleElement.textContent;
-        container.appendChild(newStyle);
-      }
-      
-      // Extract and inject body content
-      const bodyContent = doc.body.innerHTML;
-      const contentDiv = document.createElement('div');
-      contentDiv.innerHTML = bodyContent;
-      container.appendChild(contentDiv);
-      
-      document.body.appendChild(container);
-
-      // Wait for layout to settle
-      await new Promise(resolve => requestAnimationFrame(() => {
-        setTimeout(resolve, 300);
-      }));
-
-      // Generate PDF using html2pdf.js
-      const opt = {
-        margin: [10, 10, 10, 10] as [number, number, number, number],
-        filename: `Presupuesto-${quote.quoteNumber}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
-      };
-
-      // Generate PDF blob
-      const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-      
-      // Clean up
-      document.body.removeChild(container);
+      // Generate PDF using React-PDF
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
       
       // Create file for sharing
       const file = new File([pdfBlob], `Presupuesto-${quote.quoteNumber}.pdf`, { type: 'application/pdf' });
@@ -4288,62 +4445,8 @@ export default function TomadorPedidos() {
                 const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
                 const items = await itemsResponse.json();
 
-                const htmlContent = generatePDFHTML(quote, items);
-                
-                // Create a temporary container with proper styles for layout calculation
-                const container = document.createElement('div');
-                container.style.position = 'fixed';
-                container.style.top = '0';
-                container.style.left = '0';
-                container.style.width = '800px';
-                container.style.minHeight = '1000px';
-                container.style.visibility = 'hidden';
-                container.style.pointerEvents = 'none';
-                container.style.overflow = 'auto';
-                container.style.zIndex = '-9999';
-                container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
-                container.style.background = 'white';
-                container.style.padding = '20px';
-                
-                // Parse HTML and extract body content
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlContent, 'text/html');
-                
-                // Extract and inject styles
-                const styleElement = doc.querySelector('style');
-                if (styleElement) {
-                  const newStyle = document.createElement('style');
-                  newStyle.textContent = styleElement.textContent;
-                  container.appendChild(newStyle);
-                }
-                
-                // Extract and inject body content
-                const bodyContent = doc.body.innerHTML;
-                const contentDiv = document.createElement('div');
-                contentDiv.innerHTML = bodyContent;
-                container.appendChild(contentDiv);
-                
-                document.body.appendChild(container);
-
-                // Wait for layout to settle
-                await new Promise(resolve => requestAnimationFrame(() => {
-                  setTimeout(resolve, 300);
-                }));
-
-                // Generate PDF using html2pdf.js
-                const opt = {
-                  margin: [10, 10, 10, 10] as [number, number, number, number],
-                  filename: `Presupuesto-${quote.quoteNumber}.pdf`,
-                  image: { type: 'jpeg' as const, quality: 0.98 },
-                  html2canvas: { scale: 2, useCORS: true },
-                  jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
-                };
-
-                // Generate PDF blob
-                const pdfBlob = await html2pdf().set(opt).from(container).outputPdf('blob');
-                
-                // Clean up
-                document.body.removeChild(container);
+                // Generate PDF using React-PDF
+                const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
                 
                 // Create file for sharing
                 const file = new File([pdfBlob], `Presupuesto-${quote.quoteNumber}.pdf`, { type: 'application/pdf' });
