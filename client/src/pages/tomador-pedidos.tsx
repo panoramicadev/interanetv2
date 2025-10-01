@@ -1607,6 +1607,33 @@ export default function TomadorPedidos() {
     .notes { background: #f8fafc; padding: 15px; border-radius: 6px; border-left: 4px solid #fd6301; margin-top: 20px; }
     .notes-title { font-weight: 600; color: #fd6301; margin-bottom: 8px; }
     .notes-content { color: #475569; font-size: 14px; line-height: 1.6; }
+    
+    /* Mobile adjustments */
+    @media (max-width: 768px) {
+      body { padding: 10px; font-size: 12px; }
+      .container { max-width: 100%; }
+      .header { padding: 15px; margin-bottom: 15px; }
+      .header h1 { font-size: 18px; margin-bottom: 4px; }
+      .quote-number { font-size: 14px; }
+      .section { padding: 12px; margin-bottom: 12px; border-radius: 6px; }
+      .section-title { font-size: 13px; margin-bottom: 10px; padding-bottom: 6px; }
+      .info-grid { gap: 8px; }
+      .info-item { padding: 4px 0; }
+      .info-label { font-size: 9px; }
+      .info-value { font-size: 11px; }
+      table { margin-top: 8px; }
+      th { padding: 6px 4px; font-size: 9px; }
+      td { padding: 6px 4px; font-size: 10px; }
+      .product-name { font-size: 10px; }
+      .product-code { font-size: 8px; }
+      .totals { margin-top: 12px; }
+      .total-row { padding: 4px 0; font-size: 11px; }
+      .total-row.final { padding: 10px; font-size: 14px; }
+      .notes { padding: 10px; margin-top: 12px; }
+      .notes-title { font-size: 11px; margin-bottom: 6px; }
+      .notes-content { font-size: 10px; line-height: 1.4; }
+    }
+    
     @media print {
       body { padding: 0; }
       .no-print { display: none; }
@@ -2407,20 +2434,22 @@ export default function TomadorPedidos() {
           </div>
         </div>
 
-        {/* Create Quote Button */}
-        <div className={`${isMobile ? 'space-y-4' : 'flex justify-end'}`}>
-          <Button
-            onClick={handleCreateQuoteForNewClient}
-            className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
-              isMobile ? 'w-full h-10 text-sm font-medium' : ''
-            }`}
-            size={isMobile ? "sm" : "lg"}
-            data-testid="button-create-quote-new-client"
-          >
-            <Calculator className="w-4 h-4" />
-            {isMobile ? "Nuevo Presupuesto" : "Crear Presupuesto"}
-          </Button>
-        </div>
+        {/* Create Quote Button - Hidden in mobile when client search is open */}
+        {!(isMobile && showClientSearch) && (
+          <div className={`${isMobile ? 'space-y-4' : 'flex justify-end'}`}>
+            <Button
+              onClick={handleCreateQuoteForNewClient}
+              className={`bg-orange-500 hover:bg-orange-600 flex items-center justify-center gap-2 ${
+                isMobile ? 'w-full h-10 text-sm font-medium' : ''
+              }`}
+              size={isMobile ? "sm" : "lg"}
+              data-testid="button-create-quote-new-client"
+            >
+              <Calculator className="w-4 h-4" />
+              {isMobile ? "Nuevo Presupuesto" : "Crear Presupuesto"}
+            </Button>
+          </div>
+        )}
 
         {/* Client Search Section - Mobile Optimized */}
         {isMobile ? (
