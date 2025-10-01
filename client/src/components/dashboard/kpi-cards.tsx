@@ -221,12 +221,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     enabled: !!resolvedComparePeriod, // Only run if resolved period is set
   });
 
-  // Query for NVV total (without date filters for total general)
-  const { data: nvvTotalData } = useQuery<{
+  // Query for NVV metrics (with filters)
+  const { data: nvvMetrics } = useQuery<{
     totalAmount: number;
     totalRecords: number;
+    previousAmount?: number;
+    previousRecords?: number;
   }>({
-    queryKey: ['/api/nvv/total'],
+    queryKey: [`/api/nvv/metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const formatCurrency = (amount: number) => {
@@ -390,7 +392,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   // Renderizar tarjeta personalizada para Notas de Venta
   const renderOrdersCard = (kpi: any) => {
-    const nvvTotal = Number(nvvTotalData?.totalAmount || 0);
+    const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
+    const salesTotal = Number(metrics?.totalSales || 0);
+    const gdvSales = Number(metrics?.gdvSales || 0);
+    const totalCombinado = salesTotal + gdvSales + nvvTotal;
     const nvvFormatted = formatCurrency(nvvTotal);
 
     return (
@@ -410,6 +415,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
               {kpi.comparison ? kpi.comparison.text : kpi.change}
             </p>
+            {/* Total Combinado */}
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(totalCombinado)}`}>
+                Total Combinado: {formatCurrency(totalCombinado)}
+              </p>
+            </div>
           </div>
           <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
             <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
