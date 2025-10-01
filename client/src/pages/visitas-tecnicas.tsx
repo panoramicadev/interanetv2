@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,10 +17,15 @@ import {
   AlertTriangle,
   Clock,
   Search,
-  Filter
+  Filter,
+  X,
+  PackagePlus
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface VisitaResumen {
   id: string;
@@ -42,16 +48,112 @@ interface EstadisticasVisitas {
   promedioProgreso: number;
 }
 
+interface Client {
+  id: string;
+  nokoen: string;
+  koen: string;
+}
+
+interface Product {
+  id: string;
+  kopr: string;
+  name: string;
+  ud02pr: string;
+}
+
+interface SelectedProduct {
+  productId: string;
+  sku: string;
+  name: string;
+  formato: string;
+}
+
 export default function VisitasTecnicasPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [filtroMes, setFiltroMes] = useState<string>("current");
   const [showNewVisitModal, setShowNewVisitModal] = useState(false);
+  
+  // Estados para el flujo de creación de visita
+  const [visitStep, setVisitStep] = useState<'basic' | 'products' | 'evaluation'>('basic');
+  const [visitData, setVisitData] = useState({
+    clienteId: '',
+    nombreObra: '',
+    direccionObra: '',
+    fechaVisita: new Date().toISOString().split('T')[0],
+  });
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
 
   const handleNewVisit = () => {
     setShowNewVisitModal(true);
+    setVisitStep('basic');
+    setVisitData({
+      clienteId: '',
+      nombreObra: '',
+      direccionObra: '',
+      fechaVisita: new Date().toISOString().split('T')[0],
+    });
+    setSelectedProducts([]);
+    setProductSearchTerm("");
   };
+  
+  const handleCloseModal = () => {
+    setShowNewVisitModal(false);
+    setVisitStep('basic');
+  };
+
+  // Query para obtener la lista de clientes
+  const { data: clients = [] } = useQuery<Client[]>({
+    queryKey: ['/api/clients/list'],
+    enabled: showNewVisitModal,
+  });
+
+  // Query para obtener la lista de productos
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ['/api/products/list'],
+    enabled: showNewVisitModal && visitStep === 'products',
+  });
+
+  const filteredProducts = products.filter(p => 
+    productSearchTerm === '' ||
+    p.name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+    p.kopr.toLowerCase().includes(productSearchTerm.toLowerCase())
+  );
+
+  const handleProductToggle = (product: Product, checked: boolean) => {
+    if (checked) {
+      setSelectedProducts(prev => [...prev, {
+        productId: product.id,
+        sku: product.kopr,
+        name: product.name,
+        formato: product.ud02pr || 'N/A'
+      }]);
+    } else {
+      setSelectedProducts(prev => prev.filter(p => p.productId !== product.id));
+    }
+  };
+
+  const handleRemoveProduct = (productId: string) => {
+    setSelectedProducts(prev => prev.filter(p => p.productId !== productId));
+  };
+
+  const createVisitMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('/api/visitas-tecnicas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/visitas-tecnicas/listado'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/visitas-tecnicas/estadisticas'] });
+      handleCloseModal();
+    },
+  });
 
   // Query para estadísticas del dashboard
   const { data: estadisticas, isLoading: loadingStats } = useQuery<EstadisticasVisitas>({
@@ -412,58 +514,335 @@ export default function VisitasTecnicasPage() {
         </Tabs>
       </div>
 
-      {/* Modal para nueva visita técnica */}
-      <Dialog open={showNewVisitModal} onOpenChange={setShowNewVisitModal}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Nueva Visita Técnica</DialogTitle>
-            <DialogDescription>
-              Crea una nueva visita técnica para evaluar productos y servicios
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Modal para nueva visita técnica - Paso 1: Datos básicos */}
+      {visitStep === 'basic' && (
+        <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Nueva Visita Técnica - Datos Básicos</DialogTitle>
+              <DialogDescription>
+                Paso 1 de 3: Información general de la visita
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Nombre de la Obra</label>
-                <Input placeholder="Ingresa el nombre de la obra" data-testid="input-nombre-obra" />
+                <label className="text-sm font-medium">Cliente *</label>
+                <Select 
+                  value={visitData.clienteId} 
+                  onValueChange={(value) => setVisitData(prev => ({ ...prev, clienteId: value }))}
+                >
+                  <SelectTrigger data-testid="select-cliente">
+                    <SelectValue placeholder="Selecciona un cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <ScrollArea className="h-64">
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.nokoen}
+                        </SelectItem>
+                      ))}
+                    </ScrollArea>
+                  </SelectContent>
+                </Select>
               </div>
+
               <div className="space-y-2">
-                <label className="text-sm font-medium">Cliente</label>
-                <Input placeholder="Nombre del cliente" data-testid="input-cliente" />
+                <label className="text-sm font-medium">Técnico Asignado</label>
+                <Input 
+                  value={user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.email || ''} 
+                  disabled
+                  className="bg-gray-50"
+                  data-testid="input-tecnico"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Automáticamente asignado al usuario actual
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Nombre de la Obra *</label>
+                  <Input 
+                    placeholder="Ej: Edificio Las Condes 2025" 
+                    value={visitData.nombreObra}
+                    onChange={(e) => setVisitData(prev => ({ ...prev, nombreObra: e.target.value }))}
+                    data-testid="input-nombre-obra" 
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Cada cliente puede tener múltiples obras
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Fecha de Visita *</label>
+                  <Input 
+                    type="date" 
+                    value={visitData.fechaVisita}
+                    onChange={(e) => setVisitData(prev => ({ ...prev, fechaVisita: e.target.value }))}
+                    data-testid="input-fecha-visita" 
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Dirección de la Obra *</label>
+                <Input 
+                  placeholder="Dirección completa de la obra" 
+                  value={visitData.direccionObra}
+                  onChange={(e) => setVisitData(prev => ({ ...prev, direccionObra: e.target.value }))}
+                  data-testid="input-direccion" 
+                />
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  onClick={handleCloseModal} 
+                  data-testid="button-cancelar"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={() => setVisitStep('products')} 
+                  disabled={!visitData.clienteId || !visitData.nombreObra || !visitData.direccionObra}
+                  data-testid="button-siguiente"
+                >
+                  Siguiente: Seleccionar Productos
+                </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Modal para nueva visita técnica - Paso 2: Selección de productos */}
+      {visitStep === 'products' && (
+        <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Nueva Visita Técnica - Selección de Productos</DialogTitle>
+              <DialogDescription>
+                Paso 2 de 3: Selecciona los productos que se evaluarán en la visita
+              </DialogDescription>
+            </DialogHeader>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+              {/* Productos seleccionados */}
+              {selectedProducts.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Productos Seleccionados ({selectedProducts.length})</label>
+                  <ScrollArea className="h-24 border rounded-md p-2">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedProducts.map((product) => (
+                        <Badge key={product.productId} variant="secondary" className="gap-1">
+                          {product.sku} - {product.name.substring(0, 30)}...
+                          <button
+                            onClick={() => handleRemoveProduct(product.productId)}
+                            className="ml-1 hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+
+              {/* Búsqueda de productos */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Técnico</label>
-                <Input placeholder="Nombre del técnico asignado" data-testid="input-tecnico" />
+                <label className="text-sm font-medium">Buscar Productos</label>
+                <Input
+                  placeholder="Buscar por SKU o nombre de producto..."
+                  value={productSearchTerm}
+                  onChange={(e) => setProductSearchTerm(e.target.value)}
+                  data-testid="input-buscar-producto"
+                />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Fecha de Visita</label>
-                <Input type="date" data-testid="input-fecha-visita" />
+
+              {/* Lista de productos */}
+              <ScrollArea className="flex-1 border rounded-md">
+                <div className="p-4 space-y-2">
+                  {filteredProducts.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <PackagePlus className="mx-auto h-12 w-12 mb-2 opacity-50" />
+                      <p>No se encontraron productos</p>
+                    </div>
+                  ) : (
+                    filteredProducts.map((product) => {
+                      const isSelected = selectedProducts.some(p => p.productId === product.id);
+                      return (
+                        <div
+                          key={product.id}
+                          className="flex items-start space-x-3 p-3 rounded-lg hover:bg-accent cursor-pointer"
+                          onClick={() => handleProductToggle(product, !isSelected)}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(checked) => handleProductToggle(product, checked as boolean)}
+                            className="mt-1"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="font-mono text-xs">{product.kopr}</Badge>
+                              <Badge variant="secondary" className="text-xs">{product.ud02pr || 'N/A'}</Badge>
+                            </div>
+                            <p className="text-sm font-medium">{product.name}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+              
+              <div className="flex justify-between gap-3 pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setVisitStep('basic')} 
+                  data-testid="button-atras"
+                >
+                  Atrás
+                </Button>
+                <div className="flex gap-3">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleCloseModal} 
+                    data-testid="button-cancelar-productos"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    onClick={() => setVisitStep('evaluation')} 
+                    disabled={selectedProducts.length === 0}
+                    data-testid="button-crear-evaluacion"
+                  >
+                    Continuar a Evaluación ({selectedProducts.length})
+                  </Button>
+                </div>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Modal para nueva visita técnica - Paso 3: Evaluación */}
+      {visitStep === 'evaluation' && (
+        <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Nueva Visita Técnica - Evaluación de Productos</DialogTitle>
+              <DialogDescription>
+                Paso 3 de 3: Evaluar {selectedProducts.length} producto(s) seleccionado(s)
+              </DialogDescription>
+            </DialogHeader>
             
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Dirección</label>
-              <Input placeholder="Dirección de la obra" data-testid="input-direccion" />
-            </div>
+            <ScrollArea className="flex-1">
+              <div className="space-y-6 pr-4">
+                {selectedProducts.map((product, index) => (
+                  <Card key={product.productId} className="border-2">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Badge>{index + 1}</Badge>
+                        {product.name}
+                      </CardTitle>
+                      <CardDescription className="flex gap-2">
+                        <Badge variant="outline">SKU: {product.sku}</Badge>
+                        <Badge variant="secondary">Formato: {product.formato}</Badge>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Color</label>
+                          <Input placeholder="Color del producto" data-testid={`input-color-${index}`} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Lote</label>
+                          <Input placeholder="Número de lote" data-testid={`input-lote-${index}`} />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Fecha de Llegada</label>
+                          <Input type="date" data-testid={`input-fecha-llegada-${index}`} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">M² Aplicados</label>
+                          <Input type="number" placeholder="Metros cuadrados" data-testid={`input-m2-${index}`} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">% Avance</label>
+                        <Input type="number" min="0" max="100" placeholder="Porcentaje de avance" data-testid={`input-avance-${index}`} />
+                      </div>
+
+                      <div className="border-t pt-3 space-y-3">
+                        <h4 className="font-medium text-sm">Evaluación Técnica</h4>
+                        
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Aplicación</label>
+                          <Select>
+                            <SelectTrigger data-testid={`select-aplicacion-${index}`}>
+                              <SelectValue placeholder="Seleccionar evaluación" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="correcta">Correcta</SelectItem>
+                              <SelectItem value="deficiente">Deficiente</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Observaciones Técnicas</label>
+                          <Input placeholder="Observaciones sobre el producto..." data-testid={`input-observaciones-${index}`} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
             
-            <div className="flex justify-end gap-3 pt-4">
-              <Button variant="outline" onClick={() => setShowNewVisitModal(false)} data-testid="button-cancelar">
-                Cancelar
+            <div className="flex justify-between gap-3 pt-4 border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => setVisitStep('products')} 
+                data-testid="button-atras-evaluacion"
+              >
+                Atrás
               </Button>
-              <Button onClick={() => {
-                // Aquí iría la lógica para crear la visita
-                setShowNewVisitModal(false);
-              }} data-testid="button-crear">
-                Crear Visita
-              </Button>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  onClick={handleCloseModal} 
+                  data-testid="button-cancelar-evaluacion"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={() => {
+                    // Crear la visita con todos los datos
+                    const visitCompleteData = {
+                      ...visitData,
+                      tecnicoId: user?.id,
+                      productos: selectedProducts,
+                      estado: 'completada'
+                    };
+                    createVisitMutation.mutate(visitCompleteData);
+                  }}
+                  disabled={createVisitMutation.isPending}
+                  data-testid="button-finalizar"
+                >
+                  {createVisitMutation.isPending ? 'Creando...' : 'Crear Visita Técnica'}
+                </Button>
+              </div>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
