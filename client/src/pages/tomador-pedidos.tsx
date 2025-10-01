@@ -1746,13 +1746,9 @@ export default function TomadorPedidos() {
 </html>`;
   };
 
-  // Generate PDF as base64 for email sending using jsPDF directly
+  // Generate PDF as base64 for email sending (doesn't open/download)
   const generatePDFAsBase64 = async (quote: Quote, items: any[]): Promise<string> => {
     try {
-      // Import jsPDF and html2canvas
-      const { jsPDF } = await import('jspdf');
-      const html2canvas = (await import('html2canvas')).default;
-
       // Format data for Chilean standards
       const quoteDate = new Date(quote.createdAt || new Date()).toLocaleDateString('es-CL', { 
         day: '2-digit',
@@ -2076,77 +2072,38 @@ export default function TomadorPedidos() {
 </body>
 </html>`;
 
-      // Create a temporary container for rendering
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '0';
-      container.style.top = '0';
-      container.style.width = '800px';
-      container.style.backgroundColor = 'white';
-      container.style.visibility = 'hidden';
-      
-      // Parse HTML and inject into container
-      const parser = new DOMParser();
-      const parsedDoc = parser.parseFromString(htmlContent, 'text/html');
-      
-      // Extract styles and inject
-      const styleElement = parsedDoc.querySelector('style');
-      if (styleElement) {
-        container.appendChild(styleElement.cloneNode(true));
-      }
-      
-      // Extract body content and inject
-      const bodyDiv = document.createElement('div');
-      bodyDiv.innerHTML = parsedDoc.body.innerHTML;
-      container.appendChild(bodyDiv);
-      
-      // Append to body to render
-      document.body.appendChild(container);
-      
-      // Wait for rendering
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Create temporary element for html2pdf
+      const element = document.createElement('div');
+      element.innerHTML = htmlContent;
+      element.style.position = 'absolute';
+      element.style.left = '-9999px';
+      document.body.appendChild(element);
 
-      // Capture with html2canvas
-      const canvas = await html2canvas(bodyDiv, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        width: 800,
-        windowWidth: 800,
-        backgroundColor: '#ffffff'
-      });
-      
-      // Create PDF with jsPDF
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      
-      // A4 dimensions
-      const pdfWidth = 210; // mm
-      const pdfHeight = 297; // mm
-      const imgWidth = pdfWidth - 20; // margins
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      let heightLeft = imgHeight;
-      let position = 10;
-      
-      // Add first page
-      pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
-      heightLeft -= (pdfHeight - 20);
-      
-      // Add additional pages if needed
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + 10;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
-        heightLeft -= (pdfHeight - 20);
-      }
+      // Generate PDF using html2pdf.js
+      const opt = {
+        margin: 0,
+        filename: `Cotizacion_${quote.quoteNumber}.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' as const }
+      };
+
+      // Generate and get base64
+      const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
       
       // Clean up
-      document.body.removeChild(container);
-      
-      // Convert PDF to base64
-      const pdfBase64 = pdf.output('datauristring').split(',')[1];
-      return pdfBase64;
+      document.body.removeChild(element);
+
+      // Convert blob to base64
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(pdfBlob);
+      });
 
     } catch (error) {
       console.error('Error generating PDF as base64:', error);
