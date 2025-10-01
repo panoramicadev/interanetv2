@@ -5856,9 +5856,9 @@ export function registerRoutes(app: Express): Server {
       console.log('📝 Recibiendo datos de visita técnica:', JSON.stringify(req.body, null, 2));
       
       // Validar datos básicos requeridos
-      const { nombreObra, direccionObra, fechaVisita, tecnicoId } = req.body;
+      const { nombreObra, direccionObra, fechaVisita, tecnicoId, clienteId, productos, estado } = req.body;
       
-      console.log('🔍 Validando campos:', { nombreObra, direccionObra, fechaVisita, tecnicoId });
+      console.log('🔍 Validando campos:', { nombreObra, direccionObra, fechaVisita, tecnicoId, clienteId, productosCount: productos?.length });
       
       if (!nombreObra || !direccionObra || !fechaVisita || !tecnicoId) {
         const camposFaltantes = [];
@@ -5873,13 +5873,60 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Crear visita técnica con datos mínimos
+      // Crear visita técnica con datos básicos
       const visitaData = {
-        ...req.body,
-        estado: 'borrador' // Estado inicial
+        nombreObra,
+        direccionObra,
+        fechaVisita,
+        tecnicoId,
+        clienteId: clienteId || null,
+        estado: estado || 'borrador'
       };
 
+      console.log('💾 Creando visita con datos:', visitaData);
       const nuevaVisita = await storage.createVisitaTecnica(visitaData);
+      console.log('✅ Visita creada con ID:', nuevaVisita.id);
+
+      // Si hay productos, crearlos junto con sus evaluaciones
+      if (productos && productos.length > 0) {
+        console.log(`📦 Procesando ${productos.length} productos evaluados...`);
+        
+        for (const producto of productos) {
+          // Crear producto evaluado
+          const productoData = {
+            visitaId: nuevaVisita.id,
+            productoId: producto.productId,
+            sku: producto.sku,
+            nombre: producto.name,
+            formato: producto.formato,
+            porcentajeAvance: producto.evaluacion?.avance ? parseFloat(producto.evaluacion.avance) : null
+          };
+
+          console.log('  💾 Guardando producto:', productoData.nombre);
+          const [productoEvaluado] = await db.insert(productosEvaluados).values(productoData).returning();
+          
+          // Si tiene evaluación, crearla
+          if (producto.evaluacion && productoEvaluado) {
+            const evaluacionData = {
+              productoEvaluadoId: productoEvaluado.id,
+              color: producto.evaluacion.color || null,
+              lote: producto.evaluacion.lote || null,
+              fechaLlegada: producto.evaluacion.fechaLlegada ? new Date(producto.evaluacion.fechaLlegada) : null,
+              m2Aplicados: producto.evaluacion.m2Aplicados ? parseFloat(producto.evaluacion.m2Aplicados) : null,
+              clima: producto.evaluacion.clima || null,
+              dilucion: producto.evaluacion.dilucion ? parseFloat(producto.evaluacion.dilucion) : null,
+              aplicacion: producto.evaluacion.aplicacion || null,
+              evidenciaDeficiencia: producto.evaluacion.evidenciaDeficiencia || null
+            };
+
+            console.log('  📋 Guardando evaluación para:', productoData.nombre);
+            await db.insert(evaluacionesTecnicas).values(evaluacionData);
+          }
+        }
+        
+        console.log('✅ Todos los productos y evaluaciones guardados');
+      }
+
       res.status(201).json(nuevaVisita);
     } catch (error: any) {
       console.error('❌ Error al crear visita técnica:', error);
