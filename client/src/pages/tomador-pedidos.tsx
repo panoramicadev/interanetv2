@@ -22,7 +22,7 @@ import OrdersList from "@/components/order-taker/orders-list";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, Phone, Plus, Minus, Trash2, FileText, Calculator, X, Package, Eye, MoreHorizontal, Edit, Mail, Download } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { nanoid } from "nanoid";
@@ -401,6 +401,7 @@ export default function TomadorPedidos() {
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null); // Track if current quote is saved
   const [showPdfViewer, setShowPdfViewer] = useState(false); // Control PDF viewer visibility
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null); // Store PDF blob URL
+  const [defaultMobileTab, setDefaultMobileTab] = useState<"client" | "products" | "cart">("client"); // Default tab for mobile
   
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
     ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
@@ -586,6 +587,7 @@ export default function TomadorPedidos() {
       notes: `Pedido para cliente: ${client.nokoen}`,
     });
     setCart([]);
+    setDefaultMobileTab("products"); // Start on products tab since client info is filled
     setShowQuoteBuilder(true);
   };
 
@@ -603,6 +605,7 @@ export default function TomadorPedidos() {
     });
     setCart([]);
     setEditingQuoteId(null); // Clear editing state for new quote
+    setDefaultMobileTab("products"); // Start on products tab since client info is filled
     setShowQuoteBuilder(true);
   };
 
@@ -613,6 +616,7 @@ export default function TomadorPedidos() {
     setCart([]);
     setProductSearchTerm("");
     setEditingQuoteId(null); // Clear editing state for new quote
+    setDefaultMobileTab("client"); // Start on client tab for new quotes
     setShowQuoteBuilder(true);
   };
 
@@ -625,6 +629,7 @@ export default function TomadorPedidos() {
     setProductSearchTerm("");
     setEditingQuoteId(null); // Clear editing state
     setSavedQuoteId(null); // Clear saved state
+    setDefaultMobileTab("client"); // Reset to default tab
   };
 
   // Order action handlers
@@ -2805,7 +2810,7 @@ export default function TomadorPedidos() {
           <div className="flex flex-col h-[calc(95vh-60px)]">
             {/* Mobile Content */}
             <div className="flex-1 overflow-y-auto">
-              <Tabs defaultValue="client" className="h-full">
+              <Tabs defaultValue={defaultMobileTab} className="h-full">
                 <div className="border-b px-4">
                   <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="client" data-testid="tab-client-mobile">Cliente</TabsTrigger>
@@ -4168,7 +4173,7 @@ export default function TomadorPedidos() {
         setPdfBlobUrl(null);
       }
     }}>
-      <SheetContent side="bottom" className="h-[95vh] p-0">
+      <SheetContent side="bottom" className="h-[95vh] p-0 flex flex-col">
         <SheetHeader className="p-4 border-b">
           <SheetTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
@@ -4178,7 +4183,7 @@ export default function TomadorPedidos() {
             Visualización del PDF del presupuesto
           </SheetDescription>
         </SheetHeader>
-        <div className="h-[calc(95vh-60px)] w-full">
+        <div className="flex-1 w-full overflow-hidden">
           {pdfBlobUrl && (
             <iframe
               src={pdfBlobUrl}
@@ -4186,6 +4191,50 @@ export default function TomadorPedidos() {
               title="Vista previa del presupuesto"
             />
           )}
+        </div>
+        <div className="border-t p-4 bg-background">
+          <Button
+            onClick={async () => {
+              if (!savedQuoteId) return;
+              try {
+                const quoteResponse = await apiRequest(`/api/quotes/${savedQuoteId}`);
+                const quote = await quoteResponse.json();
+                
+                const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
+                const items = await itemsResponse.json();
+
+                const htmlContent = generatePDFHTML(quote, items);
+                
+                // Create downloadable file
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Presupuesto-${quote.quoteNumber}.html`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                toast({
+                  title: "PDF descargado",
+                  description: "El presupuesto se ha descargado correctamente",
+                });
+              } catch (error) {
+                console.error('Error downloading PDF:', error);
+                toast({
+                  title: "Error",
+                  description: "No se pudo descargar el archivo",
+                  variant: "destructive",
+                });
+              }
+            }}
+            className="w-full h-12 bg-orange-500 hover:bg-orange-600"
+            data-testid="button-download-pdf-file"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Descargar Archivo
+          </Button>
         </div>
       </SheetContent>
     </Sheet>
