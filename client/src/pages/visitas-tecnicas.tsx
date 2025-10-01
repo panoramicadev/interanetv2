@@ -19,7 +19,8 @@ import {
   Search,
   Filter,
   X,
-  PackagePlus
+  PackagePlus,
+  Camera
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -894,6 +895,30 @@ export default function VisitasTecnicasPage() {
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Observaciones Técnicas</label>
                           <Input placeholder="Observaciones sobre el producto..." data-testid={`input-observaciones-${index}`} />
+                        </div>
+
+                        <div className="space-y-2 border-t pt-3">
+                          <label className="text-sm font-medium flex items-center gap-2">
+                            <Camera className="w-4 h-4" />
+                            Evidencia Fotográfica (Máx. 5 fotos)
+                          </label>
+                          <Input 
+                            type="file" 
+                            accept="image/*" 
+                            multiple 
+                            data-testid={`input-fotos-${index}`}
+                            className="cursor-pointer"
+                            onChange={(e) => {
+                              const files = e.target.files;
+                              if (files && files.length > 5) {
+                                alert('Solo puedes subir máximo 5 fotos');
+                                e.target.value = '';
+                              }
+                            }}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Formatos permitidos: JPG, PNG, HEIC. Máximo 5 imágenes por producto.
+                          </p>
                         </div>
                       </div>
                     </CardContent>
