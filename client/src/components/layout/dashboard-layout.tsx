@@ -184,6 +184,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                               <Link key={child.href} href={child.href}>
                                 <Button
                                   variant="ghost"
+                                  onClick={() => setIsMobileOpen(false)}
                                   className={`w-full justify-start text-slate-400 hover:text-white hover:bg-slate-800/30 text-sm ${
                                     isChildActive ? "bg-slate-800/50 text-white" : ""
                                   }`}
@@ -203,6 +204,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     <Link href={item.href}>
                       <Button
                         variant="ghost"
+                        onClick={() => setIsMobileOpen(false)}
                         className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
                           isActive ? "bg-slate-800 text-white" : ""
                         }`}
@@ -226,7 +228,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <Button
                 variant="ghost"
                 className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
-                onClick={() => setShowImportModal(true)}
+                onClick={() => {
+                  setShowImportModal(true);
+                  setIsMobileOpen(false);
+                }}
                 data-testid="nav-import"
               >
                 <Upload className="w-5 h-5 mr-3" />
@@ -255,7 +260,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               variant="ghost" 
               size="sm" 
               className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 text-xs lg:text-sm"
-              onClick={handleLogout}
+              onClick={() => {
+                setIsMobileOpen(false);
+                handleLogout();
+              }}
               data-testid="logout-button"
             >
               <LogOut className="w-3 h-3 lg:w-4 lg:h-4 mr-2 lg:mr-3" />
