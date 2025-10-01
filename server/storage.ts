@@ -117,7 +117,7 @@ import {
   type InsertParametro,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, sql, and, gte, lte, lt, inArray, or, isNull, isNotNull } from "drizzle-orm";
+import { eq, desc, asc, sql, and, gte, lte, lt, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 
@@ -8103,16 +8103,98 @@ export class DatabaseStorage implements IStorage {
     promedioProgreso: number;
   }> {
     try {
-      // Simular estadísticas por ahora
-      // TODO: Implementar cálculos reales basados en datos
+      const { periodo = 'current' } = options;
+      
+      // Calculate date range based on periodo
+      const now = new Date();
+      let startDate: Date;
+      let endDate: Date = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      
+      switch (periodo) {
+        case 'current':
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case 'last':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+          break;
+        case 'quarter':
+          const quarterStart = Math.floor(now.getMonth() / 3) * 3;
+          startDate = new Date(now.getFullYear(), quarterStart - 3, 1);
+          break;
+        case 'year':
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      }
+      
+      // Get visitas in date range
+      const visitas = await db.select().from(visitasTecnicas)
+        .where(
+          and(
+            gte(visitasTecnicas.fechaVisita, startDate.toISOString().split('T')[0]),
+            lte(visitasTecnicas.fechaVisita, endDate.toISOString().split('T')[0])
+          )
+        );
+      
+      const totalVisitas = visitas.length;
+      const visitasCompletadas = visitas.filter(v => v.estado === 'completada').length;
+      const visitasBorrador = visitas.filter(v => v.estado === 'borrador').length;
+      
+      // Get productos evaluados for statistics
+      const visitaIds = visitas.map(v => v.id);
+      let aplicacionesCorrectas = 0;
+      let aplicacionesDeficientes = 0;
+      let reclamosPendientes = 0;
+      let totalProgreso = 0;
+      let productosCount = 0;
+      
+      if (visitaIds.length > 0) {
+        const productos = await db.select().from(productosEvaluados)
+          .where(inArray(productosEvaluados.visitaId, visitaIds));
+        
+        productosCount = productos.length;
+        
+        productos.forEach(p => {
+          if (p.porcentajeAvance) totalProgreso += parseFloat(p.porcentajeAvance.toString());
+        });
+        
+        // Get evaluaciones to count aplicaciones correctas/deficientes
+        const evaluaciones = await db.select().from(evaluacionesTecnicas)
+          .where(
+            inArray(
+              evaluacionesTecnicas.productoEvaluadoId,
+              productos.map(p => p.id)
+            )
+          );
+        
+        evaluaciones.forEach(e => {
+          if (e.aplicacion === 'correcta') aplicacionesCorrectas++;
+          if (e.aplicacion === 'deficiente') aplicacionesDeficientes++;
+        });
+        
+        // Count reclamos pendientes
+        const reclamosResult = await db.select().from(reclamos)
+          .where(
+            and(
+              inArray(reclamos.visitaId, visitaIds),
+              eq(reclamos.estado, 'pendiente')
+            )
+          );
+        reclamosPendientes = reclamosResult.length;
+      }
+      
+      const promedioProgreso = productosCount > 0 ? Math.round(totalProgreso / productosCount) : 0;
+      
       return {
-        totalVisitas: 0,
-        visitasCompletadas: 0,
-        visitasBorrador: 0,
-        aplicacionesCorrectas: 0,
-        aplicacionesDeficientes: 0,
-        reclamosPendientes: 0,
-        promedioProgreso: 0
+        totalVisitas,
+        visitasCompletadas,
+        visitasBorrador,
+        aplicacionesCorrectas,
+        aplicacionesDeficientes,
+        reclamosPendientes,
+        promedioProgreso
       };
     } catch (error) {
       console.error('Error getting visitas técnicas statistics:', error);
@@ -8145,9 +8227,96 @@ export class DatabaseStorage implements IStorage {
     reclamosTotal: number;
   }>> {
     try {
-      // Por ahora retornar array vacío
-      // TODO: Implementar query real con joins a users y clients
-      return [];
+      const { search, estado, tecnico, limit = 20, offset = 0 } = options;
+      
+      // Build base query
+      let query = db
+        .select({
+          id: visitasTecnicas.id,
+          nombreObra: visitasTecnicas.nombreObra,
+          fechaVisita: visitasTecnicas.fechaVisita,
+          estado: visitasTecnicas.estado,
+          tecnicoId: visitasTecnicas.tecnicoId,
+          clienteId: visitasTecnicas.clienteId,
+          tecnicoFirstName: users.firstName,
+          tecnicoLastName: users.lastName,
+          clienteName: clients.koen,
+        })
+        .from(visitasTecnicas)
+        .leftJoin(users, eq(visitasTecnicas.tecnicoId, users.id))
+        .leftJoin(clients, eq(visitasTecnicas.clienteId, clients.id))
+        .orderBy(desc(visitasTecnicas.fechaVisita));
+      
+      // Apply filters
+      const conditions = [];
+      if (search) {
+        conditions.push(
+          or(
+            ilike(visitasTecnicas.nombreObra, `%${search}%`),
+            ilike(visitasTecnicas.direccionObra, `%${search}%`)
+          )
+        );
+      }
+      if (estado) {
+        conditions.push(eq(visitasTecnicas.estado, estado));
+      }
+      if (tecnico) {
+        conditions.push(eq(visitasTecnicas.tecnicoId, tecnico));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as any;
+      }
+      
+      // Execute query with pagination
+      const results = await query.limit(limit).offset(offset);
+      
+      // For each visit, count productos and reclamos
+      const visitaIds = results.map(r => r.id);
+      const productosCountMap: Record<string, number> = {};
+      const reclamosCountMap: Record<string, number> = {};
+      
+      if (visitaIds.length > 0) {
+        const productosCounts = await db
+          .select({
+            visitaId: productosEvaluados.visitaId,
+            count: count()
+          })
+          .from(productosEvaluados)
+          .where(inArray(productosEvaluados.visitaId, visitaIds))
+          .groupBy(productosEvaluados.visitaId);
+        
+        productosCounts.forEach(p => {
+          productosCountMap[p.visitaId] = p.count;
+        });
+        
+        const reclamosCounts = await db
+          .select({
+            visitaId: reclamos.visitaId,
+            count: count()
+          })
+          .from(reclamos)
+          .where(inArray(reclamos.visitaId, visitaIds))
+          .groupBy(reclamos.visitaId);
+        
+        reclamosCounts.forEach(r => {
+          reclamosCountMap[r.visitaId] = r.count;
+        });
+      }
+      
+      // Format results
+      return results.map(r => ({
+        id: r.id,
+        nombreObra: r.nombreObra,
+        fechaVisita: r.fechaVisita,
+        tecnico: (r.tecnicoFirstName && r.tecnicoLastName) 
+          ? `${r.tecnicoFirstName} ${r.tecnicoLastName}` 
+          : r.tecnicoFirstName || r.tecnicoLastName || 'Sin asignar',
+        cliente: r.clienteName || 'Sin cliente',
+        estado: r.estado,
+        productosEvaluados: productosCountMap[r.id] || 0,
+        reclamosTotal: reclamosCountMap[r.id] || 0
+      }));
     } catch (error) {
       console.error('Error getting listado visitas técnicas:', error);
       return [];
