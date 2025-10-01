@@ -459,7 +459,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-      {kpis.map((kpi) => {
+      {kpis.filter((kpi) => kpi.title !== "Ventas GDV").map((kpi) => {
         // Renderizar tarjetas especiales
         if (kpi.title === "Ventas Totales") {
           return renderSalesCard(kpi);
