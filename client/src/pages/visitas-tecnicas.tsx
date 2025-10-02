@@ -748,7 +748,7 @@ export default function VisitasTecnicasPage() {
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+            <div className="space-y-4">
               {/* Productos seleccionados */}
               {selectedProducts.length > 0 && (
                 <div className="space-y-2">
@@ -783,7 +783,7 @@ export default function VisitasTecnicasPage() {
               </div>
 
               {/* Lista de productos */}
-              <ScrollArea className="flex-1 min-h-[200px] sm:min-h-[300px] border rounded-md">
+              <ScrollArea className="h-[300px] border rounded-md">
                 <div className="p-4 space-y-2">
                   {filteredProducts.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
@@ -820,34 +820,35 @@ export default function VisitasTecnicasPage() {
                 </div>
               </ScrollArea>
               
-              <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t">
+            </div>
+            
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t mt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setVisitStep('basic')} 
+                data-testid="button-atras"
+                className="w-full sm:w-auto order-2 sm:order-1"
+              >
+                Atrás
+              </Button>
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 order-1 sm:order-2">
                 <Button 
                   variant="outline" 
-                  onClick={() => setVisitStep('basic')} 
-                  data-testid="button-atras"
-                  className="w-full sm:w-auto order-2 sm:order-1"
+                  onClick={handleCloseModal} 
+                  data-testid="button-cancelar-productos"
+                  className="w-full sm:w-auto"
                 >
-                  Atrás
+                  Cancelar
                 </Button>
-                <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 order-1 sm:order-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={handleCloseModal} 
-                    data-testid="button-cancelar-productos"
-                    className="w-full sm:w-auto"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button 
-                    onClick={() => setVisitStep('evaluation')} 
-                    disabled={selectedProducts.length === 0}
-                    data-testid="button-crear-evaluacion"
-                    className="w-full sm:w-auto"
-                  >
-                    <span className="hidden sm:inline">Continuar a Evaluación ({selectedProducts.length})</span>
-                    <span className="sm:hidden">Continuar ({selectedProducts.length})</span>
-                  </Button>
-                </div>
+                <Button 
+                  onClick={() => setVisitStep('evaluation')} 
+                  disabled={selectedProducts.length === 0}
+                  data-testid="button-crear-evaluacion"
+                  className="w-full sm:w-auto"
+                >
+                  <span className="hidden sm:inline">Continuar a Evaluación ({selectedProducts.length})</span>
+                  <span className="sm:hidden">Continuar ({selectedProducts.length})</span>
+                </Button>
               </div>
             </div>
           </DialogContent>
