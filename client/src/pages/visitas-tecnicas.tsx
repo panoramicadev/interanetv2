@@ -767,89 +767,92 @@ export default function VisitasTecnicasPage() {
       {/* Modal para nueva visita técnica - Paso 2: Selección de productos */}
       {visitStep === 'products' && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            <DialogHeader>
-              <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Selección de Productos</DialogTitle>
-              <DialogDescription className="text-sm">
-                Paso 2 de 3: Selecciona los productos que se evaluarán en la visita
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4">
-              {/* Productos seleccionados */}
-              {selectedProducts.length > 0 && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Productos Seleccionados ({selectedProducts.length})</label>
-                  <ScrollArea className="h-24 border rounded-md p-2">
-                    <div className="flex flex-wrap gap-2">
-                      {selectedProducts.map((product) => (
-                        <Badge key={product.productId} variant="secondary" className="gap-1">
-                          {product.sku} - {product.name.substring(0, 30)}...
-                          <button
-                            onClick={() => handleRemoveProduct(product.productId)}
-                            className="ml-1 hover:text-destructive"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
-
-              {/* Búsqueda de productos */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Buscar Productos</label>
-                <Input
-                  placeholder="Buscar por SKU o nombre de producto..."
-                  value={productSearchTerm}
-                  onChange={(e) => setProductSearchTerm(e.target.value)}
-                  data-testid="input-buscar-producto"
-                />
-              </div>
-
-              {/* Lista de productos */}
-              <ScrollArea className="h-[300px] border rounded-md">
-                <div className="p-4 space-y-2">
-                  {filteredProducts.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <PackagePlus className="mx-auto h-12 w-12 mb-2 opacity-50" />
-                      <p>No se encontraron productos</p>
-                    </div>
-                  ) : (
-                    filteredProducts.map((product) => {
-                      const isSelected = selectedProducts.some(p => p.productId === product.id);
-                      return (
-                        <div
-                          key={product.id}
-                          className="flex items-start space-x-3 p-3 rounded-lg hover:bg-accent cursor-pointer"
-                          onClick={() => {
-                            handleProductToggle(product, !isSelected);
-                          }}
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            className="mt-1 pointer-events-none"
-                            data-testid={`checkbox-product-${product.id}`}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge variant="outline" className="font-mono text-xs">{product.kopr}</Badge>
-                              <Badge variant="secondary" className="text-xs">{product.ud02pr || 'N/A'}</Badge>
-                            </div>
-                            <p className="text-sm font-medium">{product.name}</p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-              
+          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+            <div className="px-6 pt-6">
+              <DialogHeader>
+                <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Selección de Productos</DialogTitle>
+                <DialogDescription className="text-sm">
+                  Paso 2 de 3: Selecciona los productos que se evaluarán en la visita
+                </DialogDescription>
+              </DialogHeader>
             </div>
             
-            <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t mt-4">
+            <div className="flex-1 overflow-y-auto px-6">
+              <div className="space-y-4 py-4">
+                {/* Productos seleccionados */}
+                {selectedProducts.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Productos Seleccionados ({selectedProducts.length})</label>
+                    <ScrollArea className="h-24 border rounded-md p-2">
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProducts.map((product) => (
+                          <Badge key={product.productId} variant="secondary" className="gap-1">
+                            {product.sku} - {product.name.substring(0, 30)}...
+                            <button
+                              onClick={() => handleRemoveProduct(product.productId)}
+                              className="ml-1 hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+
+                {/* Búsqueda de productos */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Buscar Productos</label>
+                  <Input
+                    placeholder="Buscar por SKU o nombre de producto..."
+                    value={productSearchTerm}
+                    onChange={(e) => setProductSearchTerm(e.target.value)}
+                    data-testid="input-buscar-producto"
+                  />
+                </div>
+
+                {/* Lista de productos */}
+                <ScrollArea className="h-[300px] border rounded-md">
+                  <div className="p-4 space-y-2">
+                    {filteredProducts.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <PackagePlus className="mx-auto h-12 w-12 mb-2 opacity-50" />
+                        <p>No se encontraron productos</p>
+                      </div>
+                    ) : (
+                      filteredProducts.map((product) => {
+                        const isSelected = selectedProducts.some(p => p.productId === product.id);
+                        return (
+                          <div
+                            key={product.id}
+                            className="flex items-start space-x-3 p-3 rounded-lg hover:bg-accent cursor-pointer"
+                            onClick={() => {
+                              handleProductToggle(product, !isSelected);
+                            }}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              className="mt-1 pointer-events-none"
+                              data-testid={`checkbox-product-${product.id}`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="font-mono text-xs">{product.kopr}</Badge>
+                                <Badge variant="secondary" className="text-xs">{product.ud02pr || 'N/A'}</Badge>
+                              </div>
+                              <p className="text-sm font-medium">{product.name}</p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 p-6 border-t bg-background">
               <Button 
                 variant="outline" 
                 onClick={() => setVisitStep('basic')} 
