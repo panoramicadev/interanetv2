@@ -489,7 +489,23 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
         {/* Header Section with Logo */}
         <View style={pdfStyles.headerSection}>
           <View style={pdfStyles.logoContainer}>
-            <Image src="/panoramica-30-logo.webp" style={{ width: 140, height: 'auto' }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ 
+                width: 36, 
+                height: 36, 
+                borderRadius: 18,
+                backgroundColor: '#fd6301',
+                marginRight: 10,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#fff' }}>P</Text>
+              </View>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000' }}>PANORÁMICA</Text>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000' }}>30 <Text style={{ fontSize: 10, color: '#fd6301' }}>Años</Text></Text>
+              </View>
+            </View>
           </View>
           <View style={pdfStyles.headerRight}>
             <Text style={pdfStyles.mainTitle}>COTIZACIÓN</Text>
