@@ -397,6 +397,11 @@ export interface IStorage {
     lastSale: string;
     daysSinceLastSale: number;
   }>>;
+  getSalespersonSegments(salespersonName: string, period?: string, filterType?: string): Promise<Array<{
+    segment: string;
+    totalSales: number;
+    percentage: number;
+  }>>;
   
   // Client detail operations
   getClientDetails(clientName: string, period?: string, filterType?: string): Promise<{
@@ -2570,6 +2575,64 @@ export class DatabaseStorage implements IStorage {
         daysSinceLastSale
       };
     });
+  }
+
+  async getSalespersonSegments(salespersonName: string, period?: string, filterType: string = 'month'): Promise<Array<{
+    segment: string;
+    totalSales: number;
+    percentage: number;
+  }>> {
+    const conditions = [
+      eq(salesTransactions.nokofu, salespersonName),
+      sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`
+    ];
+
+    // Apply date filters if period is provided
+    if (period) {
+      switch (filterType) {
+        case 'day':
+          conditions.push(sql`DATE(${salesTransactions.feemdo}) = ${period}`);
+          break;
+        case 'month':
+          if (period === 'current-month') {
+            conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`);
+          } else if (period === 'last-month') {
+            conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`);
+          } else {
+            const [year, month] = period.split('-');
+            conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`);
+          }
+          break;
+        case 'range':
+          if (period.includes('_')) {
+            const [startDate, endDate] = period.split('_');
+            conditions.push(sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`);
+          } else if (period === 'last-30-days') {
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`);
+          } else if (period === 'last-7-days') {
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`);
+          }
+          break;
+      }
+    }
+
+    const result = await db
+      .select({
+        segment: salesTransactions.noruen,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions))
+      .groupBy(salesTransactions.noruen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+
+    const totalSales = result.reduce((sum, segment) => sum + Number(segment.totalSales), 0);
+
+    return result.map(segment => ({
+      segment: segment.segment || 'Sin segmento',
+      totalSales: Number(segment.totalSales),
+      percentage: totalSales > 0 ? (Number(segment.totalSales) / totalSales) * 100 : 0
+    }));
   }
 
   // Client detail operations

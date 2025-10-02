@@ -1470,6 +1470,19 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.get("/api/sales/salesperson/:salespersonName/segments", requireAuth, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const segments = await storage.getSalespersonSegments(salespersonName, period as string, filterType as string);
+      res.json(segments);
+    } catch (error) {
+      console.error("Error fetching salesperson segments:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson segments" });
+    }
+  });
+
   // Client detail routes
   app.get("/api/sales/client/:clientName/details", requireAuth, async (req, res) => {
     try {

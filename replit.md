@@ -6,6 +6,13 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ## Recent Changes
 
+### Salesperson Segment Analysis (October 2, 2025)
+- **Segment Visualization**: Added pie chart showing sales distribution across segments in salesperson detail page
+- **Dual Layout**: Chart displayed alongside detailed segment breakdown showing total sales and percentages
+- **Data Integration**: New backend endpoint `/api/sales/salesperson/:name/segments` provides segment-level sales data
+- **Color-Coded Display**: Each segment assigned distinct color for easy visual identification across chart and list
+- **Responsive Design**: Chart and segment list adapt seamlessly to mobile and desktop layouts
+
 ### Quote Management UX Improvements (October 2, 2025)
 - **Role-Based Column Visibility**: "Creado por" column now hidden for salespeople, visible only for admins and supervisors since salespeople only see their own quotes
 - **Real-Time Status Updates**: Quote status changes (enviado, aceptado, rechazado, convertido a pedido) now update UI immediately without page reload through TanStack Query cache invalidation
