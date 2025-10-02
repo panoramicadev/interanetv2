@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -10,6 +10,10 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Pie } from 'react-chartjs-2';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 interface SalespersonDetails {
   totalSales: number;
@@ -26,6 +30,12 @@ interface SalespersonClient {
   averageTicket: number;
   lastSale: string;
   daysSinceLastSale: number;
+}
+
+interface SalespersonSegment {
+  segment: string;
+  totalSales: number;
+  percentage: number;
 }
 
 export default function SalespersonDetail() {
@@ -84,6 +94,11 @@ export default function SalespersonDetail() {
 
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SalespersonClient[]>({
     queryKey: [`/api/sales/salesperson/${salespersonName}/clients?period=${selectedPeriod}&filterType=${filterType}`],
+    enabled: !!salespersonName,
+  });
+
+  const { data: segments = [], isLoading: isLoadingSegments } = useQuery<SalespersonSegment[]>({
+    queryKey: [`/api/sales/salesperson/${salespersonName}/segments?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!salespersonName,
   });
 
@@ -413,6 +428,115 @@ export default function SalespersonDetail() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Segments Chart */}
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                <BarChart3 className="h-5 w-5 text-orange-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Ventas por Segmento</h2>
+            </div>
+            
+            {isLoadingSegments ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-pulse">
+                  <div className="w-64 h-64 bg-gray-200 rounded-full mx-auto"></div>
+                </div>
+              </div>
+            ) : segments.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No hay datos de segmentos disponibles</p>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                <div className="flex justify-center">
+                  <div className="w-full max-w-sm">
+                    <Pie
+                      data={{
+                        labels: segments.map(s => s.segment),
+                        datasets: [{
+                          data: segments.map(s => s.totalSales),
+                          backgroundColor: [
+                            'rgba(253, 99, 1, 0.8)',
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(139, 92, 246, 0.8)',
+                            'rgba(236, 72, 153, 0.8)',
+                            'rgba(99, 102, 241, 0.8)',
+                            'rgba(244, 63, 94, 0.8)',
+                          ],
+                          borderColor: [
+                            'rgba(253, 99, 1, 1)',
+                            'rgba(59, 130, 246, 1)',
+                            'rgba(16, 185, 129, 1)',
+                            'rgba(245, 158, 11, 1)',
+                            'rgba(139, 92, 246, 1)',
+                            'rgba(236, 72, 153, 1)',
+                            'rgba(99, 102, 241, 1)',
+                            'rgba(244, 63, 94, 1)',
+                          ],
+                          borderWidth: 2,
+                        }]
+                      }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                          legend: {
+                            position: 'bottom',
+                            labels: {
+                              padding: 15,
+                              font: {
+                                size: 12
+                              }
+                            }
+                          },
+                          tooltip: {
+                            callbacks: {
+                              label: function(context) {
+                                const label = context.label || '';
+                                const value = formatCurrency(context.parsed);
+                                const percentage = segments[context.dataIndex].percentage.toFixed(1);
+                                return `${label}: ${value} (${percentage}%)`;
+                              }
+                            }
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {segments.map((segment, index) => (
+                    <div key={segment.segment} className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <div 
+                          className="w-4 h-4 rounded-full" 
+                          style={{
+                            backgroundColor: [
+                              'rgba(253, 99, 1, 0.8)',
+                              'rgba(59, 130, 246, 0.8)',
+                              'rgba(16, 185, 129, 0.8)',
+                              'rgba(245, 158, 11, 0.8)',
+                              'rgba(139, 92, 246, 0.8)',
+                              'rgba(236, 72, 153, 0.8)',
+                              'rgba(99, 102, 241, 0.8)',
+                              'rgba(244, 63, 94, 0.8)',
+                            ][index % 8]
+                          }}
+                        />
+                        <span className="text-sm font-medium text-gray-900">{segment.segment}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-900">{formatCurrency(segment.totalSales)}</p>
+                        <p className="text-xs text-gray-500">{segment.percentage.toFixed(1)}%</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Clients Table */}
