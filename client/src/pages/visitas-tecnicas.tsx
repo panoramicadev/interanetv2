@@ -783,7 +783,7 @@ export default function VisitasTecnicasPage() {
               </div>
 
               {/* Lista de productos */}
-              <ScrollArea className="flex-1 border rounded-md">
+              <ScrollArea className="flex-1 min-h-[200px] sm:min-h-[300px] border rounded-md">
                 <div className="p-4 space-y-2">
                   {filteredProducts.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
@@ -797,12 +797,14 @@ export default function VisitasTecnicasPage() {
                         <div
                           key={product.id}
                           className="flex items-start space-x-3 p-3 rounded-lg hover:bg-accent cursor-pointer"
-                          onClick={() => handleProductToggle(product, !isSelected)}
+                          onClick={() => {
+                            handleProductToggle(product, !isSelected);
+                          }}
                         >
                           <Checkbox
                             checked={isSelected}
-                            onCheckedChange={(checked) => handleProductToggle(product, checked as boolean)}
-                            className="mt-1"
+                            className="mt-1 pointer-events-none"
+                            data-testid={`checkbox-product-${product.id}`}
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
