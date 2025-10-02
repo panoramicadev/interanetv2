@@ -1272,29 +1272,42 @@ export class DatabaseStorage implements IStorage {
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
-    // Get period total sales
+    // Get period total sales using MONTO (to match dashboard metrics)
+    // Exclude GDV to be consistent with getSalesMetrics
     const [totalResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.ppprne} ELSE ${salesTransactions.ppprne} END), 0)`,
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN ${salesTransactions.monto} ELSE 0 END), 0)`,
       })
       .from(salesTransactions)
-      .where(sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != '' ${whereClause ? sql`AND ${whereClause}` : sql``}`);
+      .where(whereClause);
     
     const periodTotal = Number(totalResult.total);
     
-    // For products, sum by individual product lines (not NUDO grouping)
+    // For products, filter only transactions with product name and exclude GDV
+    const productConditions = [
+      sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`,
+      sql`${salesTransactions.tido} != 'GDV'`
+    ];
+    
+    if (whereClause) {
+      productConditions.push(whereClause);
+    }
+    
+    const productWhereClause = sql.join(productConditions, sql` AND `);
+    
+    // For products, sum by individual product lines using MONTO
     const results = await db
       .select({
         productName: salesTransactions.nokoprct,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.ppprne}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
         uniqueOrders: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
       })
       .from(salesTransactions)
-      .where(sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != '' ${whereClause ? sql`AND ${whereClause}` : sql``}`)
+      .where(productWhereClause)
       .groupBy(salesTransactions.nokoprct)
-      .orderBy(sql`SUM(CASE WHEN ${salesTransactions.tido} = 'NCV' THEN -${salesTransactions.ppprne} ELSE ${salesTransactions.ppprne} END) DESC`)
+      .orderBy(sql`SUM(${salesTransactions.monto}) DESC`)
       .limit(limit);
 
     return {
