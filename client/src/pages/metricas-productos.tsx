@@ -333,11 +333,10 @@ export default function MetricasProductos() {
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-4">
-            {/* Filter Type */}
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">Filtrar:</label>
+            {/* Filter Type and Period Combined */}
+            <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-200">
               <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
-                <SelectTrigger className="h-9 w-28 rounded-xl border-gray-200" data-testid="select-filter-type">
+                <SelectTrigger className="h-9 w-28 border-0 bg-white rounded-lg shadow-sm" data-testid="select-filter-type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-gray-200">
@@ -347,14 +346,11 @@ export default function MetricasProductos() {
                   <SelectItem value="range">Rango</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
 
-            {/* Period Selection */}
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">Período:</label>
+              {/* Period Selection */}
               {filterType === "month" && (
                 <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                  <SelectTrigger className="h-9 w-44 rounded-xl border-gray-200">
+                  <SelectTrigger className="h-9 w-44 border-0 bg-white rounded-lg shadow-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
@@ -368,7 +364,7 @@ export default function MetricasProductos() {
               )}
               {filterType === "year" && (
                 <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                  <SelectTrigger className="h-9 w-32 rounded-xl border-gray-200">
+                  <SelectTrigger className="h-9 w-32 border-0 bg-white rounded-lg shadow-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
@@ -379,6 +375,34 @@ export default function MetricasProductos() {
                     ))}
                   </SelectContent>
                 </Select>
+              )}
+              {filterType === "day" && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-9 w-44 justify-start text-left border-0 bg-white rounded-lg shadow-sm">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus />
+                  </PopoverContent>
+                </Popover>
+              )}
+              {filterType === "range" && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-9 w-56 justify-start text-left border-0 bg-white rounded-lg shadow-sm">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange?.from && dateRange?.to
+                        ? `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`
+                        : "Seleccionar rango"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar mode="range" selected={dateRange} onSelect={setDateRange} initialFocus numberOfMonths={2} />
+                  </PopoverContent>
+                </Popover>
               )}
             </div>
 
