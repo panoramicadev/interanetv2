@@ -208,6 +208,9 @@ export interface IStorage {
       productName: string;
       totalSales: number;
       totalUnits: number;
+      transactionCount: number;
+      averageOrderValue: number;
+      percentage: number;
     }>;
     periodTotalSales: number;
   }>;
@@ -1243,6 +1246,9 @@ export class DatabaseStorage implements IStorage {
       productName: string;
       totalSales: number;
       totalUnits: number;
+      transactionCount: number;
+      averageOrderValue: number;
+      percentage: number;
     }>;
     periodTotalSales: number;
   }> {
@@ -1274,12 +1280,16 @@ export class DatabaseStorage implements IStorage {
       .from(salesTransactions)
       .where(sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != '' ${whereClause ? sql`AND ${whereClause}` : sql``}`);
     
+    const periodTotal = Number(totalResult.total);
+    
     // For products, sum by individual product lines (not NUDO grouping)
     const results = await db
       .select({
         productName: salesTransactions.nokoprct,
         totalSales: sql<number>`COALESCE(SUM(${salesTransactions.ppprne}), 0)`,
         totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        uniqueOrders: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
       })
       .from(salesTransactions)
       .where(sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != '' ${whereClause ? sql`AND ${whereClause}` : sql``}`)
@@ -1288,12 +1298,19 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
 
     return {
-      items: results.map(r => ({
-        productName: r.productName || '',
-        totalSales: Number(r.totalSales),
-        totalUnits: Number(r.totalUnits),
-      })),
-      periodTotalSales: Number(totalResult.total),
+      items: results.map(r => {
+        const totalSales = Number(r.totalSales);
+        const uniqueOrders = Number(r.uniqueOrders) || 1;
+        return {
+          productName: r.productName || '',
+          totalSales: totalSales,
+          totalUnits: Number(r.totalUnits),
+          transactionCount: Number(r.transactionCount),
+          averageOrderValue: totalSales / uniqueOrders,
+          percentage: periodTotal > 0 ? (totalSales / periodTotal) * 100 : 0,
+        };
+      }),
+      periodTotalSales: periodTotal,
     };
   }
 
