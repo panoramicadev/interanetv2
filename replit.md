@@ -6,6 +6,13 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ## Recent Changes
 
+### Sales Calculation Fix (October 2, 2025)
+- **Critical Bug Fix**: Resolved discrepancy where total sales didn't match sum of sales by salesperson/client
+- **Root Cause**: `getTopSalespeople` and `getTopClients` methods used `SELECT DISTINCT` with `GROUP BY nudo, nokofu, tido, monto` which was collapsing legitimate transactions when multiple products in same order had identical prices
+- **Solution**: Removed unnecessary DISTINCT and GROUP BY, now directly aggregating from sales_transactions table
+- **Impact**: Fixed ~$22-33M discrepancy in September sales ($288M total vs $255M by salespeople) - now totals match correctly
+- **Methods Fixed**: `getTopSalespeople()` and `getTopClients()` now accurately count all transactions without collapsing
+
 ### Salesperson Segment Analysis (October 2, 2025)
 - **Segment Visualization**: Added pie chart showing sales distribution across segments in salesperson detail page
 - **Dual Layout**: Chart displayed alongside detailed segment breakdown showing total sales and percentages
