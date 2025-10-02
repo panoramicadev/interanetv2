@@ -441,14 +441,39 @@ export default function EcommerceAdmin() {
       
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data, file) => {
       queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      
+      // Actualizar uploadProgress para mostrar el resultado
+      setUploadProgress({
+        processed: 1,
+        total: 1,
+        results: [{
+          fileName: file.name,
+          success: data.matched,
+          productCode: data.productCode,
+          message: data.message
+        }]
+      });
+      
       toast({
         title: "Imagen importada",
         description: data.matched ? `Imagen asociada a: ${data.productName}` : "Imagen subida pero sin producto asociado",
       });
     },
-    onError: (error: any) => {
+    onError: (error: any, file) => {
+      // Mostrar error en uploadProgress también
+      setUploadProgress({
+        processed: 1,
+        total: 1,
+        results: [{
+          fileName: file.name,
+          success: false,
+          productCode: '',
+          message: error.message
+        }]
+      });
+      
       toast({
         title: "Error al subir imagen",
         description: error.message,
@@ -510,10 +535,20 @@ export default function EcommerceAdmin() {
       return;
     }
     
-    if (file.size > 100 * 1024 * 1024) { // 100MB limit
+    // Validar tamaño según tipo de archivo
+    if (isImage && file.size > 10 * 1024 * 1024) { // 10MB limit para imágenes
+      toast({
+        title: "Imagen muy grande",
+        description: "Las imágenes no deben exceder 10MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (isZip && file.size > 100 * 1024 * 1024) { // 100MB limit para ZIP
       toast({
         title: "Archivo muy grande",
-        description: "El archivo no debe exceder 100MB.",
+        description: "Los archivos ZIP no deben exceder 100MB.",
         variant: "destructive",
       });
       return;
@@ -755,9 +790,12 @@ export default function EcommerceAdmin() {
                 <div className="space-y-3">
                   <Upload className="h-12 w-12 text-muted-foreground mx-auto" />
                   <div>
-                    <p className="text-lg font-medium">Arrastra tu archivo ZIP aquí</p>
+                    <p className="text-lg font-medium">Arrastra archivo ZIP o imágenes aquí</p>
                     <p className="text-sm text-muted-foreground">
-                      o haz clic para seleccionar (máximo 100MB)
+                      ZIP (max 100MB) o imágenes JPG/PNG/GIF/WEBP (max 10MB)
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Las imágenes se asocian automáticamente por nombre de archivo = SKU
                     </p>
                   </div>
                   <input
