@@ -6,6 +6,24 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ## Recent Changes
 
+### PWA Update System (October 2, 2025)
+- **Service Worker Implementation**: Created service worker with network-first caching strategy for reliable offline access
+- **Automatic Update Detection**: System checks for updates every 60 seconds and notifies users when new version is available
+- **Update Notification Banner**: Orange banner appears at bottom of screen with "Actualizar ahora" button when update is ready
+- **Seamless Updates**: Clicking update button triggers immediate reload with new version without losing user session
+- **Cache Management**: Versioned cache system automatically cleans up old cached assets on update
+- **Offline Support**: App continues to work offline using cached assets for core navigation and features
+
+### Professional PDF Redesign (October 2, 2025)
+- **Enhanced Header**: Two-column layout with company branding on left and cotización info (date, number) on right
+- **Client Information Grid**: Reorganized in 2-column responsive grid for cleaner presentation
+- **5-Column Product Table**: Producto, Unidad, Cant., Precio, Total with professional styling and borders
+- **Product Details**: SKU displayed as subtitle below product name for better readability
+- **Highlighted Totals**: Orange-themed total section with background highlighting for final amount
+- **Terms & Conditions**: Grey box with 4 standard terms (validity, IVA, stock, payment conditions)
+- **Payment Information**: Orange-highlighted box with Getnet payment link and complete bank transfer details (Banco Santander, RUT, account number)
+- **Professional Formatting**: Consistent spacing, typography, and color scheme matching brand identity
+
 ### PDF Generation Migration (October 1, 2025)
 - **React-PDF Integration**: Migrated from html2pdf.js to @react-pdf/renderer for reliable PDF generation
 - **Native PDF Generation**: PDFs are now generated programmatically without HTML-to-canvas conversion, eliminating layout collapse issues
