@@ -237,11 +237,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardList,
     },
     {
-      href: "/visitas-tecnicas",
-      label: "Visita Técnica",
-      icon: FileCheck,
-    },
-    {
       href: "/tintometria",
       label: "Tintometría",
       icon: Palette,
