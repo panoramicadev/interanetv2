@@ -278,6 +278,33 @@ export default function VisitasTecnicasPage() {
         </Select>
       </div>
 
+      {/* Acciones Rápidas - Primero en móvil */}
+      <Card className="lg:hidden">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Acciones Rápidas
+          </CardTitle>
+          <CardDescription>
+            Gestionar visitas técnicas y reportes
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button 
+            className="w-full justify-start" 
+            onClick={handleNewVisit}
+            data-testid="button-nueva-visita"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nueva Visita Técnica
+          </Button>
+          <Button variant="outline" className="w-full justify-start" data-testid="button-exportar-reportes">
+            <FileText className="w-4 h-4 mr-2" />
+            Exportar Reportes
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Cards de estadísticas principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -343,7 +370,7 @@ export default function VisitasTecnicasPage() {
 
       {/* Resumen rápido */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="order-2 lg:order-1">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5" />
@@ -366,7 +393,7 @@ export default function VisitasTecnicasPage() {
           </CardContent>
         </Card>
 
-        <Card className="order-1 lg:order-2">
+        <Card className="hidden lg:block">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -380,12 +407,12 @@ export default function VisitasTecnicasPage() {
             <Button 
               className="w-full justify-start" 
               onClick={handleNewVisit}
-              data-testid="button-nueva-visita"
+              data-testid="button-nueva-visita-desktop"
             >
               <Plus className="w-4 h-4 mr-2" />
               Nueva Visita Técnica
             </Button>
-            <Button variant="outline" className="w-full justify-start" data-testid="button-exportar-reportes">
+            <Button variant="outline" className="w-full justify-start" data-testid="button-exportar-reportes-desktop">
               <FileText className="w-4 h-4 mr-2" />
               Exportar Reportes
             </Button>
