@@ -770,16 +770,18 @@ export default function Dashboard() {
               
               {/* Summary Chips */}
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {generateSummaryChips().map((chip) => (
-                  <Badge 
-                    key={chip.key} 
-                    variant="secondary" 
-                    className="shrink-0 px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg"
-                    data-testid={`chip-${chip.key}`}
-                  >
-                    {chip.label}
-                  </Badge>
-                ))}
+                {generateSummaryChips()
+                  .filter((chip) => chip.key !== 'period') // Ocultar el chip de período en móvil
+                  .map((chip) => (
+                    <Badge 
+                      key={chip.key} 
+                      variant="secondary" 
+                      className="shrink-0 px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg"
+                      data-testid={`chip-${chip.key}`}
+                    >
+                      {chip.label}
+                    </Badge>
+                  ))}
               </div>
             </div>
           ) : (
