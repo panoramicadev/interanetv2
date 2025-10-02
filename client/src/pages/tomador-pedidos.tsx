@@ -3414,9 +3414,21 @@ export default function TomadorPedidos() {
                                   >
                                     <Minus className="w-3 h-3" />
                                   </Button>
-                                  <span className="text-sm font-medium w-8 text-center">
-                                    {productQuantities[product.codigo] || 1}
-                                  </span>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    max="999"
+                                    value={productQuantities[product.codigo] || 1}
+                                    onChange={(e) => {
+                                      const value = parseInt(e.target.value) || 1;
+                                      setProductQuantities(prev => ({
+                                        ...prev,
+                                        [product.codigo]: Math.min(999, Math.max(1, value))
+                                      }));
+                                    }}
+                                    className="h-8 w-16 text-center text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    data-testid={`mobile-quantity-input-${product.codigo}`}
+                                  />
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -3424,7 +3436,7 @@ export default function TomadorPedidos() {
                                       const qty = (productQuantities[product.codigo] || 1) + 1;
                                       setProductQuantities(prev => ({
                                         ...prev,
-                                        [product.codigo]: Math.min(99, qty)
+                                        [product.codigo]: Math.min(999, qty)
                                       }));
                                     }}
                                     className="h-8 w-8 p-0"
