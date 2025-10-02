@@ -52,7 +52,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Top Productos</h2>
         </div>
-        <Link href="/tomador-pedidos">
+        <Link href="/metricas-productos">
           <Button
             variant="ghost"
             size="sm"
