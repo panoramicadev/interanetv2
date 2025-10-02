@@ -4821,6 +4821,136 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Single image uploader for eCommerce products
+  const uploadSingleImage = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for single images
+    fileFilter: (req, file, cb) => {
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (validTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only image files (JPG, PNG, GIF, WEBP) are allowed'));
+      }
+    }
+  });
+
+  // Upload single image and auto-associate by SKU (filename)
+  app.post('/api/ecommerce/admin/upload-single-image',
+    requireAuth,
+    requireAdminOrSupervisor,
+    uploadSingleImage.single('image'),
+    asyncHandler(async (req: any, res: any) => {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      const imageBuffer = req.file.buffer;
+      const fileName = req.file.originalname;
+      const fileExt = fileName.substring(fileName.lastIndexOf('.'));
+      
+      // Extract SKU from filename (remove extension)
+      const sku = fileName.substring(0, fileName.lastIndexOf('.')).toUpperCase();
+      
+      console.log(`📸 [SINGLE IMAGE] Uploading image: ${fileName} -> SKU: ${sku}`);
+
+      try {
+        // Find product by SKU
+        const products = await storage.getEcommerceAdminProducts({ search: sku });
+        const product = products.find(p => p.codigo.toUpperCase() === sku);
+
+        // Upload image to Object Storage
+        const objectStorageService = new ObjectStorageService();
+        const imagePath = `product-images/${sku}_${Date.now()}${fileExt}`;
+        
+        await objectStorageService.uploadPublicObject(imagePath, imageBuffer);
+        const publicUrl = `/public-objects/${imagePath}`;
+
+        if (product) {
+          // Update product with image URL
+          await storage.updateEcommerceAdminProduct(product.id, { imagenUrl: publicUrl });
+          console.log(`✅ [SINGLE IMAGE] Image associated with product: ${product.producto}`);
+          
+          res.json({
+            success: true,
+            matched: true,
+            productCode: sku,
+            productName: product.producto,
+            imageUrl: publicUrl,
+            message: `Imagen asociada a: ${product.producto}`
+          });
+        } else {
+          console.log(`⚠️ [SINGLE IMAGE] No product found for SKU: ${sku}`);
+          res.json({
+            success: true,
+            matched: false,
+            productCode: sku,
+            imageUrl: publicUrl,
+            message: `Imagen subida pero no se encontró producto con SKU: ${sku}`
+          });
+        }
+      } catch (error) {
+        console.error('❌ [SINGLE IMAGE] Error uploading image:', error);
+        res.status(500).json({
+          message: "Error al subir imagen",
+          error: error instanceof Error ? error.message : 'Error desconocido'
+        });
+      }
+    })
+  );
+
+  // Upload image for specific product
+  app.post('/api/ecommerce/admin/upload-product-image',
+    requireAuth,
+    requireAdminOrSupervisor,
+    uploadSingleImage.single('image'),
+    asyncHandler(async (req: any, res: any) => {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      const { productId, productCode } = req.body;
+      
+      if (!productId || !productCode) {
+        return res.status(400).json({ message: "Product ID and code are required" });
+      }
+
+      const imageBuffer = req.file.buffer;
+      const fileName = req.file.originalname;
+      const fileExt = fileName.substring(fileName.lastIndexOf('.'));
+      
+      console.log(`📸 [PRODUCT IMAGE] Uploading image for product: ${productCode} (ID: ${productId})`);
+
+      try {
+        // Upload image to Object Storage
+        const objectStorageService = new ObjectStorageService();
+        const imagePath = `product-images/${productCode}_${Date.now()}${fileExt}`;
+        
+        await objectStorageService.uploadPublicObject(imagePath, imageBuffer);
+        const publicUrl = `/public-objects/${imagePath}`;
+
+        // Update product with image URL
+        await storage.updateEcommerceAdminProduct(productId, { imagenUrl: publicUrl });
+        
+        console.log(`✅ [PRODUCT IMAGE] Image uploaded for product: ${productCode}`);
+        
+        res.json({
+          success: true,
+          productId,
+          productCode,
+          imageUrl: publicUrl,
+          message: `Imagen actualizada para producto: ${productCode}`
+        });
+      } catch (error) {
+        console.error('❌ [PRODUCT IMAGE] Error uploading image:', error);
+        res.status(500).json({
+          message: "Error al subir imagen",
+          error: error instanceof Error ? error.message : 'Error desconocido'
+        });
+      }
+    })
+  );
+
   // ZIP image importer for eCommerce products
   const uploadZip = multer({ 
     storage: multer.memoryStorage(),
