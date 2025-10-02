@@ -10,10 +10,6 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
-
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 interface SalespersonDetails {
   totalSales: number;
@@ -448,14 +444,16 @@ export default function SalespersonDetail() {
             ) : segments.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No hay datos de segmentos disponibles</p>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-                <div className="flex justify-center">
-                  <div className="w-full max-w-sm">
-                    <Pie
-                      data={{
-                        labels: segments.map(s => s.segment),
-                        datasets: [{
-                          data: segments.map(s => s.totalSales),
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {segments.map((segment, index) => (
+                  <div 
+                    key={segment.segment} 
+                    className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div 
+                        className="w-4 h-4 rounded-full flex-shrink-0" 
+                        style={{
                           backgroundColor: [
                             'rgba(253, 99, 1, 0.8)',
                             'rgba(59, 130, 246, 0.8)',
@@ -465,76 +463,17 @@ export default function SalespersonDetail() {
                             'rgba(236, 72, 153, 0.8)',
                             'rgba(99, 102, 241, 0.8)',
                             'rgba(244, 63, 94, 0.8)',
-                          ],
-                          borderColor: [
-                            'rgba(253, 99, 1, 1)',
-                            'rgba(59, 130, 246, 1)',
-                            'rgba(16, 185, 129, 1)',
-                            'rgba(245, 158, 11, 1)',
-                            'rgba(139, 92, 246, 1)',
-                            'rgba(236, 72, 153, 1)',
-                            'rgba(99, 102, 241, 1)',
-                            'rgba(244, 63, 94, 1)',
-                          ],
-                          borderWidth: 2,
-                        }]
-                      }}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        plugins: {
-                          legend: {
-                            position: 'bottom',
-                            labels: {
-                              padding: 15,
-                              font: {
-                                size: 12
-                              }
-                            }
-                          },
-                          tooltip: {
-                            callbacks: {
-                              label: function(context) {
-                                const label = context.label || '';
-                                const value = formatCurrency(context.parsed);
-                                const percentage = segments[context.dataIndex].percentage.toFixed(1);
-                                return `${label}: ${value} (${percentage}%)`;
-                              }
-                            }
-                          }
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {segments.map((segment, index) => (
-                    <div key={segment.segment} className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center space-x-3">
-                        <div 
-                          className="w-4 h-4 rounded-full" 
-                          style={{
-                            backgroundColor: [
-                              'rgba(253, 99, 1, 0.8)',
-                              'rgba(59, 130, 246, 0.8)',
-                              'rgba(16, 185, 129, 0.8)',
-                              'rgba(245, 158, 11, 0.8)',
-                              'rgba(139, 92, 246, 0.8)',
-                              'rgba(236, 72, 153, 0.8)',
-                              'rgba(99, 102, 241, 0.8)',
-                              'rgba(244, 63, 94, 0.8)',
-                            ][index % 8]
-                          }}
-                        />
-                        <span className="text-sm font-medium text-gray-900">{segment.segment}</span>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-gray-900">{formatCurrency(segment.totalSales)}</p>
-                        <p className="text-xs text-gray-500">{segment.percentage.toFixed(1)}%</p>
-                      </div>
+                          ][index % 8]
+                        }}
+                      />
+                      <span className="text-sm font-medium text-gray-900 truncate">{segment.segment}</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="text-right ml-3 flex-shrink-0">
+                      <p className="text-sm font-semibold text-gray-900">{formatCurrency(segment.totalSales)}</p>
+                      <p className="text-xs text-gray-500">{segment.percentage.toFixed(1)}%</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
