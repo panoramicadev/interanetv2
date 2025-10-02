@@ -447,7 +447,7 @@ export default function SalespersonDetail() {
             ) : segments.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No hay datos de segmentos disponibles</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className={segments.length === 1 ? 'w-full' : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'}>
                 {segments.map((segment, index) => {
                   const isSelected = selectedSegment === segment.segment;
                   return (
