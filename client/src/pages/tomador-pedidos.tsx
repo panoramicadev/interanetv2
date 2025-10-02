@@ -3170,18 +3170,18 @@ export default function TomadorPedidos() {
           </SheetHeader>
           <div className="flex flex-col h-[calc(95vh-60px)]">
             {/* Mobile Content */}
-            <div className="flex-1 overflow-y-auto">
-              <Tabs defaultValue={defaultMobileTab} className="h-full">
-                <div className="border-b px-4">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="client" data-testid="tab-client-mobile">Cliente</TabsTrigger>
-                    <TabsTrigger value="products" data-testid="tab-products-mobile">Productos</TabsTrigger>
-                    <TabsTrigger value="cart" data-testid="tab-cart-mobile">
-                      Carrito ({cart.length})
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
-                
+            <Tabs defaultValue={defaultMobileTab} className="flex flex-col h-full">
+              <div className="sticky top-0 z-10 bg-background border-b px-4">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="client" data-testid="tab-client-mobile">Cliente</TabsTrigger>
+                  <TabsTrigger value="products" data-testid="tab-products-mobile">Productos</TabsTrigger>
+                  <TabsTrigger value="cart" data-testid="tab-cart-mobile">
+                    Carrito ({cart.length})
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto">
                 <TabsContent value="client" className="p-4 space-y-4 m-0">
                   <Card>
                     <CardHeader>
@@ -3632,8 +3632,8 @@ export default function TomadorPedidos() {
                     </div>
                   )}
                 </TabsContent>
-              </Tabs>
-            </div>
+              </div>
+            </Tabs>
             
             {/* Sticky Bottom Actions for Mobile */}
             <div className="border-t p-4 bg-background">
