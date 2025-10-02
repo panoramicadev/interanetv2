@@ -284,12 +284,12 @@ export default function MetricasProductos() {
                   {/* Segment Filter */}
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-2">Segmento</label>
-                    <Select value={localSegment} onValueChange={setLocalSegment}>
+                    <Select value={localSegment || "all"} onValueChange={(value) => setLocalSegment(value === "all" ? "" : value)}>
                       <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
                         <SelectValue placeholder="Todos los segmentos" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-gray-200">
-                        <SelectItem value="">Todos los segmentos</SelectItem>
+                        <SelectItem value="all">Todos los segmentos</SelectItem>
                         {segments.map((seg) => (
                           <SelectItem key={seg} value={seg}>
                             {seg}
@@ -302,12 +302,12 @@ export default function MetricasProductos() {
                   {/* Salesperson Filter */}
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-2">Vendedor</label>
-                    <Select value={localSalesperson} onValueChange={setLocalSalesperson}>
+                    <Select value={localSalesperson || "all"} onValueChange={(value) => setLocalSalesperson(value === "all" ? "" : value)}>
                       <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
                         <SelectValue placeholder="Todos los vendedores" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-gray-200">
-                        <SelectItem value="">Todos los vendedores</SelectItem>
+                        <SelectItem value="all">Todos los vendedores</SelectItem>
                         {salespeople.map((sp) => (
                           <SelectItem key={sp} value={sp}>
                             {sp}
@@ -409,12 +409,12 @@ export default function MetricasProductos() {
             {/* Segment Filter */}
             <div className="flex items-center space-x-2">
               <label className="text-sm font-medium text-gray-700">Segmento:</label>
-              <Select value={segment} onValueChange={setSegment}>
+              <Select value={segment || "all"} onValueChange={(value) => setSegment(value === "all" ? "" : value)}>
                 <SelectTrigger className="h-9 w-52 rounded-xl border-gray-200">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-gray-200">
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   {segments.map((seg) => (
                     <SelectItem key={seg} value={seg}>
                       {seg}
@@ -427,12 +427,12 @@ export default function MetricasProductos() {
             {/* Salesperson Filter */}
             <div className="flex items-center space-x-2">
               <label className="text-sm font-medium text-gray-700">Vendedor:</label>
-              <Select value={salesperson} onValueChange={setSalesperson}>
+              <Select value={salesperson || "all"} onValueChange={(value) => setSalesperson(value === "all" ? "" : value)}>
                 <SelectTrigger className="h-9 w-52 rounded-xl border-gray-200">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-gray-200">
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   {salespeople.map((sp) => (
                     <SelectItem key={sp} value={sp}>
                       {sp}
