@@ -3206,7 +3206,7 @@ export default function TomadorPedidos() {
                 </TabsList>
               </div>
               
-              <div className="flex-1 overflow-y-auto pb-20">
+              <div className="flex-1 overflow-y-auto pb-32">
                 <TabsContent value="client" className="p-4 space-y-4 m-0">
                   <Card>
                     <CardHeader>
