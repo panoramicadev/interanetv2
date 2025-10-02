@@ -3189,7 +3189,7 @@ export default function TomadorPedidos() {
                       <ShoppingCart className="w-4 h-4" />
                       <span>Carrito</span>
                       <span className="bg-orange-500 text-white rounded-full px-2 py-0.5 text-xs font-semibold min-w-[24px] text-center">
-                        {cart.length}
+                        {cart.reduce((total, item) => total + item.quantity, 0)}
                       </span>
                     </motion.div>
                     <AnimatePresence>
