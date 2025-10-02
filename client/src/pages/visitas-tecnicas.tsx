@@ -859,29 +859,19 @@ export default function VisitasTecnicasPage() {
                 variant="outline" 
                 onClick={() => setVisitStep('basic')} 
                 data-testid="button-atras"
-                className="w-full sm:w-auto order-2 sm:order-1"
+                className="w-full sm:w-auto"
               >
                 Atrás
               </Button>
-              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 order-1 sm:order-2">
-                <Button 
-                  variant="outline" 
-                  onClick={handleCloseModal} 
-                  data-testid="button-cancelar-productos"
-                  className="w-full sm:w-auto"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={() => setVisitStep('evaluation')} 
-                  disabled={selectedProducts.length === 0}
-                  data-testid="button-crear-evaluacion"
-                  className="w-full sm:w-auto"
-                >
-                  <span className="hidden sm:inline">Continuar a Evaluación ({selectedProducts.length})</span>
-                  <span className="sm:hidden">Continuar ({selectedProducts.length})</span>
-                </Button>
-              </div>
+              <Button 
+                onClick={() => setVisitStep('evaluation')} 
+                disabled={selectedProducts.length === 0}
+                data-testid="button-crear-evaluacion"
+                className="w-full sm:w-auto"
+              >
+                <span className="hidden sm:inline">Continuar a Evaluación ({selectedProducts.length})</span>
+                <span className="sm:hidden">Continuar ({selectedProducts.length})</span>
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
