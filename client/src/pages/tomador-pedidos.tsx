@@ -3172,7 +3172,7 @@ export default function TomadorPedidos() {
           </SheetHeader>
           <div className="flex flex-col h-[calc(95vh-60px)]">
             {/* Mobile Content */}
-            <Tabs defaultValue={defaultMobileTab} className="flex flex-col h-full">
+            <Tabs defaultValue={defaultMobileTab} className="flex flex-col flex-1 overflow-hidden">
               <div className="sticky top-0 z-10 bg-background border-b px-4">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="client" data-testid="tab-client-mobile">Cliente</TabsTrigger>
@@ -3206,7 +3206,7 @@ export default function TomadorPedidos() {
                 </TabsList>
               </div>
               
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto pb-20">
                 <TabsContent value="client" className="p-4 space-y-4 m-0">
                   <Card>
                     <CardHeader>
@@ -3683,8 +3683,8 @@ export default function TomadorPedidos() {
               </div>
             </Tabs>
             
-            {/* Sticky Bottom Actions for Mobile */}
-            <div className="border-t p-4 bg-background">
+            {/* Fixed Bottom Actions for Mobile */}
+            <div className="absolute bottom-0 left-0 right-0 border-t p-4 bg-background z-20">
               {!savedQuoteId ? (
                 <div className="flex gap-2">
                   <Button
