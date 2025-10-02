@@ -50,6 +50,7 @@ export default function EcommerceAdmin() {
   const [productImagen, setProductImagen] = useState("");
   const [productPrecio, setProductPrecio] = useState("");
   const [productActivo, setProductActivo] = useState(false);
+  const [uploadingProductImage, setUploadingProductImage] = useState(false);
   
   // Estados para nueva categoría
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -422,12 +423,88 @@ export default function EcommerceAdmin() {
     return `$${price.toLocaleString()}`;
   };
 
-  // Funciones para importador ZIP
+  // Mutación para subir imagen individual
+  const uploadSingleImageMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      const response = await fetch('/api/ecommerce/admin/upload-single-image', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Error al subir imagen');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      toast({
+        title: "Imagen importada",
+        description: data.matched ? `Imagen asociada a: ${data.productName}` : "Imagen subida pero sin producto asociado",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al subir imagen",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Mutación para subir imagen para un producto específico
+  const uploadProductImageMutation = useMutation({
+    mutationFn: async ({ file, productId, productCode }: { file: File; productId: string; productCode: string }) => {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('productId', productId);
+      formData.append('productCode', productCode);
+      
+      const response = await fetch('/api/ecommerce/admin/upload-product-image', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Error al subir imagen');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setProductImagen(data.imageUrl);
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      setUploadingProductImage(false);
+      toast({
+        title: "Imagen actualizada",
+        description: "La imagen del producto se ha actualizado correctamente",
+      });
+    },
+    onError: (error: any) => {
+      setUploadingProductImage(false);
+      toast({
+        title: "Error al subir imagen",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Funciones para importador ZIP e imágenes sueltas
   const handleFileUpload = (file: File) => {
-    if (!file.name.toLowerCase().endsWith('.zip')) {
+    const isZip = file.name.toLowerCase().endsWith('.zip');
+    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+    
+    if (!isZip && !isImage) {
       toast({
         title: "Archivo inválido",
-        description: "Solo se permiten archivos ZIP.",
+        description: "Solo se permiten archivos ZIP o imágenes (JPG, PNG, GIF, WEBP).",
         variant: "destructive",
       });
       return;
@@ -436,13 +513,20 @@ export default function EcommerceAdmin() {
     if (file.size > 100 * 1024 * 1024) { // 100MB limit
       toast({
         title: "Archivo muy grande",
-        description: "El archivo ZIP no debe exceder 100MB.",
+        description: "El archivo no debe exceder 100MB.",
         variant: "destructive",
       });
       return;
     }
     
-    // Resetear estados
+    if (isImage) {
+      // Subir imagen individual
+      console.log('📸 [IMAGE IMPORT] Subiendo imagen individual:', file.name);
+      uploadSingleImageMutation.mutate(file);
+      return;
+    }
+    
+    // Resetear estados para ZIP
     setIsUploading(true);
     setUploadStatus('uploading');
     setUploadProgress({ processed: 0, total: 0, results: [] });
@@ -555,15 +639,15 @@ export default function EcommerceAdmin() {
         </div>
       )}
 
-      {/* Importador ZIP de Imágenes */}
+      {/* Importador de Imágenes */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileArchive className="h-5 w-5 text-primary" />
-            Importador de Imágenes ZIP
+            Importador de Imágenes
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Sube un archivo ZIP con imágenes. Los archivos deben llamarse igual que el código del producto (ej: PCA106BLANC02.png)
+            Sube un archivo ZIP con imágenes o imágenes individuales. Los archivos deben llamarse igual que el código del producto (ej: PCA106BLANC02.png)
           </p>
         </CardHeader>
         <CardContent>
@@ -679,7 +763,7 @@ export default function EcommerceAdmin() {
                   <input
                     type="file"
                     id="zip-upload"
-                    accept=".zip"
+                    accept=".zip,image/jpeg,image/jpg,image/png,image/gif,image/webp"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -915,14 +999,68 @@ export default function EcommerceAdmin() {
               </div>
               
               <div>
-                <Label htmlFor="imagen">URL de Imagen</Label>
-                <Input
-                  id="imagen"
-                  value={productImagen}
-                  onChange={(e) => setProductImagen(e.target.value)}
-                  placeholder="https://..."
-                  data-testid="input-product-image"
-                />
+                <Label htmlFor="imagen">Imagen del Producto</Label>
+                {productImagen && (
+                  <div className="mb-3 p-3 bg-muted rounded-lg">
+                    <img 
+                      src={productImagen} 
+                      alt={editingProduct.producto} 
+                      className="w-full h-48 object-contain rounded"
+                      onError={(e) => {
+                        e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle"%3ESin imagen%3C/text%3E%3C/svg%3E';
+                      }}
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Input
+                    id="imagen"
+                    value={productImagen}
+                    onChange={(e) => setProductImagen(e.target.value)}
+                    placeholder="https://... o sube una imagen"
+                    data-testid="input-product-image"
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="file"
+                      id="product-image-upload"
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && editingProduct) {
+                          setUploadingProductImage(true);
+                          uploadProductImageMutation.mutate({
+                            file,
+                            productId: editingProduct.id,
+                            productCode: editingProduct.codigo
+                          });
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => document.getElementById('product-image-upload')?.click()}
+                      disabled={uploadingProductImage}
+                      data-testid="button-upload-product-image"
+                    >
+                      {uploadingProductImage ? (
+                        <>
+                          <Upload className="h-4 w-4 mr-2 animate-pulse" />
+                          Subiendo...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Subir Imagen
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
               
               <div className="flex items-center space-x-2">
