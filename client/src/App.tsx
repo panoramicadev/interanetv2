@@ -38,6 +38,7 @@ import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
 import Facturas from "@/pages/facturas";
+import MetricasProductos from "@/pages/metricas-productos";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -124,6 +125,7 @@ function Router() {
             <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
             <Route path="/client/:clientName" component={ClientDetail} />
             <Route path="/product/:productName" component={ProductDetail} />
+            <Route path="/metricas-productos" component={MetricasProductos} />
             
             {/* Rutas específicas de vendedor */}
             <Route path="/mis-clientes" component={ClientsDashboard} />
