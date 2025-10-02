@@ -94,6 +94,7 @@ export default function VisitasTecnicasPage() {
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
   const [productEvaluations, setProductEvaluations] = useState<Record<string, any>>({});
+  const [currentProductIndex, setCurrentProductIndex] = useState(0);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -864,7 +865,10 @@ export default function VisitasTecnicasPage() {
                 Atrás
               </Button>
               <Button 
-                onClick={() => setVisitStep('evaluation')} 
+                onClick={() => {
+                  setCurrentProductIndex(0);
+                  setVisitStep('evaluation');
+                }} 
                 disabled={selectedProducts.length === 0}
                 data-testid="button-crear-evaluacion"
                 className="w-full sm:w-auto"
@@ -878,31 +882,33 @@ export default function VisitasTecnicasPage() {
       )}
 
       {/* Modal para nueva visita técnica - Paso 3: Evaluación */}
-      {visitStep === 'evaluation' && (
+      {visitStep === 'evaluation' && selectedProducts[currentProductIndex] && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
           <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Evaluación de Productos</DialogTitle>
               <DialogDescription className="text-sm">
-                Paso 3 de 3: Evaluar {selectedProducts.length} producto(s) seleccionado(s)
+                Producto {currentProductIndex + 1} de {selectedProducts.length}
               </DialogDescription>
             </DialogHeader>
             
             <div className="overflow-y-auto max-h-[60vh] pr-2">
-              <div className="space-y-6">
-                {selectedProducts.map((product, index) => (
-                  <Card key={product.productId} className="border-2">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Badge>{index + 1}</Badge>
-                        {product.name}
+              {(() => {
+                const product = selectedProducts[currentProductIndex];
+                const index = currentProductIndex;
+                return (
+                  <Card key={product.productId} className="border">
+                    <CardHeader className="pb-2 pt-3 px-4">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Badge className="text-xs">{index + 1}</Badge>
+                        <span className="text-sm font-semibold leading-tight">{product.name}</span>
                       </CardTitle>
-                      <CardDescription className="flex gap-2">
-                        <Badge variant="outline">SKU: {product.sku}</Badge>
-                        <Badge variant="secondary">Formato: {product.formato}</Badge>
+                      <CardDescription className="flex gap-1 flex-wrap text-xs mt-1">
+                        <Badge variant="outline" className="text-xs py-0">SKU: {product.sku}</Badge>
+                        <Badge variant="secondary" className="text-xs py-0">Formato: {product.formato}</Badge>
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-3 px-4 pb-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Color</label>
@@ -1051,14 +1057,20 @@ export default function VisitasTecnicasPage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                );
+              })()}
             </div>
             
             <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t mt-4">
               <Button 
                 variant="outline" 
-                onClick={() => setVisitStep('products')} 
+                onClick={() => {
+                  if (currentProductIndex === 0) {
+                    setVisitStep('products');
+                  } else {
+                    setCurrentProductIndex(currentProductIndex - 1);
+                  }
+                }}
                 data-testid="button-atras-evaluacion"
                 className="w-full sm:w-auto"
               >
@@ -1066,33 +1078,43 @@ export default function VisitasTecnicasPage() {
               </Button>
               <Button 
                 onClick={() => {
-                  if (!user?.id) {
-                    alert('Error: Usuario no autenticado');
-                    return;
+                  // Si no es el último producto, avanzar al siguiente
+                  if (currentProductIndex < selectedProducts.length - 1) {
+                    setCurrentProductIndex(currentProductIndex + 1);
+                  } else {
+                    // Es el último producto, crear la visita
+                    if (!user?.id) {
+                      alert('Error: Usuario no autenticado');
+                      return;
+                    }
+                    
+                    // Combinar productos seleccionados con sus evaluaciones
+                    const productosConEvaluacion = selectedProducts.map(product => ({
+                      ...product,
+                      evaluacion: productEvaluations[product.productId] || {}
+                    }));
+                    
+                    // Crear la visita con todos los datos
+                    const visitCompleteData = {
+                      ...visitData,
+                      tecnicoId: user.id,
+                      productos: productosConEvaluacion,
+                      estado: 'completada'
+                    };
+                    
+                    console.log('Enviando visita técnica:', visitCompleteData);
+                    createVisitMutation.mutate(visitCompleteData);
                   }
-                  
-                  // Combinar productos seleccionados con sus evaluaciones
-                  const productosConEvaluacion = selectedProducts.map(product => ({
-                    ...product,
-                    evaluacion: productEvaluations[product.productId] || {}
-                  }));
-                  
-                  // Crear la visita con todos los datos
-                  const visitCompleteData = {
-                    ...visitData,
-                    tecnicoId: user.id,
-                    productos: productosConEvaluacion,
-                    estado: 'completada'
-                  };
-                  
-                  console.log('Enviando visita técnica:', visitCompleteData);
-                  createVisitMutation.mutate(visitCompleteData);
                 }}
                 disabled={createVisitMutation.isPending}
                 data-testid="button-finalizar"
                 className="w-full sm:w-auto"
               >
-                {createVisitMutation.isPending ? 'Creando...' : 'Crear Visita Técnica'}
+                {createVisitMutation.isPending 
+                  ? 'Creando...' 
+                  : currentProductIndex < selectedProducts.length - 1 
+                    ? 'Guardar y Continuar' 
+                    : 'Crear Visita Técnica'}
               </Button>
             </div>
           </DialogContent>
