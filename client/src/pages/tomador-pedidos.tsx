@@ -29,6 +29,7 @@ import { nanoid } from "nanoid";
 import { Client, Order, PriceList, Quote } from "@shared/schema";
 import html2pdf from "html2pdf.js";
 import { Document, Page, Text, View, StyleSheet, pdf, Image } from '@react-pdf/renderer';
+import { motion, AnimatePresence } from "framer-motion";
 // HTML/CSS PDF generator - replaces jsPDF for exact specification compliance
 
 // Validation schema for edit order form
@@ -772,6 +773,7 @@ export default function TomadorPedidos() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false); // Track if quote has been edited
   const [defaultMobileTab, setDefaultMobileTab] = useState<"client" | "products" | "cart">("client"); // Default tab for mobile
   const [isSavingQuote, setIsSavingQuote] = useState(false); // Track if quote is being saved
+  const [showCartAnimation, setShowCartAnimation] = useState(false); // Track cart add animation
   
   const computedCustomUnitPrice = customProduct.pricingMode === 'calculated'
     ? Math.round(customProduct.costOfProduction * (1 + customProduct.profitMargin / 100))
@@ -3175,8 +3177,28 @@ export default function TomadorPedidos() {
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="client" data-testid="tab-client-mobile">Cliente</TabsTrigger>
                   <TabsTrigger value="products" data-testid="tab-products-mobile">Productos</TabsTrigger>
-                  <TabsTrigger value="cart" data-testid="tab-cart-mobile">
-                    Carrito ({cart.length})
+                  <TabsTrigger value="cart" data-testid="tab-cart-mobile" className="relative">
+                    <motion.div
+                      animate={showCartAnimation ? { 
+                        scale: [1, 1.3, 1],
+                        rotate: [0, -10, 10, 0]
+                      } : {}}
+                      transition={{ duration: 0.5 }}
+                      className="flex items-center gap-1"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      <span>Carrito ({cart.length})</span>
+                    </motion.div>
+                    <AnimatePresence>
+                      {showCartAnimation && (
+                        <motion.div
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0, opacity: 0 }}
+                          className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full"
+                        />
+                      )}
+                    </AnimatePresence>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -3436,6 +3458,11 @@ export default function TomadorPedidos() {
                                     if (savedQuoteId) {
                                       setHasUnsavedChanges(true);
                                     }
+                                    
+                                    // Trigger cart animation
+                                    setShowCartAnimation(true);
+                                    setTimeout(() => setShowCartAnimation(false), 600);
+                                    
                                     toast({
                                       title: "Producto agregado",
                                       description: `${product.producto} agregado al presupuesto`,
@@ -3445,8 +3472,14 @@ export default function TomadorPedidos() {
                                   className="h-8 px-4 bg-orange-500 hover:bg-orange-600"
                                   data-testid={`mobile-add-to-cart-${product.codigo}`}
                                 >
-                                  <ShoppingCart className="w-3 h-3 mr-1" />
-                                  Agregar
+                                  <motion.div
+                                    animate={showCartAnimation ? { scale: [1, 1.2, 1] } : {}}
+                                    transition={{ duration: 0.3 }}
+                                    className="flex items-center"
+                                  >
+                                    <ShoppingCart className="w-3 h-3 mr-1" />
+                                    Agregar
+                                  </motion.div>
                                 </Button>
                               </div>
                             </div>
