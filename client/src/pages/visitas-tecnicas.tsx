@@ -776,6 +776,19 @@ export default function VisitasTecnicasPage() {
                 </DialogDescription>
               </DialogHeader>
             </div>
+
+            {/* Búsqueda de productos - Fija arriba */}
+            <div className="px-6 pt-4 pb-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Buscar Productos</label>
+                <Input
+                  placeholder="Buscar por SKU o nombre de producto..."
+                  value={productSearchTerm}
+                  onChange={(e) => setProductSearchTerm(e.target.value)}
+                  data-testid="input-buscar-producto"
+                />
+              </div>
+            </div>
             
             <div className="flex-1 overflow-y-auto px-6">
               <div className="space-y-4 py-4">
@@ -800,17 +813,6 @@ export default function VisitasTecnicasPage() {
                     </ScrollArea>
                   </div>
                 )}
-
-                {/* Búsqueda de productos */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Buscar Productos</label>
-                  <Input
-                    placeholder="Buscar por SKU o nombre de producto..."
-                    value={productSearchTerm}
-                    onChange={(e) => setProductSearchTerm(e.target.value)}
-                    data-testid="input-buscar-producto"
-                  />
-                </div>
 
                 {/* Lista de productos */}
                 <ScrollArea className="h-[300px] border rounded-md">
