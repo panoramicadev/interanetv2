@@ -469,9 +469,23 @@ export default function Dashboard() {
                 />
               </div>
               
-              {/* Title and Filters Button */}
-              <div className="flex items-center justify-between">
-                <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+              {/* Period and Filters in one line */}
+              <div className="flex items-center justify-between gap-2">
+                {/* Period Display */}
+                <div className="flex-1 min-w-0">
+                  <Badge variant="secondary" className="w-full justify-center px-3 py-2 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg truncate">
+                    {filterType === "month" 
+                      ? getMonthOptions().find(opt => opt.value === selectedPeriod)?.label || selectedPeriod
+                      : filterType === "year"
+                      ? selectedYear.toString()
+                      : filterType === "day"
+                      ? selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar"
+                      : dateRange?.from && dateRange?.to
+                      ? `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`
+                      : "Rango"}
+                  </Badge>
+                </div>
+                
                 <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
                   <DrawerTrigger asChild>
                     <Button 
