@@ -26,6 +26,7 @@ import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
+import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -459,6 +460,15 @@ export default function Dashboard() {
           {/* Mobile Layout: Filters Button + Summary Chips */}
           {isMobile ? (
             <div className="space-y-3">
+              {/* Logo - Mobile Only */}
+              <div className="flex justify-center mb-2">
+                <img 
+                  src={panoramicaLogo} 
+                  alt="Panorámica 30 Años" 
+                  className="h-12 w-auto object-contain"
+                />
+              </div>
+              
               {/* Top Row: Filters Button */}
               <div className="flex items-center justify-between">
                 <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
