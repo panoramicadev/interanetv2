@@ -343,7 +343,7 @@ export default function VisitasTecnicasPage() {
 
       {/* Resumen rápido */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="order-2 lg:order-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5" />
@@ -366,7 +366,7 @@ export default function VisitasTecnicasPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="order-1 lg:order-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
