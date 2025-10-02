@@ -679,7 +679,7 @@ export default function QuotesList({ onEditQuote }: QuotesListProps) {
                               disabled={sendEmailMutation.isPending}
                             >
                               <Mail className="w-4 h-4 mr-2" />
-                              {sendEmailMutation.isPending ? 'Enviando correo...' : 'Enviar por correo'}
+                              {sendEmailMutation.isPending ? 'Compartiendo...' : 'Compartir'}
                             </DropdownMenuItem>
                             
                             {/* Status change options */}
