@@ -459,26 +459,26 @@ export default function Dashboard() {
         <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
           {/* Mobile Layout: Filters Button + Summary Chips */}
           {isMobile ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {/* Logo - Mobile Only */}
-              <div className="flex justify-center mb-2">
+              <div className="flex justify-center">
                 <img 
                   src={panoramicaLogo} 
                   alt="Panorámica 30 Años" 
-                  className="h-12 w-auto object-contain"
+                  className="h-10 w-auto object-contain"
                 />
               </div>
               
-              {/* Top Row: Filters Button */}
+              {/* Title and Filters Button */}
               <div className="flex items-center justify-between">
-                <h1 className="text-lg font-semibold text-gray-900">Dashboard</h1>
+                <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
                 <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
                   <DrawerTrigger asChild>
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={handleDrawerOpen}
-                      className="flex items-center space-x-2 h-9 px-3 text-sm"
+                      className="flex items-center gap-2 h-9 px-3 text-sm rounded-xl border-gray-200 shadow-sm"
                       data-testid="button-filters"
                     >
                       <Settings2 className="h-4 w-4" />
@@ -755,12 +755,12 @@ export default function Dashboard() {
               </div>
               
               {/* Summary Chips */}
-              <div className="flex items-center space-x-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {generateSummaryChips().map((chip) => (
                   <Badge 
                     key={chip.key} 
                     variant="secondary" 
-                    className="shrink-0 text-xs bg-gray-100 text-gray-700 border-gray-200"
+                    className="shrink-0 px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg"
                     data-testid={`chip-${chip.key}`}
                   >
                     {chip.label}
