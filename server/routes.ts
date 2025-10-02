@@ -4861,10 +4861,9 @@ export function registerRoutes(app: Express): Server {
 
         // Upload image to Object Storage
         const objectStorageService = new ObjectStorageService();
-        const imagePath = `product-images/${sku}_${Date.now()}${fileExt}`;
+        const imageName = `${sku}_${Date.now()}${fileExt}`;
         
-        await objectStorageService.uploadPublicObject(imagePath, imageBuffer);
-        const publicUrl = `/public-objects/${imagePath}`;
+        const publicUrl = await objectStorageService.uploadImage(imageName, imageBuffer, req.file.mimetype);
 
         if (product) {
           // Update product with image URL
@@ -4924,10 +4923,9 @@ export function registerRoutes(app: Express): Server {
       try {
         // Upload image to Object Storage
         const objectStorageService = new ObjectStorageService();
-        const imagePath = `product-images/${productCode}_${Date.now()}${fileExt}`;
+        const imageName = `${productCode}_${Date.now()}${fileExt}`;
         
-        await objectStorageService.uploadPublicObject(imagePath, imageBuffer);
-        const publicUrl = `/public-objects/${imagePath}`;
+        const publicUrl = await objectStorageService.uploadImage(imageName, imageBuffer, req.file.mimetype);
 
         // Update product with image URL
         await storage.updateEcommerceAdminProduct(productId, { imagenUrl: publicUrl });
