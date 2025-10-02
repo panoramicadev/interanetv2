@@ -15,7 +15,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { localImageStorage } from "./localImageStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { ecommerceProducts, salesTransactions, fileUploads } from "../shared/schema";
+import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas } from "../shared/schema";
 import { eq, and, isNotNull, ne } from "drizzle-orm";
 import { emailService } from "./services/email";
 
