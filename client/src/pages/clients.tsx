@@ -9,8 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar, Filter, RotateCcw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Client {
   id: string;
@@ -20,11 +22,11 @@ interface Client {
   email: string | null;
   foen: string | null;
   dien: string | null;
-  crlt: string | null; // Credit limit
-  cren: string | null; // Available credit
-  crsd: string | null; // Credit balance/debt
-  gien: string | null; // Business type
-  sien: string | null; // Industry sector
+  crlt: string | null;
+  cren: string | null;
+  crsd: string | null;
+  gien: string | null;
+  sien: string | null;
   totalTransactions?: number;
   totalSales?: number;
   lastTransactionDate?: string;
@@ -57,7 +59,6 @@ export default function Clients() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   
-  // Filter states
   const [selectedSegment, setSelectedSegment] = useState<string>("");
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("");
   const [selectedCreditStatus, setSelectedCreditStatus] = useState<string>("");
@@ -65,13 +66,22 @@ export default function Clients() {
   const [selectedDebtStatus, setSelectedDebtStatus] = useState<string>("");
   const [selectedEntityType, setSelectedEntityType] = useState<string>("");
   
+  const isMobile = useIsMobile();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  
+  const [localSelectedSegment, setLocalSelectedSegment] = useState(selectedSegment);
+  const [localSelectedSalesperson, setLocalSelectedSalesperson] = useState(selectedSalesperson);
+  const [localSelectedCreditStatus, setLocalSelectedCreditStatus] = useState(selectedCreditStatus);
+  const [localSelectedBusinessType, setLocalSelectedBusinessType] = useState(selectedBusinessType);
+  const [localSelectedDebtStatus, setLocalSelectedDebtStatus] = useState(selectedDebtStatus);
+  const [localSelectedEntityType, setLocalSelectedEntityType] = useState(selectedEntityType);
+  
   const itemsPerPage = 20;
 
-  // Debounce search input - wait 600ms after user stops typing
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-      setCurrentPage(1); // Reset to first page when searching
+      setCurrentPage(1);
     }, 600);
 
     return () => clearTimeout(timer);
@@ -108,11 +118,9 @@ export default function Clients() {
     },
   });
 
-  // Extract clients and total count from the response
   const clients = clientsData?.clients;
   const totalCount = clientsData?.totalCount || 0;
 
-  // Fetch filter data
   const { data: segments } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
   });
@@ -123,12 +131,12 @@ export default function Clients() {
 
   const { data: businessTypes } = useQuery<string[]>({
     queryKey: ['/api/clients/business-types'],
-    staleTime: 10 * 60 * 1000, // Cache for 10 minutes since business types don't change often
+    staleTime: 10 * 60 * 1000,
   });
 
   const { data: entityTypes } = useQuery<string[]>({
     queryKey: ['/api/clients/entity-types'],
-    staleTime: 10 * 60 * 1000, // Cache for 10 minutes since entity types don't change often
+    staleTime: 10 * 60 * 1000,
   });
 
   const handleSearch = useCallback((value: string) => {
@@ -150,9 +158,38 @@ export default function Clients() {
     setCurrentPage(1);
   }, []);
 
+  const clearLocalFilters = () => {
+    setLocalSelectedSegment("");
+    setLocalSelectedSalesperson("");
+    setLocalSelectedCreditStatus("");
+    setLocalSelectedBusinessType("");
+    setLocalSelectedDebtStatus("");
+    setLocalSelectedEntityType("");
+  };
+
+  const handleDrawerOpen = () => {
+    setLocalSelectedSegment(selectedSegment);
+    setLocalSelectedSalesperson(selectedSalesperson);
+    setLocalSelectedCreditStatus(selectedCreditStatus);
+    setLocalSelectedBusinessType(selectedBusinessType);
+    setLocalSelectedDebtStatus(selectedDebtStatus);
+    setLocalSelectedEntityType(selectedEntityType);
+    setIsDrawerOpen(true);
+  };
+
+  const handleApplyFilters = () => {
+    setSelectedSegment(localSelectedSegment);
+    setSelectedSalesperson(localSelectedSalesperson);
+    setSelectedCreditStatus(localSelectedCreditStatus);
+    setSelectedBusinessType(localSelectedBusinessType);
+    setSelectedDebtStatus(localSelectedDebtStatus);
+    setSelectedEntityType(localSelectedEntityType);
+    setCurrentPage(1);
+    setIsDrawerOpen(false);
+  };
+
   const hasActiveFilters = selectedSegment || selectedSalesperson || selectedCreditStatus || selectedBusinessType || selectedDebtStatus || selectedEntityType;
 
-  // Preview mutation
   const previewMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -188,13 +225,11 @@ export default function Clients() {
     }
   });
 
-  // Import mutation with progress tracking
   const importMutation = useMutation({
     mutationFn: async (file: File) => {
       setIsImporting(true);
       setImportProgress("🚀 Iniciando importación súper rápida...");
       
-      // Show progress toast
       toast({
         title: "Importando clientes",
         description: "Procesando archivo con nueva tecnología optimizada...",
@@ -305,6 +340,17 @@ export default function Clients() {
     return { status: "limite-bajo", text: "Buen estado", color: "bg-green-500" };
   };
 
+  const generateSummaryChips = () => {
+    const chips = [];
+    if (selectedSegment) chips.push({ label: 'Segmento', value: selectedSegment });
+    if (selectedSalesperson) chips.push({ label: 'Vendedor', value: selectedSalesperson });
+    if (selectedCreditStatus) chips.push({ label: 'Crédito', value: selectedCreditStatus });
+    if (selectedBusinessType) chips.push({ label: 'Negocio', value: selectedBusinessType });
+    if (selectedDebtStatus) chips.push({ label: 'Deuda', value: selectedDebtStatus === 'con_deuda' ? 'Con Deuda' : 'Sin Deuda' });
+    if (selectedEntityType) chips.push({ label: 'Entidad', value: selectedEntityType });
+    return chips;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -339,8 +385,8 @@ export default function Clients() {
               </p>
             </div>
           </div>
-          <div className="flex flex-col space-y-3 lg:space-y-0 lg:flex-row lg:items-center lg:space-x-3">
-            <Button variant="outline" onClick={downloadTemplate} data-testid="button-download-template">
+          <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center sm:space-x-3">
+            <Button variant="outline" onClick={downloadTemplate} data-testid="button-download-template" className="text-sm">
               <FileDown className="h-4 w-4 mr-2" />
               Plantilla CSV
             </Button>
@@ -357,6 +403,7 @@ export default function Clients() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={previewMutation.isPending || isImporting}
                 data-testid="button-import-clients"
+                className="w-full sm:w-auto text-sm"
               >
                 {previewMutation.isPending ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -414,7 +461,6 @@ export default function Clients() {
               </div>
             )}
             
-            {/* Progress indicator */}
             {isImporting && importProgress && (
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center">
@@ -457,7 +503,7 @@ export default function Clients() {
         </Card>
       )}
 
-      {/* Search and Filters */}
+      {/* Search and Mobile Filter Button */}
       <Card>
         <CardContent className="pt-6 space-y-4">
           {/* Search Bar */}
@@ -480,160 +526,444 @@ export default function Clients() {
             )}
           </div>
 
-          {/* Filters */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:flex lg:flex-wrap gap-2 sm:gap-3 items-start lg:items-center">
-            <div className="flex items-center gap-2 col-span-full lg:col-span-1">
-              <Filter className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtros:</span>
+          {/* Mobile: Filter Button and Summary Chips */}
+          {isMobile ? (
+            <div className="space-y-3">
+              <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+                <DrawerTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    className="w-full flex items-center justify-center gap-2"
+                    onClick={handleDrawerOpen}
+                    data-testid="button-open-filters"
+                  >
+                    <Filter className="h-4 w-4" />
+                    Filtros
+                    {hasActiveFilters && (
+                      <Badge variant="secondary" className="ml-2 bg-primary text-white">
+                        {generateSummaryChips().length}
+                      </Badge>
+                    )}
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent className="max-h-[85vh]">
+                  <DrawerHeader>
+                    <DrawerTitle>Filtros de Clientes</DrawerTitle>
+                    <DrawerDescription>
+                      Selecciona los criterios de filtrado
+                    </DrawerDescription>
+                  </DrawerHeader>
+                  
+                  <div className="px-4 pb-4 space-y-4 overflow-y-auto">
+                    {/* Segment Filter */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Segmento</label>
+                      <Select value={localSelectedSegment} onValueChange={setLocalSelectedSegment}>
+                        <SelectTrigger data-testid="drawer-select-segment">
+                          <SelectValue placeholder="Todos los segmentos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Todos los segmentos</SelectItem>
+                          {segments?.map((segment) => (
+                            <SelectItem key={segment} value={segment}>
+                              {segment}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Salesperson Filter */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Vendedor</label>
+                      <Select value={localSelectedSalesperson} onValueChange={setLocalSelectedSalesperson}>
+                        <SelectTrigger data-testid="drawer-select-salesperson">
+                          <SelectValue placeholder="Todos los vendedores" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Todos los vendedores</SelectItem>
+                          {salespeople?.map((salesperson) => (
+                            <SelectItem key={salesperson} value={salesperson}>
+                              {salesperson}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Credit Status Filter */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Estado de Crédito</label>
+                      <Select value={localSelectedCreditStatus} onValueChange={setLocalSelectedCreditStatus}>
+                        <SelectTrigger data-testid="drawer-select-credit-status">
+                          <SelectValue placeholder="Todos los estados" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Todos los estados</SelectItem>
+                          <SelectItem value="excellent">Excelente</SelectItem>
+                          <SelectItem value="good">Bueno</SelectItem>
+                          <SelectItem value="limited">Limitado</SelectItem>
+                          <SelectItem value="blocked">Bloqueado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Business Type Filter */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Tipo de Negocio</label>
+                      <Select value={localSelectedBusinessType} onValueChange={setLocalSelectedBusinessType}>
+                        <SelectTrigger data-testid="drawer-select-business-type">
+                          <SelectValue placeholder="Todos los tipos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Todos los tipos</SelectItem>
+                          {businessTypes?.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Debt Status Filter */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Estado de Deuda</label>
+                      <Select value={localSelectedDebtStatus} onValueChange={setLocalSelectedDebtStatus}>
+                        <SelectTrigger data-testid="drawer-select-debt-status">
+                          <SelectValue placeholder="Todos los estados" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Todos los estados</SelectItem>
+                          <SelectItem value="con_deuda">Con Deuda</SelectItem>
+                          <SelectItem value="sin_deuda">Sin Deuda</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Entity Type Filter */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Tipo de Entidad</label>
+                      <Select value={localSelectedEntityType} onValueChange={setLocalSelectedEntityType}>
+                        <SelectTrigger data-testid="drawer-select-entity-type">
+                          <SelectValue placeholder="Todos los tipos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Todos los tipos</SelectItem>
+                          {entityTypes?.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <DrawerFooter className="flex flex-row gap-2">
+                    <Button 
+                      onClick={handleApplyFilters} 
+                      className="flex-1"
+                      data-testid="button-apply-filters"
+                    >
+                      Aplicar Filtros
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={clearLocalFilters}
+                      data-testid="button-clear-drawer-filters"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                  </DrawerFooter>
+                </DrawerContent>
+              </Drawer>
+
+              {/* Active Filter Summary Chips */}
+              {hasActiveFilters && (
+                <div className="flex flex-wrap gap-2">
+                  {generateSummaryChips().map((chip, index) => (
+                    <Badge 
+                      key={index} 
+                      variant="secondary" 
+                      className="bg-blue-100 text-blue-800 text-xs px-2 py-1"
+                    >
+                      {chip.label}: {chip.value}
+                    </Badge>
+                  ))}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="h-6 px-2 text-xs"
+                    data-testid="button-clear-chips"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
             </div>
+          ) : (
+            /* Desktop: Inline Filters */
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:flex lg:flex-wrap gap-2 sm:gap-3 items-start lg:items-center">
+                <div className="flex items-center gap-2 col-span-full lg:col-span-1">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtros:</span>
+                </div>
 
-            <Select value={selectedSegment} onValueChange={(value) => {
-              setSelectedSegment(value === "all" ? "" : value);
-              setCurrentPage(1);
-            }} data-testid="select-segment-filter">
-              <SelectTrigger className="w-full sm:w-48" data-testid="select-segment">
-                <SelectValue placeholder="Todos los segmentos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los segmentos</SelectItem>
-                {segments?.map((segment) => (
-                  <SelectItem key={segment} value={segment}>
-                    {segment}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Select value={selectedSegment} onValueChange={(value) => {
+                  setSelectedSegment(value === "all" ? "" : value);
+                  setCurrentPage(1);
+                }} data-testid="select-segment-filter">
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-segment">
+                    <SelectValue placeholder="Todos los segmentos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los segmentos</SelectItem>
+                    {segments?.map((segment) => (
+                      <SelectItem key={segment} value={segment}>
+                        {segment}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <Select value={selectedSalesperson} onValueChange={(value) => {
-              setSelectedSalesperson(value === "all" ? "" : value);
-              setCurrentPage(1);
-            }} data-testid="select-salesperson-filter">
-              <SelectTrigger className="w-full sm:w-48" data-testid="select-salesperson">
-                <SelectValue placeholder="Todos los vendedores" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los vendedores</SelectItem>
-                {salespeople?.map((salesperson) => (
-                  <SelectItem key={salesperson} value={salesperson}>
-                    {salesperson}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Select value={selectedSalesperson} onValueChange={(value) => {
+                  setSelectedSalesperson(value === "all" ? "" : value);
+                  setCurrentPage(1);
+                }} data-testid="select-salesperson-filter">
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-salesperson">
+                    <SelectValue placeholder="Todos los vendedores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los vendedores</SelectItem>
+                    {salespeople?.map((salesperson) => (
+                      <SelectItem key={salesperson} value={salesperson}>
+                        {salesperson}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <Select value={selectedCreditStatus} onValueChange={(value) => {
-              setSelectedCreditStatus(value === "all" ? "" : value);
-              setCurrentPage(1);
-            }} data-testid="select-credit-status-filter">
-              <SelectTrigger className="w-full sm:w-48" data-testid="select-credit-status">
-                <SelectValue placeholder="Estado de crédito" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="excellent">Excelente</SelectItem>
-                <SelectItem value="good">Bueno</SelectItem>
-                <SelectItem value="limited">Limitado</SelectItem>
-                <SelectItem value="blocked">Bloqueado</SelectItem>
-              </SelectContent>
-            </Select>
+                <Select value={selectedCreditStatus} onValueChange={(value) => {
+                  setSelectedCreditStatus(value === "all" ? "" : value);
+                  setCurrentPage(1);
+                }} data-testid="select-credit-status-filter">
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-credit-status">
+                    <SelectValue placeholder="Estado de crédito" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los estados</SelectItem>
+                    <SelectItem value="excellent">Excelente</SelectItem>
+                    <SelectItem value="good">Bueno</SelectItem>
+                    <SelectItem value="limited">Limitado</SelectItem>
+                    <SelectItem value="blocked">Bloqueado</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            <Select value={selectedBusinessType} onValueChange={(value) => {
-              setSelectedBusinessType(value === "all" ? "" : value);
-              setCurrentPage(1);
-            }} data-testid="select-business-type-filter">
-              <SelectTrigger className="w-full sm:w-48" data-testid="select-business-type">
-                <SelectValue placeholder="Tipo de negocio" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los tipos</SelectItem>
-                {businessTypes?.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Select value={selectedBusinessType} onValueChange={(value) => {
+                  setSelectedBusinessType(value === "all" ? "" : value);
+                  setCurrentPage(1);
+                }} data-testid="select-business-type-filter">
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-business-type">
+                    <SelectValue placeholder="Tipo de negocio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los tipos</SelectItem>
+                    {businessTypes?.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            <Select value={selectedDebtStatus} onValueChange={(value) => {
-              setSelectedDebtStatus(value === "all" ? "" : value);
-              setCurrentPage(1);
-            }} data-testid="select-debt-status-filter">
-              <SelectTrigger className="w-full sm:w-48" data-testid="select-debt-status">
-                <SelectValue placeholder="Estado de deuda" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="con_deuda">Con Deuda</SelectItem>
-                <SelectItem value="sin_deuda">Sin Deuda</SelectItem>
-              </SelectContent>
-            </Select>
+                <Select value={selectedDebtStatus} onValueChange={(value) => {
+                  setSelectedDebtStatus(value === "all" ? "" : value);
+                  setCurrentPage(1);
+                }} data-testid="select-debt-status-filter">
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-debt-status">
+                    <SelectValue placeholder="Estado de deuda" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los estados</SelectItem>
+                    <SelectItem value="con_deuda">Con Deuda</SelectItem>
+                    <SelectItem value="sin_deuda">Sin Deuda</SelectItem>
+                  </SelectContent>
+                </Select>
 
-            <Select value={selectedEntityType} onValueChange={(value) => {
-              setSelectedEntityType(value === "all" ? "" : value);
-              setCurrentPage(1);
-            }} data-testid="select-entity-type-filter">
-              <SelectTrigger className="w-full sm:w-48" data-testid="select-entity-type">
-                <SelectValue placeholder="Tipo de entidad" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los tipos</SelectItem>
-                {entityTypes?.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Select value={selectedEntityType} onValueChange={(value) => {
+                  setSelectedEntityType(value === "all" ? "" : value);
+                  setCurrentPage(1);
+                }} data-testid="select-entity-type-filter">
+                  <SelectTrigger className="w-full sm:w-48" data-testid="select-entity-type">
+                    <SelectValue placeholder="Tipo de entidad" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los tipos</SelectItem>
+                    {entityTypes?.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            {hasActiveFilters && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearFilters}
-                className="flex items-center gap-2"
-                data-testid="button-clear-filters"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Limpiar filtros
-              </Button>
-            )}
-          </div>
-
-          {hasActiveFilters && (
-            <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-              <div className="font-medium mb-2">Filtros activos:</div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  ...(selectedSegment ? [{ label: 'Segmento', value: selectedSegment }] : []),
-                  ...(selectedSalesperson ? [{ label: 'Vendedor', value: selectedSalesperson }] : []),
-                  ...(selectedCreditStatus ? [{ label: 'Crédito', value: selectedCreditStatus }] : []),
-                  ...(selectedBusinessType ? [{ label: 'Negocio', value: selectedBusinessType }] : []),
-                  ...(selectedDebtStatus ? [{ label: 'Deuda', value: selectedDebtStatus === 'con_deuda' ? 'Con Deuda' : 'Sin Deuda' }] : []),
-                  ...(selectedEntityType ? [{ label: 'Entidad', value: selectedEntityType }] : [])
-                ].map((filter, index) => (
-                  <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                    <span className="font-medium">{filter.label}:</span>
-                    <span className="ml-1">{filter.value}</span>
-                  </span>
-                ))}
+                {hasActiveFilters && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearFilters}
+                    className="flex items-center gap-2"
+                    data-testid="button-clear-filters"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Limpiar filtros
+                  </Button>
+                )}
               </div>
-            </div>
+
+              {hasActiveFilters && (
+                <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+                  <div className="font-medium mb-2">Filtros activos:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      ...(selectedSegment ? [{ label: 'Segmento', value: selectedSegment }] : []),
+                      ...(selectedSalesperson ? [{ label: 'Vendedor', value: selectedSalesperson }] : []),
+                      ...(selectedCreditStatus ? [{ label: 'Crédito', value: selectedCreditStatus }] : []),
+                      ...(selectedBusinessType ? [{ label: 'Negocio', value: selectedBusinessType }] : []),
+                      ...(selectedDebtStatus ? [{ label: 'Deuda', value: selectedDebtStatus === 'con_deuda' ? 'Con Deuda' : 'Sin Deuda' }] : []),
+                      ...(selectedEntityType ? [{ label: 'Entidad', value: selectedEntityType }] : [])
+                    ].map((filter, index) => (
+                      <span key={index} className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                        <span className="font-medium">{filter.label}:</span>
+                        <span className="ml-1">{filter.value}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
 
-      {/* Clients List */}
-      <Card>
+      {/* Mobile: Client Cards */}
+      <div className="block sm:hidden space-y-3">
+        {clients?.map((client) => {
+          const creditStatus = getCreditStatus(client.cren, client.crlt, client.crsd);
+          
+          return (
+            <Card 
+              key={client.id} 
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => window.location.href = `/client/${encodeURIComponent(client.nokoen)}`}
+              data-testid={`card-client-${client.id}`}
+            >
+              <CardContent className="p-4 space-y-3">
+                {/* Header: Name and Status */}
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <h3 className="font-semibold text-gray-900 text-sm leading-tight truncate">
+                      {client.nokoen}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Código: {client.koen || "N/A"}
+                    </p>
+                    {client.rten && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        RUT: {client.rten}
+                      </p>
+                    )}
+                  </div>
+                  <Badge className={`${creditStatus.color} text-white text-xs shrink-0`}>
+                    {creditStatus.text}
+                  </Badge>
+                </div>
+
+                {/* Business Type */}
+                {client.gien && (
+                  <div className="flex items-center text-xs text-gray-600">
+                    <Building2 className="h-3 w-3 mr-1.5 text-gray-400" />
+                    {client.gien}
+                  </div>
+                )}
+
+                <Separator />
+
+                {/* Credit Info */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-xs text-gray-500">Límite</p>
+                    <p className="text-sm font-semibold text-green-600">
+                      {formatCurrency(client.crlt)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Disponible</p>
+                    <p className="text-sm font-semibold text-blue-600">
+                      {formatCurrency(client.cren)}
+                    </p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Sales Info */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-xs text-gray-500">Total Ventas</p>
+                    <p className="text-sm font-semibold text-indigo-600">
+                      {formatCurrency(client.totalSales || 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Transacciones</p>
+                    <p className="text-sm font-semibold text-purple-600">
+                      {client.totalTransactions || 0}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Contact Info */}
+                {(client.email || client.foen) && (
+                  <>
+                    <Separator />
+                    <div className="space-y-1">
+                      {client.email && (
+                        <div className="flex items-center text-xs text-gray-600">
+                          <Mail className="h-3 w-3 mr-1.5 text-gray-400" />
+                          <span className="truncate">{client.email}</span>
+                        </div>
+                      )}
+                      {client.foen && (
+                        <div className="flex items-center text-xs text-gray-600">
+                          <Phone className="h-3 w-3 mr-1.5 text-gray-400" />
+                          {client.foen}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Desktop: Clients Table */}
+      <Card className="hidden sm:block">
         <CardContent className="p-0">
           <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             <Table className="min-w-full">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-semibold min-w-[200px] sm:min-w-0">Cliente</TableHead>
-                  <TableHead className="font-semibold hidden sm:table-cell">RUT</TableHead>
+                  <TableHead className="font-semibold">Cliente</TableHead>
+                  <TableHead className="font-semibold">RUT</TableHead>
                   <TableHead className="font-semibold hidden md:table-cell">Contacto</TableHead>
-                  <TableHead className="font-semibold min-w-[120px] sm:min-w-0">Crédito</TableHead>
-                  <TableHead className="font-semibold min-w-[100px] sm:min-w-0">Ventas</TableHead>
+                  <TableHead className="font-semibold">Crédito</TableHead>
+                  <TableHead className="font-semibold">Ventas</TableHead>
                   <TableHead className="font-semibold">Estado</TableHead>
                   <TableHead className="font-semibold w-20">Acción</TableHead>
                 </TableRow>
@@ -649,16 +979,13 @@ export default function Clients() {
                       onClick={() => window.location.href = `/client/${encodeURIComponent(client.nokoen)}`}
                       data-testid={`row-client-${client.id}`}
                     >
-                      <TableCell className="font-medium min-w-[200px] sm:min-w-0">
+                      <TableCell className="font-medium">
                         <div>
                           <div className="font-semibold text-gray-900 dark:text-white">
                             {client.nokoen}
                           </div>
                           <div className="text-sm text-gray-500">
                             Código: {client.koen || "N/A"}
-                          </div>
-                          <div className="text-xs text-gray-400 sm:hidden mt-1">
-                            RUT: {client.rten || "N/A"}
                           </div>
                           {client.gien && (
                             <div className="text-xs text-gray-400 mt-1">
@@ -668,7 +995,7 @@ export default function Clients() {
                         </div>
                       </TableCell>
                       
-                      <TableCell className="hidden sm:table-cell">
+                      <TableCell>
                         <div className="text-sm">
                           {client.rten || "N/A"}
                         </div>
@@ -691,30 +1018,30 @@ export default function Clients() {
                         </div>
                       </TableCell>
                       
-                      <TableCell className="min-w-[120px] sm:min-w-0">
+                      <TableCell>
                         <div className="space-y-1 text-xs sm:text-sm">
                           <div>
-                            <span className="text-gray-500 hidden sm:inline">Límite:</span>
-                            <div className="font-semibold text-green-600">
+                            <span className="text-gray-500">Límite: </span>
+                            <span className="font-semibold text-green-600">
                               {formatCurrency(client.crlt)}
-                            </div>
+                            </span>
                           </div>
                           <div>
-                            <span className="text-gray-500 hidden sm:inline">Disponible:</span>
-                            <div className="font-semibold text-blue-600">
+                            <span className="text-gray-500">Disponible: </span>
+                            <span className="font-semibold text-blue-600">
                               {formatCurrency(client.cren)}
-                            </div>
+                            </span>
                           </div>
                         </div>
                       </TableCell>
                       
-                      <TableCell className="min-w-[100px] sm:min-w-0">
+                      <TableCell>
                         <div className="space-y-1 text-xs sm:text-sm">
                           <div>
-                            <span className="text-gray-500 hidden sm:inline">Total:</span>
-                            <div className="font-semibold text-indigo-600">
+                            <span className="text-gray-500">Total: </span>
+                            <span className="font-semibold text-indigo-600">
                               {formatCurrency(client.totalSales || 0)}
-                            </div>
+                            </span>
                           </div>
                           <div className="text-xs text-gray-500">
                             {client.totalTransactions || 0} transacciones
@@ -802,7 +1129,6 @@ export default function Clients() {
           
           {selectedClient && (
             <div className="space-y-6">
-              {/* Basic Information */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader className="pb-3">
@@ -882,7 +1208,6 @@ export default function Clients() {
 
               <Separator />
 
-              {/* Credit Information */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center space-x-2">
@@ -924,7 +1249,6 @@ export default function Clients() {
 
               <Separator />
 
-              {/* Sales Statistics */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center space-x-2">
