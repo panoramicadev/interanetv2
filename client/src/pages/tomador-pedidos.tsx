@@ -3611,9 +3611,18 @@ export default function TomadorPedidos() {
                                   >
                                     <Minus className="w-4 h-4" />
                                   </Button>
-                                  <span className="text-base font-medium w-12 text-center bg-muted/50 h-9 flex items-center justify-center rounded">
-                                    {item.quantity}
-                                  </span>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    max="999"
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      const value = parseInt(e.target.value) || 1;
+                                      updateCartItemQuantity(item.id, Math.min(999, Math.max(1, value)));
+                                    }}
+                                    className="h-9 w-16 text-center text-base font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    data-testid={`mobile-cart-quantity-input-${item.id}`}
+                                  />
                                   <Button
                                     variant="outline"
                                     size="sm"
