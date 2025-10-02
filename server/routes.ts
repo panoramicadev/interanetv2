@@ -1460,9 +1460,14 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/sales/salesperson/:salespersonName/clients", requireAuth, async (req, res) => {
     try {
       const { salespersonName } = req.params;
-      const { period, filterType = "month" } = req.query;
+      const { period, filterType = "month", segment } = req.query;
       
-      const clients = await storage.getSalespersonClients(salespersonName, period as string, filterType as string);
+      const clients = await storage.getSalespersonClients(
+        salespersonName, 
+        period as string, 
+        filterType as string,
+        segment as string | undefined
+      );
       res.json(clients);
     } catch (error) {
       console.error("Error fetching salesperson clients:", error);

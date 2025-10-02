@@ -389,7 +389,7 @@ export interface IStorage {
     averageTicket: number;
     salesFrequency: number; // days between sales
   }>;
-  getSalespersonClients(salespersonName: string, period?: string, filterType?: string): Promise<Array<{
+  getSalespersonClients(salespersonName: string, period?: string, filterType?: string, segment?: string): Promise<Array<{
     clientName: string;
     totalSales: number;
     transactionCount: number;
@@ -2459,7 +2459,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getSalespersonClients(salespersonName: string, period?: string, filterType: string = 'month'): Promise<Array<{
+  async getSalespersonClients(salespersonName: string, period?: string, filterType: string = 'month', segment?: string): Promise<Array<{
     clientName: string;
     totalSales: number;
     transactionCount: number;
@@ -2468,6 +2468,11 @@ export class DatabaseStorage implements IStorage {
     daysSinceLastSale: number;
   }>> {
     const conditions = [eq(salesTransactions.nokofu, salespersonName)];
+    
+    // Filter by segment if provided
+    if (segment) {
+      conditions.push(eq(salesTransactions.noruen, segment));
+    }
 
     // Apply date filters if period is provided
     if (period) {
