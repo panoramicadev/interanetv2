@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { CartProvider } from "@/contexts/CartContext";
+import { UpdateNotification } from "@/components/UpdateNotification";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
@@ -156,6 +157,7 @@ function App() {
       <CartProvider>
         <TooltipProvider>
           <Router />
+          <UpdateNotification />
         </TooltipProvider>
       </CartProvider>
     </QueryClientProvider>
