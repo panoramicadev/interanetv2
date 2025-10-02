@@ -1060,50 +1060,40 @@ export default function VisitasTecnicasPage() {
                 variant="outline" 
                 onClick={() => setVisitStep('products')} 
                 data-testid="button-atras-evaluacion"
-                className="w-full sm:w-auto order-2 sm:order-1"
+                className="w-full sm:w-auto"
               >
                 Atrás
               </Button>
-              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 order-1 sm:order-2">
-                <Button 
-                  variant="outline" 
-                  onClick={handleCloseModal} 
-                  data-testid="button-cancelar-evaluacion"
-                  className="w-full sm:w-auto"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={() => {
-                    if (!user?.id) {
-                      alert('Error: Usuario no autenticado');
-                      return;
-                    }
-                    
-                    // Combinar productos seleccionados con sus evaluaciones
-                    const productosConEvaluacion = selectedProducts.map(product => ({
-                      ...product,
-                      evaluacion: productEvaluations[product.productId] || {}
-                    }));
-                    
-                    // Crear la visita con todos los datos
-                    const visitCompleteData = {
-                      ...visitData,
-                      tecnicoId: user.id,
-                      productos: productosConEvaluacion,
-                      estado: 'completada'
-                    };
-                    
-                    console.log('Enviando visita técnica:', visitCompleteData);
-                    createVisitMutation.mutate(visitCompleteData);
-                  }}
-                  disabled={createVisitMutation.isPending}
-                  data-testid="button-finalizar"
-                  className="w-full sm:w-auto"
-                >
-                  {createVisitMutation.isPending ? 'Creando...' : 'Crear Visita Técnica'}
-                </Button>
-              </div>
+              <Button 
+                onClick={() => {
+                  if (!user?.id) {
+                    alert('Error: Usuario no autenticado');
+                    return;
+                  }
+                  
+                  // Combinar productos seleccionados con sus evaluaciones
+                  const productosConEvaluacion = selectedProducts.map(product => ({
+                    ...product,
+                    evaluacion: productEvaluations[product.productId] || {}
+                  }));
+                  
+                  // Crear la visita con todos los datos
+                  const visitCompleteData = {
+                    ...visitData,
+                    tecnicoId: user.id,
+                    productos: productosConEvaluacion,
+                    estado: 'completada'
+                  };
+                  
+                  console.log('Enviando visita técnica:', visitCompleteData);
+                  createVisitMutation.mutate(visitCompleteData);
+                }}
+                disabled={createVisitMutation.isPending}
+                data-testid="button-finalizar"
+                className="w-full sm:w-auto"
+              >
+                {createVisitMutation.isPending ? 'Creando...' : 'Crear Visita Técnica'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
