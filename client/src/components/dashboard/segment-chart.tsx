@@ -187,88 +187,45 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
             ))}
           </div>
         ) : segmentData && segmentData.length > 0 ? (
-          <div className="space-y-4">
-            {segmentData.map((segment, index) => (
-              <Link 
-                key={segment.segment} 
-                href={`/segment/${encodeURIComponent(segment.segment)}`}
-                className="block hover:bg-gray-50/50 rounded-lg transition-colors"
-              >
-                <div 
-                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
-                  data-testid={`segment-${index}`}
-                >
-                  {/* Nombre del segmento y monto - Mobile */}
-                  <div className="flex justify-between items-center sm:hidden">
-                    <p className="text-sm text-gray-700 font-medium truncate flex-1 min-w-0 pr-2">
-                      {segment.segment}
-                    </p>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <span className="text-xs text-gray-600">
-                        {segment.percentage.toFixed(1)}%
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(segment.totalSales)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Desktop Layout */}
-                  <div className="hidden sm:flex sm:items-center w-full">
-                    {/* Nombre del segmento */}
-                    <div className="w-32 lg:w-48 flex-shrink-0">
-                      <p className="text-sm text-gray-700 font-medium truncate">
-                        {segment.segment}
-                      </p>
-                    </div>
-                    
-                    {/* Porcentaje */}
-                    <div className="w-12 flex-shrink-0 text-center">
-                      <span className="text-sm text-gray-600">
-                        {segment.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                    
-                    {/* Barra de progreso */}
-                    <div className="flex-1 mx-2 lg:mx-4">
-                      <div className="relative">
-                        <div className="h-6 bg-gray-100 rounded-lg overflow-hidden">
-                          <div 
-                            className="h-full rounded-lg transition-all duration-500 ease-out"
-                            style={{ 
-                              width: `${segment.percentage}%`,
-                              backgroundColor: segmentColors[index % segmentColors.length]
-                            }}
-                          ></div>
+          <div className="space-y-6">
+            {/* Gráfico de barras horizontales */}
+            <div style={{ height: `${Math.max(300, segmentData.length * 60)}px` }}>
+              <Bar data={chartData} options={chartOptions} />
+            </div>
+
+            {/* Lista de segmentos como referencia */}
+            <div className="pt-4 border-t border-gray-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {segmentData.map((segment, index) => (
+                  <Link 
+                    key={segment.segment} 
+                    href={`/segment/${encodeURIComponent(segment.segment)}`}
+                    className="block hover:bg-gray-50 rounded-lg transition-colors p-3"
+                    data-testid={`segment-${index}`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <div 
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: segmentColors[index % segmentColors.length] }}
+                      ></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700 truncate">
+                          {segment.segment}
+                        </p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs text-gray-600">
+                            {segment.percentage.toFixed(1)}%
+                          </span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {formatCurrency(segment.totalSales)}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    
-                    {/* Monto */}
-                    <div className="w-20 flex-shrink-0 text-right">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(segment.totalSales)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Barra de progreso - Mobile */}
-                  <div className="sm:hidden">
-                    <div className="relative">
-                      <div className="h-3 bg-gray-100 rounded-lg overflow-hidden">
-                        <div 
-                          className="h-full rounded-lg transition-all duration-500 ease-out"
-                          style={{ 
-                            width: `${segment.percentage}%`,
-                            backgroundColor: segmentColors[index % segmentColors.length]
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="h-32 flex items-center justify-center text-gray-500">
