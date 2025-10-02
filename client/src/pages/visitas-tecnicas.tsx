@@ -594,10 +594,10 @@ export default function VisitasTecnicasPage() {
       {/* Modal para nueva visita técnica - Paso 1: Datos básicos */}
       {visitStep === 'basic' && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Nueva Visita Técnica - Datos Básicos</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Datos Básicos</DialogTitle>
+              <DialogDescription className="text-sm">
                 Paso 1 de 3: Información general de la visita
               </DialogDescription>
             </DialogHeader>
@@ -713,11 +713,12 @@ export default function VisitasTecnicasPage() {
                 />
               </div>
               
-              <div className="flex justify-end gap-3 pt-4 border-t">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t">
                 <Button 
                   variant="outline" 
                   onClick={handleCloseModal} 
                   data-testid="button-cancelar"
+                  className="w-full sm:w-auto"
                 >
                   Cancelar
                 </Button>
@@ -725,8 +726,10 @@ export default function VisitasTecnicasPage() {
                   onClick={() => setVisitStep('products')} 
                   disabled={!visitData.clienteId || !visitData.nombreObra || !visitData.direccionObra}
                   data-testid="button-siguiente"
+                  className="w-full sm:w-auto"
                 >
-                  Siguiente: Seleccionar Productos
+                  <span className="hidden sm:inline">Siguiente: Seleccionar Productos</span>
+                  <span className="sm:hidden">Siguiente</span>
                 </Button>
               </div>
             </div>
@@ -737,10 +740,10 @@ export default function VisitasTecnicasPage() {
       {/* Modal para nueva visita técnica - Paso 2: Selección de productos */}
       {visitStep === 'products' && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
-              <DialogTitle>Nueva Visita Técnica - Selección de Productos</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Selección de Productos</DialogTitle>
+              <DialogDescription className="text-sm">
                 Paso 2 de 3: Selecciona los productos que se evaluarán en la visita
               </DialogDescription>
             </DialogHeader>
@@ -815,19 +818,21 @@ export default function VisitasTecnicasPage() {
                 </div>
               </ScrollArea>
               
-              <div className="flex justify-between gap-3 pt-4 border-t">
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t">
                 <Button 
                   variant="outline" 
                   onClick={() => setVisitStep('basic')} 
                   data-testid="button-atras"
+                  className="w-full sm:w-auto order-2 sm:order-1"
                 >
                   Atrás
                 </Button>
-                <div className="flex gap-3">
+                <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 order-1 sm:order-2">
                   <Button 
                     variant="outline" 
                     onClick={handleCloseModal} 
                     data-testid="button-cancelar-productos"
+                    className="w-full sm:w-auto"
                   >
                     Cancelar
                   </Button>
@@ -835,8 +840,10 @@ export default function VisitasTecnicasPage() {
                     onClick={() => setVisitStep('evaluation')} 
                     disabled={selectedProducts.length === 0}
                     data-testid="button-crear-evaluacion"
+                    className="w-full sm:w-auto"
                   >
-                    Continuar a Evaluación ({selectedProducts.length})
+                    <span className="hidden sm:inline">Continuar a Evaluación ({selectedProducts.length})</span>
+                    <span className="sm:hidden">Continuar ({selectedProducts.length})</span>
                   </Button>
                 </div>
               </div>
@@ -848,10 +855,10 @@ export default function VisitasTecnicasPage() {
       {/* Modal para nueva visita técnica - Paso 3: Evaluación */}
       {visitStep === 'evaluation' && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
-              <DialogTitle>Nueva Visita Técnica - Evaluación de Productos</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Evaluación de Productos</DialogTitle>
+              <DialogDescription className="text-sm">
                 Paso 3 de 3: Evaluar {selectedProducts.length} producto(s) seleccionado(s)
               </DialogDescription>
             </DialogHeader>
@@ -1023,19 +1030,21 @@ export default function VisitasTecnicasPage() {
               </div>
             </div>
             
-            <div className="flex justify-between gap-3 pt-4 border-t mt-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t mt-4">
               <Button 
                 variant="outline" 
                 onClick={() => setVisitStep('products')} 
                 data-testid="button-atras-evaluacion"
+                className="w-full sm:w-auto order-2 sm:order-1"
               >
                 Atrás
               </Button>
-              <div className="flex gap-3">
+              <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 order-1 sm:order-2">
                 <Button 
                   variant="outline" 
                   onClick={handleCloseModal} 
                   data-testid="button-cancelar-evaluacion"
+                  className="w-full sm:w-auto"
                 >
                   Cancelar
                 </Button>
@@ -1065,6 +1074,7 @@ export default function VisitasTecnicasPage() {
                   }}
                   disabled={createVisitMutation.isPending}
                   data-testid="button-finalizar"
+                  className="w-full sm:w-auto"
                 >
                   {createVisitMutation.isPending ? 'Creando...' : 'Crear Visita Técnica'}
                 </Button>
@@ -1076,10 +1086,10 @@ export default function VisitasTecnicasPage() {
 
       {/* Dialog para ver detalles de visita */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Detalle de Visita Técnica</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base sm:text-lg">Detalle de Visita Técnica</DialogTitle>
+            <DialogDescription className="text-sm">
               Información completa de la inspección técnica realizada
             </DialogDescription>
           </DialogHeader>
