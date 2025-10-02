@@ -905,6 +905,7 @@ export default function EcommerceAdmin() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-20">Imagen</TableHead>
                 <TableHead>Código</TableHead>
                 <TableHead>Producto</TableHead>
                 <TableHead>Categoría</TableHead>
@@ -916,6 +917,19 @@ export default function EcommerceAdmin() {
             <TableBody>
               {filteredProducts.map((product) => (
                 <TableRow key={product.id}>
+                  <TableCell>
+                    {product.imagenUrl ? (
+                      <img 
+                        src={product.imagenUrl} 
+                        alt={product.producto}
+                        className="w-12 h-12 object-cover rounded border"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
+                        <span className="text-[8px] text-gray-400 text-center px-1">Sin imagen</span>
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="font-mono text-sm">{product.codigo}</TableCell>
                   <TableCell>
                     <div>
