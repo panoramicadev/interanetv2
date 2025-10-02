@@ -6,6 +6,12 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ## Recent Changes
 
+### Quote Management UX Improvements (October 2, 2025)
+- **Role-Based Column Visibility**: "Creado por" column now hidden for salespeople, visible only for admins and supervisors since salespeople only see their own quotes
+- **Real-Time Status Updates**: Quote status changes (enviado, aceptado, rechazado, convertido a pedido) now update UI immediately without page reload through TanStack Query cache invalidation
+- **Cart Quantity Input**: Mobile cart now allows manual quantity editing with Input field (1-999 validation) matching product selection behavior
+- **PDF Logo Integration**: Replaced text header with Panorámica 30th anniversary logo in PDF documents for professional branding
+
 ### PWA Update System (October 2, 2025)
 - **Service Worker Implementation**: Created service worker with network-first caching strategy for reliable offline access
 - **Automatic Update Detection**: System checks for updates every 60 seconds and notifies users when new version is available
