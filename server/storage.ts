@@ -1204,10 +1204,10 @@ export class DatabaseStorage implements IStorage {
     
     const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
     
-    // Get period total sales
+    // Get period total sales (exclude GDV to match dashboard metrics)
     const [totalResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(monto), 0)`,
+        total: sql<number>`COALESCE(SUM(CASE WHEN tido != 'GDV' THEN monto ELSE 0 END), 0)`,
       })
       .from(sql`(
         SELECT DISTINCT 
@@ -1223,7 +1223,7 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         salesperson: sql<string>`nokofu`,
-        totalSales: sql<number>`COALESCE(SUM(monto), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CASE WHEN tido != 'GDV' THEN monto ELSE 0 END), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(sql`(
@@ -1237,7 +1237,7 @@ export class DatabaseStorage implements IStorage {
         GROUP BY nudo, nokofu, tido, monto
       ) as unique_transactions`)
       .groupBy(sql`nokofu`)
-      .orderBy(sql`SUM(monto) DESC`)
+      .orderBy(sql`SUM(CASE WHEN tido != 'GDV' THEN monto ELSE 0 END) DESC`)
       .limit(limit);
 
     return {
@@ -1336,10 +1336,10 @@ export class DatabaseStorage implements IStorage {
     
     const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
     
-    // Get period total sales
+    // Get period total sales (exclude GDV to match dashboard metrics)
     const [totalResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(monto), 0)`,
+        total: sql<number>`COALESCE(SUM(CASE WHEN tido != 'GDV' THEN monto ELSE 0 END), 0)`,
       })
       .from(sql`(
         SELECT DISTINCT 
@@ -1355,7 +1355,7 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         clientName: sql<string>`nokoen`,
-        totalSales: sql<number>`COALESCE(SUM(monto), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CASE WHEN tido != 'GDV' THEN monto ELSE 0 END), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(sql`(
@@ -1369,7 +1369,7 @@ export class DatabaseStorage implements IStorage {
         GROUP BY nudo, nokoen, tido, monto
       ) as unique_transactions`)
       .groupBy(sql`nokoen`)
-      .orderBy(sql`SUM(monto) DESC`)
+      .orderBy(sql`SUM(CASE WHEN tido != 'GDV' THEN monto ELSE 0 END) DESC`)
       .limit(limit);
 
     return {
