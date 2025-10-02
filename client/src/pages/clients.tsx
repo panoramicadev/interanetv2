@@ -374,46 +374,81 @@ export default function Clients() {
   return (
     <div className="m-3 sm:m-4 space-y-6" data-testid="clients-page">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-900 border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 rounded-2xl shadow-sm">
-        <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Users className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">Gestión de Clientes</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                {totalCount} clientes registrados
-              </p>
-            </div>
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 rounded-2xl shadow-sm">
+        {/* Title and Actions */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-1">
+              Gestión de Clientes
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {totalCount} clientes registrados
+            </p>
           </div>
-          <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center sm:space-x-3">
-            <Button variant="outline" onClick={downloadTemplate} data-testid="button-download-template" className="text-sm">
+          
+          {/* Desktop Actions */}
+          <div className="hidden sm:flex items-center gap-2 ml-4">
+            <Button 
+              variant="outline" 
+              onClick={downloadTemplate} 
+              data-testid="button-download-template" 
+              size="sm"
+              className="rounded-xl border-gray-200 shadow-sm"
+            >
               <FileDown className="h-4 w-4 mr-2" />
-              Plantilla CSV
+              Plantilla
             </Button>
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv"
-                onChange={handleFileChange}
-                className="hidden"
-                data-testid="input-file-clients"
-              />
-              <Button 
-                onClick={() => fileInputRef.current?.click()}
-                disabled={previewMutation.isPending || isImporting}
-                data-testid="button-import-clients"
-                className="w-full sm:w-auto text-sm"
-              >
-                {previewMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4 mr-2" />
-                )}
-                Importar CSV
-              </Button>
-            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              className="hidden"
+              data-testid="input-file-clients"
+            />
+            <Button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={previewMutation.isPending || isImporting}
+              data-testid="button-import-clients"
+              size="sm"
+              className="rounded-xl shadow-sm"
+            >
+              {previewMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              Importar
+            </Button>
           </div>
+        </div>
+
+        {/* Mobile Actions */}
+        <div className="flex sm:hidden gap-2 mb-4">
+          <Button 
+            variant="outline" 
+            onClick={downloadTemplate} 
+            data-testid="button-download-template-mobile" 
+            size="sm"
+            className="flex-1 rounded-xl border-gray-200 shadow-sm text-xs"
+          >
+            <FileDown className="h-3.5 w-3.5 mr-1.5" />
+            Plantilla
+          </Button>
+          <Button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={previewMutation.isPending || isImporting}
+            data-testid="button-import-clients-mobile"
+            size="sm"
+            className="flex-1 rounded-xl shadow-sm text-xs"
+          >
+            {previewMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            Importar
+          </Button>
         </div>
       </div>
 
