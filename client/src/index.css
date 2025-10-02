@@ -185,4 +185,14 @@
     scrollbar-width: thin;
     scrollbar-color: rgba(71, 85, 105, 0.6) rgba(71, 85, 105, 0.3);
   }
+  
+  /* Hide scrollbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
