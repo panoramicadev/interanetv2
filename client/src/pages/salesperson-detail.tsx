@@ -46,6 +46,9 @@ export default function SalespersonDetail() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+  
+  // Segment filter state
+  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -89,7 +92,7 @@ export default function SalespersonDetail() {
   });
 
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SalespersonClient[]>({
-    queryKey: [`/api/sales/salesperson/${salespersonName}/clients?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: [`/api/sales/salesperson/${salespersonName}/clients?period=${selectedPeriod}&filterType=${filterType}${selectedSegment ? `&segment=${encodeURIComponent(selectedSegment)}` : ''}`],
     enabled: !!salespersonName,
   });
 
@@ -445,35 +448,50 @@ export default function SalespersonDetail() {
               <p className="text-gray-500 text-center py-8">No hay datos de segmentos disponibles</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {segments.map((segment, index) => (
-                  <div 
-                    key={segment.segment} 
-                    className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div 
-                        className="w-4 h-4 rounded-full flex-shrink-0" 
-                        style={{
-                          backgroundColor: [
-                            'rgba(253, 99, 1, 0.8)',
-                            'rgba(59, 130, 246, 0.8)',
-                            'rgba(16, 185, 129, 0.8)',
-                            'rgba(245, 158, 11, 0.8)',
-                            'rgba(139, 92, 246, 0.8)',
-                            'rgba(236, 72, 153, 0.8)',
-                            'rgba(99, 102, 241, 0.8)',
-                            'rgba(244, 63, 94, 0.8)',
-                          ][index % 8]
-                        }}
-                      />
-                      <span className="text-sm font-medium text-gray-900 truncate">{segment.segment}</span>
-                    </div>
-                    <div className="text-right ml-3 flex-shrink-0">
-                      <p className="text-sm font-semibold text-gray-900">{formatCurrency(segment.totalSales)}</p>
-                      <p className="text-xs text-gray-500">{segment.percentage.toFixed(1)}%</p>
-                    </div>
-                  </div>
-                ))}
+                {segments.map((segment, index) => {
+                  const isSelected = selectedSegment === segment.segment;
+                  return (
+                    <button
+                      key={segment.segment}
+                      onClick={() => setSelectedSegment(isSelected ? null : segment.segment)}
+                      className={`flex items-center justify-between p-4 rounded-lg border transition-all text-left w-full ${
+                        isSelected 
+                          ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-200' 
+                          : 'border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                      }`}
+                      data-testid={`segment-card-${index}`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div 
+                          className="w-4 h-4 rounded-full flex-shrink-0" 
+                          style={{
+                            backgroundColor: [
+                              'rgba(253, 99, 1, 0.8)',
+                              'rgba(59, 130, 246, 0.8)',
+                              'rgba(16, 185, 129, 0.8)',
+                              'rgba(245, 158, 11, 0.8)',
+                              'rgba(139, 92, 246, 0.8)',
+                              'rgba(236, 72, 153, 0.8)',
+                              'rgba(99, 102, 241, 0.8)',
+                              'rgba(244, 63, 94, 0.8)',
+                            ][index % 8]
+                          }}
+                        />
+                        <span className={`text-sm font-medium truncate ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>
+                          {segment.segment}
+                        </span>
+                      </div>
+                      <div className="text-right ml-3 flex-shrink-0">
+                        <p className={`text-sm font-semibold ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>
+                          {formatCurrency(segment.totalSales)}
+                        </p>
+                        <p className={`text-xs ${isSelected ? 'text-orange-700' : 'text-gray-500'}`}>
+                          {segment.percentage.toFixed(1)}%
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
