@@ -6038,35 +6038,35 @@ export function registerRoutes(app: Express): Server {
         console.log(`📦 Procesando ${productos.length} productos evaluados...`);
         
         for (const producto of productos) {
-          // Crear producto evaluado
+          // Crear producto evaluado con todos los campos del esquema
           const productoData = {
             visitaId: nuevaVisita.id,
-            productoId: producto.productId,
-            sku: producto.sku,
-            nombre: producto.name,
-            formato: producto.formato,
-            porcentajeAvance: producto.evaluacion?.avance ? parseFloat(producto.evaluacion.avance) : null
+            productoId: producto.productId || null,
+            productoManual: producto.productId ? null : producto.name,
+            formato: producto.formato || null,
+            color: producto.evaluacion?.color || null,
+            lote: producto.evaluacion?.lote || null,
+            fechaLlegada: producto.evaluacion?.fechaLlegada || null,
+            metrosCuadradosAplicados: producto.evaluacion?.m2Aplicados ? producto.evaluacion.m2Aplicados.toString() : null,
+            porcentajeAvance: producto.evaluacion?.avance ? producto.evaluacion.avance.toString() : null
           };
 
-          console.log('  💾 Guardando producto:', productoData.nombre);
-          const [productoEvaluado] = await db.insert(productosEvaluados).values(productoData).returning();
+          console.log('  💾 Guardando producto:', producto.name);
+          const [productoEvaluado] = await db.insert(productosEvaluados).values([productoData]).returning();
           
-          // Si tiene evaluación, crearla
+          // Si tiene evaluación técnica, crearla
           if (producto.evaluacion && productoEvaluado) {
             const evaluacionData = {
               productoEvaluadoId: productoEvaluado.id,
-              color: producto.evaluacion.color || null,
-              lote: producto.evaluacion.lote || null,
-              fechaLlegada: producto.evaluacion.fechaLlegada ? new Date(producto.evaluacion.fechaLlegada) : null,
-              m2Aplicados: producto.evaluacion.m2Aplicados ? parseFloat(producto.evaluacion.m2Aplicados) : null,
-              clima: producto.evaluacion.clima || null,
-              dilucion: producto.evaluacion.dilucion ? parseFloat(producto.evaluacion.dilucion) : null,
               aplicacion: producto.evaluacion.aplicacion || null,
-              evidenciaDeficiencia: producto.evaluacion.evidenciaDeficiencia || null
+              condicionesClimaticas: producto.evaluacion.clima || null,
+              dilucion: producto.evaluacion.dilucion ? producto.evaluacion.dilucion.toString() : null,
+              anomalias: producto.evaluacion.evidenciaDeficiencia || null,
+              observacionesTecnicas: producto.evaluacion.observaciones || null
             };
 
-            console.log('  📋 Guardando evaluación para:', productoData.nombre);
-            await db.insert(evaluacionesTecnicas).values(evaluacionData);
+            console.log('  📋 Guardando evaluación para:', producto.name);
+            await db.insert(evaluacionesTecnicas).values([evaluacionData]);
           }
         }
         
