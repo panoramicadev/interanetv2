@@ -41,6 +41,9 @@ import {
   type Client,
   type InsertClient,
   type CsvProductStockImport,
+  obras,
+  type Obra,
+  type InsertObra,
   type Task,
   type InsertTask,
   type InsertTaskInput,
@@ -603,6 +606,13 @@ export interface IStorage {
   insertMultipleClientsSimple(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number }>;
   updateClient(koen: string, client: Partial<InsertClient>): Promise<Client>;
   deleteClient(koen: string): Promise<void>;
+
+  // Obras operations
+  getObras(clienteId?: string): Promise<Obra[]>;
+  getObra(id: string): Promise<Obra | undefined>;
+  createObra(obra: InsertObra): Promise<Obra>;
+  updateObra(id: string, obra: Partial<InsertObra>): Promise<Obra>;
+  deleteObra(id: string): Promise<void>;
 
   // CSV import for new KOPR-based format
   importProductStockFromKOPRCSV(csvData: Array<{
@@ -6075,6 +6085,53 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(clients)
       .where(eq(clients.koen, koen));
+  }
+
+  // Obras operations implementation
+  async getObras(clienteId?: string): Promise<Obra[]> {
+    if (clienteId) {
+      return await db
+        .select()
+        .from(obras)
+        .where(eq(obras.clienteId, clienteId))
+        .orderBy(desc(obras.createdAt));
+    }
+    return await db
+      .select()
+      .from(obras)
+      .orderBy(desc(obras.createdAt));
+  }
+
+  async getObra(id: string): Promise<Obra | undefined> {
+    const [obra] = await db
+      .select()
+      .from(obras)
+      .where(eq(obras.id, id))
+      .limit(1);
+    return obra;
+  }
+
+  async createObra(obra: InsertObra): Promise<Obra> {
+    const [newObra] = await db
+      .insert(obras)
+      .values(obra)
+      .returning();
+    return newObra;
+  }
+
+  async updateObra(id: string, obra: Partial<InsertObra>): Promise<Obra> {
+    const [updatedObra] = await db
+      .update(obras)
+      .set({ ...obra, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(obras.id, id))
+      .returning();
+    return updatedObra;
+  }
+
+  async deleteObra(id: string): Promise<void> {
+    await db
+      .delete(obras)
+      .where(eq(obras.id, id));
   }
 
   // Task management operations implementation
