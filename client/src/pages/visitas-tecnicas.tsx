@@ -69,6 +69,14 @@ interface SelectedProduct {
   formato: string;
 }
 
+interface Obra {
+  id: string;
+  clienteId: string;
+  nombre: string;
+  direccion: string;
+  estado: string;
+}
+
 export default function VisitasTecnicasPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -84,6 +92,7 @@ export default function VisitasTecnicasPage() {
   const [visitData, setVisitData] = useState({
     clienteId: '',
     clienteName: '',
+    obraId: '',
     nombreObra: '',
     direccionObra: '',
     fechaVisita: new Date().toISOString().split('T')[0],
@@ -116,6 +125,7 @@ export default function VisitasTecnicasPage() {
     setVisitData({
       clienteId: '',
       clienteName: '',
+      obraId: '',
       nombreObra: '',
       direccionObra: '',
       fechaVisita: new Date().toISOString().split('T')[0],
@@ -156,6 +166,17 @@ export default function VisitasTecnicasPage() {
       return response.json();
     },
     enabled: showNewVisitModal && clientSearchTerm.length >= 3,
+  });
+
+  // Query para obtener obras del cliente seleccionado
+  const { data: clientObras = [] } = useQuery<Obra[]>({
+    queryKey: ['/api/obras', visitData.clienteId],
+    queryFn: async () => {
+      if (!visitData.clienteId) return [];
+      const response = await apiRequest(`/api/obras?clienteId=${visitData.clienteId}`);
+      return response.json();
+    },
+    enabled: showNewVisitModal && !!visitData.clienteId,
   });
 
   // Query para obtener la lista de productos
@@ -707,6 +728,51 @@ export default function VisitasTecnicasPage() {
                 </p>
               </div>
               
+              {/* Selector de Obra o entrada manual */}
+              {visitData.clienteId && clientObras.length > 0 ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Seleccionar Obra</label>
+                  <Select
+                    value={visitData.obraId}
+                    onValueChange={(value) => {
+                      if (value === 'manual') {
+                        setVisitData(prev => ({ 
+                          ...prev, 
+                          obraId: '',
+                          nombreObra: '',
+                          direccionObra: ''
+                        }));
+                      } else {
+                        const obra = clientObras.find(o => o.id === value);
+                        if (obra) {
+                          setVisitData(prev => ({ 
+                            ...prev, 
+                            obraId: obra.id,
+                            nombreObra: obra.nombre,
+                            direccionObra: obra.direccion
+                          }));
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-obra">
+                      <SelectValue placeholder="Selecciona una obra del cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">Ingresar manualmente</SelectItem>
+                      {clientObras.map((obra) => (
+                        <SelectItem key={obra.id} value={obra.id}>
+                          {obra.nombre} - {obra.estado}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    O selecciona "Ingresar manualmente" para crear una nueva obra
+                  </p>
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Nombre de la Obra *</label>
@@ -714,10 +780,11 @@ export default function VisitasTecnicasPage() {
                     placeholder="Ej: Edificio Las Condes 2025" 
                     value={visitData.nombreObra}
                     onChange={(e) => setVisitData(prev => ({ ...prev, nombreObra: e.target.value }))}
-                    data-testid="input-nombre-obra" 
+                    data-testid="input-nombre-obra"
+                    disabled={!!visitData.obraId}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Cada cliente puede tener múltiples obras
+                    {visitData.obraId ? 'Auto-completado desde obra seleccionada' : 'Cada cliente puede tener múltiples obras'}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -737,8 +804,14 @@ export default function VisitasTecnicasPage() {
                   placeholder="Dirección completa de la obra" 
                   value={visitData.direccionObra}
                   onChange={(e) => setVisitData(prev => ({ ...prev, direccionObra: e.target.value }))}
-                  data-testid="input-direccion" 
+                  data-testid="input-direccion"
+                  disabled={!!visitData.obraId}
                 />
+                {visitData.obraId && (
+                  <p className="text-xs text-muted-foreground">
+                    Auto-completado desde obra seleccionada
+                  </p>
+                )}
               </div>
               
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t">
