@@ -22,6 +22,7 @@ import NVVPage from "@/pages/nvv";
 import Users from "@/pages/users";
 import Products from "@/pages/products";
 import Clients from "@/pages/clients";
+import ObrasPage from "@/pages/obras";
 import OrdenesPage from "@/pages/ordenes";
 import ListaPrecios from "@/pages/lista-precios";
 import SegmentDetail from "@/pages/segment-detail";
@@ -94,6 +95,7 @@ function Router() {
             <Route path="/lista-precios" component={ListaPrecios} />
             <Route path="/ecommerce" component={EcommerceAdmin} />
             <Route path="/clientes" component={Clients} />
+            <Route path="/obras" component={ObrasPage} />
             <Route path="/ordenes" component={OrdenesPage} />
             <Route path="/pedidos" component={() => {
               // Redirect from /pedidos to /tomador-pedidos recientes tab
