@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Plus, 
   FileText, 
@@ -20,13 +23,18 @@ import {
   Filter,
   X,
   PackagePlus,
-  Camera
+  Camera,
+  Building2,
+  Edit,
+  Trash2,
+  Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { Obra, InsertObra } from "@shared/schema";
 
 interface VisitaResumen {
   id: string;
@@ -69,12 +77,8 @@ interface SelectedProduct {
   formato: string;
 }
 
-interface Obra {
-  id: string;
-  clienteId: string;
-  nombre: string;
-  direccion: string;
-  estado: string;
+interface ObraWithClient extends Obra {
+  clienteNombre?: string;
 }
 
 export default function VisitasTecnicasPage() {
@@ -104,6 +108,24 @@ export default function VisitasTecnicasPage() {
   const clientDropdownRef = useRef<HTMLDivElement>(null);
   const [productEvaluations, setProductEvaluations] = useState<Record<string, any>>({});
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
+
+  // Estados para gestión de obras
+  const [searchObras, setSearchObras] = useState("");
+  const [selectedClienteIdObras, setSelectedClienteIdObras] = useState<string>("all");
+  const [selectedEstadoObras, setSelectedEstadoObras] = useState<string>("all");
+  const [showNewObraDialog, setShowNewObraDialog] = useState(false);
+  const [editingObra, setEditingObra] = useState<Obra | null>(null);
+  const [showDeleteObraDialog, setShowDeleteObraDialog] = useState(false);
+  const [obraToDelete, setObraToDelete] = useState<Obra | null>(null);
+  const [formDataObra, setFormDataObra] = useState<Partial<InsertObra>>({
+    clienteId: "",
+    nombre: "",
+    direccion: "",
+    descripcion: "",
+    estado: "activa",
+    fechaInicio: undefined,
+    fechaEstimadaFin: undefined,
+  });
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -260,6 +282,83 @@ export default function VisitasTecnicasPage() {
     enabled: !!selectedVisitId && showDetailModal,
   });
 
+  // Queries y mutations para obras
+  const { data: obrasData = [], isLoading: loadingObras } = useQuery<ObraWithClient[]>({
+    queryKey: ['/api/obras', selectedClienteIdObras],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedClienteIdObras && selectedClienteIdObras !== 'all') {
+        params.append('clienteId', selectedClienteIdObras);
+      }
+      const queryString = params.toString();
+      const url = `/api/obras${queryString ? `?${queryString}` : ''}`;
+      const response = await apiRequest(url);
+      const obrasData = await response.json();
+      
+      const clientsResponse = await apiRequest('/api/clients/search?q=');
+      const clients = await clientsResponse.json();
+      
+      return obrasData.map((obra: Obra) => {
+        const client = clients.find((c: Client) => c.id === obra.clienteId);
+        return {
+          ...obra,
+          clienteNombre: client?.nokoen || 'Cliente no encontrado'
+        };
+      });
+    },
+    enabled: activeTab === 'obras',
+  });
+
+  const { data: clientsForObras = [] } = useQuery<Client[]>({
+    queryKey: ['/api/clients/search'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/clients/search?q=');
+      return response.json();
+    },
+    enabled: activeTab === 'obras',
+  });
+
+  const createObraMutation = useMutation({
+    mutationFn: async (data: InsertObra) => {
+      const response = await apiRequest('/api/obras', {
+        method: 'POST',
+        data,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/obras'] });
+      handleCloseObraDialog();
+    },
+  });
+
+  const updateObraMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<InsertObra> }) => {
+      const response = await apiRequest(`/api/obras/${id}`, {
+        method: 'PUT',
+        data,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/obras'] });
+      handleCloseObraDialog();
+    },
+  });
+
+  const deleteObraMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest(`/api/obras/${id}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/obras'] });
+      setShowDeleteObraDialog(false);
+      setObraToDelete(null);
+    },
+  });
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-CL', {
       year: 'numeric',
@@ -278,6 +377,114 @@ export default function VisitasTecnicasPage() {
         return <Badge variant="secondary">{estado}</Badge>;
     }
   };
+
+  const estadoObraBadgeVariant = (estado: string) => {
+    switch (estado) {
+      case "activa":
+        return "default";
+      case "completada":
+        return "secondary";
+      case "cancelada":
+        return "destructive";
+      default:
+        return "outline";
+    }
+  };
+
+  // Handlers para obras
+  const handleOpenNewObraDialog = () => {
+    setEditingObra(null);
+    setFormDataObra({
+      clienteId: "",
+      nombre: "",
+      direccion: "",
+      descripcion: "",
+      estado: "activa",
+      fechaInicio: undefined,
+      fechaEstimadaFin: undefined,
+    });
+    setShowNewObraDialog(true);
+  };
+
+  const handleOpenEditObraDialog = (obra: Obra) => {
+    setEditingObra(obra);
+    setFormDataObra({
+      clienteId: obra.clienteId,
+      nombre: obra.nombre,
+      direccion: obra.direccion,
+      descripcion: obra.descripcion || "",
+      estado: obra.estado,
+      fechaInicio: obra.fechaInicio || undefined,
+      fechaEstimadaFin: obra.fechaEstimadaFin || undefined,
+    });
+    setShowNewObraDialog(true);
+  };
+
+  const handleCloseObraDialog = () => {
+    setShowNewObraDialog(false);
+    setEditingObra(null);
+    setFormDataObra({
+      clienteId: "",
+      nombre: "",
+      direccion: "",
+      descripcion: "",
+      estado: "activa",
+      fechaInicio: undefined,
+      fechaEstimadaFin: undefined,
+    });
+  };
+
+  const handleSubmitObra = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formDataObra.clienteId || !formDataObra.nombre || !formDataObra.direccion) {
+      return;
+    }
+
+    const submitData: InsertObra = {
+      clienteId: formDataObra.clienteId,
+      nombre: formDataObra.nombre,
+      direccion: formDataObra.direccion,
+      descripcion: formDataObra.descripcion,
+      estado: formDataObra.estado || "activa",
+      fechaInicio: formDataObra.fechaInicio,
+      fechaEstimadaFin: formDataObra.fechaEstimadaFin,
+    };
+
+    if (editingObra) {
+      updateObraMutation.mutate({ id: editingObra.id, data: submitData });
+    } else {
+      createObraMutation.mutate(submitData);
+    }
+  };
+
+  const handleDeleteObraClick = (obra: Obra) => {
+    setObraToDelete(obra);
+    setShowDeleteObraDialog(true);
+  };
+
+  const handleConfirmDeleteObra = () => {
+    if (obraToDelete) {
+      deleteObraMutation.mutate(obraToDelete.id);
+    }
+  };
+
+  // Filter obras
+  const filteredObras = obrasData.filter((obra) => {
+    const matchesSearch = 
+      searchObras === "" ||
+      obra.nombre.toLowerCase().includes(searchObras.toLowerCase()) ||
+      obra.direccion.toLowerCase().includes(searchObras.toLowerCase()) ||
+      (obra.clienteNombre && obra.clienteNombre.toLowerCase().includes(searchObras.toLowerCase()));
+    
+    const matchesCliente = 
+      selectedClienteIdObras === "all" || obra.clienteId === selectedClienteIdObras;
+    
+    const matchesEstado = 
+      selectedEstadoObras === "all" || obra.estado === selectedEstadoObras;
+
+    return matchesSearch && matchesCliente && matchesEstado;
+  });
 
   const DashboardContent = () => (
     <div className="space-y-6">
@@ -594,7 +801,7 @@ export default function VisitasTecnicasPage() {
 
         {/* Tabs principales */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="dashboard" data-testid="tab-dashboard">
               <BarChart3 className="w-4 h-4 mr-2" />
               Dashboard
@@ -602,6 +809,10 @@ export default function VisitasTecnicasPage() {
             <TabsTrigger value="listado" data-testid="tab-listado">
               <FileText className="w-4 h-4 mr-2" />
               Visitas
+            </TabsTrigger>
+            <TabsTrigger value="obras" data-testid="tab-obras">
+              <Building2 className="w-4 h-4 mr-2" />
+              Obras
             </TabsTrigger>
             <TabsTrigger value="reportes" data-testid="tab-reportes">
               <BarChart3 className="w-4 h-4 mr-2" />
@@ -617,6 +828,180 @@ export default function VisitasTecnicasPage() {
             <ListadoContent />
           </TabsContent>
 
+          <TabsContent value="obras" className="mt-6">
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">Gestión de Obras</h2>
+                  <p className="text-muted-foreground">
+                    Administra proyectos y obras asignadas a clientes
+                  </p>
+                </div>
+                <Button onClick={handleOpenNewObraDialog} data-testid="button-nueva-obra">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Nueva Obra
+                </Button>
+              </div>
+
+              {/* Filters */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Filtros</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Search */}
+                    <div className="space-y-2">
+                      <Label>Buscar</Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar por nombre, dirección o cliente..."
+                          value={searchObras}
+                          onChange={(e) => setSearchObras(e.target.value)}
+                          className="pl-10"
+                          data-testid="input-search-obras"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Cliente filter */}
+                    <div className="space-y-2">
+                      <Label>Cliente</Label>
+                      <Select value={selectedClienteIdObras} onValueChange={setSelectedClienteIdObras}>
+                        <SelectTrigger data-testid="select-cliente-filter">
+                          <SelectValue placeholder="Todos los clientes" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos los clientes</SelectItem>
+                          {clientsForObras.map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                              {client.nokoen}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Estado filter */}
+                    <div className="space-y-2">
+                      <Label>Estado</Label>
+                      <Select value={selectedEstadoObras} onValueChange={setSelectedEstadoObras}>
+                        <SelectTrigger data-testid="select-estado-filter">
+                          <SelectValue placeholder="Todos los estados" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos los estados</SelectItem>
+                          <SelectItem value="activa">Activa</SelectItem>
+                          <SelectItem value="completada">Completada</SelectItem>
+                          <SelectItem value="cancelada">Cancelada</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Clear filters */}
+                  {(searchObras || selectedClienteIdObras !== "all" || selectedEstadoObras !== "all") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSearchObras("");
+                        setSelectedClienteIdObras("all");
+                        setSelectedEstadoObras("all");
+                      }}
+                      data-testid="button-clear-filters"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Limpiar filtros
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Obras table */}
+              <Card>
+                <CardContent className="p-0">
+                  {loadingObras ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : filteredObras.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No hay obras</h3>
+                      <p className="text-muted-foreground mb-4">
+                        {searchObras || selectedClienteIdObras !== "all" || selectedEstadoObras !== "all"
+                          ? "No se encontraron obras con los filtros aplicados."
+                          : "Comienza creando tu primera obra."}
+                      </p>
+                      <Button onClick={handleOpenNewObraDialog} data-testid="button-primera-obra">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Nueva Obra
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Nombre</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Dirección</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Fecha Inicio</TableHead>
+                            <TableHead>Fecha Fin Estimada</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredObras.map((obra) => (
+                            <TableRow key={obra.id} data-testid={`row-obra-${obra.id}`}>
+                              <TableCell className="font-medium">{obra.nombre}</TableCell>
+                              <TableCell>{obra.clienteNombre}</TableCell>
+                              <TableCell className="max-w-xs truncate">{obra.direccion}</TableCell>
+                              <TableCell>
+                                <Badge variant={estadoObraBadgeVariant(obra.estado)} data-testid={`badge-estado-${obra.id}`}>
+                                  {obra.estado}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {obra.fechaInicio ? new Date(obra.fechaInicio).toLocaleDateString('es-CL') : '-'}
+                              </TableCell>
+                              <TableCell>
+                                {obra.fechaEstimadaFin ? new Date(obra.fechaEstimadaFin).toLocaleDateString('es-CL') : '-'}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenEditObraDialog(obra)}
+                                    data-testid={`button-edit-${obra.id}`}
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleDeleteObraClick(obra)}
+                                    data-testid={`button-delete-${obra.id}`}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           <TabsContent value="reportes" className="mt-6">
             <Card>
@@ -1336,6 +1721,191 @@ export default function VisitasTecnicasPage() {
               <p>No se pudieron cargar los detalles de la visita</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para crear/editar obras */}
+      <Dialog open={showNewObraDialog} onOpenChange={handleCloseObraDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingObra ? "Editar Obra" : "Nueva Obra"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingObra
+                ? "Modifica los datos de la obra"
+                : "Completa la información para crear una nueva obra"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmitObra} className="space-y-4">
+            {/* Cliente */}
+            <div className="space-y-2">
+              <Label htmlFor="clienteId">
+                Cliente <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={formDataObra.clienteId}
+                onValueChange={(value) => setFormDataObra({ ...formDataObra, clienteId: value })}
+              >
+                <SelectTrigger id="clienteId" data-testid="select-cliente">
+                  <SelectValue placeholder="Seleccionar cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientsForObras.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.nokoen}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Nombre */}
+            <div className="space-y-2">
+              <Label htmlFor="nombre">
+                Nombre de la Obra <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="nombre"
+                value={formDataObra.nombre}
+                onChange={(e) => setFormDataObra({ ...formDataObra, nombre: e.target.value })}
+                placeholder="Ej: Edificio Las Condes"
+                required
+                data-testid="input-nombre"
+              />
+            </div>
+
+            {/* Dirección */}
+            <div className="space-y-2">
+              <Label htmlFor="direccion">
+                Dirección <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="direccion"
+                value={formDataObra.direccion}
+                onChange={(e) => setFormDataObra({ ...formDataObra, direccion: e.target.value })}
+                placeholder="Ej: Av. Providencia 123, Santiago"
+                required
+                data-testid="input-direccion"
+              />
+            </div>
+
+            {/* Descripción */}
+            <div className="space-y-2">
+              <Label htmlFor="descripcion">Descripción</Label>
+              <Textarea
+                id="descripcion"
+                value={formDataObra.descripcion || ""}
+                onChange={(e) => setFormDataObra({ ...formDataObra, descripcion: e.target.value })}
+                placeholder="Descripción opcional de la obra..."
+                rows={3}
+                data-testid="textarea-descripcion"
+              />
+            </div>
+
+            {/* Estado */}
+            <div className="space-y-2">
+              <Label htmlFor="estado">Estado</Label>
+              <Select
+                value={formDataObra.estado}
+                onValueChange={(value: "activa" | "completada" | "cancelada") =>
+                  setFormDataObra({ ...formDataObra, estado: value })
+                }
+              >
+                <SelectTrigger id="estado" data-testid="select-estado">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="activa">Activa</SelectItem>
+                  <SelectItem value="completada">Completada</SelectItem>
+                  <SelectItem value="cancelada">Cancelada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Fecha Inicio */}
+              <div className="space-y-2">
+                <Label htmlFor="fechaInicio">Fecha de Inicio</Label>
+                <Input
+                  id="fechaInicio"
+                  type="date"
+                  value={formDataObra.fechaInicio || ""}
+                  onChange={(e) => setFormDataObra({ ...formDataObra, fechaInicio: e.target.value || undefined })}
+                  data-testid="input-fecha-inicio"
+                />
+              </div>
+
+              {/* Fecha Fin Estimada */}
+              <div className="space-y-2">
+                <Label htmlFor="fechaEstimadaFin">Fecha Fin Estimada</Label>
+                <Input
+                  id="fechaEstimadaFin"
+                  type="date"
+                  value={formDataObra.fechaEstimadaFin || ""}
+                  onChange={(e) =>
+                    setFormDataObra({ ...formDataObra, fechaEstimadaFin: e.target.value || undefined })
+                  }
+                  data-testid="input-fecha-fin"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseObraDialog}
+                data-testid="button-cancel"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={createObraMutation.isPending || updateObraMutation.isPending}
+                data-testid="button-submit"
+              >
+                {(createObraMutation.isPending || updateObraMutation.isPending) && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
+                {editingObra ? "Actualizar" : "Crear Obra"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteObraDialog} onOpenChange={setShowDeleteObraDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Eliminación</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar la obra "{obraToDelete?.nombre}"? Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteObraDialog(false);
+                setObraToDelete(null);
+              }}
+              data-testid="button-cancel-delete"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteObra}
+              disabled={deleteObraMutation.isPending}
+              data-testid="button-confirm-delete"
+            >
+              {deleteObraMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Eliminar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
