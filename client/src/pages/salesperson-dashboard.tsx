@@ -121,9 +121,10 @@ export default function SalespersonDashboard() {
     staleTime: 300000, // 5 minutos
   });
 
-  const { data: clientsData, isLoading: loadingClients } = useQuery<ClientData[]>({
-    queryKey: [`/api/salesperson/${user?.id}/clients?period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: !!user?.id,
+  // Usar el mismo endpoint que el panel de clientes del dashboard
+  const { data: clientsResponse, isLoading: loadingClients } = useQuery<{ items: any[] }>({
+    queryKey: [`/api/sales/top-clients?limit=5000&period=${selectedPeriod}&filterType=${filterType}${user?.salespersonName ? `&salesperson=${encodeURIComponent(user.salespersonName)}` : ''}`],
+    enabled: !!user?.salespersonName,
   });
 
   const { data: goalsData, isLoading: loadingGoals } = useQuery<GoalProgress[]>({
@@ -158,7 +159,7 @@ export default function SalespersonDashboard() {
     productivity: salespersonData?.productivity || 0
   };
 
-  const clients = Array.isArray(clientsData) ? clientsData : [];
+  const clients = Array.isArray(clientsResponse?.items) ? clientsResponse.items : [];
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
