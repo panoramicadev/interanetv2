@@ -56,6 +56,8 @@ interface SalespersonDashboardData {
   topProducts: any[];
   recentSales: any[];
   clientCount?: number;
+  daysSinceLastSale?: number;
+  productivity?: number;
 }
 
 type ClientData = any; // Can be refined later if needed
@@ -147,7 +149,9 @@ export default function SalespersonDashboard() {
     avgTicket: salespersonData?.avgTicket || 0,
     topProducts: salespersonData?.topProducts || [],
     recentSales: salespersonData?.recentSales || [],
-    clientCount: salespersonData?.clientCount || 0
+    clientCount: salespersonData?.clientCount || 0,
+    daysSinceLastSale: salespersonData?.daysSinceLastSale || 0,
+    productivity: salespersonData?.productivity || 0
   };
 
   const clients = Array.isArray(clientsData) ? clientsData : [];
@@ -315,75 +319,93 @@ export default function SalespersonDashboard() {
         )}
 
         {/* KPIs del Vendedor */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="rounded-2xl shadow-sm border-blue-200/60">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="rounded-2xl shadow-sm border-blue-100 bg-gradient-to-br from-blue-50 to-white" data-testid="card-ventas-totales">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-blue-900">Ventas Totales</CardTitle>
-              <DollarSign className="h-4 w-4 text-blue-600" />
+              <DollarSign className="h-5 w-5 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-900">
+              <div className="text-3xl font-bold text-blue-900" data-testid="text-ventas-totales">
                 ${salesData.totalSales.toLocaleString()}
               </div>
-              <p className="text-xs text-blue-700">
+              <p className="text-xs text-blue-600 mt-1">
                 Este período
               </p>
-              {primaryGoal && (
-                <div className="mt-2 pt-2 border-t border-blue-100">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-blue-600">vs Meta:</span>
-                    <span className={`font-medium ${
-                      (primaryGoal.progress || 0) >= 100 ? 'text-green-600' : 
-                      (primaryGoal.progress || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {(primaryGoal.remaining || 0) <= 0 ? 
-                        `+$${((primaryGoal.currentSales || 0) - (primaryGoal.targetAmount || 0)).toLocaleString()}` : 
-                        `-$${(primaryGoal.remaining || 0).toLocaleString()}`
-                      }
-                    </span>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-green-200/60">
+          <Card className="rounded-2xl shadow-sm border-green-100 bg-gradient-to-br from-green-50 to-white" data-testid="card-clientes">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-900">Transacciones</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-green-900">Clientes</CardTitle>
+              <Users className="h-5 w-5 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-900">{salesData.transactions}</div>
-              <p className="text-xs text-green-700">
-                Operaciones realizadas
+              <div className="text-3xl font-bold text-green-900" data-testid="text-clientes">
+                {salesData.clientCount}
+              </div>
+              <p className="text-xs text-green-600 mt-1">
+                Atendidos
               </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-purple-200/60">
+          <Card className="rounded-2xl shadow-sm border-purple-100 bg-gradient-to-br from-purple-50 to-white" data-testid="card-transacciones">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-purple-900">Ticket Promedio</CardTitle>
-              <BarChart3 className="h-4 w-4 text-purple-600" />
+              <CardTitle className="text-sm font-medium text-purple-900">Transacciones</CardTitle>
+              <TrendingUp className="h-5 w-5 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-900">
+              <div className="text-3xl font-bold text-purple-900" data-testid="text-transacciones">
+                {salesData.transactions}
+              </div>
+              <p className="text-xs text-purple-600 mt-1">
+                Realizadas
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl shadow-sm border-orange-100 bg-gradient-to-br from-orange-50 to-white" data-testid="card-dias-ultima-venta">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-orange-900">Días desde última venta</CardTitle>
+              <Clock className="h-5 w-5 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-orange-900" data-testid="text-dias-ultima-venta">
+                {salesData.daysSinceLastSale}
+              </div>
+              <p className="text-xs text-orange-600 mt-1">
+                días
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl shadow-sm border-indigo-100 bg-gradient-to-br from-indigo-50 to-white" data-testid="card-ticket-promedio">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-indigo-900">Ticket Promedio</CardTitle>
+              <BarChart3 className="h-5 w-5 text-indigo-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-indigo-900" data-testid="text-ticket-promedio">
                 ${salesData.avgTicket.toLocaleString()}
               </div>
-              <p className="text-xs text-purple-700">
-                Promedio por venta
+              <p className="text-xs text-indigo-600 mt-1">
+                Por transacción
               </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-orange-200/60">
+          <Card className="rounded-2xl shadow-sm border-pink-100 bg-gradient-to-br from-pink-50 to-white" data-testid="card-productividad">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-orange-900">Mis Clientes</CardTitle>
-              <Users className="h-4 w-4 text-orange-600" />
+              <CardTitle className="text-sm font-medium text-pink-900">Productividad</CardTitle>
+              <Star className="h-5 w-5 text-pink-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-900">{clients.length}</div>
-              <p className="text-xs text-orange-700">
-                Clientes activos
+              <div className="text-3xl font-bold text-pink-900" data-testid="text-productividad">
+                {salesData.productivity.toFixed(1)}
+              </div>
+              <p className="text-xs text-pink-600 mt-1">
+                trans/cliente
               </p>
             </CardContent>
           </Card>
