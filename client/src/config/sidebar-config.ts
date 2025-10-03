@@ -76,11 +76,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Gestión de Clientes",
       icon: Users,
-    },
-    {
-      href: "/obras",
-      label: "Obras",
-      icon: Building2,
       separator: true, // Separador antes de Tomador de Pedidos
     },
     {
@@ -168,11 +163,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Gestión de Clientes",
       icon: Users,
-    },
-    {
-      href: "/obras",
-      label: "Obras",
-      icon: Building2,
       separator: true, // Separador antes de Tomador de Pedidos
     },
     {
