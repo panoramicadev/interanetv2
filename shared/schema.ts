@@ -2344,6 +2344,35 @@ export type FileUpload = typeof fileUploads.$inferSelect;
 export type InsertFileUpload = z.infer<typeof insertFileUploadSchema>;
 
 // ==============================================
+// OBRAS (PROJECTS/WORKS) SYSTEM
+// ==============================================
+
+// Obras table - Projects/Works assigned to clients
+export const obras = pgTable("obras", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clienteId: varchar("cliente_id").notNull(), // FK to clients.id
+  nombre: text("nombre").notNull(), // Nombre de la obra
+  direccion: text("direccion").notNull(), // Dirección de la obra
+  descripcion: text("descripcion"), // Descripción opcional
+  estado: varchar("estado").notNull().default("activa"), // 'activa', 'completada', 'cancelada'
+  fechaInicio: date("fecha_inicio"), // Fecha de inicio opcional
+  fechaEstimadaFin: date("fecha_estimada_fin"), // Fecha estimada de fin
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Insert schema for obras
+export const insertObraSchema = createInsertSchema(obras).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Export Obra types
+export type Obra = typeof obras.$inferSelect;
+export type InsertObra = z.infer<typeof insertObraSchema>;
+
+// ==============================================
 // VISITAS TÉCNICAS SYSTEM
 // ==============================================
 
@@ -2351,6 +2380,7 @@ export type InsertFileUpload = z.infer<typeof insertFileUploadSchema>;
 export const visitasTecnicas = pgTable("visitas_tecnicas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   // Información básica de la visita
+  obraId: varchar("obra_id"), // FK to obras.id (opcional)
   nombreObra: text("nombre_obra").notNull(),
   direccionObra: text("direccion_obra").notNull(),
   fechaVisita: date("fecha_visita").notNull(),
