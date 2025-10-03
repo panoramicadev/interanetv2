@@ -513,6 +513,23 @@ export function registerRoutes(app: Express): Server {
         endDate: dateRange.endDate,
       });
 
+      // Obtener todos los clientes únicos que ha atendido el vendedor en el período
+      const clientsData = await storage.getSalespersonClients(salespersonName, period as string, filterType as string);
+      const clientCount = Array.isArray(clientsData) ? clientsData.length : 0;
+
+      // Calcular días desde la última venta
+      let daysSinceLastSale = 0;
+      if (transactions && transactions.length > 0) {
+        // Obtener la fecha de la transacción más reciente
+        const mostRecentDate = new Date(transactions[0].fecha);
+        const today = new Date();
+        const diffTime = Math.abs(today.getTime() - mostRecentDate.getTime());
+        daysSinceLastSale = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      }
+
+      // Calcular productividad (transacciones por cliente)
+      const productivity = clientCount > 0 ? (metrics.totalTransactions || 0) / clientCount : 0;
+
       // Datos específicos del vendedor
       const dashboardData = {
         totalSales: metrics.totalSales || 0,
@@ -520,7 +537,9 @@ export function registerRoutes(app: Express): Server {
         avgTicket: (metrics.totalSales / (metrics.totalTransactions || 1)) || 0,
         topProducts: [], // Se obtiene por separado
         recentSales: transactions || [],
-        clientCount: 0 // Se calculará dinámicamente si es necesario
+        clientCount: clientCount,
+        daysSinceLastSale: daysSinceLastSale,
+        productivity: Number(productivity.toFixed(1))
       };
 
       res.json(dashboardData);
