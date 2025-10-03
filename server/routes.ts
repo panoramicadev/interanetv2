@@ -5954,6 +5954,89 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // ==============================================
+  // OBRAS (PROJECTS/WORKS) ENDPOINTS
+  // ==============================================
+
+  // Get all obras or filter by clienteId
+  app.get('/api/obras', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { clienteId } = req.query;
+      const obras = await storage.getObras(clienteId);
+      res.json(obras);
+    } catch (error: any) {
+      console.error('❌ Error al obtener obras:', error);
+      res.status(500).json({
+        message: 'Error al obtener obras',
+        error: error.message
+      });
+    }
+  }));
+
+  // Get obra by ID
+  app.get('/api/obras/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const obra = await storage.getObra(id);
+      
+      if (!obra) {
+        return res.status(404).json({ message: 'Obra no encontrada' });
+      }
+      
+      res.json(obra);
+    } catch (error: any) {
+      console.error('❌ Error al obtener obra:', error);
+      res.status(500).json({
+        message: 'Error al obtener obra',
+        error: error.message
+      });
+    }
+  }));
+
+  // Create new obra
+  app.post('/api/obras', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const nuevaObra = await storage.createObra(req.body);
+      res.status(201).json(nuevaObra);
+    } catch (error: any) {
+      console.error('❌ Error al crear obra:', error);
+      res.status(500).json({
+        message: 'Error al crear obra',
+        error: error.message
+      });
+    }
+  }));
+
+  // Update obra
+  app.put('/api/obras/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      const obraActualizada = await storage.updateObra(id, req.body);
+      res.json(obraActualizada);
+    } catch (error: any) {
+      console.error('❌ Error al actualizar obra:', error);
+      res.status(500).json({
+        message: 'Error al actualizar obra',
+        error: error.message
+      });
+    }
+  }));
+
+  // Delete obra
+  app.delete('/api/obras/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteObra(id);
+      res.json({ message: 'Obra eliminada correctamente' });
+    } catch (error: any) {
+      console.error('❌ Error al eliminar obra:', error);
+      res.status(500).json({
+        message: 'Error al eliminar obra',
+        error: error.message
+      });
+    }
+  }));
+
+  // ==============================================
   // VISITAS TÉCNICAS ENDPOINTS
   // ==============================================
 
