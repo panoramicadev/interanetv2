@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TransactionsTable from "@/components/dashboard/transactions-table";
@@ -72,6 +73,9 @@ export default function SalespersonDashboard() {
   // Date range state for custom range selection
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+  
+  // Dialog state
+  const [showClientsDialog, setShowClientsDialog] = useState(false);
   
   // Update selected period when filter type changes
   useEffect(() => {
@@ -335,7 +339,11 @@ export default function SalespersonDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-green-100 bg-gradient-to-br from-green-50 to-white" data-testid="card-clientes">
+          <Card 
+            className="rounded-2xl shadow-sm border-green-100 bg-gradient-to-br from-green-50 to-white cursor-pointer hover:shadow-md transition-shadow" 
+            data-testid="card-clientes"
+            onClick={() => setShowClientsDialog(true)}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-green-900">Clientes</CardTitle>
               <Users className="h-5 w-5 text-green-600" />
@@ -345,7 +353,7 @@ export default function SalespersonDashboard() {
                 {salesData.clientCount}
               </div>
               <p className="text-xs text-green-600 mt-1">
-                Atendidos
+                Atendidos · Click para ver
               </p>
             </CardContent>
           </Card>
@@ -439,6 +447,84 @@ export default function SalespersonDashboard() {
           />
         </div>
       </main>
+
+      {/* Diálogo de Clientes */}
+      <Dialog open={showClientsDialog} onOpenChange={setShowClientsDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-gray-900">
+              Mis Clientes ({clients.length})
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="mt-4">
+            {loadingClients ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : clients.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No hay clientes en este período
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                {clients.map((client: any, index: number) => (
+                  <Card 
+                    key={index} 
+                    className="hover:shadow-md transition-shadow border-l-4 border-l-green-500"
+                    data-testid={`client-card-${index}`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg text-gray-900" data-testid={`client-name-${index}`}>
+                            {client.clientName || client.name || 'Sin nombre'}
+                          </h3>
+                          {client.segment && (
+                            <Badge variant="outline" className="mt-1">
+                              {client.segment}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div className="text-center">
+                            <p className="text-gray-500 text-xs">Ventas Totales</p>
+                            <p className="font-bold text-blue-600" data-testid={`client-sales-${index}`}>
+                              ${(client.totalSales || 0).toLocaleString()}
+                            </p>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-gray-500 text-xs">Transacciones</p>
+                            <p className="font-bold text-green-600" data-testid={`client-transactions-${index}`}>
+                              {client.transactionCount || 0}
+                            </p>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-gray-500 text-xs">Ticket Prom.</p>
+                            <p className="font-bold text-purple-600">
+                              ${((client.totalSales || 0) / (client.transactionCount || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </p>
+                          </div>
+                          
+                          <div className="text-center">
+                            <p className="text-gray-500 text-xs">Última Compra</p>
+                            <p className="font-bold text-orange-600 text-xs">
+                              {client.lastPurchaseDate ? new Date(client.lastPurchaseDate).toLocaleDateString('es-CL') : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
