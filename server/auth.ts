@@ -29,7 +29,7 @@ const registerSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   firstName: z.string().min(1, "El nombre es requerido"),
   lastName: z.string().min(1, "El apellido es requerido"),
-  role: z.enum(["admin", "supervisor", "salesperson", "client"]).default("client"),
+  role: z.enum(["admin", "supervisor", "salesperson", "client", "tecnico_obra"]).default("client"),
 });
 
 const loginSchema = z.object({
