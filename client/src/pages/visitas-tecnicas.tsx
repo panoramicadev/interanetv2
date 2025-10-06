@@ -329,13 +329,15 @@ export default function VisitasTecnicasPage() {
   });
 
   const { data: clientsForObras = [] } = useQuery<Client[]>({
-    queryKey: ['/api/clients'],
+    queryKey: ['/api/clients/search', clientSearchObras],
     queryFn: async () => {
-      const response = await apiRequest('/api/clients?limit=10000');
-      const data = await response.json();
-      return data.clients || data || [];
+      if (!clientSearchObras || clientSearchObras.length < 3) {
+        return [];
+      }
+      const response = await apiRequest(`/api/clients/search?q=${encodeURIComponent(clientSearchObras)}`);
+      return response.json();
     },
-    enabled: activeTab === 'obras',
+    enabled: activeTab === 'obras' && clientSearchObras.length >= 3,
   });
 
   const createObraMutation = useMutation({
@@ -1780,7 +1782,7 @@ export default function VisitasTecnicasPage() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     type="text"
-                    placeholder="Buscar cliente por nombre..."
+                    placeholder="Escribe al menos 3 letras para buscar cliente..."
                     value={selectedClientNameObras || clientSearchObras}
                     onChange={(e) => {
                       setClientSearchObras(e.target.value);
@@ -1795,15 +1797,10 @@ export default function VisitasTecnicasPage() {
                   />
                 </div>
                 
-                {showClientDropdownObras && clientSearchObras.length >= 2 && (
+                {showClientDropdownObras && clientSearchObras.length >= 3 && (
                   <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {clientsForObras
-                      .filter((client) => 
-                        client.nokoen.toLowerCase().includes(clientSearchObras.toLowerCase()) ||
-                        (client.koen && client.koen.toLowerCase().includes(clientSearchObras.toLowerCase()))
-                      )
-                      .slice(0, 50)
-                      .map((client) => (
+                    {clientsForObras.length > 0 ? (
+                      clientsForObras.map((client) => (
                         <div
                           key={client.id}
                           className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
@@ -1820,11 +1817,8 @@ export default function VisitasTecnicasPage() {
                             <div className="text-sm text-gray-500">{client.koen}</div>
                           )}
                         </div>
-                      ))}
-                    {clientsForObras.filter((client) => 
-                      client.nokoen.toLowerCase().includes(clientSearchObras.toLowerCase()) ||
-                      (client.koen && client.koen.toLowerCase().includes(clientSearchObras.toLowerCase()))
-                    ).length === 0 && (
+                      ))
+                    ) : (
                       <div className="px-4 py-8 text-center text-sm text-gray-500">
                         No se encontraron clientes
                       </div>
