@@ -6122,7 +6122,7 @@ export function registerRoutes(app: Express): Server {
       console.log('📝 Recibiendo datos de visita técnica:', JSON.stringify(req.body, null, 2));
       
       // Validar datos básicos requeridos
-      const { nombreObra, direccionObra, tecnicoId, clienteId, productos, estado, recepcionistaNombre, recepcionistaCargo } = req.body;
+      const { nombreObra, direccionObra, tecnicoId, clienteId, productos, estado, recepcionistaNombre, recepcionistaCargo, observacionesGenerales } = req.body;
       
       console.log('🔍 Validando campos:', { nombreObra, direccionObra, tecnicoId, clienteId, productosCount: productos?.length });
       
@@ -6146,6 +6146,7 @@ export function registerRoutes(app: Express): Server {
         clienteId: clienteId || null,
         recepcionistaNombre: recepcionistaNombre || null,
         recepcionistaCargo: recepcionistaCargo || null,
+        observacionesGenerales: observacionesGenerales || null,
         estado: estado || 'borrador'
       };
 
