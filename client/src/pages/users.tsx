@@ -280,7 +280,7 @@ export default function UsersPage() {
       email: user.email ?? "",
       password: "", // No mostrar la contraseña actual
       isActive: user.isActive ?? true,
-      role: (user.role ?? "salesperson") as "admin" | "supervisor" | "salesperson" | "client",
+      role: (user.role ?? "salesperson") as "admin" | "supervisor" | "salesperson" | "tecnico_obra" | "client",
       supervisorId: user.supervisorId ?? "none",
       assignedSegment: user.assignedSegment ?? "none",
     });
