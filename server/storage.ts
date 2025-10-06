@@ -8254,8 +8254,8 @@ export class DatabaseStorage implements IStorage {
       const visitas = await db.select().from(visitasTecnicas)
         .where(
           and(
-            gte(visitasTecnicas.fechaVisita, startDate.toISOString().split('T')[0]),
-            lte(visitasTecnicas.fechaVisita, endDate.toISOString().split('T')[0])
+            gte(visitasTecnicas.createdAt, startDate.toISOString().split('T')[0]),
+            lte(visitasTecnicas.createdAt, endDate.toISOString().split('T')[0])
           )
         );
       
@@ -8357,7 +8357,7 @@ export class DatabaseStorage implements IStorage {
         .select({
           id: visitasTecnicas.id,
           nombreObra: visitasTecnicas.nombreObra,
-          fechaVisita: visitasTecnicas.fechaVisita,
+          createdAt: visitasTecnicas.createdAt,
           estado: visitasTecnicas.estado,
           tecnicoId: visitasTecnicas.tecnicoId,
           clienteId: visitasTecnicas.clienteId,
@@ -8368,7 +8368,7 @@ export class DatabaseStorage implements IStorage {
         .from(visitasTecnicas)
         .leftJoin(users, eq(visitasTecnicas.tecnicoId, users.id))
         .leftJoin(clients, eq(visitasTecnicas.clienteId, clients.id))
-        .orderBy(desc(visitasTecnicas.fechaVisita));
+        .orderBy(desc(visitasTecnicas.createdAt));
       
       // Apply filters
       const conditions = [];
@@ -8433,7 +8433,7 @@ export class DatabaseStorage implements IStorage {
       const formattedResults = results.map(r => ({
         id: r.id,
         nombreObra: r.nombreObra,
-        fechaVisita: r.fechaVisita,
+        fechaVisita: r.createdAt,
         tecnico: (r.tecnicoFirstName && r.tecnicoLastName) 
           ? `${r.tecnicoFirstName} ${r.tecnicoLastName}` 
           : r.tecnicoFirstName || r.tecnicoLastName || 'Sin asignar',
