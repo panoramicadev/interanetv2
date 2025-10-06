@@ -68,7 +68,7 @@ type ClientData = any; // Can be refined later if needed
 export default function SalespersonDashboard() {
   const { user, isAuthenticated, isLoading } = useAuth() as { user: (User & { salespersonName?: string }) | null; isAuthenticated: boolean; isLoading: boolean };
   const { toast } = useToast();
-  const [selectedPeriod, setSelectedPeriod] = useState("2025-09");
+  const [selectedPeriod, setSelectedPeriod] = useState("current-month");
   const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   
@@ -100,7 +100,7 @@ export default function SalespersonDashboard() {
         }
         break;
       case "month":
-        setSelectedPeriod("2025-09");
+        setSelectedPeriod("current-month");
         break;
       case "range":
         if (startDate && endDate) {
