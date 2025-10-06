@@ -1483,28 +1483,17 @@ export default function VisitasTecnicasPage() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-sm font-medium">M² Aplicados</label>
+                          <label className="text-sm font-medium">% Avance</label>
                           <Input 
                             type="number" 
-                            placeholder="Metros cuadrados" 
-                            data-testid={`input-m2-${index}`}
-                            value={productEvaluations[product.productId]?.m2Aplicados || ''}
-                            onChange={(e) => updateProductEvaluation(product.productId, 'm2Aplicados', e.target.value)}
+                            min="0" 
+                            max="100" 
+                            placeholder="Porcentaje de avance" 
+                            data-testid={`input-avance-${index}`}
+                            value={productEvaluations[product.productId]?.avance || ''}
+                            onChange={(e) => updateProductEvaluation(product.productId, 'avance', e.target.value)}
                           />
                         </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">% Avance</label>
-                        <Input 
-                          type="number" 
-                          min="0" 
-                          max="100" 
-                          placeholder="Porcentaje de avance" 
-                          data-testid={`input-avance-${index}`}
-                          value={productEvaluations[product.productId]?.avance || ''}
-                          onChange={(e) => updateProductEvaluation(product.productId, 'avance', e.target.value)}
-                        />
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1759,12 +1748,6 @@ export default function VisitasTecnicasPage() {
                                     <div>
                                       <span className="text-xs font-medium text-muted-foreground">Fecha Llegada:</span>
                                       <p className="text-sm">{formatDate(producto.evaluacion.fechaLlegada)}</p>
-                                    </div>
-                                  )}
-                                  {producto.evaluacion.m2Aplicados && (
-                                    <div>
-                                      <span className="text-xs font-medium text-muted-foreground">M² Aplicados:</span>
-                                      <p className="text-sm">{producto.evaluacion.m2Aplicados} m²</p>
                                     </div>
                                   )}
                                   {producto.evaluacion.avance && (
