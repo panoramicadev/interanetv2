@@ -118,6 +118,9 @@ export default function VisitasTecnicasPage() {
   const [showDeleteObraDialog, setShowDeleteObraDialog] = useState(false);
   const [obraToDelete, setObraToDelete] = useState<Obra | null>(null);
   const [clientSearchObras, setClientSearchObras] = useState("");
+  const [showClientDropdownObras, setShowClientDropdownObras] = useState(false);
+  const [selectedClientNameObras, setSelectedClientNameObras] = useState("");
+  const clientDropdownObrasRef = useRef<HTMLDivElement>(null);
   const [formDataObra, setFormDataObra] = useState<Partial<InsertObra>>({
     clienteId: "",
     nombre: "",
@@ -141,6 +144,20 @@ export default function VisitasTecnicasPage() {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showClientDropdown]);
+
+  // Close client dropdown for obras when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (clientDropdownObrasRef.current && !clientDropdownObrasRef.current.contains(event.target as Node)) {
+        setShowClientDropdownObras(false);
+      }
+    };
+
+    if (showClientDropdownObras) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showClientDropdownObras]);
 
   const handleNewVisit = () => {
     setShowNewVisitModal(true);
@@ -420,6 +437,13 @@ export default function VisitasTecnicasPage() {
       fechaInicio: obra.fechaInicio || undefined,
       fechaEstimadaFin: obra.fechaEstimadaFin || undefined,
     });
+    
+    // Set the selected client name for display
+    const selectedClient = clientsForObras.find(c => c.id === obra.clienteId);
+    if (selectedClient) {
+      setSelectedClientNameObras(selectedClient.nokoen);
+    }
+    
     setShowNewObraDialog(true);
   };
 
@@ -427,6 +451,8 @@ export default function VisitasTecnicasPage() {
     setShowNewObraDialog(false);
     setEditingObra(null);
     setClientSearchObras("");
+    setShowClientDropdownObras(false);
+    setSelectedClientNameObras("");
     setFormDataObra({
       clienteId: "",
       nombre: "",
@@ -1749,47 +1775,63 @@ export default function VisitasTecnicasPage() {
                 Cliente <span className="text-destructive">*</span>
               </Label>
               
-              {/* Campo de búsqueda de clientes */}
-              <div className="relative mb-2">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Buscar cliente..."
-                  value={clientSearchObras}
-                  onChange={(e) => setClientSearchObras(e.target.value)}
-                  className="pl-10"
-                  data-testid="input-search-cliente-obras"
-                />
-              </div>
-              
-              <Select
-                value={formDataObra.clienteId}
-                onValueChange={(value) => setFormDataObra({ ...formDataObra, clienteId: value })}
-              >
-                <SelectTrigger id="clienteId" data-testid="select-cliente">
-                  <SelectValue placeholder="Seleccionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientsForObras
-                    .filter((client) => 
+              <div className="relative" ref={clientDropdownObrasRef}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Buscar cliente por nombre..."
+                    value={selectedClientNameObras || clientSearchObras}
+                    onChange={(e) => {
+                      setClientSearchObras(e.target.value);
+                      setSelectedClientNameObras("");
+                      setFormDataObra({ ...formDataObra, clienteId: "" });
+                      setShowClientDropdownObras(true);
+                    }}
+                    onFocus={() => setShowClientDropdownObras(true)}
+                    className="pl-10"
+                    data-testid="input-search-cliente-obras"
+                    required
+                  />
+                </div>
+                
+                {showClientDropdownObras && clientSearchObras.length >= 2 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {clientsForObras
+                      .filter((client) => 
+                        client.nokoen.toLowerCase().includes(clientSearchObras.toLowerCase()) ||
+                        (client.koen && client.koen.toLowerCase().includes(clientSearchObras.toLowerCase()))
+                      )
+                      .slice(0, 50)
+                      .map((client) => (
+                        <div
+                          key={client.id}
+                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                          onClick={() => {
+                            setFormDataObra({ ...formDataObra, clienteId: client.id });
+                            setSelectedClientNameObras(client.nokoen);
+                            setClientSearchObras("");
+                            setShowClientDropdownObras(false);
+                          }}
+                          data-testid={`client-option-${client.id}`}
+                        >
+                          <div className="font-medium">{client.nokoen}</div>
+                          {client.koen && (
+                            <div className="text-sm text-gray-500">{client.koen}</div>
+                          )}
+                        </div>
+                      ))}
+                    {clientsForObras.filter((client) => 
                       client.nokoen.toLowerCase().includes(clientSearchObras.toLowerCase()) ||
                       (client.koen && client.koen.toLowerCase().includes(clientSearchObras.toLowerCase()))
-                    )
-                    .map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.nokoen}
-                      </SelectItem>
-                    ))}
-                  {clientsForObras.filter((client) => 
-                    client.nokoen.toLowerCase().includes(clientSearchObras.toLowerCase()) ||
-                    (client.koen && client.koen.toLowerCase().includes(clientSearchObras.toLowerCase()))
-                  ).length === 0 && (
-                    <div className="py-6 text-center text-sm text-muted-foreground">
-                      No se encontraron clientes
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
+                    ).length === 0 && (
+                      <div className="px-4 py-8 text-center text-sm text-gray-500">
+                        No se encontraron clientes
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Nombre */}
