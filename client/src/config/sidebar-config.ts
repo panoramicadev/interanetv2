@@ -311,5 +311,10 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Visitas Técnicas",
       icon: Wrench,
     },
+    {
+      href: "/clientes",
+      label: "Gestión de Clientes",
+      icon: Users,
+    },
   ],
 };
