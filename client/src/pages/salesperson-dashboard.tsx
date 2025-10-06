@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TransactionsTable from "@/components/dashboard/transactions-table";
@@ -31,7 +32,8 @@ import {
   Bell,
   Clock,
   TrendingDown,
-  Star
+  Star,
+  Search
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -74,8 +76,18 @@ export default function SalespersonDashboard() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   
+  // Client search state
+  const [clientSearch, setClientSearch] = useState("");
+  
   // Dialog state
   const [showClientsDialog, setShowClientsDialog] = useState(false);
+  
+  // Reset client search when dialog closes
+  useEffect(() => {
+    if (!showClientsDialog) {
+      setClientSearch("");
+    }
+  }, [showClientsDialog]);
   
   // Update selected period when filter type changes
   useEffect(() => {
@@ -411,7 +423,7 @@ export default function SalespersonDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-pink-900" data-testid="text-productividad">
-                {salesData.productivity.toFixed(1)}
+                {(salesData.productivity || 0).toFixed(1)}
               </div>
               <p className="text-xs text-pink-600 mt-1">
                 trans/cliente
@@ -454,9 +466,24 @@ export default function SalespersonDashboard() {
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-gray-900">
-              Mis Clientes ({clients.length})
+              Mis Clientes ({clients.filter((client: any) => {
+                const clientName = (client.clientName || client.name || '').toLowerCase();
+                return clientName.includes(clientSearch.toLowerCase());
+              }).length})
             </DialogTitle>
           </DialogHeader>
+          
+          <div className="mb-4 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Buscar cliente por nombre..."
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              className="w-full pl-10"
+              data-testid="input-client-search"
+            />
+          </div>
           
           <div className="mt-4">
             {loadingClients ? (
@@ -467,9 +494,21 @@ export default function SalespersonDashboard() {
               <div className="text-center py-8 text-gray-500">
                 No hay clientes en este período
               </div>
+            ) : clients.filter((client: any) => {
+                const clientName = (client.clientName || client.name || '').toLowerCase();
+                return clientName.includes(clientSearch.toLowerCase());
+              }).length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No se encontraron clientes con "{clientSearch}"
+              </div>
             ) : (
               <div className="grid gap-3">
-                {clients.map((client: any, index: number) => (
+                {clients
+                  .filter((client: any) => {
+                    const clientName = (client.clientName || client.name || '').toLowerCase();
+                    return clientName.includes(clientSearch.toLowerCase());
+                  })
+                  .map((client: any, index: number) => (
                   <Card 
                     key={index} 
                     className="hover:shadow-md transition-shadow border-l-4 border-l-green-500"
