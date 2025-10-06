@@ -324,6 +324,7 @@ export default function Clients() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/clients/search'] });
       setIsNewClientModalOpen(false);
       setNewClientData({
         nokoen: "",
