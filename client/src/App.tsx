@@ -82,7 +82,7 @@ function Router() {
                 case 'salesperson':
                   return <SalespersonDashboard />;
                 case 'tecnico_obra':
-                  return <TecnicoObraDashboard />;
+                  return <VisitasTecnicasPage />;
                 case 'client':
                   return <ClientBuyerDashboard />;
                 default:
