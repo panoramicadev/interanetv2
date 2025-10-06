@@ -13,6 +13,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, D
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Client {
   id: string;
@@ -115,10 +116,7 @@ export default function Clients() {
       params.set('limit', itemsPerPage.toString());
       params.set('offset', ((currentPage - 1) * itemsPerPage).toString());
       
-      const response = await fetch(`/api/clients?${params}`);
-      if (!response.ok) {
-        throw new Error('Error al cargar clientes');
-      }
+      const response = await apiRequest(`/api/clients?${params}`);
       return response.json() as Promise<{
         clients: Client[];
         totalCount: number;
