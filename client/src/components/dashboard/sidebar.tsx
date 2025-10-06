@@ -262,7 +262,8 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                 <p className="text-xs text-slate-400 truncate">
                   {user?.role === 'admin' ? 'Administrador' : 
                    user?.role === 'supervisor' ? 'Supervisor' : 
-                   user?.role === 'salesperson' ? 'Vendedor' : 'Usuario'}
+                   user?.role === 'salesperson' ? 'Vendedor' : 
+                   user?.role === 'tecnico_obra' ? 'Técnico de Obra' : 'Usuario'}
                 </p>
               </div>
               <Button

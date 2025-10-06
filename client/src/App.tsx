@@ -13,6 +13,7 @@ import Tienda from "@/pages/tienda";
 import Dashboard from "@/pages/dashboard";
 import SalespersonDashboard from "@/pages/salesperson-dashboard";
 import SupervisorDashboard from "@/pages/supervisor-dashboard";
+import TecnicoObraDashboard from "@/pages/tecnico-obra-dashboard";
 import MisVendedoresPage from "@/pages/mis-vendedores";
 import ClientsDashboard from "@/pages/clients-dashboard";
 import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
@@ -80,6 +81,8 @@ function Router() {
                   return <Dashboard />;
                 case 'salesperson':
                   return <SalespersonDashboard />;
+                case 'tecnico_obra':
+                  return <TecnicoObraDashboard />;
                 case 'client':
                   return <ClientBuyerDashboard />;
                 default:

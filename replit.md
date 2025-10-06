@@ -6,6 +6,13 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ## Recent Changes
 
+### New Técnico de Obra Role (October 6, 2025)
+- **New Role Added**: Created "Técnico de Obra" (tecnico_obra) role with dedicated dashboard similar to salesperson interface
+- **Dashboard Features**: Técnico de Obra users access a streamlined dashboard showing KPIs, sales metrics, and order management tools
+- **Authentication Updates**: Updated auth system to recognize and handle tecnico_obra role in registration and login
+- **UI Integration**: Sidebar displays "Técnico de Obra" badge, routing configured to show appropriate dashboard on login
+- **Access Control**: Configured with similar permissions to salesperson role for order taking and client management
+
 ### Technical Visits System Updates (October 6, 2025)
 - **Schema Modernization**: Removed `fechaVisita` field in favor of timestamp-based tracking, added receptionist fields (`recepcionistaNombre`, `recepcionistaCargo`)
 - **Custom Products Support**: Step 2 now allows adding personalized products not in the catalog alongside catalog selection with visual differentiation (✨ badge)
@@ -130,8 +137,8 @@ Preferred communication style: Simple, everyday language.
 - **Strategy**: Passport.js with Local Strategy for email/password verification
 - **Session Storage**: PostgreSQL-backed sessions with connect-pg-simple
 - **Security**: Bcrypt password hashing, HTTP-only cookies, secure flags, and CSRF protection
-- **User Management**: Manual user provisioning and role-based access control (admin, supervisor, salesperson, client)
-- **Role Hierarchy**: admin > supervisor > salesperson > client with appropriate permission levels
+- **User Management**: Manual user provisioning and role-based access control (admin, supervisor, salesperson, tecnico_obra, client)
+- **Role Hierarchy**: admin > supervisor > salesperson/tecnico_obra > client with appropriate permission levels
 
 ### Data Processing
 - **CSV Import**: Client-side CSV parsing with Papa Parse for sales transaction uploads
