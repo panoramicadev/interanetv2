@@ -100,6 +100,7 @@ export default function VisitasTecnicasPage() {
     direccionObra: '',
     recepcionistaNombre: '',
     recepcionistaCargo: '',
+    observacionesGenerales: '',
   });
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [productSearchTerm, setProductSearchTerm] = useState("");
@@ -171,6 +172,7 @@ export default function VisitasTecnicasPage() {
       direccionObra: '',
       recepcionistaNombre: '',
       recepcionistaCargo: '',
+      observacionesGenerales: '',
     });
     setSelectedProducts([]);
     setProductSearchTerm("");
@@ -1591,6 +1593,24 @@ export default function VisitasTecnicasPage() {
                 );
               })()}
             </div>
+
+            {/* Observaciones Generales - Solo se muestra en el último producto */}
+            {currentProductIndex === selectedProducts.length - 1 && (
+              <div className="space-y-2 mt-4 p-4 bg-muted/30 rounded-lg border border-dashed">
+                <label className="text-sm font-medium text-primary">Observaciones Generales de la Visita</label>
+                <Textarea 
+                  placeholder="Comentarios generales sobre toda la visita técnica, conclusiones finales..."
+                  value={visitData.observacionesGenerales || ''}
+                  onChange={(e) => setVisitData(prev => ({ ...prev, observacionesGenerales: e.target.value }))}
+                  data-testid="textarea-observaciones-generales"
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Estas observaciones se aplicarán a toda la visita técnica
+                </p>
+              </div>
+            )}
             
             <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t mt-4">
               <Button 
@@ -1704,6 +1724,18 @@ export default function VisitasTecnicasPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Observaciones Generales */}
+              {visitaDetalle.observacionesGenerales && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Observaciones Generales</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap">{visitaDetalle.observacionesGenerales}</p>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Productos evaluados */}
               {visitaDetalle.productos && visitaDetalle.productos.length > 0 ? (
