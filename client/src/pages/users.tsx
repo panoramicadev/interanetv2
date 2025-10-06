@@ -444,8 +444,8 @@ export default function UsersPage() {
                     />
                   )}
                   
-                  {/* Campo de texto para Administradores y Supervisores */}
-                  {(createForm.watch("role") === "admin" || createForm.watch("role") === "supervisor") && (
+                  {/* Campo de texto para Administradores, Supervisores y Técnicos de Obra */}
+                  {(createForm.watch("role") === "admin" || createForm.watch("role") === "supervisor" || createForm.watch("role") === "tecnico_obra") && (
                     <FormField
                       control={createForm.control}
                       name="salespersonName"
