@@ -39,6 +39,7 @@ import type { Obra, InsertObra } from "@shared/schema";
 interface VisitaResumen {
   id: string;
   nombreObra: string;
+  fechaVisita: string;
   tecnico: string;
   cliente: string;
   estado: 'borrador' | 'completada';
@@ -766,6 +767,16 @@ export default function VisitasTecnicasPage() {
                       {getEstadoBadge(visita.estado)}
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        <span data-testid={`text-fecha-${visita.id}`}>
+                          {new Date(visita.fechaVisita).toLocaleDateString('es-CL', { 
+                            day: '2-digit', 
+                            month: '2-digit', 
+                            year: 'numeric' 
+                          })}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-1">
                         <User className="w-4 h-4" />
                         <span data-testid={`text-tecnico-${visita.id}`}>
