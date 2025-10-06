@@ -340,6 +340,7 @@ export default function UsersPage() {
                             <SelectItem value="admin">Administrador</SelectItem>
                             <SelectItem value="supervisor">Supervisor</SelectItem>
                             <SelectItem value="salesperson">Vendedor</SelectItem>
+                            <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
                             <SelectItem value="client">Cliente</SelectItem>
                           </SelectContent>
                         </Select>
@@ -641,6 +642,7 @@ export default function UsersPage() {
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="supervisor">Supervisor</SelectItem>
                         <SelectItem value="salesperson">Vendedor</SelectItem>
+                        <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
                         <SelectItem value="client">Cliente</SelectItem>
                       </SelectContent>
                     </Select>
@@ -843,6 +845,7 @@ export default function UsersPage() {
                           <Badge variant={user.role === 'admin' || user.role === 'supervisor' ? 'default' : 'secondary'}>
                             {user.role === 'admin' ? 'Administrador' : 
                              user.role === 'supervisor' ? 'Supervisor' :
+                             user.role === 'tecnico_obra' ? 'Técnico de Obra' :
                              user.role === 'client' ? 'Cliente' : 'Vendedor'}
                           </Badge>
                         </TableCell>
@@ -919,6 +922,7 @@ export default function UsersPage() {
                               <Badge variant={user.role === 'admin' || user.role === 'supervisor' ? 'default' : 'secondary'} className="text-xs">
                                 {user.role === 'admin' ? 'Admin' : 
                                  user.role === 'supervisor' ? 'Supervisor' :
+                                 user.role === 'tecnico_obra' ? 'Técnico' :
                                  user.role === 'client' ? 'Cliente' : 'Vendedor'}
                               </Badge>
                             </div>
