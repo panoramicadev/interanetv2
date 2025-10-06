@@ -15,7 +15,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { localImageStorage } from "./localImageStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas } from "../shared/schema";
+import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema } from "../shared/schema";
 import { eq, and, isNotNull, ne } from "drizzle-orm";
 import { emailService } from "./services/email";
 
@@ -736,6 +736,24 @@ export function registerRoutes(app: Express): Server {
       res.json(clients);
     } catch (error) {
       console.error('Error al buscar clientes:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
+  // Create new client manually
+  app.post('/api/clients', requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertClientSchema.parse(req.body);
+      const newClient = await storage.insertClient(validatedData);
+      res.status(201).json(newClient);
+    } catch (error: any) {
+      console.error('Error al crear cliente:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: 'Datos inválidos', details: error.errors });
+      }
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'El código de cliente ya existe' });
+      }
       res.status(500).json({ error: 'Error interno del servidor' });
     }
   });
