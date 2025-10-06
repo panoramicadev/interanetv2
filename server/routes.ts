@@ -722,6 +722,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get simple client list (lightweight, no metrics) - for dropdowns and basic lists
+  app.get('/api/clients/simple', requireAuth, async (req, res) => {
+    try {
+      const clients = await storage.getSimpleClients();
+      res.json(clients);
+    } catch (error) {
+      console.error('Error al obtener lista simple de clientes:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
   // Search clients by name (AJAX search with query parameter)
   app.get('/api/clients/search', requireAuth, async (req, res) => {
     try {
