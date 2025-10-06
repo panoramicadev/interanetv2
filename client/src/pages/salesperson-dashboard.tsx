@@ -36,6 +36,13 @@ import {
   Search
 } from "lucide-react";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
+
+// Helper function to get current month name
+const getCurrentMonthLabel = () => {
+  const monthName = format(new Date(), "MMMM yyyy", { locale: es });
+  return monthName.charAt(0).toUpperCase() + monthName.slice(1);
+};
 
 // Type definitions for API responses
 interface GoalProgress {
@@ -273,12 +280,12 @@ export default function SalespersonDashboard() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="current-month">{getCurrentMonthLabel()}</SelectItem>
                   <SelectItem value="2025-09">Septiembre 2025</SelectItem>
                   <SelectItem value="2025-08">Agosto 2025</SelectItem>
                   <SelectItem value="2025-07">Julio 2025</SelectItem>
                   <SelectItem value="2025-06">Junio 2025</SelectItem>
                   <SelectItem value="2025-05">Mayo 2025</SelectItem>
-                  <SelectItem value="current-month">Mes actual</SelectItem>
                   <SelectItem value="last-month">Mes anterior</SelectItem>
                 </SelectContent>
               </Select>
