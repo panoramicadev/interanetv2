@@ -296,8 +296,9 @@ export default function VisitasTecnicasPage() {
       const response = await apiRequest(url);
       const obrasData = await response.json();
       
-      const clientsResponse = await apiRequest('/api/clients/search?q=');
-      const clients = await clientsResponse.json();
+      const clientsResponse = await apiRequest('/api/clients');
+      const clientsData = await clientsResponse.json();
+      const clients = clientsData.clients || clientsData || [];
       
       return obrasData.map((obra: Obra) => {
         const client = clients.find((c: Client) => c.id === obra.clienteId);
@@ -311,10 +312,11 @@ export default function VisitasTecnicasPage() {
   });
 
   const { data: clientsForObras = [] } = useQuery<Client[]>({
-    queryKey: ['/api/clients/search'],
+    queryKey: ['/api/clients'],
     queryFn: async () => {
-      const response = await apiRequest('/api/clients/search?q=');
-      return response.json();
+      const response = await apiRequest('/api/clients');
+      const data = await response.json();
+      return data.clients || data || [];
     },
     enabled: activeTab === 'obras',
   });
