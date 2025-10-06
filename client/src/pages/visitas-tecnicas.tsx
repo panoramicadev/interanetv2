@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -83,6 +84,7 @@ interface ObraWithClient extends Obra {
 
 export default function VisitasTecnicasPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
@@ -369,7 +371,18 @@ export default function VisitasTecnicasPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/obras'] });
       handleCloseObraDialog();
+      toast({
+        title: "Obra creada",
+        description: "La obra se ha creado exitosamente",
+      });
     },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo crear la obra",
+        variant: "destructive"
+      });
+    }
   });
 
   const updateObraMutation = useMutation({
@@ -383,7 +396,18 @@ export default function VisitasTecnicasPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/obras'] });
       handleCloseObraDialog();
+      toast({
+        title: "Obra actualizada",
+        description: "La obra se ha actualizado exitosamente",
+      });
     },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar la obra",
+        variant: "destructive"
+      });
+    }
   });
 
   const deleteObraMutation = useMutation({
@@ -396,7 +420,18 @@ export default function VisitasTecnicasPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/obras'] });
       setShowDeleteObraDialog(false);
       setObraToDelete(null);
+      toast({
+        title: "Obra eliminada",
+        description: "La obra se ha eliminado exitosamente",
+      });
     },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar la obra",
+        variant: "destructive"
+      });
+    }
   });
 
   const formatDate = (dateString: string) => {
@@ -487,7 +522,30 @@ export default function VisitasTecnicasPage() {
   const handleSubmitObra = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formDataObra.clienteId || !formDataObra.nombre || !formDataObra.direccion) {
+    if (!formDataObra.clienteId) {
+      toast({
+        title: "Error",
+        description: "Debes seleccionar un cliente",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!formDataObra.nombre) {
+      toast({
+        title: "Error",
+        description: "El nombre de la obra es requerido",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!formDataObra.direccion) {
+      toast({
+        title: "Error",
+        description: "La dirección es requerida",
+        variant: "destructive"
+      });
       return;
     }
 
