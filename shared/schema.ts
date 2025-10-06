@@ -2474,6 +2474,7 @@ export const evaluacionesTecnicas = pgTable("evaluaciones_tecnicas", {
   adherencia: text("adherencia"),
   anomalias: text("anomalias"),
   accionesRecomendadas: text("acciones_recomendadas"),
+  imagenesUrls: jsonb("imagenes_urls").default(sql`'[]'::jsonb`), // Array de URLs de imágenes
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

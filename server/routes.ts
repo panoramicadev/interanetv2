@@ -6186,7 +6186,8 @@ export function registerRoutes(app: Express): Server {
               condicionesClimaticas: producto.evaluacion.clima || null,
               dilucion: producto.evaluacion.dilucion ? producto.evaluacion.dilucion.toString() : null,
               anomalias: producto.evaluacion.evidenciaDeficiencia || null,
-              observacionesTecnicas: producto.evaluacion.observaciones || null
+              observacionesTecnicas: producto.evaluacion.observaciones || null,
+              imagenesUrls: producto.evaluacion.imagenes || []
             };
 
             console.log('  📋 Guardando evaluación para:', producto.name);
