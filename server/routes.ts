@@ -1974,9 +1974,7 @@ export function registerRoutes(app: Express): Server {
       
       // Hash de la contraseña si se proporciona
       if (validatedUser.password) {
-        // En un entorno real, aquí usarías bcrypt para hashear la contraseña
-        // Por simplicidad, la guardamos tal como viene (NO recomendado para producción)
-        console.warn("ADVERTENCIA: La contraseña no está hasheada. Esto es solo para desarrollo.");
+        validatedUser.password = await bcrypt.hash(validatedUser.password, 12);
       }
 
       console.log("Datos validados:", validatedUser);
