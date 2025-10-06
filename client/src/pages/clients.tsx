@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar, Filter, RotateCcw } from "lucide-react";
+import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar, Filter, RotateCcw, Plus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
@@ -58,6 +58,16 @@ export default function Clients() {
   const [isImporting, setIsImporting] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  
+  const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
+  const [newClientData, setNewClientData] = useState({
+    nokoen: "",
+    koen: "",
+    rten: "",
+    email: "",
+    foen: "",
+    dien: "",
+  });
   
   const [selectedSegment, setSelectedSegment] = useState<string>("");
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("");
@@ -296,6 +306,39 @@ export default function Clients() {
     }
   });
 
+  const createClientMutation = useMutation({
+    mutationFn: async (clientData: typeof newClientData) => {
+      const response = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clientData),
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear cliente');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/clients'] });
+      setIsNewClientModalOpen(false);
+      setNewClientData({
+        nokoen: "",
+        koen: "",
+        rten: "",
+        email: "",
+        foen: "",
+        dien: "",
+      });
+    },
+    onError: (error) => {
+      console.error('Error creating client:', error);
+    }
+  });
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -308,6 +351,13 @@ export default function Clients() {
     if (selectedFile) {
       importMutation.mutate(selectedFile);
     }
+  };
+
+  const handleCreateClient = () => {
+    if (!newClientData.nokoen.trim()) {
+      return;
+    }
+    createClientMutation.mutate(newClientData);
   };
 
   const downloadTemplate = () => {
@@ -420,6 +470,15 @@ export default function Clients() {
               )}
               Importar
             </Button>
+            <Button 
+              onClick={() => setIsNewClientModalOpen(true)}
+              data-testid="button-new-client"
+              size="sm"
+              className="rounded-xl shadow-sm bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Cliente
+            </Button>
           </div>
         </div>
 
@@ -448,6 +507,15 @@ export default function Clients() {
               <Upload className="h-3.5 w-3.5 mr-1.5" />
             )}
             Importar
+          </Button>
+          <Button 
+            onClick={() => setIsNewClientModalOpen(true)}
+            data-testid="button-new-client-mobile"
+            size="sm"
+            className="flex-1 rounded-xl shadow-sm text-xs bg-green-600 hover:bg-green-700 text-white"
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Nuevo
           </Button>
         </div>
       </div>
@@ -1319,6 +1387,137 @@ export default function Clients() {
               </Card>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* New Client Modal */}
+      <Dialog open={isNewClientModalOpen} onOpenChange={setIsNewClientModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center">
+              <Plus className="h-5 w-5 mr-2 text-green-600" />
+              Nuevo Cliente
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Nombre <span className="text-red-500">*</span>
+              </label>
+              <Input
+                value={newClientData.nokoen}
+                onChange={(e) => setNewClientData({ ...newClientData, nokoen: e.target.value })}
+                placeholder="Nombre del cliente"
+                className="mt-1"
+                data-testid="input-client-name"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Código de Cliente
+              </label>
+              <Input
+                value={newClientData.koen}
+                onChange={(e) => setNewClientData({ ...newClientData, koen: e.target.value })}
+                placeholder="Código único del cliente"
+                className="mt-1"
+                data-testid="input-client-code"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                RUT
+              </label>
+              <Input
+                value={newClientData.rten}
+                onChange={(e) => setNewClientData({ ...newClientData, rten: e.target.value })}
+                placeholder="12.345.678-9"
+                className="mt-1"
+                data-testid="input-client-rut"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Email
+              </label>
+              <Input
+                type="email"
+                value={newClientData.email}
+                onChange={(e) => setNewClientData({ ...newClientData, email: e.target.value })}
+                placeholder="correo@ejemplo.com"
+                className="mt-1"
+                data-testid="input-client-email"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Teléfono
+              </label>
+              <Input
+                value={newClientData.foen}
+                onChange={(e) => setNewClientData({ ...newClientData, foen: e.target.value })}
+                placeholder="+56 9 1234 5678"
+                className="mt-1"
+                data-testid="input-client-phone"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Dirección
+              </label>
+              <Input
+                value={newClientData.dien}
+                onChange={(e) => setNewClientData({ ...newClientData, dien: e.target.value })}
+                placeholder="Dirección completa"
+                className="mt-1"
+                data-testid="input-client-address"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsNewClientModalOpen(false);
+                setNewClientData({
+                  nokoen: "",
+                  koen: "",
+                  rten: "",
+                  email: "",
+                  foen: "",
+                  dien: "",
+                });
+              }}
+              data-testid="button-cancel-new-client"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateClient}
+              disabled={!newClientData.nokoen.trim() || createClientMutation.isPending}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              data-testid="button-save-new-client"
+            >
+              {createClientMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Crear Cliente
+                </>
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
