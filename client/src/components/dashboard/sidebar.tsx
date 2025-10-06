@@ -104,46 +104,8 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
           </div>
         
         <nav className="flex-1 p-4 space-y-1">
-          <Link href="/">
-            <Button
-              variant="ghost"
-              className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                location === "/" ? "bg-slate-800 text-white" : ""
-              }`}
-              data-testid="nav-dashboard"
-            >
-              <LayoutDashboard className="w-5 h-5 mr-3" />
-              Dashboard
-            </Button>
-          </Link>
-          
-          <Link href="/metas">
-            <Button
-              variant="ghost"
-              className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                location === "/metas" ? "bg-slate-800 text-white" : ""
-              }`}
-              data-testid="nav-metas"
-            >
-              <Target className="w-5 h-5 mr-3" />
-              Metas
-            </Button>
-          </Link>
-          
-          <Link href="/facturas">
-            <Button
-              variant="ghost"
-              className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                location === "/facturas" ? "bg-slate-800 text-white" : ""
-              }`}
-              data-testid="nav-facturas"
-            >
-              <Receipt className="w-5 h-5 mr-3" />
-              Facturas
-            </Button>
-          </Link>
-          
-          {(user?.role === 'admin' || user?.role === 'tecnico_obra') && (
+          {user?.role === 'tecnico_obra' ? (
+            // Técnico de Obra solo ve Visitas Técnicas
             <Link href="/visitas-tecnicas">
               <Button
                 variant="ghost"
@@ -156,110 +118,167 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                 Visitas Técnicas
               </Button>
             </Link>
-          )}
-          
-          {user?.role === 'admin' && (
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
-              onClick={onImportClick}
-              data-testid="nav-import"
-            >
-              <Upload className="w-5 h-5 mr-3" />
-              Importar Datos
-            </Button>
-          )}
-          
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
-            data-testid="nav-reports"
-          >
-            <FileText className="w-5 h-5 mr-3" />
-            Reportes
-          </Button>
-          
-          {user?.role === 'admin' && (
+          ) : (
+            // Otros roles ven el menú completo
             <>
-              <Link href="/usuarios">
+              <Link href="/">
                 <Button
                   variant="ghost"
                   className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                    location === "/usuarios" ? "bg-slate-800 text-white" : ""
+                    location === "/" ? "bg-slate-800 text-white" : ""
                   }`}
-                  data-testid="nav-users"
+                  data-testid="nav-dashboard"
                 >
-                  <Settings className="w-5 h-5 mr-3" />
-                  Gestión de Usuarios
+                  <LayoutDashboard className="w-5 h-5 mr-3" />
+                  Dashboard
                 </Button>
               </Link>
               
-              <Link href="/productos">
+              <Link href="/metas">
                 <Button
                   variant="ghost"
                   className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                    location === "/productos" ? "bg-slate-800 text-white" : ""
+                    location === "/metas" ? "bg-slate-800 text-white" : ""
                   }`}
-                  data-testid="nav-products"
+                  data-testid="nav-metas"
                 >
-                  <Package className="w-5 h-5 mr-3" />
-                  Gestión de Productos
+                  <Target className="w-5 h-5 mr-3" />
+                  Metas
                 </Button>
               </Link>
+              
+              <Link href="/facturas">
+                <Button
+                  variant="ghost"
+                  className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                    location === "/facturas" ? "bg-slate-800 text-white" : ""
+                  }`}
+                  data-testid="nav-facturas"
+                >
+                  <Receipt className="w-5 h-5 mr-3" />
+                  Facturas
+                </Button>
+              </Link>
+              
+              {user?.role === 'admin' && (
+                <>
+                  <Link href="/visitas-tecnicas">
+                    <Button
+                      variant="ghost"
+                      className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                        location === "/visitas-tecnicas" ? "bg-slate-800 text-white" : ""
+                      }`}
+                      data-testid="nav-visitas-tecnicas"
+                    >
+                      <Wrench className="w-5 h-5 mr-3" />
+                      Visitas Técnicas
+                    </Button>
+                  </Link>
+                  
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
+                    onClick={onImportClick}
+                    data-testid="nav-import"
+                  >
+                    <Upload className="w-5 h-5 mr-3" />
+                    Importar Datos
+                  </Button>
+                </>
+              )}
+              
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50"
+                data-testid="nav-reports"
+              >
+                <FileText className="w-5 h-5 mr-3" />
+                Reportes
+              </Button>
+              
+              {user?.role === 'admin' && (
+                <>
+                  <Link href="/usuarios">
+                    <Button
+                      variant="ghost"
+                      className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                        location === "/usuarios" ? "bg-slate-800 text-white" : ""
+                      }`}
+                      data-testid="nav-users"
+                    >
+                      <Settings className="w-5 h-5 mr-3" />
+                      Gestión de Usuarios
+                    </Button>
+                  </Link>
+                  
+                  <Link href="/productos">
+                    <Button
+                      variant="ghost"
+                      className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                        location === "/productos" ? "bg-slate-800 text-white" : ""
+                      }`}
+                      data-testid="nav-products"
+                    >
+                      <Package className="w-5 h-5 mr-3" />
+                      Gestión de Productos
+                    </Button>
+                  </Link>
+                </>
+              )}
+              
+              {/* Divider */}
+              <div className="border-t border-slate-700/50 my-2"></div>
+              
+              {/* New Tools Section */}
+              <Button
+                variant="ghost"
+                className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
+                disabled
+              >
+                <div className="flex items-center w-full">
+                  <Calculator className="w-5 h-5 mr-3" />
+                  Crear Presupuesto
+                </div>
+                <span className="text-xs text-slate-500 ml-8">Próximamente</span>
+              </Button>
+              
+              <Button
+                variant="ghost"
+                className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
+                disabled
+              >
+                <div className="flex items-center w-full">
+                  <Palette className="w-5 h-5 mr-3" />
+                  Calcular Tintometría
+                </div>
+                <span className="text-xs text-slate-500 ml-8">Próximamente</span>
+              </Button>
+              
+              <Button
+                variant="ghost"
+                className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
+                disabled
+              >
+                <div className="flex items-center w-full">
+                  <Package className="w-5 h-5 mr-3" />
+                  Revisión de Stock
+                </div>
+                <span className="text-xs text-slate-500 ml-8">Próximamente</span>
+              </Button>
+              
+              <Button
+                variant="ghost"
+                className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
+                disabled
+              >
+                <div className="flex items-center w-full">
+                  <Wrench className="w-5 h-5 mr-3" />
+                  Herramientas de Venta
+                </div>
+                <span className="text-xs text-slate-500 ml-8">Próximamente</span>
+              </Button>
             </>
           )}
-          
-          {/* Divider */}
-          <div className="border-t border-slate-700/50 my-2"></div>
-          
-          {/* New Tools Section */}
-          <Button
-            variant="ghost"
-            className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
-            disabled
-          >
-            <div className="flex items-center w-full">
-              <Calculator className="w-5 h-5 mr-3" />
-              Crear Presupuesto
-            </div>
-            <span className="text-xs text-slate-500 ml-8">Próximamente</span>
-          </Button>
-          
-          <Button
-            variant="ghost"
-            className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
-            disabled
-          >
-            <div className="flex items-center w-full">
-              <Palette className="w-5 h-5 mr-3" />
-              Calcular Tintometría
-            </div>
-            <span className="text-xs text-slate-500 ml-8">Próximamente</span>
-          </Button>
-          
-          <Button
-            variant="ghost"
-            className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
-            disabled
-          >
-            <div className="flex items-center w-full">
-              <Package className="w-5 h-5 mr-3" />
-              Revisión de Stock
-            </div>
-            <span className="text-xs text-slate-500 ml-8">Próximamente</span>
-          </Button>
-          
-          <Button
-            variant="ghost"
-            className="w-full text-slate-400 hover:text-slate-300 cursor-not-allowed flex-col items-start p-3 h-auto"
-            disabled
-          >
-            <div className="flex items-center w-full">
-              <Wrench className="w-5 h-5 mr-3" />
-              Herramientas de Venta
-            </div>
-            <span className="text-xs text-slate-500 ml-8">Próximamente</span>
-          </Button>
         </nav>
         
         <div className="p-4 border-t border-slate-700/50">
