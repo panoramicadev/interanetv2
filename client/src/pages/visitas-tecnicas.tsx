@@ -103,6 +103,7 @@ export default function VisitasTecnicasPage() {
   });
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [customProductName, setCustomProductName] = useState("");
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
@@ -247,6 +248,20 @@ export default function VisitasTecnicasPage() {
 
   const handleRemoveProduct = (productId: string) => {
     setSelectedProducts(prev => prev.filter(p => p.productId !== productId));
+  };
+
+  const handleAddCustomProduct = () => {
+    if (!customProductName.trim()) return;
+    
+    const customProduct: SelectedProduct = {
+      productId: `custom-${Date.now()}`,
+      sku: 'PERSONALIZADO',
+      name: customProductName.trim(),
+      formato: 'N/A'
+    };
+    
+    setSelectedProducts(prev => [...prev, customProduct]);
+    setCustomProductName('');
   };
 
   const createVisitMutation = useMutation({
@@ -1274,15 +1289,39 @@ export default function VisitasTecnicasPage() {
             </div>
 
             {/* Búsqueda de productos - Fija arriba */}
-            <div className="px-6 pt-4 pb-2">
+            <div className="px-6 pt-4 pb-2 space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Buscar Productos</label>
+                <label className="text-sm font-medium">Buscar Productos del Catálogo</label>
                 <Input
                   placeholder="Buscar por SKU o nombre de producto..."
                   value={productSearchTerm}
                   onChange={(e) => setProductSearchTerm(e.target.value)}
                   data-testid="input-buscar-producto"
                 />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">O Agregar Producto Personalizado</label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ej: Esmalte Sintético Rojo Ferrari"
+                    value={customProductName}
+                    onChange={(e) => setCustomProductName(e.target.value)}
+                    data-testid="input-producto-personalizado"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddCustomProduct}
+                    disabled={!customProductName.trim()}
+                    data-testid="button-agregar-personalizado"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Agregar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Productos personalizados no están en el catálogo
+                </p>
               </div>
             </div>
             
@@ -1294,17 +1333,25 @@ export default function VisitasTecnicasPage() {
                     <label className="text-sm font-medium">Productos Seleccionados ({selectedProducts.length})</label>
                     <ScrollArea className="h-24 border rounded-md p-2">
                       <div className="flex flex-wrap gap-2">
-                        {selectedProducts.map((product) => (
-                          <Badge key={product.productId} variant="secondary" className="gap-1">
-                            {product.sku} - {product.name.substring(0, 30)}...
-                            <button
-                              onClick={() => handleRemoveProduct(product.productId)}
-                              className="ml-1 hover:text-destructive"
+                        {selectedProducts.map((product) => {
+                          const isCustom = product.productId.startsWith('custom-');
+                          return (
+                            <Badge 
+                              key={product.productId} 
+                              variant={isCustom ? "default" : "secondary"} 
+                              className="gap-1"
                             >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
+                              {isCustom && <span className="mr-1">✨</span>}
+                              {product.sku} - {product.name.substring(0, 30)}{product.name.length > 30 ? '...' : ''}
+                              <button
+                                onClick={() => handleRemoveProduct(product.productId)}
+                                className="ml-1 hover:text-destructive"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          );
+                        })}
                       </div>
                     </ScrollArea>
                   </div>

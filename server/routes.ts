@@ -6158,11 +6158,14 @@ export function registerRoutes(app: Express): Server {
         console.log(`📦 Procesando ${productos.length} productos evaluados...`);
         
         for (const producto of productos) {
+          // Detectar si es producto personalizado (custom-xxxx) o del catálogo
+          const isCustomProduct = producto.productId?.startsWith('custom-');
+          
           // Crear producto evaluado con todos los campos del esquema
           const productoData = {
             visitaId: nuevaVisita.id,
-            productoId: producto.productId || null,
-            productoManual: producto.productId ? null : producto.name,
+            productoId: isCustomProduct ? null : (producto.productId || null),
+            productoManual: isCustomProduct ? producto.name : null,
             formato: producto.formato || null,
             color: producto.evaluacion?.color || null,
             lote: producto.evaluacion?.lote || null,
