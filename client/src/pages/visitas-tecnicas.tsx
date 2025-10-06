@@ -91,7 +91,7 @@ export default function VisitasTecnicasPage() {
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
   
   // Estados para el flujo de creación de visita
-  const [visitStep, setVisitStep] = useState<'basic' | 'products' | 'evaluation'>('basic');
+  const [visitStep, setVisitStep] = useState<'basic' | 'products' | 'evaluation' | 'observations'>('basic');
   const [visitData, setVisitData] = useState({
     clienteId: '',
     clienteName: '',
@@ -1594,23 +1594,6 @@ export default function VisitasTecnicasPage() {
               })()}
             </div>
 
-            {/* Observaciones Generales - Solo se muestra en el último producto */}
-            {currentProductIndex === selectedProducts.length - 1 && (
-              <div className="space-y-2 mt-4 p-4 bg-muted/30 rounded-lg border border-dashed">
-                <label className="text-sm font-medium text-primary">Observaciones Generales de la Visita</label>
-                <Textarea 
-                  placeholder="Comentarios generales sobre toda la visita técnica, conclusiones finales..."
-                  value={visitData.observacionesGenerales || ''}
-                  onChange={(e) => setVisitData(prev => ({ ...prev, observacionesGenerales: e.target.value }))}
-                  data-testid="textarea-observaciones-generales"
-                  rows={4}
-                  className="resize-none"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Estas observaciones se aplicarán a toda la visita técnica
-                </p>
-              </div>
-            )}
             
             <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t mt-4">
               <Button 
@@ -1633,39 +1616,93 @@ export default function VisitasTecnicasPage() {
                   if (currentProductIndex < selectedProducts.length - 1) {
                     setCurrentProductIndex(currentProductIndex + 1);
                   } else {
-                    // Es el último producto, crear la visita
-                    if (!user?.id) {
-                      alert('Error: Usuario no autenticado');
-                      return;
-                    }
-                    
-                    // Combinar productos seleccionados con sus evaluaciones
-                    const productosConEvaluacion = selectedProducts.map(product => ({
-                      ...product,
-                      evaluacion: productEvaluations[product.productId] || {}
-                    }));
-                    
-                    // Crear la visita con todos los datos
-                    const visitCompleteData = {
-                      ...visitData,
-                      tecnicoId: user.id,
-                      productos: productosConEvaluacion,
-                      estado: 'completada'
-                    };
-                    
-                    console.log('Enviando visita técnica:', visitCompleteData);
-                    createVisitMutation.mutate(visitCompleteData);
+                    // Es el último producto, ir a observaciones
+                    setVisitStep('observations');
                   }
                 }}
-                disabled={createVisitMutation.isPending}
                 data-testid="button-finalizar"
                 className="w-full sm:w-auto"
               >
-                {createVisitMutation.isPending 
-                  ? 'Creando...' 
-                  : currentProductIndex < selectedProducts.length - 1 
-                    ? 'Guardar y Continuar' 
-                    : 'Crear Visita Técnica'}
+                {currentProductIndex < selectedProducts.length - 1 
+                  ? 'Guardar y Continuar' 
+                  : 'Continuar a Observaciones'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Dialog para Observaciones Generales (Paso 4) */}
+      {visitStep === 'observations' && (
+        <Dialog open={showNewVisitModal} onOpenChange={setShowNewVisitModal}>
+          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-base sm:text-lg">Paso 4: Observaciones Generales</DialogTitle>
+              <DialogDescription className="text-sm">
+                Agrega comentarios generales sobre toda la visita técnica
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Observaciones Generales <span className="text-muted-foreground">(opcional)</span>
+                </label>
+                <Textarea 
+                  placeholder="Comentarios generales sobre toda la visita técnica, conclusiones finales, recomendaciones..."
+                  value={visitData.observacionesGenerales || ''}
+                  onChange={(e) => setVisitData(prev => ({ ...prev, observacionesGenerales: e.target.value }))}
+                  data-testid="textarea-observaciones-generales"
+                  rows={6}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Estas observaciones se aplicarán a toda la visita técnica
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t mt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setVisitStep('evaluation');
+                  setCurrentProductIndex(selectedProducts.length - 1);
+                }}
+                data-testid="button-atras-observaciones"
+                className="w-full sm:w-auto"
+              >
+                Atrás
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (!user?.id) {
+                    alert('Error: Usuario no autenticado');
+                    return;
+                  }
+                  
+                  // Combinar productos seleccionados con sus evaluaciones
+                  const productosConEvaluacion = selectedProducts.map(product => ({
+                    ...product,
+                    evaluacion: productEvaluations[product.productId] || {}
+                  }));
+                  
+                  // Crear la visita con todos los datos
+                  const visitCompleteData = {
+                    ...visitData,
+                    tecnicoId: user.id,
+                    productos: productosConEvaluacion,
+                    estado: 'completada'
+                  };
+                  
+                  console.log('Enviando visita técnica:', visitCompleteData);
+                  createVisitMutation.mutate(visitCompleteData);
+                }}
+                disabled={createVisitMutation.isPending}
+                data-testid="button-crear-visita"
+                className="w-full sm:w-auto"
+              >
+                {createVisitMutation.isPending ? 'Creando...' : 'Crear Visita Técnica'}
               </Button>
             </div>
           </DialogContent>
