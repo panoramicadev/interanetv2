@@ -2383,11 +2383,14 @@ export const visitasTecnicas = pgTable("visitas_tecnicas", {
   obraId: varchar("obra_id"), // FK to obras.id (opcional)
   nombreObra: text("nombre_obra").notNull(),
   direccionObra: text("direccion_obra").notNull(),
-  fechaVisita: date("fecha_visita").notNull(),
   tecnicoId: varchar("tecnico_id").notNull(), // FK to users.id
   vendedorId: varchar("vendedor_id"), // FK to users.id
   clienteId: varchar("cliente_id"), // FK to clients.id (opcional si se usa clienteManual)
   clienteManual: text("cliente_manual"), // Cliente manual si no está en la lista
+  
+  // Recepcionista
+  recepcionistaNombre: text("recepcionista_nombre"),
+  recepcionistaCargo: text("recepcionista_cargo"),
   
   // Estados de la visita
   estado: varchar("estado").notNull().default("borrador"), // 'borrador', 'completada'
