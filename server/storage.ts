@@ -332,6 +332,7 @@ export interface IStorage {
   getUniqueSuppliers(): Promise<string[]>;
   getUniqueBusinessTypes(): Promise<string[]>;
   getUniqueEntityTypes(): Promise<string[]>;
+  getSimpleClients(): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
   getClientsForDropdown(): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
   getProductsForDropdown(): Promise<Array<{ id: string; kopr: string; name: string; ud02pr: string }>>;
   searchClientsByName(searchTerm: string): Promise<Array<{ id: string; nokoen: string; koen: string }>>;
@@ -2164,6 +2165,23 @@ export class DatabaseStorage implements IStorage {
     return result
       .map(row => row.tien?.trim())
       .filter(type => type && type.length > 0) as string[];
+  }
+
+  async getSimpleClients(): Promise<Array<{ id: string; nokoen: string; koen: string }>> {
+    const result = await db
+      .select({
+        id: clients.id,
+        nokoen: clients.nokoen,
+        koen: clients.koen
+      })
+      .from(clients)
+      .orderBy(clients.nokoen);
+    
+    return result.map(client => ({
+      id: client.id,
+      nokoen: client.nokoen,
+      koen: client.koen || ''
+    }));
   }
 
   async getClientsForDropdown(): Promise<Array<{ id: string; nokoen: string; koen: string }>> {

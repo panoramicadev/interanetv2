@@ -332,9 +332,8 @@ export default function VisitasTecnicasPage() {
       const response = await apiRequest(url);
       const obrasData = await response.json();
       
-      const clientsResponse = await apiRequest('/api/clients?limit=10000');
-      const clientsData = await clientsResponse.json();
-      const clients = clientsData.clients || clientsData || [];
+      const clientsResponse = await apiRequest('/api/clients/simple');
+      const clients = await clientsResponse.json();
       
       return obrasData.map((obra: Obra) => {
         const client = clients.find((c: Client) => c.id === obra.clienteId);
