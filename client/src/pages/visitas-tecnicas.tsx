@@ -117,6 +117,7 @@ export default function VisitasTecnicasPage() {
   const [editingObra, setEditingObra] = useState<Obra | null>(null);
   const [showDeleteObraDialog, setShowDeleteObraDialog] = useState(false);
   const [obraToDelete, setObraToDelete] = useState<Obra | null>(null);
+  const [clientSearchObras, setClientSearchObras] = useState("");
   const [formDataObra, setFormDataObra] = useState<Partial<InsertObra>>({
     clienteId: "",
     nombre: "",
@@ -423,6 +424,7 @@ export default function VisitasTecnicasPage() {
   const handleCloseObraDialog = () => {
     setShowNewObraDialog(false);
     setEditingObra(null);
+    setClientSearchObras("");
     setFormDataObra({
       clienteId: "",
       nombre: "",
@@ -1744,6 +1746,20 @@ export default function VisitasTecnicasPage() {
               <Label htmlFor="clienteId">
                 Cliente <span className="text-destructive">*</span>
               </Label>
+              
+              {/* Campo de búsqueda de clientes */}
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={clientSearchObras}
+                  onChange={(e) => setClientSearchObras(e.target.value)}
+                  className="pl-10"
+                  data-testid="input-search-cliente-obras"
+                />
+              </div>
+              
               <Select
                 value={formDataObra.clienteId}
                 onValueChange={(value) => setFormDataObra({ ...formDataObra, clienteId: value })}
@@ -1752,11 +1768,24 @@ export default function VisitasTecnicasPage() {
                   <SelectValue placeholder="Seleccionar cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  {clientsForObras.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.nokoen}
-                    </SelectItem>
-                  ))}
+                  {clientsForObras
+                    .filter((client) => 
+                      client.nokoen.toLowerCase().includes(clientSearchObras.toLowerCase()) ||
+                      (client.koen && client.koen.toLowerCase().includes(clientSearchObras.toLowerCase()))
+                    )
+                    .map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.nokoen}
+                      </SelectItem>
+                    ))}
+                  {clientsForObras.filter((client) => 
+                    client.nokoen.toLowerCase().includes(clientSearchObras.toLowerCase()) ||
+                    (client.koen && client.koen.toLowerCase().includes(clientSearchObras.toLowerCase()))
+                  ).length === 0 && (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      No se encontraron clientes
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
