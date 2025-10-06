@@ -10,7 +10,8 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 - **Schema Modernization**: Removed `fechaVisita` field in favor of timestamp-based tracking, added receptionist fields (`recepcionistaNombre`, `recepcionistaCargo`)
 - **Custom Products Support**: Step 2 now allows adding personalized products not in the catalog alongside catalog selection with visual differentiation (✨ badge)
 - **Simplified Product Evaluation**: Removed "M² Aplicados" field from product evaluation form for streamlined data entry
-- **General Observations**: Added general observations field at final step of visit creation for comprehensive visit notes
+- **Four-Step Visit Creation**: Restructured visit creation flow into clear steps - Basic Info (Step 1), Product Selection (Step 2), Product Evaluation (Step 3), and General Observations (Step 4)
+- **Dedicated Observations Step**: General observations now have their own dedicated final step (Step 4) to avoid cluttering the product evaluation interface
 - **Enhanced Visit Detail**: Visit detail view now displays receptionist information and general observations when available
 - **Backend Improvements**: Custom products (ID starting with "custom-") are properly detected and saved as `productoManual` instead of `productoId`
 - **Data Integrity**: All new fields (`recepcionistaNombre`, `recepcionistaCargo`, `observacionesGenerales`) properly saved to database and displayed in visit details
