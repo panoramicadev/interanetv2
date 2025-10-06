@@ -1586,17 +1586,50 @@ export default function VisitasTecnicasPage() {
                             multiple 
                             data-testid={`input-fotos-${index}`}
                             className="cursor-pointer"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const files = e.target.files;
                               if (files && files.length > 5) {
                                 alert('Solo puedes subir máximo 5 fotos');
                                 e.target.value = '';
+                                return;
+                              }
+                              
+                              if (files && files.length > 0) {
+                                const imageUrls: string[] = [];
+                                
+                                for (let i = 0; i < files.length; i++) {
+                                  const file = files[i];
+                                  const reader = new FileReader();
+                                  
+                                  await new Promise((resolve) => {
+                                    reader.onloadend = () => {
+                                      imageUrls.push(reader.result as string);
+                                      resolve(null);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  });
+                                }
+                                
+                                updateProductEvaluation(product.productId, 'imagenes', imageUrls);
                               }
                             }}
                           />
                           <p className="text-xs text-muted-foreground">
                             Formatos permitidos: JPG, PNG, HEIC. Máximo 5 imágenes por producto.
                           </p>
+                          {productEvaluations[product.productId]?.imagenes && productEvaluations[product.productId]?.imagenes.length > 0 && (
+                            <div className="flex gap-2 flex-wrap mt-2">
+                              {productEvaluations[product.productId]?.imagenes.map((url: string, imgIdx: number) => (
+                                <div key={imgIdx} className="relative w-20 h-20">
+                                  <img 
+                                    src={url} 
+                                    alt={`Foto ${imgIdx + 1}`} 
+                                    className="w-full h-full object-cover rounded border"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -1811,50 +1844,79 @@ export default function VisitasTecnicasPage() {
                               </div>
 
                               {producto.evaluacion && (
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 p-3 bg-muted/50 rounded-lg">
-                                  {producto.evaluacion.color && (
-                                    <div>
-                                      <span className="text-xs font-medium text-muted-foreground">Color:</span>
-                                      <p className="text-sm">{producto.evaluacion.color}</p>
+                                <>
+                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 p-3 bg-muted/50 rounded-lg">
+                                    {producto.evaluacion.color && (
+                                      <div>
+                                        <span className="text-xs font-medium text-muted-foreground">Color:</span>
+                                        <p className="text-sm">{producto.evaluacion.color}</p>
+                                      </div>
+                                    )}
+                                    {producto.evaluacion.lote && (
+                                      <div>
+                                        <span className="text-xs font-medium text-muted-foreground">Lote:</span>
+                                        <p className="text-sm">{producto.evaluacion.lote}</p>
+                                      </div>
+                                    )}
+                                    {producto.evaluacion.fechaLlegada && (
+                                      <div>
+                                        <span className="text-xs font-medium text-muted-foreground">Fecha Llegada:</span>
+                                        <p className="text-sm">{formatDate(producto.evaluacion.fechaLlegada)}</p>
+                                      </div>
+                                    )}
+                                    {producto.evaluacion.avance && (
+                                      <div>
+                                        <span className="text-xs font-medium text-muted-foreground">Avance:</span>
+                                        <p className="text-sm">{producto.evaluacion.avance}%</p>
+                                      </div>
+                                    )}
+                                    {producto.evaluacion.condicionesClimaticas && (
+                                      <div>
+                                        <span className="text-xs font-medium text-muted-foreground">Clima:</span>
+                                        <p className="text-sm capitalize">{producto.evaluacion.condicionesClimaticas}</p>
+                                      </div>
+                                    )}
+                                    {producto.evaluacion.dilucion && (
+                                      <div>
+                                        <span className="text-xs font-medium text-muted-foreground">Dilución:</span>
+                                        <p className="text-sm">{producto.evaluacion.dilucion}%</p>
+                                      </div>
+                                    )}
+                                    {producto.evaluacion.anomalias && (
+                                      <div className="col-span-2 md:col-span-3">
+                                        <span className="text-xs font-medium text-muted-foreground">Deficiencia:</span>
+                                        <p className="text-sm">{producto.evaluacion.anomalias}</p>
+                                      </div>
+                                    )}
+                                    {producto.evaluacion.observacionesTecnicas && (
+                                      <div className="col-span-2 md:col-span-3">
+                                        <span className="text-xs font-medium text-muted-foreground">Observaciones:</span>
+                                        <p className="text-sm">{producto.evaluacion.observacionesTecnicas}</p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {producto.evaluacion.imagenesUrls && producto.evaluacion.imagenesUrls.length > 0 && (
+                                    <div className="mt-4">
+                                      <span className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-2">
+                                        <Camera className="w-4 h-4" />
+                                        Evidencia Fotográfica
+                                      </span>
+                                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                                        {producto.evaluacion.imagenesUrls.map((url: string, imgIdx: number) => (
+                                          <div key={imgIdx} className="relative aspect-square">
+                                            <img 
+                                              src={url} 
+                                              alt={`Evidencia ${imgIdx + 1}`} 
+                                              className="w-full h-full object-cover rounded border hover:scale-105 transition-transform cursor-pointer"
+                                              onClick={() => window.open(url, '_blank')}
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
                                   )}
-                                  {producto.evaluacion.lote && (
-                                    <div>
-                                      <span className="text-xs font-medium text-muted-foreground">Lote:</span>
-                                      <p className="text-sm">{producto.evaluacion.lote}</p>
-                                    </div>
-                                  )}
-                                  {producto.evaluacion.fechaLlegada && (
-                                    <div>
-                                      <span className="text-xs font-medium text-muted-foreground">Fecha Llegada:</span>
-                                      <p className="text-sm">{formatDate(producto.evaluacion.fechaLlegada)}</p>
-                                    </div>
-                                  )}
-                                  {producto.evaluacion.avance && (
-                                    <div>
-                                      <span className="text-xs font-medium text-muted-foreground">Avance:</span>
-                                      <p className="text-sm">{producto.evaluacion.avance}%</p>
-                                    </div>
-                                  )}
-                                  {producto.evaluacion.clima && (
-                                    <div>
-                                      <span className="text-xs font-medium text-muted-foreground">Clima:</span>
-                                      <p className="text-sm capitalize">{producto.evaluacion.clima}</p>
-                                    </div>
-                                  )}
-                                  {producto.evaluacion.dilucion && (
-                                    <div>
-                                      <span className="text-xs font-medium text-muted-foreground">Dilución:</span>
-                                      <p className="text-sm">{producto.evaluacion.dilucion}%</p>
-                                    </div>
-                                  )}
-                                  {producto.evaluacion.evidenciaDeficiencia && (
-                                    <div className="col-span-2 md:col-span-3">
-                                      <span className="text-xs font-medium text-muted-foreground">Deficiencia:</span>
-                                      <p className="text-sm">{producto.evaluacion.evidenciaDeficiencia}</p>
-                                    </div>
-                                  )}
-                                </div>
+                                </>
                               )}
                             </div>
                           </CardContent>
