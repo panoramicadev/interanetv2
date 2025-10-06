@@ -6,6 +6,15 @@ This is a comprehensive Spanish language sales analytics dashboard application c
 
 ## Recent Changes
 
+### Technical Visits System Updates (October 6, 2025)
+- **Schema Modernization**: Removed `fechaVisita` field in favor of timestamp-based tracking, added receptionist fields (`recepcionistaNombre`, `recepcionistaCargo`)
+- **Custom Products Support**: Step 2 now allows adding personalized products not in the catalog alongside catalog selection with visual differentiation (✨ badge)
+- **Simplified Product Evaluation**: Removed "M² Aplicados" field from product evaluation form for streamlined data entry
+- **General Observations**: Added general observations field at final step of visit creation for comprehensive visit notes
+- **Enhanced Visit Detail**: Visit detail view now displays receptionist information and general observations when available
+- **Backend Improvements**: Custom products (ID starting with "custom-") are properly detected and saved as `productoManual` instead of `productoId`
+- **Data Integrity**: All new fields (`recepcionistaNombre`, `recepcionistaCargo`, `observacionesGenerales`) properly saved to database and displayed in visit details
+
 ### Sales Calculation Fix (October 2, 2025)
 - **Critical Bug Fix**: Resolved discrepancy where total sales didn't match sum of sales by salesperson/client
 - **Root Cause**: `getTopSalespeople` and `getTopClients` methods used `SELECT DISTINCT` with `GROUP BY nudo, nokofu, tido, monto` which was collapsing legitimate transactions when multiple products in same order had identical prices
