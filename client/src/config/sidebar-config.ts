@@ -17,7 +17,8 @@ import {
   FileCheck,
   ChevronDown,
   PaintBucket,
-  Building2
+  Building2,
+  Wrench
 } from "lucide-react";
 
 interface SidebarItem {
@@ -302,5 +303,13 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       ],
     },
 
+  ],
+  
+  tecnico_obra: [
+    {
+      href: "/visitas-tecnicas",
+      label: "Visitas Técnicas",
+      icon: Wrench,
+    },
   ],
 };
