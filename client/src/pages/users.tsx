@@ -761,6 +761,9 @@ export default function UsersPage() {
                         <SelectItem value="salesperson">
                           Vendedores ({salespeopleUsers.filter(u => u.role === 'salesperson').length})
                         </SelectItem>
+                        <SelectItem value="tecnico_obra">
+                          Técnicos de Obra ({salespeopleUsers.filter(u => u.role === 'tecnico_obra').length})
+                        </SelectItem>
                         <SelectItem value="client">
                           Clientes ({salespeopleUsers.filter(u => u.role === 'client').length})
                         </SelectItem>
