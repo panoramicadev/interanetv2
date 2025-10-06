@@ -1772,60 +1772,62 @@ export default function VisitasTecnicasPage() {
 
           <form onSubmit={handleSubmitObra} className="space-y-4">
             {/* Cliente */}
-            <div className="space-y-2">
-              <Label htmlFor="clienteId">
-                Cliente <span className="text-destructive">*</span>
-              </Label>
-              
-              <div className="relative" ref={clientDropdownObrasRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Escribe al menos 3 letras para buscar cliente..."
-                    value={selectedClientNameObras || clientSearchObras}
-                    onChange={(e) => {
-                      setClientSearchObras(e.target.value);
+            <div className="space-y-2 relative" ref={clientDropdownObrasRef}>
+              <label className="text-sm font-medium">Cliente *</label>
+              <div className="relative">
+                <Input
+                  placeholder="Escribe para buscar cliente..."
+                  value={selectedClientNameObras || clientSearchObras}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setClientSearchObras(value);
+                    setShowClientDropdownObras(true);
+                    if (!value) {
                       setSelectedClientNameObras("");
                       setFormDataObra({ ...formDataObra, clienteId: "" });
+                    }
+                  }}
+                  onFocus={() => {
+                    if (clientSearchObras.length >= 3) {
                       setShowClientDropdownObras(true);
-                    }}
-                    onFocus={() => setShowClientDropdownObras(true)}
-                    className="pl-10"
-                    data-testid="input-search-cliente-obras"
-                    required
-                  />
-                </div>
-                
-                {showClientDropdownObras && clientSearchObras.length >= 3 && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {clientsForObras.length > 0 ? (
-                      clientsForObras.map((client) => (
-                        <div
-                          key={client.id}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
-                            setFormDataObra({ ...formDataObra, clienteId: client.id });
-                            setSelectedClientNameObras(client.nokoen);
-                            setClientSearchObras("");
-                            setShowClientDropdownObras(false);
-                          }}
-                          data-testid={`client-option-${client.id}`}
-                        >
-                          <div className="font-medium">{client.nokoen}</div>
-                          {client.koen && (
-                            <div className="text-sm text-gray-500">{client.koen}</div>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="px-4 py-8 text-center text-sm text-gray-500">
-                        No se encontraron clientes
-                      </div>
-                    )}
-                  </div>
-                )}
+                    }
+                  }}
+                  data-testid="input-search-cliente-obras"
+                  className="pr-10"
+                  required
+                />
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Escribe al menos 3 caracteres para buscar
+              </p>
+              
+              {showClientDropdownObras && clientSearchObras.length >= 3 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-64 overflow-y-auto">
+                  {clientsForObras.length > 0 ? (
+                    clientsForObras.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-sm"
+                        onClick={() => {
+                          setFormDataObra({ ...formDataObra, clienteId: client.id });
+                          setSelectedClientNameObras(client.nokoen);
+                          setClientSearchObras("");
+                          setShowClientDropdownObras(false);
+                        }}
+                        data-testid={`client-option-${client.id}`}
+                      >
+                        {client.nokoen}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-3 text-sm text-gray-500 text-center">
+                      No se encontraron clientes
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Nombre */}
