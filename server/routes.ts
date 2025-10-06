@@ -6122,15 +6122,14 @@ export function registerRoutes(app: Express): Server {
       console.log('📝 Recibiendo datos de visita técnica:', JSON.stringify(req.body, null, 2));
       
       // Validar datos básicos requeridos
-      const { nombreObra, direccionObra, fechaVisita, tecnicoId, clienteId, productos, estado } = req.body;
+      const { nombreObra, direccionObra, tecnicoId, clienteId, productos, estado, recepcionistaNombre, recepcionistaCargo } = req.body;
       
-      console.log('🔍 Validando campos:', { nombreObra, direccionObra, fechaVisita, tecnicoId, clienteId, productosCount: productos?.length });
+      console.log('🔍 Validando campos:', { nombreObra, direccionObra, tecnicoId, clienteId, productosCount: productos?.length });
       
-      if (!nombreObra || !direccionObra || !fechaVisita || !tecnicoId) {
+      if (!nombreObra || !direccionObra || !tecnicoId) {
         const camposFaltantes = [];
         if (!nombreObra) camposFaltantes.push('nombreObra');
         if (!direccionObra) camposFaltantes.push('direccionObra');
-        if (!fechaVisita) camposFaltantes.push('fechaVisita');
         if (!tecnicoId) camposFaltantes.push('tecnicoId');
         
         console.error('❌ Faltan campos:', camposFaltantes);
@@ -6143,9 +6142,10 @@ export function registerRoutes(app: Express): Server {
       const visitaData = {
         nombreObra,
         direccionObra,
-        fechaVisita,
         tecnicoId,
         clienteId: clienteId || null,
+        recepcionistaNombre: recepcionistaNombre || null,
+        recepcionistaCargo: recepcionistaCargo || null,
         estado: estado || 'borrador'
       };
 
