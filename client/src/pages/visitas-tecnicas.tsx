@@ -108,6 +108,7 @@ export default function VisitasTecnicasPage() {
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [customProductName, setCustomProductName] = useState("");
+  const [customProductSku, setCustomProductSku] = useState("");
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
@@ -260,13 +261,14 @@ export default function VisitasTecnicasPage() {
     
     const customProduct: SelectedProduct = {
       productId: `custom-${Date.now()}`,
-      sku: 'PERSONALIZADO',
+      sku: customProductSku.trim() || 'PERSONALIZADO',
       name: customProductName.trim(),
       formato: 'N/A'
     };
     
     setSelectedProducts(prev => [...prev, customProduct]);
     setCustomProductName('');
+    setCustomProductSku('');
   };
 
   const createVisitMutation = useMutation({
@@ -1372,21 +1374,30 @@ export default function VisitasTecnicasPage() {
               
               <div className="space-y-2">
                 <label className="text-sm font-medium">O Agregar Producto Personalizado</label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Input
+                    placeholder="SKU (opcional)"
+                    value={customProductSku}
+                    onChange={(e) => setCustomProductSku(e.target.value)}
+                    data-testid="input-producto-sku"
+                  />
                   <Input
                     placeholder="Ej: Esmalte Sintético Rojo Ferrari"
                     value={customProductName}
                     onChange={(e) => setCustomProductName(e.target.value)}
                     data-testid="input-producto-personalizado"
                   />
+                </div>
+                <div className="flex justify-end">
                   <Button
                     type="button"
                     onClick={handleAddCustomProduct}
                     disabled={!customProductName.trim()}
                     data-testid="button-agregar-personalizado"
+                    className="w-full sm:w-auto"
                   >
                     <Plus className="w-4 h-4 mr-1" />
-                    Agregar
+                    Agregar Producto Personalizado
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
