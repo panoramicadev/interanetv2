@@ -39,7 +39,6 @@ import type { Obra, InsertObra } from "@shared/schema";
 interface VisitaResumen {
   id: string;
   nombreObra: string;
-  fechaVisita: string;
   tecnico: string;
   cliente: string;
   estado: 'borrador' | 'completada';
@@ -99,7 +98,8 @@ export default function VisitasTecnicasPage() {
     obraId: '',
     nombreObra: '',
     direccionObra: '',
-    fechaVisita: new Date().toISOString().split('T')[0],
+    recepcionistaNombre: '',
+    recepcionistaCargo: '',
   });
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [productSearchTerm, setProductSearchTerm] = useState("");
@@ -168,7 +168,8 @@ export default function VisitasTecnicasPage() {
       obraId: '',
       nombreObra: '',
       direccionObra: '',
-      fechaVisita: new Date().toISOString().split('T')[0],
+      recepcionistaNombre: '',
+      recepcionistaCargo: '',
     });
     setSelectedProducts([]);
     setProductSearchTerm("");
@@ -749,12 +750,6 @@ export default function VisitasTecnicasPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        <span data-testid={`text-fecha-${visita.id}`}>
-                          {formatDate(visita.fechaVisita)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
                         <User className="w-4 h-4" />
                         <span data-testid={`text-tecnico-${visita.id}`}>
                           {visita.tecnico}
@@ -1190,29 +1185,18 @@ export default function VisitasTecnicasPage() {
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Nombre de la Obra *</label>
-                  <Input 
-                    placeholder="Ej: Edificio Las Condes 2025" 
-                    value={visitData.nombreObra}
-                    onChange={(e) => setVisitData(prev => ({ ...prev, nombreObra: e.target.value }))}
-                    data-testid="input-nombre-obra"
-                    disabled={!!visitData.obraId}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {visitData.obraId ? 'Auto-completado desde obra seleccionada' : 'Cada cliente puede tener múltiples obras'}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Fecha de Visita *</label>
-                  <Input 
-                    type="date" 
-                    value={visitData.fechaVisita}
-                    onChange={(e) => setVisitData(prev => ({ ...prev, fechaVisita: e.target.value }))}
-                    data-testid="input-fecha-visita" 
-                  />
-                </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Nombre de la Obra *</label>
+                <Input 
+                  placeholder="Ej: Edificio Las Condes 2025" 
+                  value={visitData.nombreObra}
+                  onChange={(e) => setVisitData(prev => ({ ...prev, nombreObra: e.target.value }))}
+                  data-testid="input-nombre-obra"
+                  disabled={!!visitData.obraId}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {visitData.obraId ? 'Auto-completado desde obra seleccionada' : 'Cada cliente puede tener múltiples obras'}
+                </p>
               </div>
               
               <div className="space-y-2">
@@ -1229,6 +1213,27 @@ export default function VisitasTecnicasPage() {
                     Auto-completado desde obra seleccionada
                   </p>
                 )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Recepcionista (Persona)</label>
+                  <Input 
+                    placeholder="Nombre de la persona que recibió la visita" 
+                    value={visitData.recepcionistaNombre}
+                    onChange={(e) => setVisitData(prev => ({ ...prev, recepcionistaNombre: e.target.value }))}
+                    data-testid="input-recepcionista-nombre"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Cargo del Recepcionista</label>
+                  <Input 
+                    placeholder="Ej: Maestro Mayor, Jefe de Obra" 
+                    value={visitData.recepcionistaCargo}
+                    onChange={(e) => setVisitData(prev => ({ ...prev, recepcionistaCargo: e.target.value }))}
+                    data-testid="input-recepcionista-cargo"
+                  />
+                </div>
               </div>
               
               <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t">
@@ -1644,10 +1649,18 @@ export default function VisitasTecnicasPage() {
                       <span className="text-sm font-medium text-muted-foreground">Dirección:</span>
                       <p className="font-medium">{visitaDetalle.direccionObra}</p>
                     </div>
-                    <div>
-                      <span className="text-sm font-medium text-muted-foreground">Fecha:</span>
-                      <p className="font-medium">{formatDate(visitaDetalle.fechaVisita)}</p>
-                    </div>
+                    {visitaDetalle.recepcionistaNombre && (
+                      <div>
+                        <span className="text-sm font-medium text-muted-foreground">Recepcionista:</span>
+                        <p className="font-medium">{visitaDetalle.recepcionistaNombre}</p>
+                      </div>
+                    )}
+                    {visitaDetalle.recepcionistaCargo && (
+                      <div>
+                        <span className="text-sm font-medium text-muted-foreground">Cargo:</span>
+                        <p className="font-medium">{visitaDetalle.recepcionistaCargo}</p>
+                      </div>
+                    )}
                     <div>
                       <span className="text-sm font-medium text-muted-foreground">Estado:</span>
                       <div className="mt-1">{getEstadoBadge(visitaDetalle.estado)}</div>
