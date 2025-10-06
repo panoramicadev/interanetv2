@@ -313,7 +313,7 @@ export default function VisitasTecnicasPage() {
       const response = await apiRequest(url);
       const obrasData = await response.json();
       
-      const clientsResponse = await apiRequest('/api/clients');
+      const clientsResponse = await apiRequest('/api/clients?limit=10000');
       const clientsData = await clientsResponse.json();
       const clients = clientsData.clients || clientsData || [];
       
@@ -331,7 +331,7 @@ export default function VisitasTecnicasPage() {
   const { data: clientsForObras = [] } = useQuery<Client[]>({
     queryKey: ['/api/clients'],
     queryFn: async () => {
-      const response = await apiRequest('/api/clients');
+      const response = await apiRequest('/api/clients?limit=10000');
       const data = await response.json();
       return data.clients || data || [];
     },
