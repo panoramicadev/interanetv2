@@ -1868,7 +1868,15 @@ export default function TomadorPedidos() {
         quote = await quoteResponse.json();
         
         const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
-        items = await itemsResponse.json();
+        const rawItems = await itemsResponse.json();
+        
+        // Convert string values to numbers for proper calculations
+        items = rawItems.map((item: any) => ({
+          ...item,
+          quantity: parseFloat(item.quantity) || 0,
+          unitPrice: parseFloat(item.unitPrice) || 0,
+          totalPrice: parseFloat(item.totalPrice) || 0,
+        }));
       } else {
         // Use current form data for unsaved quotes
         quote = {
@@ -2671,7 +2679,15 @@ export default function TomadorPedidos() {
       const quote = await quoteResponse.json();
       
       const itemsResponse = await apiRequest(`/api/quotes/${savedQuoteId}/items`);
-      const items = await itemsResponse.json();
+      const rawItems = await itemsResponse.json();
+      
+      // Convert string values to numbers for proper calculations
+      const items = rawItems.map((item: any) => ({
+        ...item,
+        quantity: parseFloat(item.quantity) || 0,
+        unitPrice: parseFloat(item.unitPrice) || 0,
+        totalPrice: parseFloat(item.totalPrice) || 0,
+      }));
 
       // Generate PDF using React-PDF
       const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
