@@ -197,6 +197,28 @@ export default function TareasPage() {
     },
   });
 
+  // Mark assignment as read mutation (acusar recibo)
+  const markAsReadMutation = useMutation({
+    mutationFn: async ({ taskId, assignmentId }: { taskId: string; assignmentId: string }) => {
+      return await apiRequest("PATCH", `/api/tasks/${taskId}/assignments/${assignmentId}/read`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"], type: "all" });
+      toast({
+        title: "Recibo acusado",
+        description: "Has confirmado que recibiste la tarea.",
+      });
+    },
+    onError: (error: any) => {
+      console.error("Mark as read error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo acusar recibo.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Loading state
   if (isLoading) {
     return (
@@ -697,9 +719,15 @@ export default function TareasPage() {
                             <div key={assignment.id} className="bg-gray-50 rounded-lg p-3">
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div className="space-y-2">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     {getAssigneeDisplay(assignment)}
                                     {getStatusBadge(assignment.status ?? 'pending')}
+                                    {assignment.readAt && (
+                                      <Badge variant="outline" className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                        <Eye className="h-3 w-3" />
+                                        Leída {format(new Date(assignment.readAt), "dd/MM HH:mm", { locale: es })}
+                                      </Badge>
+                                    )}
                                   </div>
                                   
                                   {assignment.notes && (
@@ -714,7 +742,25 @@ export default function TareasPage() {
 
                                 {canUpdateAssignment && assignment.status !== "completed" && (
                                   <div className="flex flex-wrap gap-2">
-                                    {assignment.status === "pending" && (
+                                    {/* Acusar Recibo button - shown when not read yet */}
+                                    {!assignment.readAt && assignment.status === "pending" && (
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        onClick={() => markAsReadMutation.mutate({
+                                          taskId: task.id,
+                                          assignmentId: assignment.id
+                                        })}
+                                        disabled={markAsReadMutation.isPending}
+                                        data-testid={`button-acknowledge-assignment-${assignment.id}`}
+                                      >
+                                        <Eye className="h-3 w-3 mr-1" />
+                                        Acusar Recibo
+                                      </Button>
+                                    )}
+                                    
+                                    {/* Start button - shown after acknowledging receipt */}
+                                    {assignment.readAt && assignment.status === "pending" && (
                                       <Button
                                         size="sm"
                                         variant="outline"
