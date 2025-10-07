@@ -4237,7 +4237,7 @@ export default function TomadorPedidos() {
                         data-testid="modal-button-send-order"
                       >
                         <Mail className="w-4 h-4 mr-2" />
-                        Enviar por Correo
+                        Compartir
                       </Button>
                     )}
                   </div>
