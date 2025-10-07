@@ -1142,7 +1142,7 @@ export default function VisitasTecnicasPage() {
       {/* Modal para nueva visita técnica - Paso 1: Datos básicos */}
       {visitStep === 'basic' && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none">
             <DialogHeader>
               <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Datos Básicos</DialogTitle>
               <DialogDescription className="text-sm">
@@ -1350,7 +1350,7 @@ export default function VisitasTecnicasPage() {
       {/* Modal para nueva visita técnica - Paso 2: Selección de productos */}
       {visitStep === 'products' && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-hidden flex flex-col p-0 m-0 rounded-none">
             <div className="px-6 pt-6">
               <DialogHeader>
                 <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Selección de Productos</DialogTitle>
@@ -1507,7 +1507,7 @@ export default function VisitasTecnicasPage() {
       {/* Modal para nueva visita técnica - Paso 3: Evaluación */}
       {visitStep === 'evaluation' && selectedProducts[currentProductIndex] && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-hidden flex flex-col m-0 rounded-none">
             <DialogHeader>
               <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Evaluación de Productos</DialogTitle>
               <DialogDescription className="text-sm">
@@ -1747,7 +1747,7 @@ export default function VisitasTecnicasPage() {
       {/* Dialog para Observaciones Generales (Paso 4) */}
       {visitStep === 'observations' && (
         <Dialog open={showNewVisitModal} onOpenChange={setShowNewVisitModal}>
-          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none">
             <DialogHeader>
               <DialogTitle className="text-base sm:text-lg">Paso 4: Observaciones Generales</DialogTitle>
               <DialogDescription className="text-sm">
@@ -1823,7 +1823,7 @@ export default function VisitasTecnicasPage() {
 
       {/* Dialog para ver detalles de visita */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none">
           <DialogHeader>
             <DialogTitle className="text-base sm:text-lg">Detalle de Visita Técnica</DialogTitle>
             <DialogDescription className="text-sm">
@@ -2011,7 +2011,7 @@ export default function VisitasTecnicasPage() {
 
       {/* Dialog para crear/editar obras */}
       <Dialog open={showNewObraDialog} onOpenChange={handleCloseObraDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-y-auto m-0 rounded-none">
           <DialogHeader>
             <DialogTitle>
               {editingObra ? "Editar Obra" : "Nueva Obra"}
