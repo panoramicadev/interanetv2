@@ -1562,31 +1562,36 @@ export default function VisitasTecnicasPage() {
       {/* Modal para nueva visita técnica - Paso 3: Evaluación */}
       {visitStep === 'evaluation' && selectedProducts[currentProductIndex] && (
         <Dialog open={showNewVisitModal} onOpenChange={handleCloseModal}>
-          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-hidden flex flex-col m-0 rounded-none">
-            <DialogHeader>
-              <DialogTitle className="text-base sm:text-lg">Nueva Visita Técnica - Evaluación de Productos</DialogTitle>
-              <DialogDescription className="text-sm">
-                Producto {currentProductIndex + 1} de {selectedProducts.length}
-              </DialogDescription>
-            </DialogHeader>
+          <DialogContent className="w-screen h-screen max-w-none max-h-none overflow-hidden flex flex-col m-0 rounded-none p-0">
+            {/* Cabecera compacta */}
+            <div className="px-4 py-2 border-b bg-muted/30 shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold truncate">Evaluación de Productos</h3>
+                  <p className="text-xs text-muted-foreground">Producto {currentProductIndex + 1} de {selectedProducts.length}</p>
+                </div>
+              </div>
+            </div>
             
-            <div className="overflow-y-auto max-h-[60vh] pr-2">
+            {/* Área de formulario expandida */}
+            <div className="flex-1 overflow-y-auto px-4 py-3">
               {(() => {
                 const product = selectedProducts[currentProductIndex];
                 const index = currentProductIndex;
                 return (
-                  <Card key={product.productId} className="border">
-                    <CardHeader className="pb-2 pt-3 px-4">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <Badge className="text-xs">{index + 1}</Badge>
-                        <span className="text-sm font-semibold leading-tight">{product.name}</span>
-                      </CardTitle>
-                      <CardDescription className="flex gap-1 flex-wrap text-xs mt-1">
-                        <Badge variant="outline" className="text-xs py-0">SKU: {product.sku}</Badge>
-                        <Badge variant="secondary" className="text-xs py-0">Formato: {product.formato}</Badge>
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3 px-4 pb-4">
+                  <div key={product.productId} className="space-y-4">
+                    {/* Header del producto compacto */}
+                    <div className="bg-primary text-primary-foreground rounded-lg p-3">
+                      <h4 className="text-sm font-semibold leading-tight mb-1">{product.name}</h4>
+                      <div className="flex gap-2 flex-wrap text-xs opacity-90">
+                        <span>SKU: {product.sku}</span>
+                        <span>•</span>
+                        <span>Formato: {product.formato}</span>
+                      </div>
+                    </div>
+
+                    {/* Formulario de evaluación */}
+                    <div className="space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-sm font-medium">Color</label>
@@ -1755,14 +1760,14 @@ export default function VisitasTecnicasPage() {
                           )}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 );
               })()}
             </div>
 
-            
-            <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 pt-4 border-t mt-4">
+            {/* Footer con botones - compacto */}
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-3 px-4 py-3 border-t bg-background shrink-0">
               <Button 
                 variant="outline" 
                 onClick={() => {
