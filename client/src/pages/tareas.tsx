@@ -759,56 +759,22 @@ export default function TareasPage() {
                                       </Button>
                                     )}
                                     
-                                    {/* Start button - shown after acknowledging receipt */}
-                                    {assignment.readAt && assignment.status === "pending" && (
+                                    {/* Complete button - shown directly after acknowledging receipt */}
+                                    {assignment.readAt && (assignment.status === "pending" || assignment.status === "in_progress") && (
                                       <Button
                                         size="sm"
-                                        variant="outline"
+                                        variant="default"
                                         onClick={() => updateAssignmentMutation.mutate({
                                           taskId: task.id,
                                           assignmentId: assignment.id,
-                                          status: "in_progress"
+                                          status: "completed"
                                         })}
                                         disabled={updateAssignmentMutation.isPending}
-                                        data-testid={`button-start-assignment-${assignment.id}`}
+                                        data-testid={`button-complete-assignment-${assignment.id}`}
                                       >
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        Iniciar
+                                        <CheckSquare className="h-3 w-3 mr-1" />
+                                        Completar
                                       </Button>
-                                    )}
-                                    
-                                    {assignment.status === "in_progress" && (
-                                      <>
-                                        <Button
-                                          size="sm"
-                                          variant="default"
-                                          onClick={() => updateAssignmentMutation.mutate({
-                                            taskId: task.id,
-                                            assignmentId: assignment.id,
-                                            status: "completed"
-                                          })}
-                                          disabled={updateAssignmentMutation.isPending}
-                                          data-testid={`button-complete-assignment-${assignment.id}`}
-                                        >
-                                          <CheckSquare className="h-3 w-3 mr-1" />
-                                          Completar
-                                        </Button>
-                                        
-                                        <Button
-                                          size="sm"
-                                          variant="destructive"
-                                          onClick={() => updateAssignmentMutation.mutate({
-                                            taskId: task.id,
-                                            assignmentId: assignment.id,
-                                            status: "blocked"
-                                          })}
-                                          disabled={updateAssignmentMutation.isPending}
-                                          data-testid={`button-block-assignment-${assignment.id}`}
-                                        >
-                                          <AlertCircle className="h-3 w-3 mr-1" />
-                                          Bloquear
-                                        </Button>
-                                      </>
                                     )}
 
                                     {assignment.status === "blocked" && (
