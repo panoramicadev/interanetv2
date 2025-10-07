@@ -1361,7 +1361,8 @@ export default function VisitasTecnicasPage() {
             </div>
 
             {/* Búsqueda de productos - Fija arriba */}
-            <div className="px-6 pt-4 pb-2 space-y-4">
+            {/* Versión Desktop - Vista tradicional */}
+            <div className="hidden sm:block px-6 pt-4 pb-2 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Buscar Productos del Catálogo</label>
                 <Input
@@ -1404,6 +1405,60 @@ export default function VisitasTecnicasPage() {
                   Productos personalizados no están en el catálogo
                 </p>
               </div>
+            </div>
+
+            {/* Versión Móvil - Con pestañas */}
+            <div className="sm:hidden px-6 pt-4 pb-2">
+              <Tabs defaultValue="catalogo" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="catalogo">Catálogo</TabsTrigger>
+                  <TabsTrigger value="personalizado">Personalizado</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="catalogo" className="space-y-2 mt-4">
+                  <label className="text-sm font-medium">Buscar Productos</label>
+                  <Input
+                    placeholder="Buscar por SKU o nombre..."
+                    value={productSearchTerm}
+                    onChange={(e) => setProductSearchTerm(e.target.value)}
+                    data-testid="input-buscar-producto-mobile"
+                  />
+                </TabsContent>
+                
+                <TabsContent value="personalizado" className="space-y-3 mt-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">SKU (opcional)</label>
+                    <Input
+                      placeholder="SKU (opcional)"
+                      value={customProductSku}
+                      onChange={(e) => setCustomProductSku(e.target.value)}
+                      data-testid="input-producto-sku-mobile"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Nombre del Producto</label>
+                    <Input
+                      placeholder="Ej: Esmalte Sintético Rojo Ferrari"
+                      value={customProductName}
+                      onChange={(e) => setCustomProductName(e.target.value)}
+                      data-testid="input-producto-personalizado-mobile"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={handleAddCustomProduct}
+                    disabled={!customProductName.trim()}
+                    data-testid="button-agregar-personalizado-mobile"
+                    className="w-full"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Agregar Producto
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    No está en el catálogo
+                  </p>
+                </TabsContent>
+              </Tabs>
             </div>
             
             <div className="flex-1 overflow-y-auto px-6">
