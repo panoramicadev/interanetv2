@@ -681,25 +681,83 @@ export default function TareasPage() {
                     </div>
                   </div>
 
-                  <Collapsible>
-                    <CollapsibleTrigger 
-                      onClick={() => toggleTaskExpanded(task.id)}
-                      className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                      data-testid={`button-toggle-task-${task.id}`}
-                    >
-                      {expandedTasks.has(task.id) ? (
+                  <div className="flex items-center gap-2">
+                    {/* Action buttons for user's assignment - shown before toggle */}
+                    {(() => {
+                      const myAssignment = task.assignments.find(a => 
+                        (a.assigneeType === "user" && a.assigneeId === user.id) ||
+                        (a.assigneeType === "segment" && a.assigneeId === (user as any).assignedSegment)
+                      );
+                      
+                      if (!myAssignment || myAssignment.status === "completed") return null;
+                      
+                      const canUpdate = 
+                        (myAssignment.assigneeType === "user" && myAssignment.assigneeId === user.id) ||
+                        (myAssignment.assigneeType === "segment" && myAssignment.assigneeId === (user as any).assignedSegment) ||
+                        user.role === 'admin' || user.role === 'supervisor';
+                      
+                      if (!canUpdate) return null;
+
+                      return (
                         <>
-                          <ChevronDown className="h-4 w-4" />
-                          Ocultar detalles
+                          {/* Acusar Recibo button */}
+                          {!myAssignment.readAt && myAssignment.status === "pending" && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => markAsReadMutation.mutate({
+                                taskId: task.id,
+                                assignmentId: myAssignment.id
+                              })}
+                              disabled={markAsReadMutation.isPending}
+                              data-testid={`button-acknowledge-assignment-${myAssignment.id}`}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              Acusar Recibo
+                            </Button>
+                          )}
+                          
+                          {/* Complete button */}
+                          {myAssignment.readAt && (myAssignment.status === "pending" || myAssignment.status === "in_progress") && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => updateAssignmentMutation.mutate({
+                                taskId: task.id,
+                                assignmentId: myAssignment.id,
+                                status: "completed"
+                              })}
+                              disabled={updateAssignmentMutation.isPending}
+                              data-testid={`button-complete-assignment-${myAssignment.id}`}
+                            >
+                              <CheckSquare className="h-3 w-3 mr-1" />
+                              Completar
+                            </Button>
+                          )}
                         </>
-                      ) : (
-                        <>
-                          <ChevronRight className="h-4 w-4" />
-                          Ver detalles
-                        </>
-                      )}
-                    </CollapsibleTrigger>
-                  </Collapsible>
+                      );
+                    })()}
+
+                    <Collapsible>
+                      <CollapsibleTrigger 
+                        onClick={() => toggleTaskExpanded(task.id)}
+                        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                        data-testid={`button-toggle-task-${task.id}`}
+                      >
+                        {expandedTasks.has(task.id) ? (
+                          <>
+                            <ChevronDown className="h-4 w-4" />
+                            Ocultar detalles
+                          </>
+                        ) : (
+                          <>
+                            <ChevronRight className="h-4 w-4" />
+                            Ver detalles
+                          </>
+                        )}
+                      </CollapsibleTrigger>
+                    </Collapsible>
+                  </div>
                 </div>
               </CardHeader>
 
@@ -710,89 +768,26 @@ export default function TareasPage() {
                       <h4 className="text-sm font-medium mb-3 text-gray-900">Asignaciones:</h4>
                       <div className="space-y-3">
                         {task.assignments.map((assignment) => {
-                          const canUpdateAssignment = 
-                            (assignment.assigneeType === "user" && assignment.assigneeId === user.id) ||
-                            (assignment.assigneeType === "segment" && assignment.assigneeId === (user as any).assignedSegment) ||
-                            user.role === 'admin' || user.role === 'supervisor';
-
                           return (
                             <div key={assignment.id} className="bg-gray-50 rounded-lg p-3">
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    {getAssigneeDisplay(assignment)}
-                                    {getStatusBadge(assignment.status ?? 'pending')}
-                                    {assignment.readAt && (
-                                      <Badge variant="outline" className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                        <Eye className="h-3 w-3" />
-                                        Leída {format(new Date(assignment.readAt), "dd/MM HH:mm", { locale: es })}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  
-                                  {assignment.notes && (
-                                    <div className="flex items-start gap-2 text-xs text-gray-600">
-                                      <MessageSquare className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                                      <span data-testid={`text-assignment-notes-${assignment.id}`}>
-                                        {assignment.notes}
-                                      </span>
-                                    </div>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {getAssigneeDisplay(assignment)}
+                                  {getStatusBadge(assignment.status ?? 'pending')}
+                                  {assignment.readAt && (
+                                    <Badge variant="outline" className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                      <Eye className="h-3 w-3" />
+                                      Leída {format(new Date(assignment.readAt), "dd/MM HH:mm", { locale: es })}
+                                    </Badge>
                                   )}
                                 </div>
-
-                                {canUpdateAssignment && assignment.status !== "completed" && (
-                                  <div className="flex flex-wrap gap-2">
-                                    {/* Acusar Recibo button - shown when not read yet */}
-                                    {!assignment.readAt && assignment.status === "pending" && (
-                                      <Button
-                                        size="sm"
-                                        variant="default"
-                                        onClick={() => markAsReadMutation.mutate({
-                                          taskId: task.id,
-                                          assignmentId: assignment.id
-                                        })}
-                                        disabled={markAsReadMutation.isPending}
-                                        data-testid={`button-acknowledge-assignment-${assignment.id}`}
-                                      >
-                                        <Eye className="h-3 w-3 mr-1" />
-                                        Acusar Recibo
-                                      </Button>
-                                    )}
-                                    
-                                    {/* Complete button - shown directly after acknowledging receipt */}
-                                    {assignment.readAt && (assignment.status === "pending" || assignment.status === "in_progress") && (
-                                      <Button
-                                        size="sm"
-                                        variant="default"
-                                        onClick={() => updateAssignmentMutation.mutate({
-                                          taskId: task.id,
-                                          assignmentId: assignment.id,
-                                          status: "completed"
-                                        })}
-                                        disabled={updateAssignmentMutation.isPending}
-                                        data-testid={`button-complete-assignment-${assignment.id}`}
-                                      >
-                                        <CheckSquare className="h-3 w-3 mr-1" />
-                                        Completar
-                                      </Button>
-                                    )}
-
-                                    {assignment.status === "blocked" && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => updateAssignmentMutation.mutate({
-                                          taskId: task.id,
-                                          assignmentId: assignment.id,
-                                          status: "in_progress"
-                                        })}
-                                        disabled={updateAssignmentMutation.isPending}
-                                        data-testid={`button-unblock-assignment-${assignment.id}`}
-                                      >
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        Desbloquear
-                                      </Button>
-                                    )}
+                                
+                                {assignment.notes && (
+                                  <div className="flex items-start gap-2 text-xs text-gray-600">
+                                    <MessageSquare className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                    <span data-testid={`text-assignment-notes-${assignment.id}`}>
+                                      {assignment.notes}
+                                    </span>
                                   </div>
                                 )}
                               </div>
