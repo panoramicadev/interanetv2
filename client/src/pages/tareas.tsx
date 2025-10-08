@@ -354,7 +354,7 @@ export default function TareasPage() {
                 Nueva Tarea
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px] h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col">
+            <DialogContent className="sm:max-w-[600px] h-screen sm:h-auto sm:max-h-[90vh] flex flex-col p-4 sm:p-6">
               <DialogHeader className="flex-shrink-0">
                 <DialogTitle>Crear Nueva Tarea</DialogTitle>
                 <DialogDescription>
