@@ -522,6 +522,65 @@ export default function EcommerceAdmin() {
   });
 
   // Funciones para importador ZIP e imágenes sueltas
+  const handleMultipleFiles = async (files: FileList | File[]) => {
+    const filesArray = Array.from(files);
+    
+    if (filesArray.length === 0) return;
+    
+    // Si solo hay un archivo, usar lógica simple
+    if (filesArray.length === 1) {
+      handleFileUpload(filesArray[0]);
+      return;
+    }
+    
+    // Filtrar solo imágenes válidas
+    const imageFiles = filesArray.filter(file => {
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
+      const isValidSize = file.size <= 10 * 1024 * 1024; // 10MB
+      return isImage && isValidSize;
+    });
+    
+    if (imageFiles.length === 0) {
+      toast({
+        title: "No hay archivos válidos",
+        description: "Solo se permiten imágenes JPG/PNG/GIF/WEBP (máx 10MB cada una).",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Notificar archivos descartados
+    const invalidCount = filesArray.length - imageFiles.length;
+    if (invalidCount > 0) {
+      toast({
+        title: "Algunos archivos fueron descartados",
+        description: `${invalidCount} archivo(s) no válido(s) o muy grande(s).`,
+      });
+    }
+    
+    // Resetear progreso
+    setUploadProgress({ processed: 0, total: imageFiles.length, results: [] });
+    
+    console.log(`📸 [MULTI-IMAGE] Subiendo ${imageFiles.length} imágenes...`);
+    
+    // Subir cada imagen secuencialmente
+    for (let i = 0; i < imageFiles.length; i++) {
+      const file = imageFiles[i];
+      console.log(`📸 [MULTI-IMAGE] Procesando ${i + 1}/${imageFiles.length}: ${file.name}`);
+      
+      try {
+        await uploadSingleImageMutation.mutateAsync(file);
+      } catch (error) {
+        console.error(`❌ Error subiendo ${file.name}:`, error);
+      }
+    }
+    
+    toast({
+      title: "Importación completada",
+      description: `Se procesaron ${imageFiles.length} imagen(es).`,
+    });
+  };
+  
   const handleFileUpload = (file: File) => {
     const isZip = file.name.toLowerCase().endsWith('.zip');
     const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name);
@@ -574,9 +633,9 @@ export default function EcommerceAdmin() {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFileUpload(file);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleMultipleFiles(files);
     }
   };
 
@@ -802,10 +861,13 @@ export default function EcommerceAdmin() {
                     type="file"
                     id="zip-upload"
                     accept=".zip,image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    multiple
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFileUpload(file);
+                      const files = e.target.files;
+                      if (files && files.length > 0) {
+                        handleMultipleFiles(files);
+                      }
                     }}
                     data-testid="input-zip-file"
                   />
