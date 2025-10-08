@@ -722,6 +722,24 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get client data by user ID - for authenticated clients
+  app.get('/api/clients/by-user/:userId', requireAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const client = await storage.getClientByUserId(userId);
+      
+      if (!client) {
+        return res.status(404).json({ message: 'Cliente no encontrado' });
+      }
+      
+      res.json(client);
+    } catch (error) {
+      console.error('Error al obtener datos del cliente:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+    }
+  });
+
   // Get simple client list (lightweight, no metrics) - for dropdowns and basic lists
   app.get('/api/clients/simple', requireAuth, async (req, res) => {
     try {

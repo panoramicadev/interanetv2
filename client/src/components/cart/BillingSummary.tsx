@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { X, Tag } from "lucide-react";
+import { X, Tag, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formatPrice = (price: number): string => {
@@ -19,10 +21,33 @@ const formatPrice = (price: number): string => {
 
 export default function BillingSummary() {
   const { state, applyCoupon, removeCoupon } = useCart();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [couponCode, setCouponCode] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
+  const [shippingAddress, setShippingAddress] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+
+  // Fetch client data to get default address
+  const { data: clientData } = useQuery<{ dien?: string }>({
+    queryKey: ['/api/clients/by-user', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const res = await fetch(`/api/clients/by-user/${user.id}`, {
+        credentials: 'include'
+      });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!user?.id && user?.role === 'client',
+  });
+
+  // Pre-fill shipping address from client data
+  useEffect(() => {
+    if (clientData?.dien && !shippingAddress) {
+      setShippingAddress(clientData.dien);
+    }
+  }, [clientData, shippingAddress]);
 
   // Mock coupon validation - replace with real API call
   const validateCoupon = async (code: string): Promise<{ isValid: boolean; discount: number; type: 'percentage' | 'fixed'; description?: string }> => {
@@ -204,13 +229,14 @@ export default function BillingSummary() {
           productName: item.productName,
           sku: item.productCode || item.productId,
           quantity: item.quantity,
-          unitPrice: item.pricePerUnit,
-          totalPrice: item.totalPrice
+          unitPrice: item.unitPrice,
+          totalPrice: item.subtotal
         })),
         subtotal: state.subtotal - state.discountAmount,
         tax: state.taxAmount,
         total: state.total,
-        notes: orderNotes.trim() || null
+        notes: orderNotes.trim() || null,
+        shippingAddress: shippingAddress.trim() || null
       };
 
       const response = await fetch('/api/ecommerce/orders/client', {
@@ -391,6 +417,23 @@ export default function BillingSummary() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Shipping Address */}
+        <div className="space-y-2">
+          <Label htmlFor="shipping-address" className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+            <MapPin className="h-4 w-4" />
+            Dirección de despacho
+          </Label>
+          <Textarea
+            id="shipping-address"
+            placeholder="Ingresa la dirección completa de despacho..."
+            value={shippingAddress}
+            onChange={(e) => setShippingAddress(e.target.value)}
+            rows={2}
+            className="resize-none"
+            data-testid="textarea-shipping-address"
+          />
         </div>
 
         {/* Order Notes */}
