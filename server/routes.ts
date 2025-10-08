@@ -4293,6 +4293,10 @@ export function registerRoutes(app: Express): Server {
       });
       
       const item = await storage.createQuoteItem(itemData);
+      
+      // Recalculate quote totals after adding item
+      await storage.recalculateQuoteTotals(quoteId);
+      
       res.status(201).json(item);
     } catch (error) {
       console.error("Error creating quote item:", error);
@@ -4330,6 +4334,9 @@ export function registerRoutes(app: Express): Server {
       const validatedData = insertQuoteItemSchema.partial().parse(req.body);
       const updatedItem = await storage.updateQuoteItemById(id, validatedData);
       
+      // Recalculate quote totals after updating item
+      await storage.recalculateQuoteTotals(item.quoteId);
+      
       res.json(updatedItem);
     } catch (error) {
       console.error("Error updating quote item:", error);
@@ -4365,6 +4372,10 @@ export function registerRoutes(app: Express): Server {
       }
       
       await storage.deleteQuoteItemById(id);
+      
+      // Recalculate quote totals after deleting item
+      await storage.recalculateQuoteTotals(item.quoteId);
+      
       res.json({ message: "Quote item deleted successfully" });
     } catch (error) {
       console.error("Error deleting quote item:", error);
