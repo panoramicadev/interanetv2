@@ -272,7 +272,17 @@ export default function ProductGroupsAdmin() {
         }
         return newSelected;
       } else {
-        // Add product
+        // Add product and auto-fill variant label with last word of product name
+        const words = product.producto.trim().split(/\s+/);
+        const lastWord = words[words.length - 1];
+        // Capitalize first letter
+        const autoVariantLabel = lastWord.charAt(0).toUpperCase() + lastWord.slice(1).toLowerCase();
+        
+        setVariantLabels(labels => ({
+          ...labels,
+          [product.id]: autoVariantLabel
+        }));
+        
         return [...prev, product];
       }
     });
