@@ -4136,7 +4136,7 @@ export default function TomadorPedidos() {
           </div>
 
           {/* Right Side - Cart and Summary */}
-          <div className="w-96 p-6 bg-muted/30">
+          <div className="w-96 p-6 bg-muted/30 overflow-y-auto">
             <div className="space-y-6">
               {/* Cart Header */}
               <div className="flex items-center justify-between">
@@ -4163,7 +4163,7 @@ export default function TomadorPedidos() {
                   <p className="text-muted-foreground">No hay productos en el carrito</p>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-64 overflow-y-auto">
+                <div className="space-y-3">
                   {cart.map((item) => (
                     <div
                       key={item.id}
