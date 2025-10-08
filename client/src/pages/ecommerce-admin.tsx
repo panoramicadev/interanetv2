@@ -422,7 +422,7 @@ export default function EcommerceAdmin() {
   };
 
   const formatPrice = (price: number) => {
-    return `$${price.toLocaleString()}`;
+    return `$${price.toLocaleString('es-CL')}`;
   };
 
   // Mutación para subir imagen individual
