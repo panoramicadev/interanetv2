@@ -394,15 +394,14 @@ export default function ProductGroupsAdmin() {
                 name="categoria"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Categoría</FormLabel>
-                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                    <FormLabel>Categoría (opcional)</FormLabel>
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger data-testid="select-group-category">
-                          <SelectValue placeholder="Seleccionar categoría" />
+                          <SelectValue placeholder="Sin categoría" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="" data-testid="select-item-no-category">Sin categoría</SelectItem>
                         {categorias.filter((cat: any) => cat.nombre?.trim()).map((categoria: any) => (
                           <SelectItem 
                             key={categoria.id} 
