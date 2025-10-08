@@ -300,6 +300,7 @@ export default function ProductGroupsAdmin() {
     }
 
     // Add all products sequentially
+    let successCount = 0;
     for (const product of selectedProductsToAdd) {
       try {
         await assignProductMutation.mutateAsync({
@@ -308,14 +309,19 @@ export default function ProductGroupsAdmin() {
           variantLabel: variantLabels[product.id],
           isMainVariant: mainVariantId === product.id
         });
+        successCount++;
       } catch (error) {
         console.error(`Error adding product ${product.id}:`, error);
       }
     }
 
+    // Force refetch of products to update the list
+    await queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+    await queryClient.refetchQueries({ queryKey: ['/api/ecommerce/admin/productos', 'all'] });
+
     toast({
       title: "Productos añadidos",
-      description: `Se añadieron ${selectedProductsToAdd.length} producto(s) al grupo`
+      description: `Se añadieron ${successCount} producto(s) al grupo correctamente`
     });
 
     resetAddProductForm();

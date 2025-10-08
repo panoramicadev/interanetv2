@@ -4248,6 +4248,9 @@ export class DatabaseStorage implements IStorage {
     imagenUrl?: string;
     precioEcommerce?: number;
     activo?: boolean;
+    groupId?: string | null;
+    variantLabel?: string | null;
+    isMainVariant?: boolean;
   }): Promise<{
     id: string;
     codigo: string;

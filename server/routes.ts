@@ -3052,7 +3052,7 @@ export function registerRoutes(app: Express): Server {
   // Update eCommerce product in admin panel
   app.patch('/api/ecommerce/admin/productos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     const { id } = req.params;
-    const { categoria, descripcion, imagenUrl, precio, activo } = req.body;
+    const { categoria, descripcion, imagenUrl, precio, activo, groupId, variantLabel, isMainVariant } = req.body;
     
     console.log('🔄 [BACKEND] Recibida solicitud PATCH para producto:', {
       id,
@@ -3067,7 +3067,10 @@ export function registerRoutes(app: Express): Server {
       imagenUrl,
       precio,
       activo,
-      precioEcommerce: precio
+      precioEcommerce: precio,
+      groupId,
+      variantLabel,
+      isMainVariant
     });
     
     try {
@@ -3077,7 +3080,10 @@ export function registerRoutes(app: Express): Server {
         descripcion,
         imagenUrl,
         precioEcommerce: precio,
-        activo
+        activo,
+        groupId,
+        variantLabel,
+        isMainVariant
       });
       
       console.log('✅ [BACKEND] Producto actualizado exitosamente:', product);
@@ -3087,7 +3093,7 @@ export function registerRoutes(app: Express): Server {
         error: error.message,
         stack: error.stack,
         id,
-        updates: { categoria, descripcion, imagenUrl, precioEcommerce: precio, activo }
+        updates: { categoria, descripcion, imagenUrl, precioEcommerce: precio, activo, groupId, variantLabel, isMainVariant }
       });
       
       if (error.message.includes('not found')) {
