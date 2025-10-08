@@ -5009,6 +5009,17 @@ export function registerRoutes(app: Express): Server {
         const fs = await import('fs/promises');
         const path = await import('path');
         
+        // Delete old image if exists
+        if (product && product.imagenUrl && product.imagenUrl.startsWith('/product-images/')) {
+          const oldImagePath = path.join(process.cwd(), 'public', product.imagenUrl);
+          try {
+            await fs.unlink(oldImagePath);
+            console.log(`🗑️ [SINGLE IMAGE] Deleted old image: ${product.imagenUrl}`);
+          } catch (error) {
+            console.log(`⚠️ [SINGLE IMAGE] Could not delete old image: ${product.imagenUrl}`);
+          }
+        }
+        
         const imageName = `${sku}_${Date.now()}${fileExt}`;
         const imagePath = path.join(process.cwd(), 'public', 'product-images', imageName);
         
@@ -5017,9 +5028,9 @@ export function registerRoutes(app: Express): Server {
         const publicUrl = `/product-images/${imageName}`;
 
         if (product) {
-          // Update product with image URL
+          // Update product with image URL immediately
           await storage.updateEcommerceAdminProduct(product.id, { imagenUrl: publicUrl });
-          console.log(`✅ [SINGLE IMAGE] Image associated with product: ${product.producto}`);
+          console.log(`✅ [SINGLE IMAGE] Image replaced for product: ${product.producto}`);
           
           res.json({
             success: true,
@@ -5076,6 +5087,21 @@ export function registerRoutes(app: Express): Server {
         const fs = await import('fs/promises');
         const path = await import('path');
         
+        // Get product to check for old image
+        const products = await storage.getEcommerceAdminProducts({ search: productId });
+        const product = products.find(p => p.id === parseInt(productId));
+        
+        // Delete old image if exists
+        if (product && product.imagenUrl && product.imagenUrl.startsWith('/product-images/')) {
+          const oldImagePath = path.join(process.cwd(), 'public', product.imagenUrl);
+          try {
+            await fs.unlink(oldImagePath);
+            console.log(`🗑️ [PRODUCT IMAGE] Deleted old image: ${product.imagenUrl}`);
+          } catch (error) {
+            console.log(`⚠️ [PRODUCT IMAGE] Could not delete old image: ${product.imagenUrl}`);
+          }
+        }
+        
         const imageName = `${productCode}_${Date.now()}${fileExt}`;
         const imagePath = path.join(process.cwd(), 'public', 'product-images', imageName);
         
@@ -5083,7 +5109,7 @@ export function registerRoutes(app: Express): Server {
         
         const publicUrl = `/product-images/${imageName}`;
 
-        // Update product with image URL
+        // Update product with image URL immediately
         await storage.updateEcommerceAdminProduct(productId, { imagenUrl: publicUrl });
         
         console.log(`✅ [PRODUCT IMAGE] Image uploaded for product: ${productCode}`);
