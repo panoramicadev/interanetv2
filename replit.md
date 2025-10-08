@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 ### Database Design
 - **Database**: PostgreSQL (Neon serverless)
 - **ORM**: Drizzle ORM
-- **Schema**: Users, sessions, sales_transactions, ecommerceOrders, notifications, tasks, task_assignments
+- **Schema**: Users, sessions, sales_transactions, ecommerceOrders, ecommerceProductGroups, notifications, tasks, task_assignments
 - **Migrations**: Drizzle Kit
 
 ### Authentication & Authorization
@@ -56,6 +56,7 @@ Preferred communication style: Simple, everyday language.
 ### Feature Specifications
 - **Client Management**: Client credential assignment, user-client linking, salesperson assignment.
 - **E-commerce**: Ecommerce orders schema, notification system for order approval.
+- **Product Grouping System**: Parent-child model for product variations with unique SKUs and prices per variant. Admin interface for managing product groups with search, filters, and CRUD operations. Backend-compatible (ungrouped products maintain groupId=null).
 - **User Roles**: Admin, Supervisor, Salesperson, Técnico de Obra, Client with distinct dashboards and permissions.
 - **Technical Visits**: Four-step creation flow, custom product support, receptionist fields, general observations.
 - **Sales Analytics**: KPI metrics, sales trend charts, detailed transaction records, segment analysis.
