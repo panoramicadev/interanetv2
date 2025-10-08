@@ -10,13 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Users } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Plus, Edit, Trash2, Users, Check, ChevronsUpDown } from "lucide-react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertSalespersonUserSchema, type InsertSalespersonUserInput, type SalespersonUser } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 import type { User } from "@shared/schema";
 
 export default function UsersPage() {
@@ -27,6 +30,7 @@ export default function UsersPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<SalespersonUser | null>(null);
   const [roleFilter, setRoleFilter] = useState<string>("todos");
+  const [clientSearchOpen, setClientSearchOpen] = useState(false);
 
   // Verificar permisos de admin
   const [, setLocation] = useLocation();
@@ -413,31 +417,68 @@ export default function UsersPage() {
                     </div>
                   )}
                   
-                  {/* Dropdown para Clientes */}
+                  {/* Buscador de Clientes */}
                   {createForm.watch("role") === "client" && (
                     <FormField
                       control={createForm.control}
                       name="salespersonName"
                       render={({ field }) => (
-                        <FormItem>
+                        <FormItem className="flex flex-col">
                           <FormLabel>Seleccionar Cliente</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="select-client-name">
-                                <SelectValue placeholder="Selecciona un cliente" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {availableClients
-                                .filter(client => !salespeopleUsers.some(user => user.salespersonName === client))
-                                .map((client) => (
-                                  <SelectItem key={client} value={client}>
-                                    {client}
-                                  </SelectItem>
-                                ))
-                              }
-                            </SelectContent>
-                          </Select>
+                          <Popover open={clientSearchOpen} onOpenChange={setClientSearchOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  data-testid="select-client-name"
+                                  className={cn(
+                                    "w-full justify-between",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value
+                                    ? availableClients.find(
+                                        (client) => client === field.value
+                                      )
+                                    : "Buscar cliente..."}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[400px] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Buscar cliente..." />
+                                <CommandList>
+                                  <CommandEmpty>No se encontró ningún cliente.</CommandEmpty>
+                                  <CommandGroup>
+                                    {availableClients
+                                      .filter(client => !salespeopleUsers.some(user => user.salespersonName === client))
+                                      .map((client) => (
+                                        <CommandItem
+                                          value={client}
+                                          key={client}
+                                          onSelect={() => {
+                                            field.onChange(client);
+                                            setClientSearchOpen(false);
+                                          }}
+                                        >
+                                          <Check
+                                            className={cn(
+                                              "mr-2 h-4 w-4",
+                                              client === field.value
+                                                ? "opacity-100"
+                                                : "opacity-0"
+                                            )}
+                                          />
+                                          {client}
+                                        </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
                           <FormMessage />
                         </FormItem>
                       )}
