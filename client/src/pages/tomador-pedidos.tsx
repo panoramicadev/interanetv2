@@ -3192,7 +3192,7 @@ export default function TomadorPedidos() {
     {/* Quote Builder - Mobile Sheet / Desktop Dialog */}
     {isMobile ? (
       <Sheet open={showQuoteBuilder} onOpenChange={setShowQuoteBuilder}>
-        <SheetContent side="bottom" className="h-[95vh] p-0">
+        <SheetContent side="bottom" className="h-screen p-0">
           <SheetHeader className="p-4 pb-2 border-b">
             <SheetTitle className="flex items-center gap-2">
               <Calculator className="w-5 h-5" />
@@ -3202,7 +3202,7 @@ export default function TomadorPedidos() {
               Crear presupuesto con productos y información del cliente
             </SheetDescription>
           </SheetHeader>
-          <div className="flex flex-col h-[calc(95vh-60px)]">
+          <div className="flex flex-col h-[calc(100vh-60px)]">
             {/* Mobile Content */}
             <Tabs defaultValue={defaultMobileTab} className="flex flex-col flex-1 overflow-hidden">
               <div className="sticky top-0 z-10 bg-background border-b px-4">
