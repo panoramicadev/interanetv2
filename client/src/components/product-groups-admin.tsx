@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Search, Edit, Plus, Trash2, Layers } from "lucide-react";
+import { Search, Edit, Plus, Trash2, Layers, Package } from "lucide-react";
 import { insertEcommerceProductGroupSchema } from "@shared/schema";
 import type { InsertEcommerceProductGroupInput } from "@shared/schema";
 
@@ -51,6 +51,12 @@ export default function ProductGroupsAdmin() {
   const [editingGroup, setEditingGroup] = useState<ProductGroup | null>(null);
   const [showProductsDialog, setShowProductsDialog] = useState(false);
   const [managingGroupId, setManagingGroupId] = useState<string | null>(null);
+  
+  // States for adding products to group
+  const [productSearch, setProductSearch] = useState("");
+  const [selectedProductToAdd, setSelectedProductToAdd] = useState<any | null>(null);
+  const [variantLabelInput, setVariantLabelInput] = useState("");
+  const [isMainVariantInput, setIsMainVariantInput] = useState(false);
   
   const { toast } = useToast();
 
@@ -238,6 +244,41 @@ export default function ProductGroupsAdmin() {
       deleteGroupMutation.mutate(id);
     }
   };
+
+  const resetAddProductForm = () => {
+    setSelectedProductToAdd(null);
+    setVariantLabelInput("");
+    setIsMainVariantInput(false);
+    setProductSearch("");
+  };
+
+  const handleAddProductToGroup = () => {
+    if (!selectedProductToAdd || !managingGroupId || !variantLabelInput.trim()) {
+      toast({
+        title: "Error",
+        description: "Selecciona un producto y define la etiqueta de variante",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    assignProductMutation.mutate({
+      productId: selectedProductToAdd.id,
+      groupId: managingGroupId,
+      variantLabel: variantLabelInput,
+      isMainVariant: isMainVariantInput
+    });
+
+    resetAddProductForm();
+  };
+
+  // Filter available products (not in this group)
+  const availableProductsToAdd = availableProducts.filter(p => 
+    p.groupId !== managingGroupId &&
+    (productSearch === "" || 
+     p.producto?.toLowerCase().includes(productSearch.toLowerCase()) ||
+     p.codigo?.toLowerCase().includes(productSearch.toLowerCase()))
+  );
 
   return (
     <div className="space-y-6">
@@ -512,8 +553,11 @@ export default function ProductGroupsAdmin() {
       </Dialog>
 
       {/* Dialog para gestionar productos del grupo */}
-      <Dialog open={showProductsDialog} onOpenChange={setShowProductsDialog}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <Dialog open={showProductsDialog} onOpenChange={(open) => {
+        setShowProductsDialog(open);
+        if (!open) resetAddProductForm();
+      }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Gestionar Productos del Grupo</DialogTitle>
             <DialogDescription>
@@ -521,15 +565,18 @@ export default function ProductGroupsAdmin() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-6">
             {/* Productos en el grupo */}
             <div>
-              <h3 className="font-medium mb-2">Productos en este grupo</h3>
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Productos en este grupo
+              </h3>
               {managingGroupId && (
-                <div className="border rounded-lg p-3 space-y-2 max-h-60 overflow-y-auto">
+                <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto bg-muted/30">
                   {availableProducts.filter(p => p.groupId === managingGroupId).length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No hay productos en este grupo. Usa el formulario de edición de producto para añadirlos.
+                      No hay productos en este grupo aún.
                     </p>
                   ) : (
                     availableProducts
@@ -537,7 +584,7 @@ export default function ProductGroupsAdmin() {
                       .map(product => (
                         <div 
                           key={product.id} 
-                          className="flex items-center justify-between p-2 bg-muted rounded"
+                          className="flex items-center justify-between p-3 bg-background rounded border"
                         >
                           <div className="flex-1">
                             <div className="font-medium">{product.producto}</div>
@@ -550,16 +597,18 @@ export default function ProductGroupsAdmin() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              assignProductMutation.mutate({
-                                productId: product.id,
-                                groupId: null as any,
-                                variantLabel: null as any,
-                                isMainVariant: false
-                              });
+                              if (confirm("¿Quitar este producto del grupo?")) {
+                                assignProductMutation.mutate({
+                                  productId: product.id,
+                                  groupId: null as any,
+                                  variantLabel: null as any,
+                                  isMainVariant: false
+                                });
+                              }
                             }}
                             data-testid={`button-remove-product-${product.id}`}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
                       ))
@@ -568,15 +617,114 @@ export default function ProductGroupsAdmin() {
               )}
             </div>
 
+            {/* Añadir productos */}
             <div className="border-t pt-4">
-              <p className="text-sm text-muted-foreground mb-4">
-                Para añadir productos a este grupo, ve a la pestaña "Productos", edita cada producto que quieras incluir, 
-                selecciona este grupo en el campo "Grupo de producto" y define su etiqueta de variante (ej: "Blanco", "Gris", "Negro").
-              </p>
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Añadir Producto
+              </h3>
+              
+              {/* Buscador de productos */}
+              <div className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar producto por nombre o código..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    className="pl-9"
+                    data-testid="input-search-product"
+                  />
+                </div>
+
+                {/* Lista de productos disponibles */}
+                <div className="border rounded-lg max-h-48 overflow-y-auto">
+                  {availableProductsToAdd.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      {productSearch ? "No se encontraron productos" : "Todos los productos ya están asignados"}
+                    </p>
+                  ) : (
+                    availableProductsToAdd.slice(0, 20).map(product => (
+                      <button
+                        key={product.id}
+                        onClick={() => setSelectedProductToAdd(product)}
+                        className={`w-full text-left p-3 border-b hover:bg-muted/50 transition-colors ${
+                          selectedProductToAdd?.id === product.id ? 'bg-primary/10 border-l-4 border-l-primary' : ''
+                        }`}
+                        data-testid={`button-select-product-${product.id}`}
+                      >
+                        <div className="font-medium">{product.producto}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Código: {product.codigo} | Precio: ${new Intl.NumberFormat('es-CL').format(product.precio)}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {/* Formulario de variante */}
+                {selectedProductToAdd && (
+                  <div className="bg-muted/30 p-4 rounded-lg space-y-3 border-2 border-primary/20">
+                    <div className="font-medium text-sm mb-2">
+                      Producto seleccionado: {selectedProductToAdd.producto}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Etiqueta de Variante *</label>
+                      <Input
+                        placeholder='Ej: "Blanco", "Negro", "Gris", "1 Litro", etc.'
+                        value={variantLabelInput}
+                        onChange={(e) => setVariantLabelInput(e.target.value)}
+                        data-testid="input-variant-label"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isMainVariantInput}
+                        onChange={(e) => setIsMainVariantInput(e.target.checked)}
+                        className="h-4 w-4"
+                        data-testid="checkbox-is-main-variant"
+                      />
+                      <label className="text-sm">
+                        Marcar como variante principal del grupo
+                      </label>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={resetAddProductForm}
+                        className="flex-1"
+                        data-testid="button-cancel-add-product"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleAddProductToGroup}
+                        disabled={!variantLabelInput.trim() || assignProductMutation.isPending}
+                        className="flex-1"
+                        data-testid="button-confirm-add-product"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Añadir Producto
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t pt-4 flex justify-end">
               <Button
                 variant="outline"
-                onClick={() => setShowProductsDialog(false)}
-                className="w-full"
+                onClick={() => {
+                  setShowProductsDialog(false);
+                  resetAddProductForm();
+                }}
                 data-testid="button-close-products-dialog"
               >
                 Cerrar

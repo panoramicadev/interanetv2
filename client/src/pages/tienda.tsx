@@ -70,6 +70,10 @@ interface StoreProduct {
   description?: string;
   active: boolean;
   slug?: string;
+  // Product grouping fields
+  groupId?: string | null;
+  variantLabel?: string | null;
+  isMainVariant?: boolean;
   // Legacy compatibility fields
   codigo?: string;
   producto?: string;
@@ -79,6 +83,15 @@ interface StoreProduct {
   descripcion?: string;
   activo?: boolean;
   orden?: number;
+}
+
+interface ProductGroup {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  categoria?: string;
+  activo: boolean;
+  productos: StoreProduct[];
 }
 
 
@@ -188,6 +201,11 @@ export default function TiendaPage() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
   
+  // Variant selection state
+  const [showVariantDialog, setShowVariantDialog] = useState(false);
+  const [selectedVariantGroup, setSelectedVariantGroup] = useState<ProductGroup | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<StoreProduct | null>(null);
+  
   // Banner carousel state
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
@@ -245,6 +263,24 @@ export default function TiendaPage() {
     const numPrice = typeof basePrice === 'string' ? parseFloat(basePrice) : basePrice;
     if (isNaN(numPrice)) return 0;
     return numPrice * quantity;
+  };
+
+  // Handle add to cart click - check if product has variants
+  const handleAddToCartClick = (product: StoreProduct) => {
+    // Check if this product belongs to a group
+    if (product.groupId) {
+      const group = productGroups.find(g => g.id === product.groupId);
+      if (group && group.productos.length > 1) {
+        // Show variant selection dialog
+        setSelectedVariantGroup(group);
+        setSelectedVariant(product); // Pre-select the clicked product
+        setShowVariantDialog(true);
+        return;
+      }
+    }
+    
+    // No variants, add directly to cart
+    addToCart(product);
   };
 
   // Add to cart functionality
@@ -363,6 +399,12 @@ export default function TiendaPage() {
   // Fetch store categories
   const { data: categories = [] } = useQuery<string[]>({
     queryKey: ['/api/store/categories'],
+    retry: false,
+  });
+
+  // Fetch product groups
+  const { data: productGroups = [] } = useQuery<ProductGroup[]>({
+    queryKey: ['/api/store/groups'],
     retry: false,
   });
 
@@ -847,7 +889,7 @@ export default function TiendaPage() {
                           className="w-full bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white font-semibold py-3 rounded-lg transition-colors duration-200"
                           onClick={(e) => {
                             e.stopPropagation();
-                            addToCart(product);
+                            handleAddToCartClick(product);
                           }}
                           data-testid={`button-add-cart-${getProductCode(product)}`}
                         >
@@ -965,7 +1007,7 @@ export default function TiendaPage() {
                   <div className="flex flex-col sm:flex-row gap-3">
                     <Button 
                       className="flex-1 bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white py-3"
-                      onClick={() => selectedProduct && addToCart(selectedProduct)}
+                      onClick={() => selectedProduct && handleAddToCartClick(selectedProduct)}
                       data-testid="button-add-cart-dialog"
                     >
                       <ShoppingCart className="h-5 w-5 mr-2" />
@@ -984,6 +1026,135 @@ export default function TiendaPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Variant Selection Dialog */}
+      <Dialog open={showVariantDialog} onOpenChange={setShowVariantDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Selecciona una Variante</DialogTitle>
+          </DialogHeader>
+          
+          {selectedVariantGroup && (
+            <div className="space-y-4">
+              {/* Group Info */}
+              <div className="pb-4 border-b">
+                <h3 className="font-bold text-lg">{selectedVariantGroup.nombre}</h3>
+                {selectedVariantGroup.descripcion && (
+                  <p className="text-muted-foreground text-sm mt-1">{selectedVariantGroup.descripcion}</p>
+                )}
+              </div>
+
+              {/* Variant Selection Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {selectedVariantGroup.productos.map((variant) => {
+                  const isSelected = selectedVariant?.id === variant.id;
+                  const variantPrice = getProductPrice(variant);
+                  
+                  return (
+                    <button
+                      key={variant.id}
+                      onClick={() => setSelectedVariant(variant)}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${
+                        isSelected 
+                          ? 'border-[#FF6E23] bg-[#FF6E23]/5' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      data-testid={`button-variant-${variant.id}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold">{variant.variantLabel || getProductName(variant)}</span>
+                        {isSelected && (
+                          <div className="bg-[#FF6E23] text-white rounded-full p-1">
+                            <Check className="h-4 w-4" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground mb-1">
+                        Código: {getProductCode(variant)}
+                      </div>
+                      <div className="text-lg font-bold text-[#FF6E23]">
+                        {formatPrice(variantPrice)}
+                      </div>
+                      {variant.isMainVariant && (
+                        <Badge variant="default" className="mt-2">Principal</Badge>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Quantity Selector */}
+              {selectedVariant && (
+                <div className="pt-4 border-t">
+                  <h4 className="font-semibold mb-3">Cantidad</h4>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => decrementQuantity(selectedVariant.id, getProductUnit(selectedVariant))}
+                      disabled={getProductQuantity(selectedVariant.id, getProductUnit(selectedVariant)) <= getMinimumQuantity(getProductUnit(selectedVariant))}
+                      data-testid="button-decrement-variant"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    
+                    <div className="min-w-[4rem] text-center">
+                      <div className="text-2xl font-bold">
+                        {getProductQuantity(selectedVariant.id, getProductUnit(selectedVariant))}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {getQuantityLabel(getProductUnit(selectedVariant))}
+                      </div>
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => incrementQuantity(selectedVariant.id, getProductUnit(selectedVariant))}
+                      data-testid="button-increment-variant"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowVariantDialog(false);
+                    setSelectedVariant(null);
+                    setSelectedVariantGroup(null);
+                  }}
+                  data-testid="button-cancel-variant"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 bg-[#FF6E23] hover:bg-[#FF6E23]/90 text-white"
+                  onClick={() => {
+                    if (selectedVariant) {
+                      addToCart(selectedVariant);
+                      setShowVariantDialog(false);
+                      setSelectedVariant(null);
+                      setSelectedVariantGroup(null);
+                    }
+                  }}
+                  disabled={!selectedVariant}
+                  data-testid="button-confirm-variant"
+                >
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Agregar al Carrito
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
