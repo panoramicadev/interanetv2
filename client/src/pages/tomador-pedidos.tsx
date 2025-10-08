@@ -1857,6 +1857,38 @@ export default function TomadorPedidos() {
     }
   };
 
+  // Helper function to generate PDF filename
+  const generatePDFFilename = (clientName: string, createdAt: string | Date, quoteNumber: string | number): string => {
+    // Clean client name (remove special characters, keep only letters, numbers, and spaces)
+    const cleanName = clientName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Remove accents
+      .replace(/[^a-zA-Z0-9\s]/g, "") // Remove special characters
+      .trim()
+      .replace(/\s+/g, ' '); // Normalize spaces
+
+    // Format date as DDMMYY
+    const date = new Date(createdAt);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2); // Last 2 digits
+    const dateStr = `${day}${month}${year}`;
+
+    // Format quote number as 3-digit number
+    let sequenceNum = '000';
+    if (typeof quoteNumber === 'number') {
+      sequenceNum = String(quoteNumber).padStart(3, '0');
+    } else if (typeof quoteNumber === 'string') {
+      // Try to extract number from string (e.g., "Q-123" -> "123")
+      const match = quoteNumber.match(/\d+/);
+      if (match) {
+        sequenceNum = match[0].padStart(3, '0');
+      }
+    }
+
+    return `${cleanName}-${dateStr}-${sequenceNum}.pdf`;
+  };
+
   // Download or view PDF based on device
   const downloadPDF = async () => {
     try {
@@ -1915,12 +1947,19 @@ export default function TomadorPedidos() {
       // Generate PDF using React-PDF
       const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
       const url = URL.createObjectURL(pdfBlob);
+      
+      // Generate filename with new format: ClientName-DDMMYY-NNN.pdf
+      const pdfFilename = generatePDFFilename(
+        quote.clientName || 'Cliente',
+        quote.createdAt || new Date(),
+        quote.quoteNumber || savedQuoteId || Date.now()
+      );
 
       if (isMobile) {
         // For mobile: Download the PDF directly (iframes don't work reliably on mobile)
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Presupuesto-${quote.quoteNumber}.pdf`;
+        a.download = pdfFilename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -2708,8 +2747,15 @@ export default function TomadorPedidos() {
       // Generate PDF using React-PDF
       const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={items} />).toBlob();
       
+      // Generate filename with new format: ClientName-DDMMYY-NNN.pdf
+      const pdfFilename = generatePDFFilename(
+        quote.clientName || 'Cliente',
+        quote.createdAt || new Date(),
+        quote.quoteNumber || savedQuoteId || Date.now()
+      );
+      
       // Create file for sharing
-      const file = new File([pdfBlob], `Presupuesto-${quote.quoteNumber}.pdf`, { type: 'application/pdf' });
+      const file = new File([pdfBlob], pdfFilename, { type: 'application/pdf' });
 
       // Try to use Web Share API (best for mobile)
       if (navigator.share) {
@@ -2731,7 +2777,7 @@ export default function TomadorPedidos() {
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Presupuesto-${quote.quoteNumber}.pdf`;
+      a.download = pdfFilename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
