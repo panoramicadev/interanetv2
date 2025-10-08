@@ -354,8 +354,8 @@ export default function TareasPage() {
                 Nueva Tarea
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+              <DialogHeader className="flex-shrink-0">
                 <DialogTitle>Crear Nueva Tarea</DialogTitle>
                 <DialogDescription>
                   Completa los detalles para crear una nueva tarea y asignarla a miembros del equipo o segmentos.
@@ -363,7 +363,8 @@ export default function TareasPage() {
               </DialogHeader>
               
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col min-h-0 flex-1">
+                  <div className="space-y-4 overflow-y-auto flex-1 pr-1">
                   {/* Task Details */}
                   <FormField
                     control={form.control}
@@ -531,8 +532,9 @@ export default function TareasPage() {
                       {form.formState.errors.assignments?.message}
                     </FormMessage>
                   </div>
+                  </div>
 
-                  <div className="flex justify-end gap-2">
+                  <div className="flex justify-end gap-2 pt-4 border-t mt-4 flex-shrink-0">
                     <Button 
                       type="button" 
                       variant="outline" 
