@@ -55,9 +55,9 @@ export default function ProductGroupsAdmin() {
   // States for adding products to group
   const [productSearch, setProductSearch] = useState("");
   const [selectedUnidad, setSelectedUnidad] = useState<string>("all");
-  const [selectedProductToAdd, setSelectedProductToAdd] = useState<any | null>(null);
-  const [variantLabelInput, setVariantLabelInput] = useState("");
-  const [isMainVariantInput, setIsMainVariantInput] = useState(false);
+  const [selectedProductsToAdd, setSelectedProductsToAdd] = useState<any[]>([]);
+  const [variantLabels, setVariantLabels] = useState<Record<string, string>>({});
+  const [mainVariantId, setMainVariantId] = useState<string | null>(null);
   
   const { toast } = useToast();
 
@@ -248,28 +248,74 @@ export default function ProductGroupsAdmin() {
   };
 
   const resetAddProductForm = () => {
-    setSelectedProductToAdd(null);
-    setVariantLabelInput("");
-    setIsMainVariantInput(false);
+    setSelectedProductsToAdd([]);
+    setVariantLabels({});
+    setMainVariantId(null);
     setProductSearch("");
     setSelectedUnidad("all");
   };
 
-  const handleAddProductToGroup = () => {
-    if (!selectedProductToAdd || !managingGroupId || !variantLabelInput.trim()) {
+  const toggleProductSelection = (product: any) => {
+    setSelectedProductsToAdd(prev => {
+      const isSelected = prev.some(p => p.id === product.id);
+      if (isSelected) {
+        // Remove product
+        const newSelected = prev.filter(p => p.id !== product.id);
+        // Clean up variant label and main variant if it was this product
+        setVariantLabels(labels => {
+          const newLabels = { ...labels };
+          delete newLabels[product.id];
+          return newLabels;
+        });
+        if (mainVariantId === product.id) {
+          setMainVariantId(null);
+        }
+        return newSelected;
+      } else {
+        // Add product
+        return [...prev, product];
+      }
+    });
+  };
+
+  const handleAddProductsToGroup = async () => {
+    if (selectedProductsToAdd.length === 0 || !managingGroupId) {
       toast({
         title: "Error",
-        description: "Selecciona un producto y define la etiqueta de variante",
+        description: "Selecciona al menos un producto",
         variant: "destructive"
       });
       return;
     }
 
-    assignProductMutation.mutate({
-      productId: selectedProductToAdd.id,
-      groupId: managingGroupId,
-      variantLabel: variantLabelInput,
-      isMainVariant: isMainVariantInput
+    // Validate that all selected products have variant labels
+    const missingLabels = selectedProductsToAdd.filter(p => !variantLabels[p.id]?.trim());
+    if (missingLabels.length > 0) {
+      toast({
+        title: "Error",
+        description: "Todos los productos seleccionados deben tener una etiqueta de variante",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Add all products sequentially
+    for (const product of selectedProductsToAdd) {
+      try {
+        await assignProductMutation.mutateAsync({
+          productId: product.id,
+          groupId: managingGroupId,
+          variantLabel: variantLabels[product.id],
+          isMainVariant: mainVariantId === product.id
+        });
+      } catch (error) {
+        console.error(`Error adding product ${product.id}:`, error);
+      }
+    }
+
+    toast({
+      title: "Productos añadidos",
+      description: `Se añadieron ${selectedProductsToAdd.length} producto(s) al grupo`
     });
 
     resetAddProductForm();
@@ -689,75 +735,110 @@ export default function ProductGroupsAdmin() {
                       <p className="text-xs mt-2">Total productos: {availableProducts.length}</p>
                     </div>
                   ) : (
-                    availableProductsToAdd.slice(0, 20).map(product => (
-                      <button
-                        key={product.id}
-                        onClick={() => setSelectedProductToAdd(product)}
-                        className={`w-full text-left p-3 border-b hover:bg-muted/50 transition-colors ${
-                          selectedProductToAdd?.id === product.id ? 'bg-primary/10 border-l-4 border-l-primary' : ''
-                        }`}
-                        data-testid={`button-select-product-${product.id}`}
-                      >
-                        <div className="font-medium">{product.producto}</div>
-                        <div className="text-sm text-muted-foreground">
-                          Código: {product.codigo}
-                          {product.unidad && ` | Envase: ${product.unidad}`}
-                          {' | Precio: $' + new Intl.NumberFormat('es-CL').format(product.precio)}
+                    availableProductsToAdd.slice(0, 30).map(product => {
+                      const isSelected = selectedProductsToAdd.some(p => p.id === product.id);
+                      return (
+                        <div
+                          key={product.id}
+                          className={`flex items-center gap-3 p-3 border-b hover:bg-muted/50 transition-colors ${
+                            isSelected ? 'bg-primary/10' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleProductSelection(product)}
+                            className="h-4 w-4"
+                            data-testid={`checkbox-select-product-${product.id}`}
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium">{product.producto}</div>
+                            <div className="text-sm text-muted-foreground">
+                              Código: {product.codigo}
+                              {product.unidad && ` | Envase: ${product.unidad}`}
+                              {' | Precio: $' + new Intl.NumberFormat('es-CL').format(product.precio)}
+                            </div>
+                          </div>
                         </div>
-                      </button>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 
-                {/* Formulario de variante */}
-                {selectedProductToAdd && (
-                  <div className="bg-muted/30 p-4 rounded-lg space-y-3 border-2 border-primary/20">
-                    <div className="font-medium text-sm mb-2">
-                      Producto seleccionado: {selectedProductToAdd.producto}
+                {/* Formulario de variantes para productos seleccionados */}
+                {selectedProductsToAdd.length > 0 && (
+                  <div className="bg-muted/30 p-4 rounded-lg space-y-4 border-2 border-primary/20">
+                    <div className="font-medium">
+                      {selectedProductsToAdd.length} producto(s) seleccionado(s)
                     </div>
                     
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Etiqueta de Variante *</label>
-                      <Input
-                        placeholder='Ej: "Blanco", "Negro", "Gris", "1 Litro", etc.'
-                        value={variantLabelInput}
-                        onChange={(e) => setVariantLabelInput(e.target.value)}
-                        data-testid="input-variant-label"
-                      />
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                      {selectedProductsToAdd.map(product => (
+                        <div key={product.id} className="bg-background p-3 rounded border space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{product.producto}</div>
+                              <div className="text-xs text-muted-foreground">{product.codigo}</div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleProductSelection(product)}
+                              className="h-6 w-6 p-0"
+                            >
+                              ✕
+                            </Button>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Input
+                              placeholder='Ej: "Blanco", "Negro", "Gris"'
+                              value={variantLabels[product.id] || ''}
+                              onChange={(e) => setVariantLabels(prev => ({
+                                ...prev,
+                                [product.id]: e.target.value
+                              }))}
+                              className="text-sm"
+                              data-testid={`input-variant-label-${product.id}`}
+                            />
+                            
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="mainVariant"
+                                checked={mainVariantId === product.id}
+                                onChange={() => setMainVariantId(product.id)}
+                                className="h-3 w-3"
+                                data-testid={`radio-main-variant-${product.id}`}
+                              />
+                              <label className="text-xs text-muted-foreground">
+                                Variante principal
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={isMainVariantInput}
-                        onChange={(e) => setIsMainVariantInput(e.target.checked)}
-                        className="h-4 w-4"
-                        data-testid="checkbox-is-main-variant"
-                      />
-                      <label className="text-sm">
-                        Marcar como variante principal del grupo
-                      </label>
-                    </div>
-
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 pt-2 border-t">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={resetAddProductForm}
                         className="flex-1"
-                        data-testid="button-cancel-add-product"
+                        data-testid="button-cancel-add-products"
                       >
                         Cancelar
                       </Button>
                       <Button
                         size="sm"
-                        onClick={handleAddProductToGroup}
-                        disabled={!variantLabelInput.trim() || assignProductMutation.isPending}
+                        onClick={handleAddProductsToGroup}
+                        disabled={assignProductMutation.isPending || selectedProductsToAdd.some(p => !variantLabels[p.id]?.trim())}
                         className="flex-1"
-                        data-testid="button-confirm-add-product"
+                        data-testid="button-confirm-add-products"
                       >
                         <Plus className="h-4 w-4 mr-1" />
-                        Añadir Producto
+                        Añadir {selectedProductsToAdd.length} Producto(s)
                       </Button>
                     </div>
                   </div>
