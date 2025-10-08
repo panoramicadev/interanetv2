@@ -349,7 +349,7 @@ export default function TareasPage() {
         {canCreateTasks && (
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
-              <Button data-testid="button-create-task">
+              <Button className="w-full sm:w-auto" data-testid="button-create-task">
                 <Plus className="h-4 w-4 mr-2" />
                 Nueva Tarea
               </Button>
