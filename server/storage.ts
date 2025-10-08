@@ -4186,8 +4186,8 @@ export class DatabaseStorage implements IStorage {
       })
       .from(ecommerceOrders)
       .where(and(
-        gte(ecommerceOrders.createdAt, startOfMonth.toISOString()),
-        lte(ecommerceOrders.createdAt, endOfMonth.toISOString())
+        gte(ecommerceOrders.createdAt, startOfMonth),
+        lte(ecommerceOrders.createdAt, endOfMonth)
       ));
 
     return {
