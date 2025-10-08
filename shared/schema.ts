@@ -411,6 +411,7 @@ export const clients = pgTable("clients", {
   // Sales and pricing
   kofuen: varchar("kofuen"), // Sales rep code
   assignedSalespersonUserId: varchar("assigned_salesperson_user_id"), // FK to users.id (assigned salesperson)
+  userId: varchar("user_id"), // FK to users.id (client user for ecommerce access)
   lcen: varchar("lcen"), // Price list
   lven: varchar("lven"), // Sale list
   prefen: varchar("prefen"), // Preference
@@ -587,11 +588,15 @@ export const productPriceHistoryRelations = relations(productPriceHistory, ({ on
   }),
 }));
 
-// Client relations - Connect clients with sales transactions and salesperson
+// Client relations - Connect clients with sales transactions, salesperson and user
 export const clientsRelations = relations(clients, ({ many, one }) => ({
   transactionsByName: many(salesTransactions),
   assignedSalesperson: one(users, {
     fields: [clients.assignedSalespersonUserId],
+    references: [users.id],
+  }),
+  user: one(users, {
+    fields: [clients.userId],
     references: [users.id],
   }),
 }));
