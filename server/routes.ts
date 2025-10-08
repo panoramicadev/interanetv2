@@ -1128,6 +1128,100 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Asignar credenciales de acceso a un cliente (crear usuario con rol client)
+  app.post('/api/clients/:koen/assign-credentials', requireAuth, async (req: any, res) => {
+    try {
+      const { koen } = req.params;
+      const user = req.user;
+      
+      // Solo admin y supervisor pueden asignar credenciales
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado para asignar credenciales" });
+      }
+      
+      // Validar datos con Zod
+      const credentialsSchema = z.object({
+        email: z.string().email("Email inválido"),
+        password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+        salespersonUserId: z.string().optional(),
+      });
+      
+      const validatedData = credentialsSchema.parse(req.body);
+      
+      // Obtener información del cliente
+      const client = await storage.getClientByKoen(koen);
+      if (!client) {
+        return res.status(404).json({ message: "Cliente no encontrado" });
+      }
+      
+      // Verificar si el cliente ya tiene un usuario asignado
+      if (client.userId) {
+        return res.status(400).json({ message: "Este cliente ya tiene credenciales asignadas" });
+      }
+      
+      // Verificar si ya existe un usuario con ese email
+      const existingUser = await storage.getUserByEmail(validatedData.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Ya existe un usuario con ese email" });
+      }
+      
+      // Si se proporciona salespersonUserId, verificar que existe
+      if (validatedData.salespersonUserId) {
+        const salesperson = await storage.getUserById(validatedData.salespersonUserId);
+        if (!salesperson) {
+          return res.status(400).json({ message: "El vendedor especificado no existe" });
+        }
+        if (!['salesperson', 'admin', 'supervisor'].includes(salesperson.role || '')) {
+          return res.status(400).json({ message: "El usuario especificado no es un vendedor válido" });
+        }
+      }
+      
+      // Hash de la contraseña
+      const hashedPassword = await bcrypt.hash(validatedData.password, 12);
+      
+      // Crear usuario con rol client
+      const newUser = await storage.createUser({
+        email: validatedData.email,
+        password: hashedPassword,
+        firstName: client.nokoen || '',
+        lastName: '',
+        role: 'client',
+      });
+      
+      // Actualizar cliente con el userId y el vendedor asignado
+      const updateData: any = {
+        userId: newUser.id,
+      };
+      
+      if (validatedData.salespersonUserId) {
+        updateData.assignedSalespersonUserId = validatedData.salespersonUserId;
+      }
+      
+      if (client.koen) {
+        await storage.updateClient(client.koen, updateData);
+      }
+      
+      res.json({
+        success: true,
+        message: "Credenciales asignadas exitosamente",
+        userId: newUser.id,
+        email: newUser.email
+      });
+    } catch (error) {
+      console.error("Error asignando credenciales:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Error de validación", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ 
+        message: "Error al asignar credenciales", 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
   // Core client fields for reliable import (essential fields only to avoid parameter limit)
   const coreClientFields = new Set([
     'koen', 'nokoen', 'rten', 'tien', 'gien', 'paen', 'cien', 'cmen', 'dien', 'comuna',
