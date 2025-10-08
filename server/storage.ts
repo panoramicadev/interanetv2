@@ -725,7 +725,7 @@ export interface IStorage {
   createTask(task: InsertTask, assignments: InsertTaskAssignment[]): Promise<Task>;
   updateTask(id: string, task: Partial<InsertTask>): Promise<Task>;
   deleteTask(id: string): Promise<void>;
-  updateAssignmentStatus(assignmentId: string, status: string, notes?: string): Promise<TaskAssignment>;
+  updateAssignmentStatus(assignmentId: string, status: string, notes?: string, evidenceImages?: string[]): Promise<TaskAssignment>;
   markAssignmentRead(assignmentId: string): Promise<TaskAssignment>;
   getTasksForUser(userId: string, userSegments: string[]): Promise<Array<Task & { assignments: TaskAssignment[] }>>;
   
@@ -6461,10 +6461,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tasks.id, id));
   }
 
-  async updateAssignmentStatus(assignmentId: string, status: string, notes?: string): Promise<TaskAssignment> {
+  async updateAssignmentStatus(assignmentId: string, status: string, notes?: string, evidenceImages?: string[]): Promise<TaskAssignment> {
     const updates: any = {
       status,
-      ...(notes && { notes }),
+      ...(notes !== undefined && { notes }),
+      ...(evidenceImages !== undefined && { evidenceImages }),
       ...(status === "completed" && { completedAt: new Date() }),
     };
 

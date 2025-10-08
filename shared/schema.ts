@@ -1188,6 +1188,7 @@ export const taskAssignments = pgTable("task_assignments", {
   readAt: timestamp("read_at"), // nullable
   completedAt: timestamp("completed_at"), // nullable
   notes: text("notes"), // nullable
+  evidenceImages: text("evidence_images").array(), // Array of image URLs for evidence
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -3574,10 +3574,11 @@ export function registerRoutes(app: Express): Server {
       const { taskId, assignmentId } = req.params;
       const user = req.user;
       
-      // Field whitelisting: only allow status and notes to be updated
+      // Field whitelisting: only allow status, notes, and evidenceImages to be updated
       const updateAssignmentSchema = insertTaskAssignmentSchema.pick({
         status: true,
-        notes: true
+        notes: true,
+        evidenceImages: true
       }).partial();
       
       // Validate request body with Zod
@@ -3589,7 +3590,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
       
-      const { status, notes } = validation.data;
+      const { status, notes, evidenceImages } = validation.data;
       
       const task = await storage.getTask(taskId);
       if (!task) {
@@ -3610,7 +3611,12 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to update this assignment" });
       }
       
-      const updatedAssignment = await storage.updateAssignmentStatus(assignmentId, status || '', notes || undefined);
+      const updatedAssignment = await storage.updateAssignmentStatus(
+        assignmentId, 
+        status || '', 
+        notes || undefined,
+        evidenceImages || undefined
+      );
       res.json(updatedAssignment);
     } catch (error) {
       console.error("Error updating assignment:", error);
