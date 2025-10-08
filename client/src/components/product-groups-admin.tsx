@@ -174,9 +174,10 @@ export default function ProductGroupsAdmin() {
 
   // Query para obtener productos disponibles (para asignar a grupos)
   const { data: availableProducts = [], isLoading: loadingProducts } = useQuery<any[]>({
-    queryKey: ['/api/ecommerce/admin/productos'],
+    queryKey: ['/api/ecommerce/admin/productos', 'all'],
     queryFn: async () => {
-      const response = await apiRequest('/api/ecommerce/admin/productos');
+      // No enviamos filtro activo para obtener TODOS los productos (activos e inactivos)
+      const response = await apiRequest('/api/ecommerce/admin/productos?activo=true');
       return response.json();
     },
     enabled: showProductsDialog
