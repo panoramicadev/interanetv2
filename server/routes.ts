@@ -5046,6 +5046,35 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get product groups with variants for store
+  app.get('/api/store/groups', async (req: any, res) => {
+    try {
+      const groups = await storage.getProductGroups({ activo: true });
+      
+      // For each group, fetch its variant products
+      const groupsWithProducts = await Promise.all(
+        groups.map(async (group) => {
+          const products = await storage.getEcommerceAdminProducts({
+            groupId: group.id,
+            activo: true
+          });
+          
+          return {
+            ...group,
+            productos: products
+          };
+        })
+      );
+      
+      // Only return groups that have products
+      const activeGroups = groupsWithProducts.filter(g => g.productos.length > 0);
+      res.json(activeGroups);
+    } catch (error) {
+      console.error("Error fetching store product groups:", error);
+      res.status(500).json({ message: "Failed to fetch product groups" });
+    }
+  });
+
   // Object Storage endpoints
   
   // Serve public objects from Object Storage

@@ -525,6 +525,7 @@ export interface IStorage {
     search?: string;
     categoria?: string;
     activo?: boolean;
+    groupId?: string | null;
   }): Promise<Array<{
     id: string;
     codigo: string;
@@ -4051,6 +4052,7 @@ export class DatabaseStorage implements IStorage {
     search?: string;
     categoria?: string;
     activo?: boolean;
+    groupId?: string | null;
   }): Promise<Array<{
     id: string;
     codigo: string;
@@ -4114,6 +4116,17 @@ export class DatabaseStorage implements IStorage {
       } else {
         // Show products that are explicitly inactive
         conditions.push(eq(ecommerceProducts.activo, false));
+      }
+    }
+
+    // Apply groupId filter
+    if (filters?.groupId !== undefined) {
+      if (filters.groupId === null) {
+        // Show products with no group
+        conditions.push(isNull(ecommerceProducts.groupId));
+      } else {
+        // Show products in specific group
+        conditions.push(eq(ecommerceProducts.groupId, filters.groupId));
       }
     }
 
