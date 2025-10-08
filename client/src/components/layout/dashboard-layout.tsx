@@ -7,12 +7,14 @@ import {
   Menu,
   X,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  RefreshCw
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
 import ImportModal from "@/components/dashboard/import-modal";
+import ChangelogDialog from "@/components/ChangelogDialog";
 import logoPath from "@assets/logo_1757532115858.png";
 
 interface DashboardLayoutProps {
@@ -24,6 +26,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showChangelogDialog, setShowChangelogDialog] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const handleLogout = () => {
@@ -256,19 +259,36 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <p className="text-xs text-slate-400">{getRoleTitle(user?.role)}</p>
               </div>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 text-xs lg:text-sm"
-              onClick={() => {
-                setIsMobileOpen(false);
-                handleLogout();
-              }}
-              data-testid="logout-button"
-            >
-              <LogOut className="w-3 h-3 lg:w-4 lg:h-4 mr-2 lg:mr-3" />
-              Cerrar Sesión
-            </Button>
+            
+            <div className="space-y-1">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 text-xs lg:text-sm"
+                onClick={() => {
+                  setShowChangelogDialog(true);
+                  setIsMobileOpen(false);
+                }}
+                data-testid="changelog-button"
+              >
+                <RefreshCw className="w-3 h-3 lg:w-4 lg:h-4 mr-2 lg:mr-3" />
+                Actualizar a última versión
+              </Button>
+              
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 text-xs lg:text-sm"
+                onClick={() => {
+                  setIsMobileOpen(false);
+                  handleLogout();
+                }}
+                data-testid="logout-button"
+              >
+                <LogOut className="w-3 h-3 lg:w-4 lg:h-4 mr-2 lg:mr-3" />
+                Cerrar Sesión
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -285,6 +305,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           onOpenChange={setShowImportModal}
         />
       )}
+      
+      {/* Changelog Dialog */}
+      <ChangelogDialog 
+        open={showChangelogDialog} 
+        onOpenChange={setShowChangelogDialog}
+      />
     </div>
   );
 }
