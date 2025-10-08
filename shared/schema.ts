@@ -2842,3 +2842,136 @@ export type InsertReceta = z.infer<typeof insertRecetaSchema>;
 
 export type Parametro = typeof parametros.$inferSelect;
 export type InsertParametro = z.infer<typeof insertParametroSchema>;
+
+// Pedidos del eCommerce - Purchases made from ecommerce that need approval from salesperson
+export const ecommerceOrders = pgTable("ecommerce_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: varchar("client_id").notNull(), // FK to users.id (client user)
+  clientName: text("client_name").notNull(), // Client name for display
+  clientEmail: varchar("client_email"), // Client email
+  clientPhone: varchar("client_phone"), // Client phone
+  
+  // Assigned salesperson and supervisor
+  assignedSalespersonId: varchar("assigned_salesperson_id"), // FK to users.id (salesperson)
+  assignedSalespersonName: varchar("assigned_salesperson_name"), // Salesperson name for display
+  assignedSupervisorId: varchar("assigned_supervisor_id"), // FK to users.id (supervisor)
+  
+  // Order details (JSON for flexibility)
+  items: jsonb("items").notNull(), // Array of {productId, productName, sku, quantity, unitPrice, totalPrice}
+  subtotal: numeric("subtotal", { precision: 15, scale: 2 }).notNull(),
+  tax: numeric("tax", { precision: 15, scale: 2 }).notNull(),
+  total: numeric("total", { precision: 15, scale: 2 }).notNull(),
+  
+  // Order status flow
+  status: varchar("status").default("pending"), // pending, approved, modified, rejected, sent
+  notes: text("notes"), // Client notes or special instructions
+  
+  // Approval tracking
+  approvedAt: timestamp("approved_at"),
+  approvedById: varchar("approved_by_id"), // FK to users.id (who approved)
+  modifiedAt: timestamp("modified_at"),
+  modifiedById: varchar("modified_by_id"), // FK to users.id (who modified)
+  
+  // Quote reference (if converted to quote)
+  quoteId: varchar("quote_id"), // FK to quotes.id
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  clientIdIdx: index("IDX_ecommerce_orders_client_id").on(table.clientId),
+  salespersonIdIdx: index("IDX_ecommerce_orders_salesperson_id").on(table.assignedSalespersonId),
+  statusIdx: index("IDX_ecommerce_orders_status").on(table.status),
+}));
+
+// Notificaciones - System notifications for salespeople and supervisors
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // FK to users.id (who receives the notification)
+  
+  type: varchar("type").notNull(), // ecommerce_order, task_assigned, order_status_change, etc.
+  title: varchar("title").notNull(),
+  message: text("message").notNull(),
+  
+  // Related entity references
+  relatedOrderId: varchar("related_order_id"), // FK to ecommerce_orders.id
+  relatedQuoteId: varchar("related_quote_id"), // FK to quotes.id
+  relatedTaskId: varchar("related_task_id"), // FK to tasks.id
+  
+  // Notification state
+  read: boolean("read").default(false),
+  readAt: timestamp("read_at"),
+  
+  // Action URL (where to go when clicked)
+  actionUrl: varchar("action_url"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("IDX_notifications_user_id").on(table.userId),
+  typeIdx: index("IDX_notifications_type").on(table.type),
+  readIdx: index("IDX_notifications_read").on(table.read),
+}));
+
+// Relations for ecommerce orders
+export const ecommerceOrdersRelations = relations(ecommerceOrders, ({ one }) => ({
+  client: one(users, {
+    fields: [ecommerceOrders.clientId],
+    references: [users.id],
+  }),
+  assignedSalesperson: one(users, {
+    fields: [ecommerceOrders.assignedSalespersonId],
+    references: [users.id],
+  }),
+  assignedSupervisor: one(users, {
+    fields: [ecommerceOrders.assignedSupervisorId],
+    references: [users.id],
+  }),
+}));
+
+// Relations for notifications
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+  relatedOrder: one(ecommerceOrders, {
+    fields: [notifications.relatedOrderId],
+    references: [ecommerceOrders.id],
+  }),
+}));
+
+// Types for ecommerce orders
+export type EcommerceOrder = typeof ecommerceOrders.$inferSelect;
+export type InsertEcommerceOrder = typeof ecommerceOrders.$inferInsert;
+
+// Types for notifications
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert;
+
+// Schemas for ecommerce orders
+export const insertEcommerceOrderSchema = createInsertSchema(ecommerceOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  items: z.array(z.object({
+    productId: z.string().optional(),
+    productName: z.string(),
+    sku: z.string().optional(),
+    quantity: z.number().positive(),
+    unitPrice: z.number().positive(),
+    totalPrice: z.number().positive(),
+  })),
+  subtotal: z.number().nonnegative(),
+  tax: z.number().nonnegative(),
+  total: z.number().positive(),
+});
+
+// Schemas for notifications
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  type: z.string(),
+  title: z.string(),
+  message: z.string(),
+});
