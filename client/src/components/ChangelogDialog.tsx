@@ -88,7 +88,10 @@ const getTypeBadge = (type: string) => {
 
 export default function ChangelogDialog({ open, onOpenChange }: ChangelogDialogProps) {
   const handleConfirm = () => {
-    window.location.reload();
+    onOpenChange(false);
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
   };
 
   return (
@@ -104,7 +107,7 @@ export default function ChangelogDialog({ open, onOpenChange }: ChangelogDialogP
         <div className="flex-shrink-0 px-6 pb-4 sm:px-0 sm:pb-0">
           <Button 
             onClick={handleConfirm}
-            className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-base"
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-6 text-base"
             data-testid="confirm-update-button"
           >
             <CheckCircle className="w-5 h-5 mr-2" />
