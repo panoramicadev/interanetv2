@@ -84,6 +84,8 @@ export default function TareasPage() {
   
   // Expanded tasks for collapsible assignment details
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  // Filters collapsed state for mobile
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   const toggleTaskExpanded = (taskId: string) => {
     const newExpanded = new Set(expandedTasks);
@@ -556,63 +558,138 @@ export default function TareasPage() {
 
       {/* Filters and View Toggle */}
       <Card>
-        <CardContent className="py-4">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-              {/* View Mode Toggle */}
-              {(user.role === 'admin' || user.role === 'supervisor') && (
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium whitespace-nowrap">Vista:</Label>
-                  <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
-                    <SelectTrigger className="w-40" data-testid="select-view-mode">
+        <CardContent className="p-0">
+          {/* Mobile: Collapsible Filters Header */}
+          <div className="lg:hidden">
+            <button
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+              className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors"
+              data-testid="button-toggle-filters"
+            >
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium text-sm">Filtros</span>
+                <Badge variant="outline" className="text-xs">
+                  {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
+                </Badge>
+              </div>
+              <ChevronDown className={`h-4 w-4 transition-transform ${filtersExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {filtersExpanded && (
+              <div className="p-4 pt-0 space-y-3 border-t">
+                {/* View Mode Toggle */}
+                {(user.role === 'admin' || user.role === 'supervisor') && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-muted-foreground">Vista:</Label>
+                    <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
+                      <SelectTrigger className="h-9 text-sm" data-testid="select-view-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="my-tasks">Mis Tareas</SelectItem>
+                        <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Status Filter */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">Estado:</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="h-9 text-sm" data-testid="select-status-filter">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="my-tasks">Mis Tareas</SelectItem>
-                      <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="pending">Pendientes</SelectItem>
+                      <SelectItem value="in_progress">En Progreso</SelectItem>
+                      <SelectItem value="completed">Completadas</SelectItem>
+                      <SelectItem value="blocked">Bloqueadas</SelectItem>
+                      <SelectItem value="cancelled">Canceladas</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              )}
 
-              {/* Status Filter */}
-              <div className="flex items-center gap-2">
-                <Label className="text-sm font-medium whitespace-nowrap">Estado:</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-36" data-testid="select-status-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="pending">Pendientes</SelectItem>
-                    <SelectItem value="in_progress">En Progreso</SelectItem>
-                    <SelectItem value="completed">Completadas</SelectItem>
-                    <SelectItem value="blocked">Bloqueadas</SelectItem>
-                    <SelectItem value="cancelled">Canceladas</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Priority Filter */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">Prioridad:</Label>
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <SelectTrigger className="h-9 text-sm" data-testid="select-priority-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                      <SelectItem value="medium">Media</SelectItem>
+                      <SelectItem value="low">Baja</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop: Always Visible Filters */}
+          <div className="hidden lg:block py-4 px-6">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                {/* View Mode Toggle */}
+                {(user.role === 'admin' || user.role === 'supervisor') && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium whitespace-nowrap">Vista:</Label>
+                    <Select value={viewMode} onValueChange={(value: "my-tasks" | "all-tasks") => setViewMode(value)}>
+                      <SelectTrigger className="w-40" data-testid="select-view-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="my-tasks">Mis Tareas</SelectItem>
+                        <SelectItem value="all-tasks">Todas las Tareas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium whitespace-nowrap">Estado:</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-36" data-testid="select-status-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="pending">Pendientes</SelectItem>
+                      <SelectItem value="in_progress">En Progreso</SelectItem>
+                      <SelectItem value="completed">Completadas</SelectItem>
+                      <SelectItem value="blocked">Bloqueadas</SelectItem>
+                      <SelectItem value="cancelled">Canceladas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Priority Filter */}
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium whitespace-nowrap">Prioridad:</Label>
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <SelectTrigger className="w-32" data-testid="select-priority-filter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                      <SelectItem value="medium">Media</SelectItem>
+                      <SelectItem value="low">Baja</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Priority Filter */}
-              <div className="flex items-center gap-2">
-                <Label className="text-sm font-medium whitespace-nowrap">Prioridad:</Label>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger className="w-32" data-testid="select-priority-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="medium">Media</SelectItem>
-                    <SelectItem value="low">Baja</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Badge variant="outline" className="text-xs">
+                {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
+              </Badge>
             </div>
-
-            <Badge variant="outline" className="text-xs">
-              {filteredTasks.length} tarea{filteredTasks.length !== 1 ? 's' : ''}
-            </Badge>
           </div>
         </CardContent>
       </Card>
