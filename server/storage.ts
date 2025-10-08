@@ -579,6 +579,28 @@ export interface IStorage {
     activa: boolean;
   }>;
   
+  // eCommerce Product Groups operations
+  createProductGroup(data: InsertEcommerceProductGroupInput): Promise<EcommerceProductGroup>;
+  getProductGroups(filters?: {
+    search?: string;
+    categoria?: string;
+    activo?: boolean;
+  }): Promise<Array<EcommerceProductGroup & {
+    variantCount?: number;
+    mainVariant?: EcommerceProduct | null;
+  }>>;
+  getProductGroup(id: string): Promise<EcommerceProductGroup | undefined>;
+  getProductGroupWithVariants(id: string): Promise<{
+    group: EcommerceProductGroup;
+    variants: Array<EcommerceProduct & { 
+      priceListProduct?: any;
+    }>;
+  } | null>;
+  updateProductGroup(id: string, data: UpdateEcommerceProductGroupInput): Promise<EcommerceProductGroup>;
+  deleteProductGroup(id: string): Promise<void>;
+  assignProductToGroup(productId: string, groupId: string, variantLabel?: string, isMainVariant?: boolean): Promise<void>;
+  removeProductFromGroup(productId: string): Promise<void>;
+  
   // Product stock operations (KOPR-based)
   getProductStock(kopr: string): Promise<ProductStock[]>;
   getProductStockByWarehouse(kopr: string, kobo: string, kosu?: string): Promise<ProductStock[]>;
@@ -4390,6 +4412,203 @@ export class DatabaseStorage implements IStorage {
       }
       throw error;
     }
+  }
+
+  // eCommerce Product Groups operations
+  async createProductGroup(data: InsertEcommerceProductGroupInput): Promise<EcommerceProductGroup> {
+    const { ecommerceProductGroups } = await import('@shared/schema');
+    
+    const [newGroup] = await db
+      .insert(ecommerceProductGroups)
+      .values(data)
+      .returning();
+    
+    return newGroup;
+  }
+
+  async getProductGroups(filters?: {
+    search?: string;
+    categoria?: string;
+    activo?: boolean;
+  }): Promise<Array<EcommerceProductGroup & {
+    variantCount?: number;
+    mainVariant?: EcommerceProduct | null;
+  }>> {
+    const { ecommerceProductGroups, ecommerceProducts } = await import('@shared/schema');
+    
+    let query = db.select().from(ecommerceProductGroups);
+    const conditions = [];
+    
+    if (filters?.search) {
+      conditions.push(
+        or(
+          ilike(ecommerceProductGroups.nombre, `%${filters.search}%`),
+          ilike(ecommerceProductGroups.descripcion, `%${filters.search}%`)
+        )
+      );
+    }
+    
+    if (filters?.categoria) {
+      conditions.push(eq(ecommerceProductGroups.categoria, filters.categoria));
+    }
+    
+    if (filters?.activo !== undefined) {
+      conditions.push(eq(ecommerceProductGroups.activo, filters.activo));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    const groups = await query.orderBy(ecommerceProductGroups.orden, ecommerceProductGroups.nombre);
+    
+    // Get variant count and main variant for each group
+    const groupsWithDetails = await Promise.all(
+      groups.map(async (group) => {
+        const variants = await db
+          .select()
+          .from(ecommerceProducts)
+          .where(eq(ecommerceProducts.groupId, group.id));
+        
+        const mainVariant = variants.find(v => v.isMainVariant) || null;
+        
+        return {
+          ...group,
+          variantCount: variants.length,
+          mainVariant,
+        };
+      })
+    );
+    
+    return groupsWithDetails;
+  }
+
+  async getProductGroup(id: string): Promise<EcommerceProductGroup | undefined> {
+    const { ecommerceProductGroups } = await import('@shared/schema');
+    
+    const [group] = await db
+      .select()
+      .from(ecommerceProductGroups)
+      .where(eq(ecommerceProductGroups.id, id));
+    
+    return group;
+  }
+
+  async getProductGroupWithVariants(id: string): Promise<{
+    group: EcommerceProductGroup;
+    variants: Array<EcommerceProduct & { priceListProduct?: any }>;
+  } | null> {
+    const { ecommerceProductGroups, ecommerceProducts, priceList } = await import('@shared/schema');
+    
+    const [group] = await db
+      .select()
+      .from(ecommerceProductGroups)
+      .where(eq(ecommerceProductGroups.id, id));
+    
+    if (!group) {
+      return null;
+    }
+    
+    const variants = await db
+      .select()
+      .from(ecommerceProducts)
+      .where(eq(ecommerceProducts.groupId, id))
+      .orderBy(
+        desc(ecommerceProducts.isMainVariant),
+        ecommerceProducts.orden,
+        ecommerceProducts.variantLabel
+      );
+    
+    // Get price list data for each variant
+    const variantsWithPriceList = await Promise.all(
+      variants.map(async (variant) => {
+        const [priceListProduct] = await db
+          .select()
+          .from(priceList)
+          .where(eq(priceList.id, variant.priceListId));
+        
+        return {
+          ...variant,
+          priceListProduct,
+        };
+      })
+    );
+    
+    return {
+      group,
+      variants: variantsWithPriceList,
+    };
+  }
+
+  async updateProductGroup(id: string, data: UpdateEcommerceProductGroupInput): Promise<EcommerceProductGroup> {
+    const { ecommerceProductGroups } = await import('@shared/schema');
+    
+    const [updated] = await db
+      .update(ecommerceProductGroups)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceProductGroups.id, id))
+      .returning();
+    
+    if (!updated) {
+      throw new Error('Grupo de productos no encontrado');
+    }
+    
+    return updated;
+  }
+
+  async deleteProductGroup(id: string): Promise<void> {
+    const { ecommerceProductGroups, ecommerceProducts } = await import('@shared/schema');
+    
+    // First, remove groupId from all products in this group
+    await db
+      .update(ecommerceProducts)
+      .set({
+        groupId: null,
+        variantLabel: null,
+        isMainVariant: false,
+      })
+      .where(eq(ecommerceProducts.groupId, id));
+    
+    // Then delete the group
+    await db
+      .delete(ecommerceProductGroups)
+      .where(eq(ecommerceProductGroups.id, id));
+  }
+
+  async assignProductToGroup(
+    productId: string,
+    groupId: string,
+    variantLabel?: string,
+    isMainVariant?: boolean
+  ): Promise<void> {
+    const { ecommerceProducts } = await import('@shared/schema');
+    
+    await db
+      .update(ecommerceProducts)
+      .set({
+        groupId,
+        variantLabel,
+        isMainVariant: isMainVariant ?? false,
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceProducts.id, productId));
+  }
+
+  async removeProductFromGroup(productId: string): Promise<void> {
+    const { ecommerceProducts } = await import('@shared/schema');
+    
+    await db
+      .update(ecommerceProducts)
+      .set({
+        groupId: null,
+        variantLabel: null,
+        isMainVariant: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(ecommerceProducts.id, productId));
   }
 
   async getProductStock(sku: string): Promise<ProductStock[]> {
