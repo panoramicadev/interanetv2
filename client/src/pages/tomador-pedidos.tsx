@@ -3508,11 +3508,7 @@ export default function TomadorPedidos() {
                                       }));
                                     }}
                                     onFocus={(e) => {
-                                      e.target.value = '';
-                                      setProductQuantities(prev => ({
-                                        ...prev,
-                                        [product.codigo]: 0
-                                      }));
+                                      e.target.select();
                                     }}
                                     onBlur={(e) => {
                                       if (!e.target.value || parseInt(e.target.value) === 0) {
@@ -3716,7 +3712,7 @@ export default function TomadorPedidos() {
                                       updateCartItemQuantity(item.id, Math.min(999, Math.max(1, value)));
                                     }}
                                     onFocus={(e) => {
-                                      e.target.value = '';
+                                      e.target.select();
                                     }}
                                     onBlur={(e) => {
                                       if (!e.target.value || parseInt(e.target.value) === 0) {
