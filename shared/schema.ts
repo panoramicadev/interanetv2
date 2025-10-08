@@ -1740,15 +1740,31 @@ export const ecommerceCategories = pgTable("ecommerce_categories", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// eCommerce Product Groups - Grupos de productos para manejar variaciones
+export const ecommerceProductGroups = pgTable("ecommerce_product_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre").notNull(), // Nombre del grupo (ej: "Anticorrosivo Estructural Galón")
+  descripcion: text("descripcion"), // Descripción del grupo
+  imagenPrincipal: varchar("imagen_principal"), // Imagen principal del grupo
+  categoria: varchar("categoria"), // Categoría del grupo
+  activo: boolean("activo").default(true), // Si el grupo aparece en la tienda
+  orden: integer("orden").default(0), // Orden de visualización
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // eCommerce Products - Vinculación de productos de priceList con configuración ecommerce
 export const ecommerceProducts = pgTable("ecommerce_products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   priceListId: varchar("price_list_id").notNull(), // FK to priceList.id
+  groupId: varchar("group_id"), // FK to ecommerceProductGroups.id (null si no está agrupado)
   activo: boolean("activo").default(false), // Si aparece en la tienda
   categoria: varchar("categoria"), // Categoría asignada
   descripcion: text("descripcion"), // Descripción para la tienda
   imagenUrl: varchar("imagen_url"), // URL de imagen del producto
   precioEcommerce: numeric("precio_ecommerce", { precision: 15, scale: 2 }), // Precio específico para ecommerce
+  variantLabel: varchar("variant_label"), // Etiqueta de variación (ej: "Color: Rojo")
+  isMainVariant: boolean("is_main_variant").default(false), // Si es la variante principal del grupo
   orden: integer("orden").default(0), // Orden de visualización
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1767,12 +1783,31 @@ export const insertEcommerceCategorySchema = createInsertSchema(ecommerceCategor
   updatedAt: true,
 });
 
+// Schemas for eCommerce Product Groups
+export const insertEcommerceProductGroupSchema = createInsertSchema(ecommerceProductGroups, {
+  nombre: z.string().min(1, "Nombre del grupo es requerido"),
+  descripcion: z.string().optional(),
+  imagenPrincipal: z.string().optional(),
+  categoria: z.string().optional(),
+  activo: z.boolean().optional(),
+  orden: z.number().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateEcommerceProductGroupSchema = insertEcommerceProductGroupSchema.partial();
+
 // Schemas for eCommerce Products  
 export const insertEcommerceProductSchema = createInsertSchema(ecommerceProducts, {
   priceListId: z.string().min(1, "ID de producto de lista de precios es requerido"),
+  groupId: z.string().optional(),
   categoria: z.string().optional(),
   descripcion: z.string().optional(),
   imagenUrl: z.string().url("URL de imagen inválida").optional().or(z.literal("")),
+  variantLabel: z.string().optional(),
+  isMainVariant: z.boolean().optional(),
 }).omit({
   id: true,
   createdAt: true,
@@ -1782,9 +1817,15 @@ export const insertEcommerceProductSchema = createInsertSchema(ecommerceProducts
 // Types
 export type EcommerceCategory = typeof ecommerceCategories.$inferSelect;
 export type InsertEcommerceCategory = typeof ecommerceCategories.$inferInsert;
+export type InsertEcommerceCategoryInput = z.infer<typeof insertEcommerceCategorySchema>;
+
+export type EcommerceProductGroup = typeof ecommerceProductGroups.$inferSelect;
+export type InsertEcommerceProductGroup = typeof ecommerceProductGroups.$inferInsert;
+export type InsertEcommerceProductGroupInput = z.infer<typeof insertEcommerceProductGroupSchema>;
+export type UpdateEcommerceProductGroupInput = z.infer<typeof updateEcommerceProductGroupSchema>;
+
 export type EcommerceProduct = typeof ecommerceProducts.$inferSelect;
 export type InsertEcommerceProduct = typeof ecommerceProducts.$inferInsert;
-export type InsertEcommerceCategoryInput = z.infer<typeof insertEcommerceCategorySchema>;
 export type InsertEcommerceProductInput = z.infer<typeof insertEcommerceProductSchema>;
 
 // Store Configuration - Configuración general de la tienda
