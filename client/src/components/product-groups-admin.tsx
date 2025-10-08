@@ -49,6 +49,8 @@ export default function ProductGroupsAdmin() {
   const [selectedStatus, setSelectedStatus] = useState<string>("true");
   const [showGroupDialog, setShowGroupDialog] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ProductGroup | null>(null);
+  const [showProductsDialog, setShowProductsDialog] = useState(false);
+  const [managingGroupId, setManagingGroupId] = useState<string | null>(null);
   
   const { toast } = useToast();
 
@@ -159,6 +161,42 @@ export default function ProductGroupsAdmin() {
       toast({
         title: "Error",
         description: error.message || "No se pudo eliminar el grupo",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Query para obtener productos disponibles (para asignar a grupos)
+  const { data: availableProducts = [] } = useQuery<any[]>({
+    queryKey: ['/api/ecommerce/admin/productos'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/ecommerce/admin/productos');
+      return response.json();
+    },
+    enabled: showProductsDialog
+  });
+
+  // Mutación para asignar producto a grupo
+  const assignProductMutation = useMutation({
+    mutationFn: async ({ productId, groupId, variantLabel, isMainVariant }: { productId: string; groupId: string; variantLabel: string; isMainVariant: boolean }) => {
+      const response = await apiRequest(`/api/ecommerce/admin/productos/${productId}`, {
+        method: 'PATCH',
+        data: { groupId, variantLabel, isMainVariant }
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/grupos'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+      toast({
+        title: "Producto asignado",
+        description: "El producto se asignó al grupo correctamente"
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo asignar el producto",
         variant: "destructive"
       });
     }
@@ -312,8 +350,21 @@ export default function ProductGroupsAdmin() {
                       <Button 
                         variant="outline" 
                         size="sm" 
+                        onClick={() => {
+                          setManagingGroupId(group.id);
+                          setShowProductsDialog(true);
+                        }}
+                        data-testid={`button-manage-products-${group.id}`}
+                        title="Gestionar productos del grupo"
+                      >
+                        <Layers className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
                         onClick={() => handleEditGroup(group)}
                         data-testid={`button-edit-group-${group.id}`}
+                        title="Editar grupo"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -322,6 +373,7 @@ export default function ProductGroupsAdmin() {
                         size="sm" 
                         onClick={() => handleDeleteGroup(group.id)}
                         data-testid={`button-delete-group-${group.id}`}
+                        title="Eliminar grupo"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -456,6 +508,81 @@ export default function ProductGroupsAdmin() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para gestionar productos del grupo */}
+      <Dialog open={showProductsDialog} onOpenChange={setShowProductsDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gestionar Productos del Grupo</DialogTitle>
+            <DialogDescription>
+              Asigna productos al grupo seleccionándolos de la lista y definiendo su etiqueta de variante
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Productos en el grupo */}
+            <div>
+              <h3 className="font-medium mb-2">Productos en este grupo</h3>
+              {managingGroupId && (
+                <div className="border rounded-lg p-3 space-y-2 max-h-60 overflow-y-auto">
+                  {availableProducts.filter(p => p.groupId === managingGroupId).length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No hay productos en este grupo. Usa el formulario de edición de producto para añadirlos.
+                    </p>
+                  ) : (
+                    availableProducts
+                      .filter(p => p.groupId === managingGroupId)
+                      .map(product => (
+                        <div 
+                          key={product.id} 
+                          className="flex items-center justify-between p-2 bg-muted rounded"
+                        >
+                          <div className="flex-1">
+                            <div className="font-medium">{product.producto}</div>
+                            <div className="text-sm text-muted-foreground">
+                              Código: {product.codigo} | Variante: {product.variantLabel || "Sin etiqueta"}
+                              {product.isMainVariant && <Badge className="ml-2" variant="default">Principal</Badge>}
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              assignProductMutation.mutate({
+                                productId: product.id,
+                                groupId: null as any,
+                                variantLabel: null as any,
+                                isMainVariant: false
+                              });
+                            }}
+                            data-testid={`button-remove-product-${product.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Para añadir productos a este grupo, ve a la pestaña "Productos", edita cada producto que quieras incluir, 
+                selecciona este grupo en el campo "Grupo de producto" y define su etiqueta de variante (ej: "Blanco", "Gris", "Negro").
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => setShowProductsDialog(false)}
+                className="w-full"
+                data-testid="button-close-products-dialog"
+              >
+                Cerrar
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

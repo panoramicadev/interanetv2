@@ -1301,12 +1301,11 @@ export default function EcommerceAdmin() {
                 <div className="space-y-3">
                   <div>
                     <Label htmlFor="grupo">Grupo de producto</Label>
-                    <Select value={productGroupId} onValueChange={setProductGroupId}>
+                    <Select value={productGroupId || undefined} onValueChange={setProductGroupId}>
                       <SelectTrigger data-testid="select-product-group">
                         <SelectValue placeholder="Sin grupo (producto individual)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="" data-testid="select-item-no-group">Sin grupo</SelectItem>
                         {grupos.filter(g => g.activo).map((grupo) => (
                           <SelectItem 
                             key={grupo.id} 
@@ -1318,6 +1317,18 @@ export default function EcommerceAdmin() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {productGroupId && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mt-1 h-8 px-2 text-xs"
+                        onClick={() => setProductGroupId("")}
+                        data-testid="button-clear-group"
+                      >
+                        Quitar del grupo
+                      </Button>
+                    )}
                   </div>
                   
                   {productGroupId && (
