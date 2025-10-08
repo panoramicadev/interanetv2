@@ -6,7 +6,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle } from "lucide-react";
 
@@ -114,27 +113,25 @@ export default function ChangelogDialog({ open, onOpenChange }: ChangelogDialogP
             </Button>
           </div>
           
-          <div className="flex-1 overflow-hidden px-6 sm:px-0">
-            <ScrollArea className="h-full">
-              <div className="space-y-6 pr-4 pb-6">
-                {CHANGELOG_ENTRIES.map((entry, index) => (
-                  <div key={index} className="border-l-2 border-primary/20 pl-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-lg font-semibold">Versión {entry.version}</h3>
-                      <span className="text-sm text-muted-foreground">{entry.date}</span>
-                    </div>
-                    <ul className="space-y-2">
-                      {entry.changes.map((change, changeIndex) => (
-                        <li key={changeIndex} className="flex items-start gap-2">
-                          {getTypeBadge(change.type)}
-                          <span className="text-sm flex-1 pt-0.5">{change.text}</span>
-                        </li>
-                      ))}
-                    </ul>
+          <div className="flex-1 overflow-y-auto px-6 sm:px-0">
+            <div className="space-y-6 pr-4 pb-6">
+              {CHANGELOG_ENTRIES.map((entry, index) => (
+                <div key={index} className="border-l-2 border-primary/20 pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-lg font-semibold">Versión {entry.version}</h3>
+                    <span className="text-sm text-muted-foreground">{entry.date}</span>
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
+                  <ul className="space-y-2">
+                    {entry.changes.map((change, changeIndex) => (
+                      <li key={changeIndex} className="flex items-start gap-2">
+                        {getTypeBadge(change.type)}
+                        <span className="text-sm flex-1 pt-0.5">{change.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </DialogContent>
