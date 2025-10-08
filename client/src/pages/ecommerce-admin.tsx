@@ -97,7 +97,9 @@ export default function EcommerceAdmin() {
     queryFn: async () => {
       const response = await apiRequest('/api/ecommerce/admin/stats');
       return response.json();
-    }
+    },
+    staleTime: 0,
+    refetchOnMount: true
   });
 
   // Mutación para actualizar producto
