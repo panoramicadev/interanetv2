@@ -111,7 +111,7 @@ export default function BillingSummary() {
     });
   };
 
-  const handleConfirmOrder = () => {
+  const handleConfirmOrder = async () => {
     // Comprehensive checkout validation
     const validationErrors: string[] = [];
 
@@ -196,25 +196,57 @@ export default function BillingSummary() {
       return;
     }
 
-    // 7. Process order (placeholder for real integration)
-    toast({
-      title: "¡Pedido confirmado!",
-      description: `Tu pedido por ${formatPrice(state.total)} ha sido procesado correctamente. Pronto recibirás un email de confirmación.`,
-    });
+    // 7. Process order - send to server
+    try {
+      const orderData = {
+        items: state.items.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          sku: item.productCode || item.productId,
+          quantity: item.quantity,
+          unitPrice: item.pricePerUnit,
+          totalPrice: item.totalPrice
+        })),
+        subtotal: state.subtotal - state.discountAmount,
+        tax: state.taxAmount,
+        total: state.total,
+        notes: orderNotes.trim() || null
+      };
 
-    // In a real app, this would:
-    // - Send order to server
-    // - Generate order ID
-    // - Navigate to confirmation page
-    // - Clear cart after successful submission
-    // - Send confirmation email
-    
-    // For demo purposes, clear cart after 3 seconds
-    setTimeout(() => {
-      if (window.confirm("¿Limpiar el carrito después del pedido exitoso?")) {
-        // Uncomment when ready to clear cart: clearCart();
+      const response = await fetch('/api/ecommerce/orders/client', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al procesar el pedido');
       }
-    }, 3000);
+
+      const createdOrder = await response.json();
+
+      toast({
+        title: "¡Pedido confirmado!",
+        description: `Tu pedido por ${formatPrice(state.total)} ha sido enviado correctamente. Un vendedor lo revisará pronto.`,
+      });
+
+      // Clear cart and reset notes after successful order
+      setTimeout(() => {
+        window.location.reload(); // Reload to clear cart
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('Error creating order:', error);
+      toast({
+        title: "Error al confirmar pedido",
+        description: error.message || "No se pudo procesar tu pedido. Por favor intenta nuevamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Calculate neto (subtotal without any discounts or taxes)

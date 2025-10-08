@@ -19,6 +19,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 //import panoramicaLogoPath from "@assets/Diseño sin título (27)_1757959070748.png"; // Commented due to special chars in filename"
 import QuotesList from "@/components/order-taker/quotes-list";
 import OrdersList from "@/components/order-taker/orders-list";
+import EcommerceOrdersList from "@/components/order-taker/ecommerce-orders-list";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -3230,6 +3231,22 @@ export default function TomadorPedidos() {
           </CardHeader>
           <CardContent>
             <QuotesList onEditQuote={loadQuoteForEditing} />
+          </CardContent>
+        </Card>
+
+        {/* Pedidos de Clientes del Ecommerce */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              Pedidos de Clientes
+            </CardTitle>
+            <CardDescription>
+              Pedidos realizados por clientes desde la tienda online
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EcommerceOrdersList />
           </CardContent>
         </Card>
       </div>

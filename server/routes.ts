@@ -3022,6 +3022,108 @@ export function registerRoutes(app: Express): Server {
 
   // ===================== End eCommerce API Routes =====================
 
+  // ===================== eCommerce Orders API Routes =====================
+  
+  // Create order from client (authenticated clients only)
+  app.post('/api/ecommerce/orders/client', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { insertEcommerceOrderSchema } = await import('@shared/schema');
+    
+    // Validate user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'No autenticado' });
+    }
+    
+    try {
+      // Validate request body
+      const validationResult = insertEcommerceOrderSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: 'Error de validación', 
+          errors: validationResult.error.errors 
+        });
+      }
+      
+      const orderData = validationResult.data;
+      const clientId = req.user.id;
+      
+      // Get client details to find assigned salesperson
+      const client = await storage.getClientByUserId(clientId);
+      
+      // Prepare order data with client and salesperson info
+      const orderToCreate = {
+        ...orderData,
+        clientId,
+        clientName: req.user.email || 'Cliente',
+        clientEmail: req.user.email,
+        assignedSalespersonId: client?.assignedSalespersonUserId || null,
+        assignedSalespersonName: null, // Will be populated if there's a salesperson
+        status: 'pending'
+      };
+      
+      // If there's an assigned salesperson, get their name
+      if (client?.assignedSalespersonUserId) {
+        const salesperson = await storage.getUser(client.assignedSalespersonUserId);
+        if (salesperson) {
+          orderToCreate.assignedSalespersonName = salesperson.email || 'Vendedor';
+        }
+      }
+      
+      // Create the order
+      const order = await storage.createEcommerceOrder(orderToCreate);
+      
+      // Create notification for salesperson or admin
+      const notificationUserId = orderToCreate.assignedSalespersonId || await storage.getAdminUserId();
+      
+      if (notificationUserId) {
+        await storage.createNotification({
+          userId: notificationUserId,
+          type: 'ecommerce_order',
+          title: 'Nuevo pedido de cliente',
+          message: `${orderToCreate.clientName} ha realizado un pedido por $${Number(orderData.total).toFixed(0)}`,
+          relatedOrderId: order.id,
+          read: false
+        });
+      }
+      
+      res.status(201).json(order);
+    } catch (error: any) {
+      console.error('Error creating client order:', error);
+      res.status(500).json({ message: 'Error al crear el pedido' });
+    }
+  }));
+
+  // Get ecommerce orders for salesperson/admin (order taker view)
+  app.get('/api/ecommerce/orders', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Build filters based on user role
+      const filters: any = {};
+      
+      if (user.role === 'salesperson') {
+        // Salesperson sees only their assigned orders
+        filters.salespersonId = user.id;
+      } else if (user.role === 'admin' || user.role === 'supervisor') {
+        // Admin/supervisor see all orders
+        // Optionally filter by status if provided
+        if (req.query.status && req.query.status !== 'all') {
+          filters.status = req.query.status;
+        }
+      } else {
+        // Other roles can't access this endpoint
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const orders = await storage.getEcommerceOrders(filters);
+      res.json(orders);
+    } catch (error) {
+      console.error('Error fetching ecommerce orders:', error);
+      res.status(500).json({ message: 'Error al obtener pedidos' });
+    }
+  }));
+
+  // ===================== End eCommerce Orders API Routes =====================
+
   // ===================== eCommerce Admin API Routes (Simple) =====================
   
   // Get products for eCommerce admin panel (imports from priceList)
