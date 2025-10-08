@@ -2916,6 +2916,7 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   // Order status flow
   status: varchar("status").default("pending"), // pending, approved, modified, rejected, sent
   notes: text("notes"), // Client notes or special instructions
+  shippingAddress: text("shipping_address"), // Shipping/delivery address
   
   // Approval tracking
   approvedAt: timestamp("approved_at"),
@@ -3015,6 +3016,7 @@ export const insertEcommerceOrderSchema = createInsertSchema(ecommerceOrders).om
   subtotal: z.number().nonnegative(),
   tax: z.number().nonnegative(),
   total: z.number().positive(),
+  shippingAddress: z.string().optional().nullable(),
 });
 
 // Schemas for notifications
