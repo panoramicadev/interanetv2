@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Tag, MapPin } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -25,11 +26,12 @@ export default function BillingSummary() {
   const { toast } = useToast();
   const [couponCode, setCouponCode] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
-  const [shippingAddress, setShippingAddress] = useState("");
+  const [selectedAddressOption, setSelectedAddressOption] = useState<string>("default");
+  const [customAddress, setCustomAddress] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
-  // Fetch client data to get default address
-  const { data: clientData } = useQuery<{ dien?: string }>({
+  // Fetch client data to get addresses
+  const { data: clientData } = useQuery<{ dien?: string; cmen?: string; comuna?: string }>({
     queryKey: ['/api/clients/by-user', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -42,12 +44,28 @@ export default function BillingSummary() {
     enabled: !!user?.id && user?.role === 'client',
   });
 
-  // Pre-fill shipping address from client data
+  // Build list of available addresses
+  const availableAddresses = [];
+  if (clientData?.dien) {
+    availableAddresses.push({
+      value: 'default',
+      label: 'Dirección principal',
+      address: clientData.dien,
+      fullAddress: `${clientData.dien}${clientData.comuna ? ', ' + clientData.comuna : ''}${clientData.cmen ? ', ' + clientData.cmen : ''}`
+    });
+  }
+
+  // Pre-select default address if available
   useEffect(() => {
-    if (clientData?.dien && !shippingAddress) {
-      setShippingAddress(clientData.dien);
+    if (availableAddresses.length > 0 && selectedAddressOption === "default") {
+      // Address will be computed from selection
     }
-  }, [clientData, shippingAddress]);
+  }, [clientData]);
+
+  // Compute final shipping address based on selection
+  const shippingAddress = selectedAddressOption === "custom" 
+    ? customAddress 
+    : availableAddresses.find(a => a.value === selectedAddressOption)?.fullAddress || "";
 
   // Mock coupon validation - replace with real API call
   const validateCoupon = async (code: string): Promise<{ isValid: boolean; discount: number; type: 'percentage' | 'fixed'; description?: string }> => {
@@ -425,15 +443,49 @@ export default function BillingSummary() {
             <MapPin className="h-4 w-4" />
             Dirección de despacho
           </Label>
-          <Textarea
-            id="shipping-address"
-            placeholder="Ingresa la dirección completa de despacho..."
-            value={shippingAddress}
-            onChange={(e) => setShippingAddress(e.target.value)}
-            rows={2}
-            className="resize-none"
-            data-testid="textarea-shipping-address"
-          />
+          
+          {/* Address Selector */}
+          <Select 
+            value={selectedAddressOption} 
+            onValueChange={setSelectedAddressOption}
+          >
+            <SelectTrigger className="w-full" data-testid="select-shipping-address">
+              <SelectValue placeholder="Selecciona una dirección" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableAddresses.map((addr) => (
+                <SelectItem key={addr.value} value={addr.value}>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{addr.label}</span>
+                    <span className="text-xs text-gray-500">{addr.address}</span>
+                  </div>
+                </SelectItem>
+              ))}
+              <SelectItem value="custom">
+                <span className="font-medium">✏️ Otra dirección (ingresar manualmente)</span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Custom Address Input - Only shown when "custom" is selected */}
+          {selectedAddressOption === "custom" && (
+            <Textarea
+              id="custom-shipping-address"
+              placeholder="Ingresa la dirección completa de despacho..."
+              value={customAddress}
+              onChange={(e) => setCustomAddress(e.target.value)}
+              rows={2}
+              className="resize-none mt-2"
+              data-testid="textarea-custom-address"
+            />
+          )}
+
+          {/* Show selected address preview if not custom */}
+          {selectedAddressOption !== "custom" && shippingAddress && (
+            <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded border border-gray-200">
+              {shippingAddress}
+            </div>
+          )}
         </div>
 
         {/* Order Notes */}
