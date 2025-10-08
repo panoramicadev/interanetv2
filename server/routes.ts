@@ -3134,6 +3134,103 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ===================== Product Groups API Routes =====================
+
+  // Create new product group
+  app.post('/api/ecommerce/admin/grupos', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { insertEcommerceProductGroupSchema } = await import('@shared/schema');
+    
+    try {
+      const validated = insertEcommerceProductGroupSchema.parse(req.body);
+      const group = await storage.createProductGroup(validated);
+      res.json(group);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      throw error;
+    }
+  }));
+
+  // Get all product groups
+  app.get('/api/ecommerce/admin/grupos', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { search, categoria, activo } = req.query;
+    
+    const groups = await storage.getProductGroups({
+      search,
+      categoria: categoria !== 'all' ? categoria : undefined,
+      activo: activo && activo !== 'all' ? (activo === 'true') : undefined
+    });
+    
+    res.json(groups);
+  }));
+
+  // Get single product group with variants
+  app.get('/api/ecommerce/admin/grupos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    
+    const groupData = await storage.getProductGroupWithVariants(id);
+    
+    if (!groupData) {
+      return res.status(404).json({ message: 'Grupo no encontrado' });
+    }
+    
+    res.json(groupData);
+  }));
+
+  // Update product group
+  app.patch('/api/ecommerce/admin/grupos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    const { updateEcommerceProductGroupSchema } = await import('@shared/schema');
+    
+    try {
+      const validated = updateEcommerceProductGroupSchema.parse(req.body);
+      const updated = await storage.updateProductGroup(id, validated);
+      res.json(updated);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      if (error.message.includes('not found') || error.message.includes('no encontrado')) {
+        return res.status(404).json({ message: 'Grupo no encontrado' });
+      }
+      throw error;
+    }
+  }));
+
+  // Delete product group
+  app.delete('/api/ecommerce/admin/grupos/:id', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id } = req.params;
+    
+    await storage.deleteProductGroup(id);
+    res.json({ message: 'Grupo eliminado correctamente' });
+  }));
+
+  // Assign product to group
+  app.post('/api/ecommerce/admin/grupos/:id/assign', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { id: groupId } = req.params;
+    const { productId, variantLabel, isMainVariant } = req.body;
+    
+    if (!productId) {
+      return res.status(400).json({ message: 'productId es requerido' });
+    }
+    
+    await storage.assignProductToGroup(productId, groupId, variantLabel, isMainVariant);
+    res.json({ message: 'Producto asignado al grupo correctamente' });
+  }));
+
+  // Remove product from group
+  app.post('/api/ecommerce/admin/grupos/:id/remove', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    const { productId } = req.body;
+    
+    if (!productId) {
+      return res.status(400).json({ message: 'productId es requerido' });
+    }
+    
+    await storage.removeProductFromGroup(productId);
+    res.json({ message: 'Producto removido del grupo correctamente' });
+  }));
+
   // ===================== End eCommerce Admin API Routes =====================
 
   // Preview CSV endpoint - Analyze sales CSV without importing
