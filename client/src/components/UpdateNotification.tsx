@@ -36,7 +36,7 @@ export function UpdateNotification() {
 
   return (
     <div 
-      className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-md z-50 bg-orange-500 text-white rounded-lg shadow-lg p-4 animate-in slide-in-from-bottom-5"
+      className="fixed top-4 right-4 max-w-sm md:max-w-md z-50 bg-orange-500 text-white rounded-lg shadow-lg p-4 animate-in slide-in-from-top-5"
       data-testid="notification-update"
     >
       <div className="flex items-start gap-3">
