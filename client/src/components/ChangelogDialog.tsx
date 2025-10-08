@@ -93,45 +93,43 @@ export default function ChangelogDialog({ open, onOpenChange }: ChangelogDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-screen p-0 sm:h-auto sm:max-h-[80vh] sm:max-w-2xl sm:p-6">
-        <div className="flex flex-col h-full">
-          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4 sm:px-0 sm:pt-0">
-            <DialogTitle className="text-2xl">Últimos Cambios Publicados</DialogTitle>
-            <DialogDescription>
-              Historial de actualizaciones y mejoras del sistema Panorámica
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex-shrink-0 px-6 pb-4 sm:px-0 sm:pb-0">
-            <Button 
-              onClick={handleConfirm}
-              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-base"
-              data-testid="confirm-update-button"
-            >
-              <CheckCircle className="w-5 h-5 mr-2" />
-              Confirmar actualización
-            </Button>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto px-6 sm:px-0">
-            <div className="space-y-6 pr-4 pb-6">
-              {CHANGELOG_ENTRIES.map((entry, index) => (
-                <div key={index} className="border-l-2 border-primary/20 pl-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-lg font-semibold">Versión {entry.version}</h3>
-                    <span className="text-sm text-muted-foreground">{entry.date}</span>
-                  </div>
-                  <ul className="space-y-2">
-                    {entry.changes.map((change, changeIndex) => (
-                      <li key={changeIndex} className="flex items-start gap-2">
-                        {getTypeBadge(change.type)}
-                        <span className="text-sm flex-1 pt-0.5">{change.text}</span>
-                      </li>
-                    ))}
-                  </ul>
+      <DialogContent className="w-full h-screen max-h-screen p-0 gap-0 sm:h-auto sm:max-h-[80vh] sm:max-w-2xl sm:p-6 sm:gap-4 flex flex-col">
+        <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4 sm:px-0 sm:pt-0">
+          <DialogTitle className="text-2xl">Últimos Cambios Publicados</DialogTitle>
+          <DialogDescription>
+            Historial de actualizaciones y mejoras del sistema Panorámica
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="flex-shrink-0 px-6 pb-4 sm:px-0 sm:pb-0">
+          <Button 
+            onClick={handleConfirm}
+            className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-base"
+            data-testid="confirm-update-button"
+          >
+            <CheckCircle className="w-5 h-5 mr-2" />
+            Confirmar actualización
+          </Button>
+        </div>
+        
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 sm:px-0 sm:pb-0">
+          <div className="space-y-6 pr-4">
+            {CHANGELOG_ENTRIES.map((entry, index) => (
+              <div key={index} className="border-l-2 border-primary/20 pl-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold">Versión {entry.version}</h3>
+                  <span className="text-sm text-muted-foreground">{entry.date}</span>
                 </div>
-              ))}
-            </div>
+                <ul className="space-y-2">
+                  {entry.changes.map((change, changeIndex) => (
+                    <li key={changeIndex} className="flex items-start gap-2">
+                      {getTypeBadge(change.type)}
+                      <span className="text-sm flex-1 pt-0.5">{change.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </DialogContent>
