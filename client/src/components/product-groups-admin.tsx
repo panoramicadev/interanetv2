@@ -173,7 +173,7 @@ export default function ProductGroupsAdmin() {
   });
 
   // Query para obtener productos disponibles (para asignar a grupos)
-  const { data: availableProducts = [] } = useQuery<any[]>({
+  const { data: availableProducts = [], isLoading: loadingProducts } = useQuery<any[]>({
     queryKey: ['/api/ecommerce/admin/productos'],
     queryFn: async () => {
       const response = await apiRequest('/api/ecommerce/admin/productos');
@@ -639,10 +639,15 @@ export default function ProductGroupsAdmin() {
 
                 {/* Lista de productos disponibles */}
                 <div className="border rounded-lg max-h-48 overflow-y-auto">
-                  {availableProductsToAdd.length === 0 ? (
+                  {loadingProducts ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
-                      {productSearch ? "No se encontraron productos" : "Todos los productos ya están asignados"}
+                      Cargando productos...
                     </p>
+                  ) : availableProductsToAdd.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-8">
+                      <p>{productSearch ? "No se encontraron productos" : "Todos los productos ya están asignados"}</p>
+                      <p className="text-xs mt-2">Total productos: {availableProducts.length}</p>
+                    </div>
                   ) : (
                     availableProductsToAdd.slice(0, 20).map(product => (
                       <button
