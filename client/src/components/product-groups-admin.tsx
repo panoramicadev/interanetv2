@@ -54,6 +54,7 @@ export default function ProductGroupsAdmin() {
   
   // States for adding products to group
   const [productSearch, setProductSearch] = useState("");
+  const [selectedUnidad, setSelectedUnidad] = useState<string>("all");
   const [selectedProductToAdd, setSelectedProductToAdd] = useState<any | null>(null);
   const [variantLabelInput, setVariantLabelInput] = useState("");
   const [isMainVariantInput, setIsMainVariantInput] = useState(false);
@@ -251,6 +252,7 @@ export default function ProductGroupsAdmin() {
     setVariantLabelInput("");
     setIsMainVariantInput(false);
     setProductSearch("");
+    setSelectedUnidad("all");
   };
 
   const handleAddProductToGroup = () => {
@@ -273,13 +275,34 @@ export default function ProductGroupsAdmin() {
     resetAddProductForm();
   };
 
+  // Get unique unidades from available products
+  const uniqueUnidades = Array.from(
+    new Set(
+      availableProducts
+        .filter(p => p.unidad)
+        .map(p => p.unidad)
+    )
+  ).sort();
+
   // Filter available products (not in this group)
-  const availableProductsToAdd = availableProducts.filter(p => 
-    p.groupId !== managingGroupId &&
-    (productSearch === "" || 
-     p.producto?.toLowerCase().includes(productSearch.toLowerCase()) ||
-     p.codigo?.toLowerCase().includes(productSearch.toLowerCase()))
-  );
+  const availableProductsToAdd = availableProducts.filter(p => {
+    // Not in current group
+    if (p.groupId === managingGroupId) return false;
+    
+    // Search filter
+    if (productSearch !== "" && 
+        !p.producto?.toLowerCase().includes(productSearch.toLowerCase()) &&
+        !p.codigo?.toLowerCase().includes(productSearch.toLowerCase())) {
+      return false;
+    }
+    
+    // Unidad filter
+    if (selectedUnidad !== "all" && p.unidad !== selectedUnidad) {
+      return false;
+    }
+    
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -627,15 +650,31 @@ export default function ProductGroupsAdmin() {
               
               {/* Buscador de productos */}
               <div className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar producto por nombre o código..."
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    className="pl-9"
-                    data-testid="input-search-product"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar producto por nombre o código..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="pl-9"
+                      data-testid="input-search-product"
+                    />
+                  </div>
+                  
+                  <Select value={selectedUnidad} onValueChange={setSelectedUnidad}>
+                    <SelectTrigger data-testid="select-unidad-filter">
+                      <SelectValue placeholder="Filtrar por tipo de envase" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los envases</SelectItem>
+                      {uniqueUnidades.map(unidad => (
+                        <SelectItem key={unidad} value={unidad}>
+                          {unidad}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Lista de productos disponibles */}
@@ -661,7 +700,9 @@ export default function ProductGroupsAdmin() {
                       >
                         <div className="font-medium">{product.producto}</div>
                         <div className="text-sm text-muted-foreground">
-                          Código: {product.codigo} | Precio: ${new Intl.NumberFormat('es-CL').format(product.precio)}
+                          Código: {product.codigo}
+                          {product.unidad && ` | Envase: ${product.unidad}`}
+                          {' | Precio: $' + new Intl.NumberFormat('es-CL').format(product.precio)}
                         </div>
                       </button>
                     ))
