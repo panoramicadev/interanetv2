@@ -460,15 +460,6 @@ export default function Dashboard() {
           {/* Mobile Layout: Filters Button + Summary Chips */}
           {isMobile ? (
             <div className="space-y-4">
-              {/* Logo - Mobile Only */}
-              <div className="flex justify-center">
-                <img 
-                  src={panoramicaLogo} 
-                  alt="Panorámica 30 Años" 
-                  className="h-10 w-auto object-contain"
-                />
-              </div>
-              
               {/* Period and Filters in one line */}
               <div className="flex items-center justify-between gap-2">
                 {/* Period Display */}
