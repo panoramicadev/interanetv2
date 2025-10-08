@@ -55,12 +55,13 @@ export default function BillingSummary() {
     });
   }
 
-  // Pre-select default address if available
+  // Set initial address option based on available addresses
   useEffect(() => {
-    if (availableAddresses.length > 0 && selectedAddressOption === "default") {
-      // Address will be computed from selection
+    if (availableAddresses.length === 0 && selectedAddressOption === "default") {
+      // If no saved addresses, default to custom input
+      setSelectedAddressOption("custom");
     }
-  }, [clientData]);
+  }, [availableAddresses.length, selectedAddressOption]);
 
   // Compute final shipping address based on selection
   const shippingAddress = selectedAddressOption === "custom" 
