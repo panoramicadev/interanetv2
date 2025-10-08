@@ -175,21 +175,18 @@ export default function Dashboard() {
     }
   };
 
-  // Format last updated time in a subtle way
+  // Format last updated time with date and time
   const formatLastUpdated = (timestamp: string): string => {
-    const now = new Date();
     const updated = new Date(timestamp);
-    const diffMinutes = Math.floor((now.getTime() - updated.getTime()) / 60000);
     
-    if (diffMinutes < 1) return 'ahora';
-    if (diffMinutes < 60) return `${diffMinutes}m`;
-    if (diffMinutes < 1440) {
-      const diffHours = Math.floor(diffMinutes / 60);
-      return `${diffHours}h`;
-    }
-    return updated.toLocaleTimeString('es-CL', { 
+    // Format: DD/MM/YYYY HH:MM AM/PM
+    return updated.toLocaleString('es-CL', { 
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
       hour: '2-digit', 
-      minute: '2-digit' 
+      minute: '2-digit', 
+      hour12: true 
     });
   };
   
