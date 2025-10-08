@@ -5,8 +5,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { CheckCircle } from "lucide-react";
 
 interface ChangelogDialogProps {
   open: boolean;
@@ -86,36 +88,53 @@ const getTypeBadge = (type: string) => {
 };
 
 export default function ChangelogDialog({ open, onOpenChange }: ChangelogDialogProps) {
+  const handleConfirm = () => {
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">Últimos Cambios Publicados</DialogTitle>
-          <DialogDescription>
-            Historial de actualizaciones y mejoras del sistema Panorámica
-          </DialogDescription>
-        </DialogHeader>
-        
-        <ScrollArea className="h-[500px] pr-4">
-          <div className="space-y-6">
-            {CHANGELOG_ENTRIES.map((entry, index) => (
-              <div key={index} className="border-l-2 border-primary/20 pl-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-lg font-semibold">Versión {entry.version}</h3>
-                  <span className="text-sm text-muted-foreground">{entry.date}</span>
-                </div>
-                <ul className="space-y-2">
-                  {entry.changes.map((change, changeIndex) => (
-                    <li key={changeIndex} className="flex items-start gap-2">
-                      {getTypeBadge(change.type)}
-                      <span className="text-sm flex-1 pt-0.5">{change.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+      <DialogContent className="w-full h-full max-h-screen p-0 sm:h-auto sm:max-h-[80vh] sm:max-w-2xl sm:p-6">
+        <div className="flex flex-col h-full">
+          <DialogHeader className="px-6 pt-6 pb-4 sm:px-0 sm:pt-0">
+            <DialogTitle className="text-2xl">Últimos Cambios Publicados</DialogTitle>
+            <DialogDescription>
+              Historial de actualizaciones y mejoras del sistema Panorámica
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="px-6 pb-4 sm:px-0 sm:pb-0">
+            <Button 
+              onClick={handleConfirm}
+              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-base"
+              data-testid="confirm-update-button"
+            >
+              <CheckCircle className="w-5 h-5 mr-2" />
+              Confirmar actualización
+            </Button>
           </div>
-        </ScrollArea>
+          
+          <ScrollArea className="flex-1 px-6 sm:px-0 sm:h-[400px]">
+            <div className="space-y-6 pr-4 pb-6">
+              {CHANGELOG_ENTRIES.map((entry, index) => (
+                <div key={index} className="border-l-2 border-primary/20 pl-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-lg font-semibold">Versión {entry.version}</h3>
+                    <span className="text-sm text-muted-foreground">{entry.date}</span>
+                  </div>
+                  <ul className="space-y-2">
+                    {entry.changes.map((change, changeIndex) => (
+                      <li key={changeIndex} className="flex items-start gap-2">
+                        {getTypeBadge(change.type)}
+                        <span className="text-sm flex-1 pt-0.5">{change.text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
