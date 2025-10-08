@@ -5005,11 +5005,16 @@ export function registerRoutes(app: Express): Server {
         const products = await storage.getEcommerceAdminProducts({ search: sku });
         const product = products.find(p => p.codigo.toUpperCase() === sku);
 
-        // Upload image to Object Storage
-        const objectStorageService = new ObjectStorageService();
-        const imageName = `${sku}_${Date.now()}${fileExt}`;
+        // Save image locally
+        const fs = await import('fs/promises');
+        const path = await import('path');
         
-        const publicUrl = await objectStorageService.uploadImage(imageName, imageBuffer, req.file.mimetype);
+        const imageName = `${sku}_${Date.now()}${fileExt}`;
+        const imagePath = path.join(process.cwd(), 'public', 'product-images', imageName);
+        
+        await fs.writeFile(imagePath, imageBuffer);
+        
+        const publicUrl = `/product-images/${imageName}`;
 
         if (product) {
           // Update product with image URL
@@ -5067,11 +5072,16 @@ export function registerRoutes(app: Express): Server {
       console.log(`📸 [PRODUCT IMAGE] Uploading image for product: ${productCode} (ID: ${productId})`);
 
       try {
-        // Upload image to Object Storage
-        const objectStorageService = new ObjectStorageService();
-        const imageName = `${productCode}_${Date.now()}${fileExt}`;
+        // Save image locally
+        const fs = await import('fs/promises');
+        const path = await import('path');
         
-        const publicUrl = await objectStorageService.uploadImage(imageName, imageBuffer, req.file.mimetype);
+        const imageName = `${productCode}_${Date.now()}${fileExt}`;
+        const imagePath = path.join(process.cwd(), 'public', 'product-images', imageName);
+        
+        await fs.writeFile(imagePath, imageBuffer);
+        
+        const publicUrl = `/product-images/${imageName}`;
 
         // Update product with image URL
         await storage.updateEcommerceAdminProduct(productId, { imagenUrl: publicUrl });
