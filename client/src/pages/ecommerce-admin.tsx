@@ -28,6 +28,9 @@ interface ProductoEcommerce {
   activo: boolean; // Si está activo en la tienda
   imagenUrl?: string;
   stock?: number;
+  groupId?: string | null; // ID del grupo de producto
+  variantLabel?: string | null; // Etiqueta de la variante (ej: "Blanco", "Gris")
+  isMainVariant?: boolean; // Si es la variante principal del grupo
 }
 
 interface CategoriaEcommerce {
@@ -77,6 +80,9 @@ export default function EcommerceAdmin() {
   const [productPrecio, setProductPrecio] = useState("");
   const [productActivo, setProductActivo] = useState(false);
   const [uploadingProductImage, setUploadingProductImage] = useState(false);
+  const [productGroupId, setProductGroupId] = useState<string>("");
+  const [productVariantLabel, setProductVariantLabel] = useState("");
+  const [productIsMainVariant, setProductIsMainVariant] = useState(false);
   
   // Estados para nueva categoría
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -126,6 +132,15 @@ export default function EcommerceAdmin() {
     },
     staleTime: 0,
     refetchOnMount: true
+  });
+
+  // Query para obtener grupos de productos
+  const { data: grupos = [] } = useQuery<ProductGroup[]>({
+    queryKey: ['/api/ecommerce/admin/grupos'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/ecommerce/admin/grupos');
+      return response.json();
+    }
   });
 
   // Mutación para actualizar producto
@@ -420,21 +435,38 @@ export default function EcommerceAdmin() {
     setProductImagen(product.imagenUrl || "");
     setProductPrecio(product.precio.toString());
     setProductActivo(product.activo);
+    setProductGroupId(product.groupId || "");
+    setProductVariantLabel(product.variantLabel || "");
+    setProductIsMainVariant(product.isMainVariant || false);
     setShowProductDialog(true);
   };
 
   const handleSaveProduct = () => {
     if (!editingProduct) return;
     
+    // Solo enviar datos de variante si hay un grupo seleccionado
+    const updates: any = {
+      categoria: productCategoria,
+      descripcion: productDescripcion,
+      imagenUrl: productImagen,
+      precio: parseFloat(productPrecio),
+      activo: productActivo,
+    };
+
+    if (productGroupId) {
+      updates.groupId = productGroupId;
+      updates.variantLabel = productVariantLabel || null;
+      updates.isMainVariant = productIsMainVariant;
+    } else {
+      // Si no hay grupo, limpiar campos de variante
+      updates.groupId = null;
+      updates.variantLabel = null;
+      updates.isMainVariant = false;
+    }
+    
     updateProductMutation.mutate({
       id: editingProduct.id,
-      updates: {
-        categoria: productCategoria,
-        descripcion: productDescripcion,
-        imagenUrl: productImagen,
-        precio: parseFloat(productPrecio),
-        activo: productActivo
-      }
+      updates
     });
   };
 
@@ -1260,6 +1292,63 @@ export default function EcommerceAdmin() {
                       )}
                     </Button>
                   </div>
+                </div>
+              </div>
+              
+              <div className="border-t pt-4">
+                <h3 className="font-medium mb-3">Agrupación de variantes (opcional)</h3>
+                
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="grupo">Grupo de producto</Label>
+                    <Select value={productGroupId} onValueChange={setProductGroupId}>
+                      <SelectTrigger data-testid="select-product-group">
+                        <SelectValue placeholder="Sin grupo (producto individual)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="" data-testid="select-item-no-group">Sin grupo</SelectItem>
+                        {grupos.filter(g => g.activo).map((grupo) => (
+                          <SelectItem 
+                            key={grupo.id} 
+                            value={grupo.id}
+                            data-testid={`select-item-group-${grupo.id}`}
+                          >
+                            {grupo.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {productGroupId && (
+                    <>
+                      <div>
+                        <Label htmlFor="variantLabel">Etiqueta de variante</Label>
+                        <Input
+                          id="variantLabel"
+                          value={productVariantLabel}
+                          onChange={(e) => setProductVariantLabel(e.target.value)}
+                          placeholder="Ej: Blanco, Gris, Negro, 1L, 4L..."
+                          data-testid="input-variant-label"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Nombre que verán los clientes para diferenciar esta variante
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="isMainVariant"
+                          checked={productIsMainVariant}
+                          onChange={(e) => setProductIsMainVariant(e.target.checked)}
+                          className="h-4 w-4"
+                          data-testid="checkbox-main-variant"
+                        />
+                        <Label htmlFor="isMainVariant">Variante principal del grupo</Label>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               
