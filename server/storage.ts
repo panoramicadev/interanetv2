@@ -602,6 +602,20 @@ export interface IStorage {
   assignProductToGroup(productId: string, groupId: string, variantLabel?: string, isMainVariant?: boolean): Promise<void>;
   removeProductFromGroup(productId: string): Promise<void>;
   
+  // eCommerce Orders operations
+  createEcommerceOrder(order: any): Promise<any>;
+  getEcommerceOrders(filters?: {
+    clientId?: string;
+    salespersonId?: string;
+    status?: string;
+  }): Promise<any[]>;
+  
+  // Notification operations
+  createNotification(notification: any): Promise<any>;
+  
+  // Helper operations
+  getAdminUserId(): Promise<string | null>;
+  
   // Product stock operations (KOPR-based)
   getProductStock(kopr: string): Promise<ProductStock[]>;
   getProductStockByWarehouse(kopr: string, kobo: string, kosu?: string): Promise<ProductStock[]>;
@@ -624,6 +638,7 @@ export interface IStorage {
     lastTransactionDate?: string;
   }>>;
   getClientByKoen(koen: string): Promise<Client | undefined>;
+  getClientByUserId(userId: string): Promise<Client | undefined>;
   insertClient(client: InsertClient): Promise<Client>;
   insertMultipleClients(clients: InsertClient[]): Promise<{ inserted: number; updated: number; skipped: number } | undefined>;
   // SIMPLE and RELIABLE client import - identical to order system
@@ -5947,6 +5962,16 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getClientByUserId(userId: string) {
+    const result = await db
+      .select()
+      .from(clients)
+      .where(eq(clients.userId, userId))
+      .limit(1);
+    
+    return result[0];
+  }
+
   async insertClient(client: InsertClient) {
     const result = await db
       .insert(clients)
@@ -9352,6 +9377,74 @@ export class DatabaseStorage implements IStorage {
       console.error('Error calculating color cost:', error);
       throw error;
     }
+  }
+
+  // eCommerce Orders operations
+  async createEcommerceOrder(orderData: any) {
+    const { ecommerceOrders } = await import('@shared/schema');
+    
+    const [newOrder] = await db
+      .insert(ecommerceOrders)
+      .values(orderData)
+      .returning();
+    
+    return newOrder;
+  }
+
+  async getEcommerceOrders(filters?: {
+    clientId?: string;
+    salespersonId?: string;
+    status?: string;
+  }) {
+    const { ecommerceOrders } = await import('@shared/schema');
+    
+    const conditions = [];
+    
+    if (filters?.clientId) {
+      conditions.push(eq(ecommerceOrders.clientId, filters.clientId));
+    }
+    
+    if (filters?.salespersonId) {
+      conditions.push(eq(ecommerceOrders.assignedSalespersonId, filters.salespersonId));
+    }
+    
+    if (filters?.status) {
+      conditions.push(eq(ecommerceOrders.status, filters.status));
+    }
+    
+    let query = db
+      .select()
+      .from(ecommerceOrders)
+      .orderBy(desc(ecommerceOrders.createdAt));
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    
+    return await query;
+  }
+
+  // Notification operations
+  async createNotification(notificationData: any) {
+    const { notifications } = await import('@shared/schema');
+    
+    const [newNotification] = await db
+      .insert(notifications)
+      .values(notificationData)
+      .returning();
+    
+    return newNotification;
+  }
+
+  // Helper operations
+  async getAdminUserId(): Promise<string | null> {
+    const [admin] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.role, 'admin'))
+      .limit(1);
+    
+    return admin?.id || null;
   }
 
 }
