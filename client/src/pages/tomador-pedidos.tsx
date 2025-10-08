@@ -3461,6 +3461,23 @@ export default function TomadorPedidos() {
                                         [product.codigo]: Math.min(999, Math.max(1, value))
                                       }));
                                     }}
+                                    onFocus={(e) => {
+                                      e.target.value = '';
+                                      setProductQuantities(prev => ({
+                                        ...prev,
+                                        [product.codigo]: 0
+                                      }));
+                                    }}
+                                    onBlur={(e) => {
+                                      if (!e.target.value || parseInt(e.target.value) === 0) {
+                                        setProductQuantities(prev => ({
+                                          ...prev,
+                                          [product.codigo]: 1
+                                        }));
+                                      }
+                                    }}
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                     className="h-8 w-16 text-center text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     data-testid={`mobile-quantity-input-${product.codigo}`}
                                   />
@@ -3652,6 +3669,16 @@ export default function TomadorPedidos() {
                                       const value = parseInt(e.target.value) || 1;
                                       updateCartItemQuantity(item.id, Math.min(999, Math.max(1, value)));
                                     }}
+                                    onFocus={(e) => {
+                                      e.target.value = '';
+                                    }}
+                                    onBlur={(e) => {
+                                      if (!e.target.value || parseInt(e.target.value) === 0) {
+                                        updateCartItemQuantity(item.id, 1);
+                                      }
+                                    }}
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                     className="h-9 w-16 text-center text-base font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     data-testid={`mobile-cart-quantity-input-${item.id}`}
                                   />
