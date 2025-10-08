@@ -411,7 +411,7 @@ export default function TiendaPage() {
   // Get active hero banner
   const heroBanner = storeBanners.find(b => b.activo && b.titulo.includes("OFERTA"));
 
-  // Filter products
+  // Filter products (ungrouped products only)
   const filteredProducts = products.filter((product) => {
     const matchesSearch = !searchTerm || 
       getProductName(product).toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -421,6 +421,26 @@ export default function TiendaPage() {
     
     return matchesSearch && matchesCategory && isProductActive(product);
   });
+  
+  // Filter product groups
+  const filteredGroups = productGroups.filter((group) => {
+    const matchesSearch = !searchTerm || 
+      group.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      group.productos.some(p => 
+        getProductName(p).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        getProductCode(p).toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    
+    const matchesCategory = selectedCategory === "all" || group.categoria === selectedCategory;
+    
+    return matchesSearch && matchesCategory && group.activo;
+  });
+  
+  // Combine products and groups into a single displayable array
+  const allDisplayItems = [
+    ...filteredProducts.map(p => ({ type: 'product' as const, item: p })),
+    ...filteredGroups.map(g => ({ type: 'group' as const, item: g }))
+  ];
 
   const openProductDetail = (product: StoreProduct) => {
     setSelectedProduct(product);
@@ -714,7 +734,7 @@ export default function TiendaPage() {
                 Nuestros Productos
               </h2>
               <Badge variant="secondary" className="bg-[#FF6E23]/10 text-[#FF6E23]">
-                {filteredProducts.length} productos
+                {allDisplayItems.length} productos
               </Badge>
             </div>
             
@@ -759,10 +779,121 @@ export default function TiendaPage() {
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredProducts.map((product, index) => {
+            {allDisplayItems.map((displayItem, index) => {
               const isNew = index < 3; // Mark first 3 as "New"
               const isOffer = index === 0; // First product as special offer
               
+              // Handle both products and groups
+              if (displayItem.type === 'group') {
+                const group = displayItem.item;
+                const mainVariant = group.productos.find(p => p.isMainVariant) || group.productos[0];
+                if (!mainVariant) return null;
+                
+                return (
+                  <Card 
+                    key={`group-${group.id}`}
+                    className="relative bg-white hover:shadow-xl transition-all duration-300 overflow-hidden border-gray-200 h-full flex flex-col group cursor-pointer"
+                    onClick={() => {
+                      setSelectedVariantGroup(group);
+                      setSelectedVariant(mainVariant);
+                      setShowVariantDialog(true);
+                    }}
+                    data-testid={`card-group-${group.id}`}
+                  >
+                    {/* Badges */}
+                    <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+                      <Badge className="bg-purple-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                        {group.productos.length} Variantes
+                      </Badge>
+                      {isNew && (
+                        <Badge className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                          Nuevo
+                        </Badge>
+                      )}
+                    </div>
+
+                    <CardContent className="p-0 flex flex-col h-full">
+                      {/* Product Image */}
+                      <div className="h-48 bg-gray-100 flex items-center justify-center border-b relative overflow-hidden">
+                        {getProductImageUrl(mainVariant) ? (
+                          <img 
+                            src={getProductImageUrl(mainVariant)}
+                            alt={group.nombre}
+                            className="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="text-center text-gray-400">
+                            <ImageIcon className="h-12 w-12 mx-auto mb-2" />
+                            <p className="text-xs">Sin imagen</p>
+                          </div>
+                        )}
+                        
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <Button 
+                            variant="secondary" 
+                            size="sm"
+                            className="bg-white text-gray-900 shadow-lg"
+                          >
+                            Seleccionar Variante
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-6 flex flex-col flex-grow">
+                        {/* Product Name */}
+                        <h3 className="font-bold text-lg text-gray-900 mb-2 leading-tight line-clamp-2">
+                          {group.nombre}
+                        </h3>
+                        
+                        {/* Group Description */}
+                        {group.descripcion && (
+                          <p className="text-gray-500 text-sm mb-3">{group.descripcion}</p>
+                        )}
+
+                        {/* Price Range */}
+                        <div className="mb-4">
+                          <div className="text-xl font-bold text-gray-900">
+                            Desde {formatPrice(getProductPrice(mainVariant))}
+                          </div>
+                          
+                          {/* Available Variants */}
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {group.productos.slice(0, 4).map(variant => (
+                              <Badge key={variant.id} variant="outline" className="text-xs">
+                                {variant.variantLabel}
+                              </Badge>
+                            ))}
+                            {group.productos.length > 4 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{group.productos.length - 4}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Select Variant Button */}
+                        <Button
+                          className="w-full mt-auto bg-[#FF6E23] hover:bg-[#E55E13] text-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedVariantGroup(group);
+                            setSelectedVariant(mainVariant);
+                            setShowVariantDialog(true);
+                          }}
+                          data-testid={`button-select-variant-${group.id}`}
+                        >
+                          Seleccionar Variante
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              }
+              
+              // Original product card
+              const product = displayItem.item;
               return (
                 <Card 
                   key={product.id} 
