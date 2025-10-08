@@ -4065,6 +4065,9 @@ export class DatabaseStorage implements IStorage {
     activo: boolean;
     imagenUrl?: string;
     stock?: number;
+    groupId?: string | null;
+    variantLabel?: string | null;
+    isMainVariant?: boolean;
   }>> {
     // Use direct imports instead of dynamic imports
     const { priceList, ecommerceProducts } = await import('@shared/schema');
@@ -4085,6 +4088,9 @@ export class DatabaseStorage implements IStorage {
         activo: ecommerceProducts.activo,
         imagenUrl: ecommerceProducts.imagenUrl,
         precioEcommerce: ecommerceProducts.precioEcommerce,
+        groupId: ecommerceProducts.groupId,
+        variantLabel: ecommerceProducts.variantLabel,
+        isMainVariant: ecommerceProducts.isMainVariant,
       })
       .from(priceList)
       .leftJoin(ecommerceProducts, eq(priceList.id, ecommerceProducts.priceListId));
@@ -4153,6 +4159,9 @@ export class DatabaseStorage implements IStorage {
       activo: row.activo ?? true, // Default to active if not specified in ecommerceProducts
       imagenUrl: row.imagenUrl || undefined,
       stock: undefined, // TODO: Add stock integration if needed
+      groupId: row.groupId || null,
+      variantLabel: row.variantLabel || null,
+      isMainVariant: row.isMainVariant ?? false,
     }));
   }
 
