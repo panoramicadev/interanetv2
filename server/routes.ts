@@ -5031,21 +5031,21 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get ecommerce products with images and prices
+  // Get ecommerce products with images and prices (excluding grouped products)
   app.get('/api/store/products', async (req: any, res) => {
     try {
-      const { search, categoria, limit = 100, offset = 0 } = req.query;
+      const { search, categoria } = req.query;
       
       const filters = {
         search: search || undefined,
         categoria: categoria || undefined,
         activo: true, // Only show active products
-        limit: parseInt(limit),
-        offset: parseInt(offset)
+        groupId: null // Only fetch products WITHOUT a group (ungrouped products)
       };
 
-      const products = await storage.getEcommerceAdminProducts(filters);
-      res.json(products);
+      const ungroupedProducts = await storage.getEcommerceAdminProducts(filters);
+      
+      res.json(ungroupedProducts);
     } catch (error) {
       console.error("Error fetching store products:", error);
       res.status(500).json({ message: "Failed to fetch store products" });
