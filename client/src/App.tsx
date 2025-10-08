@@ -84,7 +84,9 @@ function Router() {
                 case 'tecnico_obra':
                   return <VisitasTecnicasPage />;
                 case 'client':
-                  return <ClientBuyerDashboard />;
+                  // Los clientes van directamente al ecommerce
+                  window.location.replace('/tienda');
+                  return null;
                 default:
                   return <Dashboard />;
               }

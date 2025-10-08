@@ -24,13 +24,24 @@ import {
   Percent,
   Award,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  User,
+  LayoutDashboard
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/hooks/useAuth";
 import { validateQuantity as validateCartQuantity } from "@/contexts/CartContext";
 import { FloatingCart, CartToggle } from "@/components/cart";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import bannerCopper from "@assets/Desktop Banner 02_1758045959229.png";
 import bannerStain from "@assets/Desktop Banner 03 (1)_1758047457407.png";
 import bannerDespacho from "@assets/Desktop Banner 01_1758047466193.png";
@@ -194,6 +205,7 @@ const validateQuantity = (quantity: number, unidad: string | undefined): number 
 };
 
 export default function TiendaPage() {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
@@ -507,6 +519,47 @@ export default function TiendaPage() {
 
             {/* Right section */}
             <div className="flex items-center gap-4">
+              {/* User Menu */}
+              {user && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg"
+                      data-testid="button-user-menu"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-[#FF6E23] rounded-full flex items-center justify-center">
+                          <User className="h-4 w-4 text-white" />
+                        </div>
+                        <span className="hidden md:block text-sm font-medium text-gray-700">
+                          {user.firstName || user.email}
+                        </span>
+                      </div>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium">
+                          {user.firstName && user.lastName 
+                            ? `${user.firstName} ${user.lastName}` 
+                            : user.firstName || user.email}
+                        </p>
+                        <p className="text-xs text-gray-500">{user.email}</p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/" className="flex items-center cursor-pointer">
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        <span>Ir al Dashboard</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
               {/* Cart */}
               <CartToggle onClick={() => setShowFloatingCart(true)} />
 
