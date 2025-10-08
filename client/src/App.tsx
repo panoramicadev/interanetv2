@@ -59,9 +59,9 @@ function Router() {
   return (
     <Switch>
       {/* Tienda pública accesible para todos */}
-      <Route path="/tienda" component={Tienda} />
-      <Route path="/shop" component={Shop} />
-      <Route path="/carrito" component={Carrito} />
+      <Route path="/tienda">{() => <Tienda />}</Route>
+      <Route path="/shop">{() => <Shop />}</Route>
+      <Route path="/carrito">{() => <Carrito />}</Route>
       
       {!user ? (
         <>
