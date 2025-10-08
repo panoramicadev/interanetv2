@@ -561,6 +561,7 @@ export default function EcommerceAdmin() {
     }
     
     // Resetear progreso
+    const allResults: any[] = [];
     setUploadProgress({ processed: 0, total: imageFiles.length, results: [] });
     
     console.log(`📸 [MULTI-IMAGE] Subiendo ${imageFiles.length} imágenes...`);
@@ -571,15 +572,58 @@ export default function EcommerceAdmin() {
       console.log(`📸 [MULTI-IMAGE] Procesando ${i + 1}/${imageFiles.length}: ${file.name}`);
       
       try {
-        await uploadSingleImageMutation.mutateAsync(file);
-      } catch (error) {
+        const formData = new FormData();
+        formData.append('image', file);
+        
+        const response = await fetch('/api/ecommerce/admin/upload-single-image', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          allResults.push({
+            fileName: file.name,
+            success: data.matched,
+            productCode: data.productCode,
+            message: data.message
+          });
+        } else {
+          allResults.push({
+            fileName: file.name,
+            success: false,
+            productCode: '',
+            message: data.message || 'Error al subir'
+          });
+        }
+      } catch (error: any) {
         console.error(`❌ Error subiendo ${file.name}:`, error);
+        allResults.push({
+          fileName: file.name,
+          success: false,
+          productCode: '',
+          message: error.message
+        });
       }
+      
+      // Actualizar progreso
+      setUploadProgress({ 
+        processed: i + 1, 
+        total: imageFiles.length, 
+        results: allResults 
+      });
     }
+    
+    // Invalidar cache de productos
+    queryClient.invalidateQueries({ queryKey: ['/api/ecommerce/admin/productos'] });
+    
+    const successCount = allResults.filter(r => r.success).length;
+    const errorCount = allResults.filter(r => !r.success).length;
     
     toast({
       title: "Importación completada",
-      description: `Se procesaron ${imageFiles.length} imagen(es).`,
+      description: `✅ ${successCount} exitosa(s), ${errorCount > 0 ? `❌ ${errorCount} con errores` : ''}`,
     });
   };
   
