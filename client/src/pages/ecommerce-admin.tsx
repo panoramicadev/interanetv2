@@ -10,9 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle } from "lucide-react";
+import { ShoppingCart, Search, Edit, Tag, Eye, EyeOff, Plus, Upload, FileArchive, CheckCircle, AlertCircle, ExternalLink, CloudUpload, Package, Image, Clock, XCircle, Layers } from "lucide-react";
+import ProductGroupsAdmin from "@/components/product-groups-admin";
 
 interface ProductoEcommerce {
   id: string;
@@ -34,6 +36,30 @@ interface CategoriaEcommerce {
   descripcion?: string;
   activa: boolean;
   productoCount: number;
+}
+
+interface ProductGroup {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+  imagenPrincipal?: string;
+  categoria?: string;
+  activo: boolean;
+  orden: number;
+  variantCount?: number;
+  mainVariant?: any;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ProductVariant {
+  id: string;
+  priceListId: string;
+  groupId?: string;
+  variantLabel?: string;
+  isMainVariant: boolean;
+  activo: boolean;
+  priceListProduct?: any;
 }
 
 export default function EcommerceAdmin() {
@@ -735,6 +761,20 @@ export default function EcommerceAdmin() {
         </div>
       </div>
 
+      {/* Tabs para organizar Productos y Grupos */}
+      <Tabs defaultValue="productos" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="productos" data-testid="tab-productos">
+            <Package className="h-4 w-4 mr-2" />
+            Productos
+          </TabsTrigger>
+          <TabsTrigger value="grupos" data-testid="tab-grupos">
+            <Layers className="h-4 w-4 mr-2" />
+            Grupos
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="productos" className="space-y-6 mt-6">
       {/* Estadísticas */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1298,6 +1338,12 @@ export default function EcommerceAdmin() {
           </div>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="grupos" className="mt-6">
+          <ProductGroupsAdmin />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
