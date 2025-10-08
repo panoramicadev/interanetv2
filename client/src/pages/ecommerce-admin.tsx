@@ -668,7 +668,7 @@ export default function EcommerceAdmin() {
               <CardTitle className="text-sm font-medium">Pedidos Solicitados</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatPrice(stats.ventasMes)}</div>
+              <div className="text-2xl font-bold">{stats.ventasMes}</div>
             </CardContent>
           </Card>
         </div>

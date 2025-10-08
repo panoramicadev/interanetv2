@@ -4158,7 +4158,7 @@ export class DatabaseStorage implements IStorage {
     totalCategorias: number;
     ventasMes: number;
   }> {
-    const { priceList, ecommerceProducts, ecommerceCategories, salesTransactions } = await import('@shared/schema');
+    const { priceList, ecommerceProducts, ecommerceCategories, ecommerceOrders } = await import('@shared/schema');
     
     // Get current month boundaries
     const now = new Date();
@@ -4180,21 +4180,21 @@ export class DatabaseStorage implements IStorage {
       .from(ecommerceCategories)
       .where(eq(ecommerceCategories.activa, true));
 
-    const [salesStats] = await db
+    const [ordersStats] = await db
       .select({
-        ventasMes: sql<number>`COALESCE(SUM(${salesTransactions.vanedo}), 0)`
+        ventasMes: sql<number>`COUNT(${ecommerceOrders.id})`
       })
-      .from(salesTransactions)
+      .from(ecommerceOrders)
       .where(and(
-        gte(salesTransactions.feemdo, startOfMonth.toISOString().split('T')[0]),
-        lte(salesTransactions.feemdo, endOfMonth.toISOString().split('T')[0])
+        gte(ecommerceOrders.createdAt, startOfMonth.toISOString()),
+        lte(ecommerceOrders.createdAt, endOfMonth.toISOString())
       ));
 
     return {
       totalProductos: Number(productStats.totalProductos) || 0,
       productosActivos: Number(productStats.productosActivos) || 0,
       totalCategorias: Number(categoryStats.totalCategorias) || 0,
-      ventasMes: Number(salesStats.ventasMes) || 0,
+      ventasMes: Number(ordersStats.ventasMes) || 0,
     };
   }
 
