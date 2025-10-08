@@ -56,9 +56,11 @@ interface Quote {
   status: "draft" | "sent" | "accepted" | "rejected" | "converted";
   validUntil?: string;
   notes?: string;
-  totalAmount: string;
+  subtotal?: string;
+  discount?: string;
+  taxRate?: string;
   taxAmount?: string;
-  discountAmount?: string;
+  total?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -349,11 +351,11 @@ export default function QuotesPage() {
                       
                       <TableCell className="py-4">
                         <div className="font-medium text-gray-900" data-testid={`total-amount-${quote.id}`}>
-                          {formatCurrency(quote.totalAmount)}
+                          {quote.total ? formatCurrency(quote.total) : formatCurrency("0")}
                         </div>
-                        {quote.discountAmount && parseFloat(quote.discountAmount) > 0 && (
+                        {quote.discount && parseFloat(quote.discount) > 0 && (
                           <div className="text-sm text-green-600">
-                            Descuento: {formatCurrency(quote.discountAmount)}
+                            Descuento: {formatCurrency(quote.discount)}
                           </div>
                         )}
                       </TableCell>
