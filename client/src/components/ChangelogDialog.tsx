@@ -94,16 +94,16 @@ export default function ChangelogDialog({ open, onOpenChange }: ChangelogDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-full max-h-screen p-0 sm:h-auto sm:max-h-[80vh] sm:max-w-2xl sm:p-6">
+      <DialogContent className="w-full h-screen p-0 sm:h-auto sm:max-h-[80vh] sm:max-w-2xl sm:p-6">
         <div className="flex flex-col h-full">
-          <DialogHeader className="px-6 pt-6 pb-4 sm:px-0 sm:pt-0">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4 sm:px-0 sm:pt-0">
             <DialogTitle className="text-2xl">Últimos Cambios Publicados</DialogTitle>
             <DialogDescription>
               Historial de actualizaciones y mejoras del sistema Panorámica
             </DialogDescription>
           </DialogHeader>
           
-          <div className="px-6 pb-4 sm:px-0 sm:pb-0">
+          <div className="flex-shrink-0 px-6 pb-4 sm:px-0 sm:pb-0">
             <Button 
               onClick={handleConfirm}
               className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 text-base"
@@ -114,26 +114,28 @@ export default function ChangelogDialog({ open, onOpenChange }: ChangelogDialogP
             </Button>
           </div>
           
-          <ScrollArea className="flex-1 px-6 sm:px-0 sm:h-[400px]">
-            <div className="space-y-6 pr-4 pb-6">
-              {CHANGELOG_ENTRIES.map((entry, index) => (
-                <div key={index} className="border-l-2 border-primary/20 pl-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-lg font-semibold">Versión {entry.version}</h3>
-                    <span className="text-sm text-muted-foreground">{entry.date}</span>
+          <div className="flex-1 overflow-hidden px-6 sm:px-0">
+            <ScrollArea className="h-full">
+              <div className="space-y-6 pr-4 pb-6">
+                {CHANGELOG_ENTRIES.map((entry, index) => (
+                  <div key={index} className="border-l-2 border-primary/20 pl-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-lg font-semibold">Versión {entry.version}</h3>
+                      <span className="text-sm text-muted-foreground">{entry.date}</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {entry.changes.map((change, changeIndex) => (
+                        <li key={changeIndex} className="flex items-start gap-2">
+                          {getTypeBadge(change.type)}
+                          <span className="text-sm flex-1 pt-0.5">{change.text}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="space-y-2">
-                    {entry.changes.map((change, changeIndex) => (
-                      <li key={changeIndex} className="flex items-start gap-2">
-                        {getTypeBadge(change.type)}
-                        <span className="text-sm flex-1 pt-0.5">{change.text}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
