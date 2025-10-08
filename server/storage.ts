@@ -4107,7 +4107,7 @@ export class DatabaseStorage implements IStorage {
       .limit(1000);
 
     return results.map(row => ({
-      id: row.ecomId || row.id, // Use ecommerce ID if exists, otherwise priceList ID
+      id: row.id, // Always use priceList ID for consistency with updateEcommerceAdminProduct
       codigo: row.codigo || '',
       producto: row.producto || '',
       unidad: row.unidad || undefined,
