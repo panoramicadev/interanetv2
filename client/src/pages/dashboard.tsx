@@ -453,10 +453,10 @@ export default function Dashboard() {
   return (
     <div>
         {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 sm:py-5 lg:py-6 m-3 sm:m-4 rounded-2xl shadow-sm">
+        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
           {/* Mobile Layout: Filters Button + Summary Chips */}
           {isMobile ? (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {/* Period and Filters in one line */}
               <div className="flex items-center justify-between gap-2">
                 {/* Period Display */}
