@@ -89,7 +89,7 @@ const getTypeBadge = (type: string) => {
 
 export default function ChangelogDialog({ open, onOpenChange }: ChangelogDialogProps) {
   const handleConfirm = () => {
-    onOpenChange(false);
+    window.location.reload();
   };
 
   return (
