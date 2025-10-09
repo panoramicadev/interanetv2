@@ -26,7 +26,8 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
-  LayoutDashboard
+  LayoutDashboard,
+  LogOut
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -205,7 +206,7 @@ const validateQuantity = (quantity: number, unidad: string | undefined): number 
 };
 
 export default function TiendaPage() {
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedProduct, setSelectedProduct] = useState<StoreProduct | null>(null);
@@ -555,6 +556,14 @@ export default function TiendaPage() {
                         <LayoutDashboard className="mr-2 h-4 w-4" />
                         <span>Ir al Dashboard</span>
                       </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => logoutMutation.mutate()}
+                      className="flex items-center cursor-pointer text-red-600"
+                      data-testid="button-logout"
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Salir</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
