@@ -59,7 +59,7 @@ Preferred communication style: Simple, everyday language.
 - **Product Grouping System**: Parent-child model for product variations with unique SKUs and prices per variant. Admin interface for managing product groups with search, filters, and CRUD operations. Backend-compatible (ungrouped products maintain groupId=null).
 - **User Roles**: Admin, Supervisor, Salesperson, Técnico de Obra, Client with distinct dashboards and permissions.
 - **Technical Visits**: Four-step creation flow, custom product support, receptionist fields, general observations.
-- **Sales Analytics**: KPI metrics, sales trend charts, detailed transaction records, segment analysis.
+- **Sales Analytics**: KPI metrics with accurate period-to-period comparison (current month truncated to current day for fair comparison), sales trend charts, detailed transaction records, segment analysis.
 - **Quote Management**: Role-based column visibility, real-time status updates, cart quantity input, PDF logo integration, email and Web Share API sharing.
 - **Invoice Access**: Role-based filtering for invoice/transaction access.
 - **Task Management**: Comprehensive task management system for admin/supervisor roles.
