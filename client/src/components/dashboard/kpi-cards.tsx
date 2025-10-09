@@ -460,7 +460,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {kpi.value}
             </p>
-            <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+            <p className={`text-[10px] sm:text-xs font-normal ${kpi.comparison ? kpi.comparison.color : kpi.changeColor} opacity-80`}>
               {kpi.comparison ? kpi.comparison.text : kpi.change}
             </p>
             {/* Información adicional de GDV y Total Combinado */}
@@ -503,7 +503,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {nvvFormatted}
             </p>
-            <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+            <p className={`text-[10px] sm:text-xs font-normal ${kpi.comparison ? kpi.comparison.color : kpi.changeColor} opacity-80`}>
               {kpi.comparison ? kpi.comparison.text : kpi.change}
             </p>
             {/* Ventas + GDV y Total Combinado */}
@@ -542,7 +542,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {kpi.value}
             </p>
-            <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+            <p className={`text-[10px] sm:text-xs font-normal ${kpi.comparison ? kpi.comparison.color : kpi.changeColor} opacity-80`}>
               {kpi.comparison ? kpi.comparison.text : kpi.change}
             </p>
             {/* Subtítulo: Cantidad de órdenes */}
@@ -587,7 +587,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 >
                   {kpi.value}
                 </p>
-                <p className={`text-xs sm:text-sm font-medium ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+                <p className={`text-[10px] sm:text-xs font-normal ${kpi.comparison ? kpi.comparison.color : kpi.changeColor} opacity-80`}>
                   {kpi.comparison ? kpi.comparison.text : kpi.change}
                 </p>
               </div>
