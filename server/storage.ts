@@ -2274,7 +2274,7 @@ export class DatabaseStorage implements IStorage {
   async getGlobalSalesForPeriod(period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS DECIMAL) ELSE 0 END), 0)`
       })
       .from(salesTransactions)
       .where(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`)
@@ -2286,7 +2286,7 @@ export class DatabaseStorage implements IStorage {
   async getSegmentSalesForPeriod(segment: string, period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS DECIMAL) ELSE 0 END), 0)`
       })
       .from(salesTransactions)
       .where(
@@ -2303,7 +2303,7 @@ export class DatabaseStorage implements IStorage {
   async getSalespersonSalesForPeriod(salesperson: string, period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS DECIMAL) ELSE 0 END), 0)`
       })
       .from(salesTransactions)
       .where(
