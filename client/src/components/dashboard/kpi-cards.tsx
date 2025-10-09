@@ -329,7 +329,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   // Calculate percentage changes vs previous period
   const calculateChange = (current: number, previous: number | undefined) => {
     if (previous === undefined || previous === null || previous === 0) {
-      return { text: "Sin datos previos", color: "text-gray-500" };
+      return { 
+        percentage: "Sin datos previos", 
+        comparisonText: "",
+        color: "text-gray-500" 
+      };
     }
     
     const change = ((current - previous) / previous) * 100;
@@ -359,7 +363,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     }
     
     return {
-      text: `${sign}${change.toFixed(1)}% ${comparisonText}`,
+      percentage: `${sign}${change.toFixed(1)}%`,
+      comparisonText: comparisonText,
       color
     };
   };
@@ -460,9 +465,16 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {kpi.value}
             </p>
-            <p className={`text-[10px] sm:text-xs font-normal ${kpi.comparison ? kpi.comparison.color : kpi.changeColor} opacity-80`}>
-              {kpi.comparison ? kpi.comparison.text : kpi.change}
-            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+                {kpi.comparison ? kpi.comparison.text : kpi.change.percentage}
+              </span>
+              {kpi.change.comparisonText && (
+                <span className="text-[10px] text-gray-500">
+                  {kpi.change.comparisonText}
+                </span>
+              )}
+            </div>
             {/* Información adicional de GDV y Total Combinado */}
             <div className="mt-2 pt-2 border-t border-gray-100">
               <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`GDV: ${formatCurrency(gdvSales)}`}>
@@ -503,9 +515,16 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {nvvFormatted}
             </p>
-            <p className={`text-[10px] sm:text-xs font-normal ${kpi.comparison ? kpi.comparison.color : kpi.changeColor} opacity-80`}>
-              {kpi.comparison ? kpi.comparison.text : kpi.change}
-            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+                {kpi.comparison ? kpi.comparison.text : kpi.change.percentage}
+              </span>
+              {kpi.change.comparisonText && (
+                <span className="text-[10px] text-gray-500">
+                  {kpi.change.comparisonText}
+                </span>
+              )}
+            </div>
             {/* Ventas + GDV y Total Combinado */}
             <div className="mt-2 pt-2 border-t border-gray-100">
               <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Ventas + GDV: ${formatCurrency(salesTotal + gdvSales)}`}>
@@ -542,9 +561,16 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {kpi.value}
             </p>
-            <p className={`text-[10px] sm:text-xs font-normal ${kpi.comparison ? kpi.comparison.color : kpi.changeColor} opacity-80`}>
-              {kpi.comparison ? kpi.comparison.text : kpi.change}
-            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+                {kpi.comparison ? kpi.comparison.text : kpi.change.percentage}
+              </span>
+              {kpi.change.comparisonText && (
+                <span className="text-[10px] text-gray-500">
+                  {kpi.change.comparisonText}
+                </span>
+              )}
+            </div>
             {/* Subtítulo: Cantidad de órdenes */}
             <div className="mt-2 pt-2 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-700">
@@ -587,9 +613,16 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 >
                   {kpi.value}
                 </p>
-                <p className={`text-[10px] sm:text-xs font-normal ${kpi.comparison ? kpi.comparison.color : kpi.changeColor} opacity-80`}>
-                  {kpi.comparison ? kpi.comparison.text : kpi.change}
-                </p>
+                <div className="flex items-baseline gap-1.5">
+                  <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
+                    {kpi.comparison ? kpi.comparison.text : kpi.change.percentage}
+                  </span>
+                  {kpi.change.comparisonText && (
+                    <span className="text-[10px] text-gray-500">
+                      {kpi.change.comparisonText}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
                 <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
