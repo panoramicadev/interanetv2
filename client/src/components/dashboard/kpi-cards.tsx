@@ -303,6 +303,29 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     );
   }
 
+  // Helper function to get period label for comparison
+  const getPeriodLabel = (period: string, filterType: string): string => {
+    const now = new Date();
+    
+    if (filterType === "month" && period.match(/^\d{4}-\d{2}$/)) {
+      const [year, month] = period.split('-').map(Number);
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      
+      // If it's the current month, show "Oct 1-9" format
+      if (year === currentYear && month === currentMonth) {
+        const monthName = format(new Date(year, month - 1, 1), 'MMM');
+        const currentDay = now.getDate();
+        return `${monthName} 1-${currentDay}`;
+      } else {
+        // Past month, show full month
+        return format(new Date(year, month - 1, 1), 'MMM yyyy');
+      }
+    }
+    
+    return period;
+  };
+
   // Calculate percentage changes vs previous period
   const calculateChange = (current: number, previous: number | undefined) => {
     if (previous === undefined || previous === null || previous === 0) {
@@ -313,8 +336,30 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const sign = change >= 0 ? "+" : "";
     const color = change >= 0 ? "text-green-600" : "text-red-600";
     
+    // Get period labels for display
+    const now = new Date();
+    let comparisonText = "vs mes anterior";
+    
+    if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+      const [year, month] = selectedPeriod.split('-').map(Number);
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      
+      // Only show date range comparison if it's the current month
+      if (year === currentYear && month === currentMonth) {
+        const currentDay = now.getDate();
+        const currentMonthName = format(new Date(year, month - 1, 1), 'MMM');
+        
+        // Calculate previous month
+        const prevMonthDate = new Date(year, month - 2, 1); // month-2 because 0-indexed
+        const prevMonthName = format(prevMonthDate, 'MMM');
+        
+        comparisonText = `vs ${prevMonthName} 1-${currentDay}`;
+      }
+    }
+    
     return {
-      text: `${sign}${change.toFixed(1)}% vs mes anterior`,
+      text: `${sign}${change.toFixed(1)}% ${comparisonText}`,
       color
     };
   };
