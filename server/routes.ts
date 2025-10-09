@@ -215,7 +215,8 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth();
         startDate = new Date(currentYear, currentMonth, 1);
-        endDate = new Date(currentYear, currentMonth + 1, 0);
+        // For current-month, use today as the end date (not the last day of month)
+        endDate = new Date(currentYear, currentMonth, now.getDate());
       } else if (period === 'last-month') {
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth();
@@ -224,8 +225,22 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
       } else if (period.includes('-')) {
         // period format: "2025-09" 
         const [year, month] = period.split('-');
-        startDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-        endDate = new Date(parseInt(year), parseInt(month), 0);
+        const periodYear = parseInt(year);
+        const periodMonth = parseInt(month) - 1; // 0-indexed
+        
+        startDate = new Date(periodYear, periodMonth, 1);
+        
+        // Check if this is the current month
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        
+        if (periodYear === currentYear && periodMonth === currentMonth) {
+          // If it's the current month, use today as the end date
+          endDate = new Date(currentYear, currentMonth, now.getDate());
+        } else {
+          // If it's a past month, use the last day of that month
+          endDate = new Date(periodYear, periodMonth + 1, 0);
+        }
       }
       break;
     case 'year':
