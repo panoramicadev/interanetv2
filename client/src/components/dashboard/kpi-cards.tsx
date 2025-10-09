@@ -402,7 +402,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     {
       title: "Ventas Totales",
       value: formatCurrency(metrics?.totalSales || 0),
-      change: salesChange.text,
+      change: salesChange,
       changeColor: salesChange.color,
       comparison: salesComparison,
       icon: DollarSign,
@@ -413,7 +413,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     {
       title: "Notas de Venta",
       value: formatNumber(metrics?.totalOrders || 0),
-      change: ordersChange.text,
+      change: ordersChange,
       changeColor: ordersChange.color,
       comparison: ordersComparison,
       icon: ShoppingCart,
@@ -424,7 +424,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     {
       title: "Unidades Vendidas",
       value: formatNumber(metrics?.totalUnits || 0),
-      change: unitsChange.text,
+      change: unitsChange,
       changeColor: unitsChange.color,
       comparison: unitsComparison,
       icon: Package,
@@ -435,7 +435,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     {
       title: "Ventas GDV",
       value: formatCurrency(metrics?.gdvSales || 0),
-      change: gdvChange.text,
+      change: gdvChange,
       changeColor: gdvChange.color,
       comparison: gdvComparison,
       icon: DollarSign,
