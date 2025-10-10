@@ -433,6 +433,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Best year historical endpoint - returns the best year and its total
+  app.get('/api/sales/best-year', requireAuth, async (req, res) => {
+    try {
+      const bestYear = await storage.getBestYearHistorical();
+      res.json(bestYear);
+    } catch (error) {
+      console.error("Error fetching best year:", error);
+      res.status(500).json({ message: "Failed to fetch best year" });
+    }
+  });
+
   // Vendedor-specific metrics endpoint
   app.get('/api/sales/metrics/salesperson/:salespersonName', requireAuth, async (req, res) => {
     try {

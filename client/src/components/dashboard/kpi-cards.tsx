@@ -283,6 +283,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     queryKey: ['/api/sales/yearly-totals'],
   });
 
+  // Query for best year historical
+  const { data: bestYear } = useQuery<{
+    bestYear: number;
+    bestYearTotal: number;
+  }>({
+    queryKey: ['/api/sales/best-year'],
+  });
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -537,48 +545,67 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     );
   };
 
+  // Renderizar tarjeta personalizada para Total Acumulado del Año
+  const renderYearlyCard = (kpi: any) => {
+    const bestYearValue = bestYear?.bestYear || 0;
+    const bestYearTotalValue = bestYear?.bestYearTotal || 0;
+
+    return (
+      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex-1 mb-2 lg:mb-0">
+            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
+              {kpi.title}
+            </p>
+            <p 
+              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
+              data-testid={kpi.testId}
+              title={kpi.value}
+            >
+              {kpi.value}
+            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                {kpi.change.percentage}
+              </span>
+              {kpi.change.comparisonText && (
+                <span className="text-[10px] text-gray-500">
+                  {kpi.change.comparisonText}
+                </span>
+              )}
+            </div>
+            {/* Información adicional: Mejor año histórico */}
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-1">
+                Mejor año: {bestYearValue}
+              </p>
+              <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={formatCurrency(bestYearTotalValue)}>
+                {formatCurrency(bestYearTotalValue)}
+              </p>
+            </div>
+          </div>
+          <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
+            <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
       {kpis.map((kpi) => {
         // Renderizar tarjetas especiales
         if (kpi.title === "Ventas Totales") {
           return renderSalesCard(kpi);
+        } else if (kpi.title === "Total Acumulado del Año") {
+          return renderYearlyCard(kpi);
         } else if (kpi.title === "Unidades Vendidas") {
           return renderUnitsCard(kpi);
         }
         
-        // Renderizar tarjeta normal para el resto (Total Acumulado del Año)
-        return (
-          <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex-1 mb-2 lg:mb-0">
-                <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
-                  {kpi.title}
-                </p>
-                <p 
-                  className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
-                  data-testid={kpi.testId}
-                  title={kpi.value}
-                >
-                  {kpi.value}
-                </p>
-                <div className="flex items-baseline gap-1.5">
-                  <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
-                    {kpi.comparison ? kpi.comparison.text : kpi.change.percentage}
-                  </span>
-                  {kpi.change.comparisonText && (
-                    <span className="text-[10px] text-gray-500">
-                      {kpi.change.comparisonText}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
-                <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
-              </div>
-            </div>
-          </div>
-        );
+        // Fallback para otras tarjetas (no debería llegar aquí)
+        return null;
       })}
     </div>
   );
