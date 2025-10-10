@@ -448,8 +448,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   // Renderizar tarjeta personalizada para Ventas Totales
   const renderSalesCard = (kpi: any) => {
     const salesTotal = Number(metrics?.totalSales || 0);
-    const gdvSales = Number(metrics?.gdvSales || 0);
-    const combinedTotal = salesTotal + gdvSales;
+    const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
+    const combinedTotal = salesTotal + nvvTotal;
 
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
@@ -475,10 +475,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </span>
               )}
             </div>
-            {/* Información adicional de GDV y Total Combinado */}
+            {/* Información adicional de GDV (NVV) y Total Combinado */}
             <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`GDV: ${formatCurrency(gdvSales)}`}>
-                GDV: {formatCurrency(gdvSales)}
+              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`GDV: ${formatCurrency(nvvTotal)}`}>
+                GDV: {formatCurrency(nvvTotal)}
               </p>
               <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(combinedTotal)}`}>
                 Total Combinado: {formatCurrency(combinedTotal)}
@@ -497,8 +497,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const renderOrdersCard = (kpi: any) => {
     const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
     const salesTotal = Number(metrics?.totalSales || 0);
-    const gdvSales = Number(metrics?.gdvSales || 0);
-    const totalCombinado = salesTotal + gdvSales + nvvTotal;
+    const totalCombinado = salesTotal + nvvTotal;
     const nvvFormatted = formatCurrency(nvvTotal);
 
     return (
@@ -525,10 +524,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </span>
               )}
             </div>
-            {/* Ventas + GDV y Total Combinado */}
+            {/* Ventas + NVV y Total Combinado */}
             <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Ventas + GDV: ${formatCurrency(salesTotal + gdvSales)}`}>
-                Ventas + GDV: {formatCurrency(salesTotal + gdvSales)}
+              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Ventas + NVV: ${formatCurrency(salesTotal + nvvTotal)}`}>
+                Ventas + NVV: {formatCurrency(salesTotal + nvvTotal)}
               </p>
               <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(totalCombinado)}`}>
                 Total Combinado: {formatCurrency(totalCombinado)}
