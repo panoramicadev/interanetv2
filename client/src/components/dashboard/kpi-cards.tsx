@@ -420,17 +420,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       testId: "kpi-orders"
     },
     {
-      title: "Unidades Vendidas",
-      value: formatNumber(metrics?.totalUnits || 0),
-      change: unitsChange,
-      changeColor: unitsChange.color,
-      comparison: unitsComparison,
-      icon: Package,
-      bgColor: "bg-orange-100 dark:bg-orange-900/20",
-      iconColor: "text-orange-600",
-      testId: "kpi-units"
-    },
-    {
       title: "Ventas GDV",
       value: formatCurrency(metrics?.gdvSales || 0),
       change: gdvChange,
@@ -440,6 +429,17 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       bgColor: "bg-purple-100 dark:bg-purple-900/20",
       iconColor: "text-purple-600",
       testId: "kpi-gdv-sales"
+    },
+    {
+      title: "Unidades Vendidas",
+      value: formatNumber(metrics?.totalUnits || 0),
+      change: unitsChange,
+      changeColor: unitsChange.color,
+      comparison: unitsComparison,
+      icon: Package,
+      bgColor: "bg-orange-100 dark:bg-orange-900/20",
+      iconColor: "text-orange-600",
+      testId: "kpi-units"
     },
   ];
 
@@ -586,7 +586,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-      {kpis.filter((kpi) => kpi.title !== "Ventas GDV").map((kpi) => {
+      {kpis.map((kpi) => {
         // Renderizar tarjetas especiales
         if (kpi.title === "Ventas Totales") {
           return renderSalesCard(kpi);
@@ -596,7 +596,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           return renderUnitsCard(kpi);
         }
         
-        // Renderizar tarjeta normal para el resto
+        // Renderizar tarjeta normal para el resto (incluye Ventas GDV)
         return (
           <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
