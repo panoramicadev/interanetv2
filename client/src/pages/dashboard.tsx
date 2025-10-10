@@ -462,6 +462,9 @@ export default function Dashboard() {
         salespersonName={globalFilter.value} 
         embedded={true}
         onBack={handleBack}
+        dashboardGlobalFilter={globalFilter}
+        dashboardFilterType={filterType}
+        dashboardSelectedPeriod={selectedPeriod}
       />
     );
   }

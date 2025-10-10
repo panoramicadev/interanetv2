@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3 } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -38,9 +38,23 @@ interface SalespersonDetailProps {
   salespersonName?: string;
   embedded?: boolean;
   onBack?: () => void;
+  // Dashboard filter props (when embedded) - for display only
+  dashboardGlobalFilter?: {
+    type: "all" | "global" | "segment" | "salesperson";
+    value?: string;
+  };
+  dashboardFilterType?: "day" | "month" | "year" | "range";
+  dashboardSelectedPeriod?: string; // For showing the specific period value
 }
 
-export default function SalespersonDetail({ salespersonName: propSalespersonName, embedded = false, onBack }: SalespersonDetailProps = {}) {
+export default function SalespersonDetail({ 
+  salespersonName: propSalespersonName, 
+  embedded = false, 
+  onBack,
+  dashboardGlobalFilter,
+  dashboardFilterType,
+  dashboardSelectedPeriod
+}: SalespersonDetailProps = {}) {
   const { salespersonName: paramSalespersonName } = useParams();
   const salespersonName = propSalespersonName || paramSalespersonName;
   
@@ -210,6 +224,56 @@ export default function SalespersonDetail({ salespersonName: propSalespersonName
               </Link>
             )}
           </div>
+
+          {/* Dashboard Filters Info (when embedded) */}
+          {embedded && dashboardGlobalFilter && (
+            <div className="mb-4 pb-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <span className="text-gray-700 font-medium">Filtros del Dashboard:</span>
+                  
+                  {/* Vista Info */}
+                  <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-lg border border-blue-200">
+                    <Filter className="h-3.5 w-3.5" />
+                    <span>
+                      {dashboardGlobalFilter.type === "all" && "Todos"}
+                      {dashboardGlobalFilter.type === "global" && "Solo metas globales"}
+                      {dashboardGlobalFilter.type === "segment" && `Segmento: ${dashboardGlobalFilter.value}`}
+                      {dashboardGlobalFilter.type === "salesperson" && `Vendedor: ${dashboardGlobalFilter.value}`}
+                    </span>
+                  </div>
+
+                  {/* Period Info */}
+                  {dashboardFilterType && (
+                    <div className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200">
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      <span>
+                        {dashboardFilterType === "day" && (dashboardSelectedPeriod ? `Día: ${format(new Date(dashboardSelectedPeriod), "dd/MM/yyyy")}` : "Día")}
+                        {dashboardFilterType === "month" && (dashboardSelectedPeriod ? `Mes: ${format(new Date(dashboardSelectedPeriod + "-01"), "MMM yyyy")}` : "Mes")}
+                        {dashboardFilterType === "year" && (dashboardSelectedPeriod ? `Año: ${dashboardSelectedPeriod}` : "Año")}
+                        {dashboardFilterType === "range" && (dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_") ? 
+                          `Rango: ${format(new Date(dashboardSelectedPeriod.split("_")[0]), "dd/MM")} - ${format(new Date(dashboardSelectedPeriod.split("_")[1]), "dd/MM")}` : "Rango")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action button to change filters */}
+                {onBack && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onBack}
+                    className="rounded-xl border-gray-200 shadow-sm flex items-center gap-2"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Cambiar filtros</span>
+                    <span className="sm:hidden">Filtros</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Filter Controls - Horizontal Layout */}
           <div className="flex flex-wrap items-center gap-4">
