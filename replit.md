@@ -66,6 +66,10 @@ Preferred communication style: Simple, everyday language.
 - **NVV Import**: Direct import of all NVV records from CSV allowing duplicate NUDO values. Pre-calculates totalPendiente (PPPRNE * cantidadPendiente) and cantidadPendiente (CAPRCO2 - CAPREX2) fields during import for efficient querying.
 - **NVV Dashboard Integration**: Notas de Venta card displays total pending amount using pre-calculated totalPendiente field from database.
 - **Goals Progress**: Goals measured exclusively using Ventas Totales (excluding GDV transactions) for accurate progress tracking.
+- **Dashboard Enhancements**: 
+  - 3-card layout: Ventas Totales (with NVV+GDV), Total Acumulado del Año (with best historical year), and Unidades Vendidas (with client count).
+  - Best historical year feature displays the year with highest sales and its amount on the "Total Acumulado del Año" card.
+  - Embedded salesperson detail view: Selecting a salesperson from filters shows their dedicated dashboard with back navigation to return to main dashboard.
 
 ## External Dependencies
 
