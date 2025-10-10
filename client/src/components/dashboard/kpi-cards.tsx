@@ -267,14 +267,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     enabled: !!resolvedComparePeriod, // Only run if resolved period is set
   });
 
-  // Query for NVV metrics (with filters)
+  // Query for NVV total (NO filters - always show ALL pending sales)
   const { data: nvvMetrics } = useQuery<{
     totalAmount: number;
     totalRecords: number;
-    previousAmount?: number;
-    previousRecords?: number;
   }>({
-    queryKey: [`/api/nvv/metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: ['/api/nvv/total'],
   });
 
   const formatCurrency = (amount: number) => {
