@@ -275,6 +275,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     queryKey: ['/api/nvv/total'],
   });
 
+  // Query for yearly totals
+  const { data: yearlyTotals } = useQuery<{
+    currentYearTotal: number;
+    previousYearTotal: number;
+  }>({
+    queryKey: ['/api/sales/yearly-totals'],
+  });
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -386,15 +394,16 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   };
 
   const salesChange = calculateChange(metrics?.totalSales || 0, metrics?.previousMonthSales);
-  const ordersChange = calculateChange(metrics?.totalOrders || 0, metrics?.previousMonthOrders);
   const unitsChange = calculateChange(metrics?.totalUnits || 0, metrics?.previousMonthUnits);
-  const gdvChange = calculateChange(metrics?.gdvSales || 0, metrics?.previousMonthGdvSales);
+
+  // Calculate year-over-year change for yearly totals
+  const currentYearTotal = yearlyTotals?.currentYearTotal || 0;
+  const previousYearTotal = yearlyTotals?.previousYearTotal || 0;
+  const yearlyChange = calculateChange(currentYearTotal, previousYearTotal);
 
   // Calculate comparison changes
   const salesComparison = calculateComparisonChange(metrics?.totalSales || 0, comparisonMetrics?.totalSales, true);
-  const ordersComparison = calculateComparisonChange(metrics?.totalOrders || 0, comparisonMetrics?.totalOrders, false);
   const unitsComparison = calculateComparisonChange(metrics?.totalUnits || 0, comparisonMetrics?.totalUnits, false);
-  const gdvComparison = calculateComparisonChange(metrics?.gdvSales || 0, comparisonMetrics?.gdvSales, true);
 
   const kpis = [
     {
@@ -409,26 +418,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       testId: "kpi-total-sales"
     },
     {
-      title: "Notas de Venta",
-      value: formatNumber(metrics?.totalOrders || 0),
-      change: ordersChange,
-      changeColor: ordersChange.color,
-      comparison: ordersComparison,
-      icon: ShoppingCart,
+      title: "Total Acumulado del Año",
+      value: formatCurrency(currentYearTotal),
+      change: yearlyChange,
+      changeColor: yearlyChange.color,
+      comparison: null, // No comparison period for yearly totals
+      icon: DollarSign,
       bgColor: "bg-blue-100 dark:bg-blue-900/20",
       iconColor: "text-blue-600",
-      testId: "kpi-orders"
-    },
-    {
-      title: "Ventas GDV",
-      value: formatCurrency(metrics?.gdvSales || 0),
-      change: gdvChange,
-      changeColor: gdvChange.color,
-      comparison: gdvComparison,
-      icon: DollarSign,
-      bgColor: "bg-purple-100 dark:bg-purple-900/20",
-      iconColor: "text-purple-600",
-      testId: "kpi-gdv-sales"
+      testId: "kpi-yearly-total"
     },
     {
       title: "Unidades Vendidas",
@@ -446,8 +444,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   // Renderizar tarjeta personalizada para Ventas Totales
   const renderSalesCard = (kpi: any) => {
     const salesTotal = Number(metrics?.totalSales || 0);
+    const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
     const gdvSales = Number(metrics?.gdvSales || 0);
-    const combinedTotal = salesTotal + gdvSales;
+    const combinedTotal = salesTotal + nvvTotal + gdvSales;
 
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
@@ -473,10 +472,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </span>
               )}
             </div>
-            {/* Información adicional de GDV y Total Combinado */}
+            {/* Información adicional: NVV + GDV y Total Combinado */}
             <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`GDV: ${formatCurrency(gdvSales)}`}>
-                GDV: {formatCurrency(gdvSales)}
+              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`NVV: ${formatCurrency(nvvTotal)} + GDV: ${formatCurrency(gdvSales)}`}>
+                NVV: {formatCurrency(nvvTotal)} + GDV: {formatCurrency(gdvSales)}
               </p>
               <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(combinedTotal)}`}>
                 Total Combinado: {formatCurrency(combinedTotal)}
@@ -491,59 +490,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     );
   };
 
-  // Renderizar tarjeta personalizada para Notas de Venta
-  const renderOrdersCard = (kpi: any) => {
-    const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
-    const salesTotal = Number(metrics?.totalSales || 0);
-    const gdvSales = Number(metrics?.gdvSales || 0);
-    const totalCombinado = salesTotal + gdvSales + nvvTotal;
-    const nvvFormatted = formatCurrency(nvvTotal);
-
-    return (
-      <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex-1 mb-2 lg:mb-0">
-            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 sm:mb-2">
-              {kpi.title}
-            </p>
-            <p 
-              className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0"
-              data-testid={kpi.testId}
-              title={nvvFormatted}
-            >
-              {nvvFormatted}
-            </p>
-            <div className="flex items-baseline gap-1.5">
-              <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
-                {kpi.comparison ? kpi.comparison.text : kpi.change.percentage}
-              </span>
-              {kpi.change.comparisonText && (
-                <span className="text-[10px] text-gray-500">
-                  {kpi.change.comparisonText}
-                </span>
-              )}
-            </div>
-            {/* Ventas + GDV y Total Combinado */}
-            <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Ventas + GDV: ${formatCurrency(salesTotal + gdvSales)}`}>
-                Ventas + GDV: {formatCurrency(salesTotal + gdvSales)}
-              </p>
-              <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(totalCombinado)}`}>
-                Total Combinado: {formatCurrency(totalCombinado)}
-              </p>
-            </div>
-          </div>
-          <div className={`w-8 h-8 sm:w-12 sm:h-12 lg:w-14 lg:h-14 ${kpi.bgColor} rounded-xl lg:rounded-2xl flex items-center justify-center self-end lg:self-auto lg:ml-4 transition-transform hover:scale-105`}>
-            <kpi.icon className={`w-4 h-4 sm:w-6 sm:h-6 lg:w-7 lg:h-7 ${kpi.iconColor}`} />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Renderizar tarjeta personalizada para Unidades Vendidas
   const renderUnitsCard = (kpi: any) => {
     const totalOrders = metrics?.totalOrders || 0;
+    const totalCustomers = metrics?.activeCustomers || 0;
 
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
@@ -569,10 +519,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </span>
               )}
             </div>
-            {/* Subtítulo: Cantidad de órdenes */}
+            {/* Subtítulo: Cantidad de órdenes y clientes */}
             <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-700">
+              <p className="text-xs text-gray-500 mb-1">
                 {formatNumber(totalOrders)} {totalOrders === 1 ? 'orden' : 'órdenes'}
+              </p>
+              <p className="text-xs font-semibold text-gray-700">
+                {formatNumber(totalCustomers)} {totalCustomers === 1 ? 'cliente' : 'clientes'}
               </p>
             </div>
           </div>
@@ -590,13 +543,11 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         // Renderizar tarjetas especiales
         if (kpi.title === "Ventas Totales") {
           return renderSalesCard(kpi);
-        } else if (kpi.title === "Notas de Venta") {
-          return renderOrdersCard(kpi);
         } else if (kpi.title === "Unidades Vendidas") {
           return renderUnitsCard(kpi);
         }
         
-        // Renderizar tarjeta normal para el resto (incluye Ventas GDV)
+        // Renderizar tarjeta normal para el resto (Total Acumulado del Año)
         return (
           <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">

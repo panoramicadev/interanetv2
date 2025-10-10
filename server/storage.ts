@@ -1237,6 +1237,50 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  async getYearlyTotals(year: number): Promise<{
+    currentYearTotal: number;
+    previousYearTotal: number;
+  }> {
+    const currentYearStart = `${year}-01-01`;
+    const currentYearEnd = `${year}-12-31`;
+    const previousYear = year - 1;
+    const previousYearStart = `${previousYear}-01-01`;
+    const previousYearEnd = `${previousYear}-12-31`;
+
+    // Get current year total (excluding GDV)
+    const [currentYearMetrics] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+      })
+      .from(salesTransactions)
+      .where(
+        and(
+          gte(salesTransactions.feemdo, currentYearStart),
+          lte(salesTransactions.feemdo, currentYearEnd),
+          ne(salesTransactions.tido, 'GDV')
+        )
+      );
+
+    // Get previous year total (excluding GDV)
+    const [previousYearMetrics] = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+      })
+      .from(salesTransactions)
+      .where(
+        and(
+          gte(salesTransactions.feemdo, previousYearStart),
+          lte(salesTransactions.feemdo, previousYearEnd),
+          ne(salesTransactions.tido, 'GDV')
+        )
+      );
+
+    return {
+      currentYearTotal: Number(currentYearMetrics.total),
+      previousYearTotal: Number(previousYearMetrics.total),
+    };
+  }
+
   async getTopSalespeople(limit = 10, startDate?: string, endDate?: string, segment?: string): Promise<{
     items: Array<{
       salesperson: string;

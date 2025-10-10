@@ -421,6 +421,18 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Yearly totals endpoint - returns current and previous year totals
+  app.get('/api/sales/yearly-totals', requireAuth, async (req, res) => {
+    try {
+      const currentYear = new Date().getFullYear();
+      const totals = await storage.getYearlyTotals(currentYear);
+      res.json(totals);
+    } catch (error) {
+      console.error("Error fetching yearly totals:", error);
+      res.status(500).json({ message: "Failed to fetch yearly totals" });
+    }
+  });
+
   // Vendedor-specific metrics endpoint
   app.get('/api/sales/metrics/salesperson/:salespersonName', requireAuth, async (req, res) => {
     try {
