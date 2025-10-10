@@ -267,6 +267,16 @@ export interface IStorage {
     years: Array<{ value: string; label: string }>;
   }>;
   
+  getYearlyTotals(year: number): Promise<{
+    currentYearTotal: number;
+    previousYearTotal: number;
+  }>;
+  
+  getBestYearHistorical(): Promise<{
+    bestYear: number;
+    bestYearTotal: number;
+  }>;
+  
   // Packaging metrics operations
   getPackagingMetrics(filters?: {
     startDate?: string;
@@ -1278,6 +1288,35 @@ export class DatabaseStorage implements IStorage {
     return {
       currentYearTotal: Number(currentYearMetrics.total),
       previousYearTotal: Number(previousYearMetrics.total),
+    };
+  }
+
+  async getBestYearHistorical(): Promise<{
+    bestYear: number;
+    bestYearTotal: number;
+  }> {
+    // Get sales by year (excluding GDV)
+    const yearlyTotals = await db
+      .select({
+        year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
+        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+      })
+      .from(salesTransactions)
+      .where(ne(salesTransactions.tido, 'GDV'))
+      .groupBy(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`)
+      .orderBy(sql`COALESCE(SUM(${salesTransactions.monto}), 0) DESC`)
+      .limit(1);
+
+    if (yearlyTotals.length === 0) {
+      return {
+        bestYear: new Date().getFullYear(),
+        bestYearTotal: 0,
+      };
+    }
+
+    return {
+      bestYear: Number(yearlyTotals[0].year),
+      bestYearTotal: Number(yearlyTotals[0].total),
     };
   }
 
