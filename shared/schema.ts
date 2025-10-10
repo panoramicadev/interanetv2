@@ -2220,9 +2220,6 @@ export const nvvPendingSales = pgTable("nvv_pending_sales", {
   feerliIdx: index("nvv_pending_sales_feerli_idx").on(table.FEERLI),
   kofulidoIdx: index("nvv_pending_sales_kofulido_idx").on(table.KOFULIDO),
   importBatchIdx: index("nvv_pending_sales_import_batch_idx").on(table.importBatch),
-  
-  // UNIQUE constraint to prevent duplicate NVV records by IDMAEEDO
-  uniqueIdmaeedo: unique("unique_nvv_idmaeedo").on(table.IDMAEEDO),
 }));
 
 // ==============================================
