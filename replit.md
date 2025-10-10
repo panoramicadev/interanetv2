@@ -63,7 +63,9 @@ Preferred communication style: Simple, everyday language.
 - **Quote Management**: Role-based column visibility, real-time status updates, cart quantity input, PDF logo integration, email and Web Share API sharing.
 - **Invoice Access**: Role-based filtering for invoice/transaction access.
 - **Task Management**: Comprehensive task management system for admin/supervisor roles.
-- **NVV Import**: Direct import of all NVV records from CSV with duplicate detection.
+- **NVV Import**: Direct import of all NVV records from CSV allowing duplicate NUDO values. Pre-calculates totalPendiente (PPPRNE * cantidadPendiente) and cantidadPendiente (CAPRCO2 - CAPREX2) fields during import for efficient querying.
+- **NVV Dashboard Integration**: Notas de Venta card displays total pending amount using pre-calculated totalPendiente field from database.
+- **Goals Progress**: Goals measured exclusively using Ventas Totales (excluding GDV transactions) for accurate progress tracking.
 
 ## External Dependencies
 
