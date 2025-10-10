@@ -15,6 +15,7 @@ import TransactionsTable from "@/components/dashboard/transactions-table";
 import GoalsProgress from "@/components/dashboard/goals-progress";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import PackagingUnitsMetrics from "@/components/dashboard/packaging-units-metrics";
+import SalespersonDetail from "@/pages/salesperson-detail";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -449,6 +450,21 @@ export default function Dashboard() {
     return null;
   }
 
+  // Si hay un vendedor seleccionado, mostrar el dashboard del vendedor embedido
+  if (globalFilter.type === "salesperson" && globalFilter.value) {
+    const handleBack = () => {
+      setGlobalFilter({ type: "all" });
+      setSelectedFilter("all");
+    };
+    
+    return (
+      <SalespersonDetail 
+        salespersonName={globalFilter.value} 
+        embedded={true}
+        onBack={handleBack}
+      />
+    );
+  }
 
   return (
     <div>

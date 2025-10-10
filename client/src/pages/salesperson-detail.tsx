@@ -34,8 +34,15 @@ interface SalespersonSegment {
   percentage: number;
 }
 
-export default function SalespersonDetail() {
-  const { salespersonName } = useParams();
+interface SalespersonDetailProps {
+  salespersonName?: string;
+  embedded?: boolean;
+  onBack?: () => void;
+}
+
+export default function SalespersonDetail({ salespersonName: propSalespersonName, embedded = false, onBack }: SalespersonDetailProps = {}) {
+  const { salespersonName: paramSalespersonName } = useParams();
+  const salespersonName = propSalespersonName || paramSalespersonName;
   
   // Date filter states
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
@@ -106,12 +113,14 @@ export default function SalespersonDetail() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600">Vendedor no encontrado</h1>
-          <Link href="/">
-            <Button variant="outline" className="mt-4">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al Dashboard
-            </Button>
-          </Link>
+          {!embedded && (
+            <Link href="/">
+              <Button variant="outline" className="mt-4">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Volver al Dashboard
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
     );
@@ -155,15 +164,17 @@ export default function SalespersonDetail() {
           {/* Title Section */}
           <div className="flex items-start justify-between mb-4">
             <div className="min-w-0 flex-1">
-              <nav className="flex items-center space-x-1 text-xs text-gray-600 mb-1">
-                <Link href="/" className="hover:text-blue-600 transition-colors">
-                  Dashboard
-                </Link>
-                <span>›</span>
-                <span className="hidden sm:inline">Vendedor</span>
-                <span className="hidden sm:inline">›</span>
-                <span className="font-medium text-gray-900 truncate">{decodeURIComponent(salespersonName)}</span>
-              </nav>
+              {!embedded && (
+                <nav className="flex items-center space-x-1 text-xs text-gray-600 mb-1">
+                  <Link href="/" className="hover:text-blue-600 transition-colors">
+                    Dashboard
+                  </Link>
+                  <span>›</span>
+                  <span className="hidden sm:inline">Vendedor</span>
+                  <span className="hidden sm:inline">›</span>
+                  <span className="font-medium text-gray-900 truncate">{decodeURIComponent(salespersonName)}</span>
+                </nav>
+              )}
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                 {decodeURIComponent(salespersonName)}
               </h1>
@@ -172,10 +183,11 @@ export default function SalespersonDetail() {
               </p>
             </div>
             
-            <Link href="/">
+            {embedded && onBack ? (
               <Button 
                 variant="outline" 
                 size="sm"
+                onClick={onBack}
                 className="rounded-xl border-gray-200 shadow-sm ml-4"
                 data-testid="button-back-dashboard"
               >
@@ -183,7 +195,20 @@ export default function SalespersonDetail() {
                 <span className="hidden sm:inline">Volver al Dashboard</span>
                 <span className="sm:hidden">Volver</span>
               </Button>
-            </Link>
+            ) : !embedded && (
+              <Link href="/">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="rounded-xl border-gray-200 shadow-sm ml-4"
+                  data-testid="button-back-dashboard"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  <span className="hidden sm:inline">Volver al Dashboard</span>
+                  <span className="sm:hidden">Volver</span>
+                </Button>
+              </Link>
+            )}
           </div>
 
           {/* Filter Controls - Horizontal Layout */}
