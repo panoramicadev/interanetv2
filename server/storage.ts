@@ -7988,7 +7988,6 @@ export class DatabaseStorage implements IStorage {
 
       const BATCH_SIZE = 100;
       let totalInserted = 0;
-      let totalSkipped = 0;
 
       // STEP 2: Process all NVV records in batches
       for (let i = 0; i < nvvData.length; i += BATCH_SIZE) {
@@ -8016,22 +8015,18 @@ export class DatabaseStorage implements IStorage {
         });
 
         try {
-          // Use UPSERT with onConflictDoNothing to skip duplicates automatically
-          // PostgreSQL will handle duplicate detection via UNIQUE constraint
+          // Insert ALL records directly - allowing duplicates (including NUDO and IDMAEEDO)
           const insertResult = await db
             .insert(nvvPendingSales)
-            .values(recordsToInsert)
-            .onConflictDoNothing({ target: nvvPendingSales.IDMAEEDO });
+            .values(recordsToInsert);
           
-          // Count successful inserts (rowCount returns number of inserted rows, excluding conflicts)
+          // Count successful inserts
           const batchInserted = insertResult.rowCount || 0;
-          const batchSkipped = batch.length - batchInserted;
           
           totalInserted += batchInserted;
-          totalSkipped += batchSkipped;
           result.successfulImports += batchInserted;
           
-          console.log(`📦 NVV Batch ${batchNumber}/${totalBatches}: Inserted ${batchInserted}, Skipped ${batchSkipped} duplicates`);
+          console.log(`📦 NVV Batch ${batchNumber}/${totalBatches}: Inserted ${batchInserted} records (duplicates allowed)`);
         } catch (error) {
           console.error(`Error importing NVV batch ${batchNumber}:`, error);
           result.errors.push({
@@ -8041,7 +8036,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      console.log(`✅ NVV Import completed: ${totalInserted} new records imported, ${totalSkipped} duplicates skipped`);
+      console.log(`✅ NVV Import completed: ${totalInserted} records imported (duplicates allowed)`);
       
       if (result.errors.length > 0) {
         result.success = result.successfulImports > 0;
