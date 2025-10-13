@@ -128,6 +128,13 @@ import {
   type InsertReclamoGeneralPhoto,
   type ReclamoGeneralHistorial,
   type InsertReclamoGeneralHistorial,
+  // Marketing module tables
+  presupuestoMarketing,
+  solicitudesMarketing,
+  type PresupuestoMarketing,
+  type InsertPresupuestoMarketing,
+  type SolicitudMarketing,
+  type InsertSolicitudMarketing,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
@@ -963,6 +970,46 @@ export interface IStorage {
   
   // Cerrar reclamo
   cerrarReclamoGeneral(id: string, userId: string, userName: string, notas?: string): Promise<ReclamoGeneral>;
+
+  // ==================================================================================
+  // MARKETING MODULE operations
+  // ==================================================================================
+  
+  // Presupuesto Marketing operations
+  createPresupuestoMarketing(presupuesto: InsertPresupuestoMarketing): Promise<PresupuestoMarketing>;
+  getPresupuestoMarketing(mes: number, anio: number): Promise<PresupuestoMarketing | undefined>;
+  updatePresupuestoMarketing(id: string, presupuesto: Partial<InsertPresupuestoMarketing>): Promise<PresupuestoMarketing>;
+  
+  // Solicitudes Marketing operations
+  createSolicitudMarketing(solicitud: InsertSolicitudMarketing): Promise<SolicitudMarketing>;
+  getSolicitudesMarketing(filters?: {
+    mes?: number;
+    anio?: number;
+    estado?: string;
+    supervisorId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SolicitudMarketing[]>;
+  getSolicitudMarketingById(id: string): Promise<SolicitudMarketing | undefined>;
+  updateSolicitudMarketing(id: string, updates: Partial<InsertSolicitudMarketing>): Promise<SolicitudMarketing>;
+  deleteSolicitudMarketing(id: string): Promise<void>;
+  
+  // Cambiar estado de solicitud
+  updateSolicitudMarketingEstado(id: string, nuevoEstado: string, motivoRechazo?: string): Promise<SolicitudMarketing>;
+  
+  // Métricas de marketing
+  getMarketingMetrics(mes: number, anio: number): Promise<{
+    presupuestoTotal: number;
+    presupuestoUtilizado: number;
+    presupuestoDisponible: number;
+    totalSolicitudes: number;
+    solicitudesPorEstado: {
+      solicitado: number;
+      en_proceso: number;
+      completado: number;
+      rechazado: number;
+    };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -10048,6 +10095,185 @@ export class DatabaseStorage implements IStorage {
     });
     
     return updated;
+  }
+
+  // ==================================================================================
+  // MARKETING MODULE operations
+  // ==================================================================================
+  
+  // Presupuesto Marketing operations
+  async createPresupuestoMarketing(presupuesto: InsertPresupuestoMarketing): Promise<PresupuestoMarketing> {
+    const [result] = await db
+      .insert(presupuestoMarketing)
+      .values(presupuesto)
+      .returning();
+    return result;
+  }
+
+  async getPresupuestoMarketing(mes: number, anio: number): Promise<PresupuestoMarketing | undefined> {
+    const [result] = await db
+      .select()
+      .from(presupuestoMarketing)
+      .where(and(
+        eq(presupuestoMarketing.mes, mes),
+        eq(presupuestoMarketing.anio, anio)
+      ));
+    return result;
+  }
+
+  async updatePresupuestoMarketing(id: string, presupuesto: Partial<InsertPresupuestoMarketing>): Promise<PresupuestoMarketing> {
+    const [result] = await db
+      .update(presupuestoMarketing)
+      .set({
+        ...presupuesto,
+        updatedAt: new Date(),
+      })
+      .where(eq(presupuestoMarketing.id, id))
+      .returning();
+    return result;
+  }
+  
+  // Solicitudes Marketing operations
+  async createSolicitudMarketing(solicitud: InsertSolicitudMarketing): Promise<SolicitudMarketing> {
+    const [result] = await db
+      .insert(solicitudesMarketing)
+      .values(solicitud)
+      .returning();
+    return result;
+  }
+
+  async getSolicitudesMarketing(filters?: {
+    mes?: number;
+    anio?: number;
+    estado?: string;
+    supervisorId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SolicitudMarketing[]> {
+    const conditions = [];
+    
+    if (filters?.mes !== undefined) {
+      conditions.push(eq(solicitudesMarketing.mes, filters.mes));
+    }
+    if (filters?.anio !== undefined) {
+      conditions.push(eq(solicitudesMarketing.anio, filters.anio));
+    }
+    if (filters?.estado) {
+      conditions.push(eq(solicitudesMarketing.estado, filters.estado));
+    }
+    if (filters?.supervisorId) {
+      conditions.push(eq(solicitudesMarketing.supervisorId, filters.supervisorId));
+    }
+    
+    let query = db
+      .select()
+      .from(solicitudesMarketing)
+      .orderBy(desc(solicitudesMarketing.fechaSolicitud));
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+    
+    if (filters?.offset) {
+      query = query.offset(filters.offset) as any;
+    }
+    
+    return await query;
+  }
+
+  async getSolicitudMarketingById(id: string): Promise<SolicitudMarketing | undefined> {
+    const [result] = await db
+      .select()
+      .from(solicitudesMarketing)
+      .where(eq(solicitudesMarketing.id, id));
+    return result;
+  }
+
+  async updateSolicitudMarketing(id: string, updates: Partial<InsertSolicitudMarketing>): Promise<SolicitudMarketing> {
+    const [result] = await db
+      .update(solicitudesMarketing)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(solicitudesMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSolicitudMarketing(id: string): Promise<void> {
+    await db
+      .delete(solicitudesMarketing)
+      .where(eq(solicitudesMarketing.id, id));
+  }
+  
+  // Cambiar estado de solicitud
+  async updateSolicitudMarketingEstado(id: string, nuevoEstado: string, motivoRechazo?: string): Promise<SolicitudMarketing> {
+    const updateData: any = {
+      estado: nuevoEstado,
+      updatedAt: new Date(),
+    };
+    
+    if (nuevoEstado === 'completado') {
+      updateData.fechaCompletado = new Date();
+    }
+    
+    if (nuevoEstado === 'rechazado' && motivoRechazo) {
+      updateData.motivoRechazo = motivoRechazo;
+    }
+    
+    const [result] = await db
+      .update(solicitudesMarketing)
+      .set(updateData)
+      .where(eq(solicitudesMarketing.id, id))
+      .returning();
+    return result;
+  }
+  
+  // Métricas de marketing
+  async getMarketingMetrics(mes: number, anio: number): Promise<{
+    presupuestoTotal: number;
+    presupuestoUtilizado: number;
+    presupuestoDisponible: number;
+    totalSolicitudes: number;
+    solicitudesPorEstado: {
+      solicitado: number;
+      en_proceso: number;
+      completado: number;
+      rechazado: number;
+    };
+  }> {
+    // Get presupuesto
+    const presupuesto = await this.getPresupuestoMarketing(mes, anio);
+    const presupuestoTotal = presupuesto ? parseFloat(presupuesto.presupuestoTotal as any) : 0;
+    
+    // Get all solicitudes for this period
+    const solicitudes = await this.getSolicitudesMarketing({ mes, anio });
+    
+    // Calculate presupuesto utilizado (only completado and en_proceso)
+    const presupuestoUtilizado = solicitudes
+      .filter(s => s.estado === 'completado' || s.estado === 'en_proceso')
+      .reduce((sum, s) => sum + parseFloat(s.monto as any), 0);
+    
+    // Count by estado
+    const solicitudesPorEstado = {
+      solicitado: solicitudes.filter(s => s.estado === 'solicitado').length,
+      en_proceso: solicitudes.filter(s => s.estado === 'en_proceso').length,
+      completado: solicitudes.filter(s => s.estado === 'completado').length,
+      rechazado: solicitudes.filter(s => s.estado === 'rechazado').length,
+    };
+    
+    return {
+      presupuestoTotal,
+      presupuestoUtilizado,
+      presupuestoDisponible: presupuestoTotal - presupuestoUtilizado,
+      totalSolicitudes: solicitudes.length,
+      solicitudesPorEstado,
+    };
   }
 
 }
