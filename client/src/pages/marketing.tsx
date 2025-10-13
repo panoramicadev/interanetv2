@@ -124,13 +124,23 @@ export default function Marketing() {
         </div>
         <div className="flex gap-2">
           {user.role === 'admin' && (
-            <Button 
-              onClick={() => setPresupuestoDialogOpen(true)}
-              data-testid="button-config-presupuesto"
-            >
-              <DollarSign className="mr-2 h-4 w-4" />
-              Configurar Presupuesto
-            </Button>
+            <>
+              <Button 
+                variant="outline"
+                onClick={() => setPresupuestoDialogOpen(true)}
+                data-testid="button-config-presupuesto"
+              >
+                <DollarSign className="mr-2 h-4 w-4" />
+                Presupuesto
+              </Button>
+              <Button 
+                onClick={() => setSolicitudDialogOpen(true)}
+                data-testid="button-nueva-solicitud"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Solicitudes
+              </Button>
+            </>
           )}
           {user.role === 'supervisor' && (
             <Button 
