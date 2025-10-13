@@ -3176,3 +3176,83 @@ export const insertReclamoGeneralHistorialSchema = createInsertSchema(reclamosGe
   id: true,
   createdAt: true,
 });
+
+// ==================================================================================
+// MARKETING MODULE
+// ==================================================================================
+
+// Tabla de presupuesto mensual de marketing
+export const presupuestoMarketing = pgTable("presupuesto_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mes: integer("mes").notNull(), // 1-12
+  anio: integer("anio").notNull(), // 2024, 2025, etc
+  presupuestoTotal: numeric("presupuesto_total", { precision: 15, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("unique_mes_anio").on(table.mes, table.anio)
+]);
+
+// Tabla de solicitudes de marketing
+export const solicitudesMarketing = pgTable("solicitudes_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descripcion: text("descripcion").notNull(),
+  monto: numeric("monto", { precision: 15, scale: 2 }).notNull(),
+  pdfUrl: text("pdf_url"), // URL del PDF subido
+  estado: varchar("estado").notNull().default("solicitado"), // solicitado, en_proceso, completado, rechazado
+  supervisorId: varchar("supervisor_id").references(() => users.id),
+  supervisorName: varchar("supervisor_name"),
+  fechaSolicitud: timestamp("fecha_solicitud").notNull().defaultNow(),
+  fechaEntrega: date("fecha_entrega"), // Fecha esperada de entrega
+  fechaCompletado: timestamp("fecha_completado"), // Fecha real de completado
+  motivoRechazo: text("motivo_rechazo"), // Solo si estado = rechazado
+  mes: integer("mes").notNull(), // Mes al que pertenece la solicitud
+  anio: integer("anio").notNull(), // Año al que pertenece la solicitud
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Relations
+export const presupuestoMarketingRelations = relations(presupuestoMarketing, ({ many }) => ({
+  solicitudes: many(solicitudesMarketing),
+}));
+
+export const solicitudesMarketingRelations = relations(solicitudesMarketing, ({ one }) => ({
+  supervisor: one(users, {
+    fields: [solicitudesMarketing.supervisorId],
+    references: [users.id],
+  }),
+}));
+
+// Types
+export type PresupuestoMarketing = typeof presupuestoMarketing.$inferSelect;
+export type InsertPresupuestoMarketing = typeof presupuestoMarketing.$inferInsert;
+
+export type SolicitudMarketing = typeof solicitudesMarketing.$inferSelect;
+export type InsertSolicitudMarketing = typeof solicitudesMarketing.$inferInsert;
+
+// Schemas de validación
+export const insertPresupuestoMarketingSchema = createInsertSchema(presupuestoMarketing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  mes: z.number().min(1).max(12),
+  anio: z.number().min(2020).max(2100),
+  presupuestoTotal: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
+});
+
+export const insertSolicitudMarketingSchema = createInsertSchema(solicitudesMarketing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  fechaSolicitud: true,
+}).extend({
+  titulo: z.string().min(1, "El título es requerido"),
+  descripcion: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
+  monto: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
+  estado: z.enum(["solicitado", "en_proceso", "completado", "rechazado"]).optional(),
+  mes: z.number().min(1).max(12),
+  anio: z.number().min(2020).max(2100),
+});
