@@ -338,159 +338,33 @@ export default function SalespersonDetail({
             </div>
           )}
 
-          {/* Filter Controls - Horizontal Layout */}
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Filter Type */}
+          {/* Salesperson Selector - Only when embedded */}
+          {embedded && onSalespersonChange && allSalespeople.length > 0 && (
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                Filtrar:
+                Cambiar a:
               </label>
-              <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
-                <SelectTrigger className="w-24 rounded-xl border-gray-200 shadow-sm text-sm">
-                  <SelectValue />
+              <Select 
+                value={salespersonName || ""} 
+                onValueChange={(value) => {
+                  if (onSalespersonChange) {
+                    onSalespersonChange(value);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-80 rounded-xl border-gray-200 shadow-sm text-sm">
+                  <SelectValue placeholder="Seleccionar vendedor" />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl border-gray-200">
-                  <SelectItem value="day">Día</SelectItem>
-                  <SelectItem value="month">Mes</SelectItem>
-                  <SelectItem value="year">Año</SelectItem>
-                  <SelectItem value="range">Rango</SelectItem>
+                <SelectContent className="rounded-xl border-gray-200 max-h-80">
+                  {allSalespeople.map((sp) => (
+                    <SelectItem key={sp.salesperson} value={sp.salesperson}>
+                      {sp.salesperson}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Period Selector */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                Período:
-              </label>
-              {filterType === "day" ? (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      <span>
-                        {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar"}
-                      </span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={setSelectedDate}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              ) : filterType === "range" ? (
-                <div className="flex items-center gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
-                      >
-                        <CalendarIcon className="mr-1 h-3 w-3" />
-                        <span>
-                          {startDate ? format(startDate, "dd/MM") : "Inicio"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={startDate}
-                        onSelect={setStartDate}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  
-                  <span className="text-gray-500">-</span>
-                  
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
-                      >
-                        <CalendarIcon className="mr-1 h-3 w-3" />
-                        <span>
-                          {endDate ? format(endDate, "dd/MM") : "Final"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={endDate}
-                        onSelect={setEndDate}
-                        initialFocus
-                        disabled={(date) => startDate ? date < startDate : false}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              ) : filterType === "year" ? (
-                <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                  <SelectTrigger className="w-44 rounded-xl border-gray-200 shadow-sm text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200">
-                    {availablePeriods?.years.map((year) => (
-                      <SelectItem key={year.value} value={year.value}>
-                        {year.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                  <SelectTrigger className="w-44 rounded-xl border-gray-200 shadow-sm text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200">
-                    {availablePeriods?.months.map((month) => (
-                      <SelectItem key={month.value} value={month.value}>
-                        {month.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            {/* Salesperson Selector - Only when embedded */}
-            {embedded && onSalespersonChange && allSalespeople.length > 0 && (
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Vendedor:
-                </label>
-                <Select 
-                  value={salespersonName || ""} 
-                  onValueChange={(value) => {
-                    if (onSalespersonChange) {
-                      onSalespersonChange(value);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-64 rounded-xl border-gray-200 shadow-sm text-sm">
-                    <SelectValue placeholder="Seleccionar vendedor" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200 max-h-80">
-                    {allSalespeople.map((sp) => (
-                      <SelectItem key={sp.salesperson} value={sp.salesperson}>
-                        {sp.salesperson}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
+          )}
         </header>
 
         {/* Main Content */}
