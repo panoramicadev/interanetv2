@@ -4367,6 +4367,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized to update this quote" });
       }
       
+      // Reception can only update status to "converted" or "rejected" and only for "sent" quotes
+      if (user.role === 'reception') {
+        if (quote.status !== 'sent') {
+          return res.status(403).json({ message: "Solo se pueden actualizar presupuestos enviados" });
+        }
+        if (!['converted', 'rejected'].includes(status)) {
+          return res.status(403).json({ message: "Recepción solo puede marcar como convertido o rechazado" });
+        }
+      }
+      
       // Validate status
       const validStatuses = ["draft", "sent", "accepted", "rejected", "converted"];
       if (!validStatuses.includes(status)) {
