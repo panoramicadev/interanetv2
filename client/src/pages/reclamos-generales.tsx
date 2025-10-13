@@ -150,10 +150,12 @@ export default function ReclamosGeneralesPage() {
   });
 
   // Get clients for dropdown
-  const { data: clients = [], isLoading: clientsLoading } = useQuery<Client[]>({
+  const { data: clientsData, isLoading: clientsLoading } = useQuery<{clients: Client[]}>({
     queryKey: ['/api/clients'],
     enabled: showNewReclamoModal,
   });
+  
+  const clients = clientsData?.clients || [];
 
   // Create reclamo mutation
   const createReclamoMutation = useMutation({
@@ -280,7 +282,7 @@ export default function ReclamosGeneralesPage() {
     });
   };
 
-  const filteredClients = (clients || []).filter(client => 
+  const filteredClients = clients.filter(client => 
     client.koen.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
     client.nokoen.toLowerCase().includes(clientSearchTerm.toLowerCase())
   );
