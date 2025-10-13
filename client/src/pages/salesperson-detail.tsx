@@ -100,7 +100,9 @@ export default function SalespersonDetail({
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
     if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
       const [start] = dashboardSelectedPeriod.split("_");
-      return new Date(start);
+      // Parse as local date to avoid timezone issues
+      const [year, month, day] = start.split("-").map(Number);
+      return new Date(year, month - 1, day);
     }
     return undefined;
   });
@@ -108,7 +110,9 @@ export default function SalespersonDetail({
   const [endDate, setEndDate] = useState<Date | undefined>(() => {
     if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
       const [, end] = dashboardSelectedPeriod.split("_");
-      return new Date(end);
+      // Parse as local date to avoid timezone issues
+      const [year, month, day] = end.split("-").map(Number);
+      return new Date(year, month - 1, day);
     }
     return undefined;
   });
@@ -124,8 +128,13 @@ export default function SalespersonDetail({
     queryKey: ['/api/sales/available-periods'],
   });
 
-  // Update selected period when filter type changes
+  // Update selected period when filter type or dates change (but not on initial mount with dashboard values)
   useEffect(() => {
+    // Skip if we just initialized from dashboard props
+    if (dashboardSelectedPeriod && selectedPeriod === dashboardSelectedPeriod) {
+      return;
+    }
+    
     switch (filterType) {
       case "day":
         if (selectedDate) {
@@ -145,7 +154,8 @@ export default function SalespersonDetail({
       case "range":
         if (startDate && endDate) {
           setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
-        } else {
+        } else if (!dashboardSelectedPeriod) {
+          // Only set default if not coming from dashboard
           setSelectedPeriod("last-30-days");
         }
         break;
