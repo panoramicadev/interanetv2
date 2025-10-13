@@ -3199,7 +3199,8 @@ export const solicitudesMarketing = pgTable("solicitudes_marketing", {
   titulo: varchar("titulo", { length: 255 }).notNull(),
   descripcion: text("descripcion").notNull(),
   monto: numeric("monto", { precision: 15, scale: 2 }), // Nullable - se ingresa al aprobar
-  pdfUrl: text("pdf_url"), // URL del PDF subido
+  urlReferencia: text("url_referencia"), // URL de referencia (ingresada por supervisor)
+  pdfPresupuesto: text("pdf_presupuesto"), // URL del PDF presupuestado (subido por admin)
   estado: varchar("estado").notNull().default("solicitado"), // solicitado, en_proceso, completado, rechazado
   supervisorId: varchar("supervisor_id").references(() => users.id),
   supervisorName: varchar("supervisor_name"),
