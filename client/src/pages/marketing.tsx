@@ -138,13 +138,14 @@ export default function Marketing() {
 
         {/* Tab: Presupuesto y Solicitudes */}
         <TabsContent value="solicitudes" className="space-y-6">
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col sm:flex-row justify-end gap-2">
             {user.role === 'admin' && (
               <>
                 <Button 
                   variant="outline"
                   onClick={() => setPresupuestoDialogOpen(true)}
                   data-testid="button-config-presupuesto"
+                  className="w-full sm:w-auto"
                 >
                   <DollarSign className="mr-2 h-4 w-4" />
                   Presupuesto
@@ -152,6 +153,7 @@ export default function Marketing() {
                 <Button 
                   onClick={() => setSolicitudDialogOpen(true)}
                   data-testid="button-nueva-solicitud"
+                  className="w-full sm:w-auto"
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Solicitudes
@@ -162,6 +164,7 @@ export default function Marketing() {
               <Button 
                 onClick={() => setSolicitudDialogOpen(true)}
                 data-testid="button-nueva-solicitud"
+                className="w-full sm:w-auto"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Nueva Solicitud
@@ -405,10 +408,10 @@ function SolicitudesList({
   return (
     <Card>
       <CardHeader>
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <CardTitle>Solicitudes de Marketing</CardTitle>
           <Select value={selectedEstado} onValueChange={onEstadoChange}>
-            <SelectTrigger className="w-[200px]" data-testid="select-estado-filter">
+            <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-estado-filter">
               <SelectValue placeholder="Filtrar por estado" />
             </SelectTrigger>
             <SelectContent>
@@ -427,67 +430,139 @@ function SolicitudesList({
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : solicitudes && solicitudes.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Título</TableHead>
-                <TableHead>Supervisor</TableHead>
-                <TableHead>Monto</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Fecha Solicitud</TableHead>
-                <TableHead>Fecha Entrega</TableHead>
-                {userRole === 'admin' && <TableHead>Acciones</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            {/* Desktop Table */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Título</TableHead>
+                    <TableHead>Supervisor</TableHead>
+                    <TableHead>Monto</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Fecha Solicitud</TableHead>
+                    <TableHead>Fecha Entrega</TableHead>
+                    {userRole === 'admin' && <TableHead>Acciones</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {solicitudes.map((solicitud) => (
+                    <TableRow key={solicitud.id} data-testid={`row-solicitud-${solicitud.id}`}>
+                      <TableCell className="font-medium">{solicitud.titulo}</TableCell>
+                      <TableCell>{solicitud.supervisorName}</TableCell>
+                      <TableCell>
+                        {solicitud.monto 
+                          ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
+                          : <span className="text-muted-foreground italic">Pendiente</span>
+                        }
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            solicitud.estado === 'rechazado' ? 'destructive' :
+                            solicitud.estado === 'completado' ? 'default' :
+                            'secondary'
+                          }
+                        >
+                          {solicitud.estado === 'solicitado' && 'Solicitado'}
+                          {solicitud.estado === 'en_proceso' && 'En Proceso'}
+                          {solicitud.estado === 'completado' && 'Completado'}
+                          {solicitud.estado === 'rechazado' && 'Rechazado'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}
+                      </TableCell>
+                      <TableCell>
+                        {solicitud.fechaEntrega
+                          ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
+                          : '-'}
+                      </TableCell>
+                      {userRole === 'admin' && (
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onEditEstado(solicitud)}
+                            data-testid={`button-cambiar-estado-${solicitud.id}`}
+                          >
+                            Cambiar Estado
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden space-y-4">
               {solicitudes.map((solicitud) => (
-                <TableRow key={solicitud.id} data-testid={`row-solicitud-${solicitud.id}`}>
-                  <TableCell className="font-medium">{solicitud.titulo}</TableCell>
-                  <TableCell>{solicitud.supervisorName}</TableCell>
-                  <TableCell>
-                    {solicitud.monto 
-                      ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
-                      : <span className="text-muted-foreground italic">Pendiente</span>
-                    }
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        solicitud.estado === 'rechazado' ? 'destructive' :
-                        solicitud.estado === 'completado' ? 'default' :
-                        'secondary'
-                      }
-                    >
-                      {solicitud.estado === 'solicitado' && 'Solicitado'}
-                      {solicitud.estado === 'en_proceso' && 'En Proceso'}
-                      {solicitud.estado === 'completado' && 'Completado'}
-                      {solicitud.estado === 'rechazado' && 'Rechazado'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}
-                  </TableCell>
-                  <TableCell>
-                    {solicitud.fechaEntrega
-                      ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
-                      : '-'}
-                  </TableCell>
-                  {userRole === 'admin' && (
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onEditEstado(solicitud)}
-                        data-testid={`button-cambiar-estado-${solicitud.id}`}
-                      >
-                        Cambiar Estado
-                      </Button>
-                    </TableCell>
-                  )}
-                </TableRow>
+                <Card key={solicitud.id} data-testid={`card-solicitud-${solicitud.id}`}>
+                  <CardContent className="pt-6">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-semibold text-lg">{solicitud.titulo}</h3>
+                        <Badge
+                          variant={
+                            solicitud.estado === 'rechazado' ? 'destructive' :
+                            solicitud.estado === 'completado' ? 'default' :
+                            'secondary'
+                          }
+                        >
+                          {solicitud.estado === 'solicitado' && 'Solicitado'}
+                          {solicitud.estado === 'en_proceso' && 'En Proceso'}
+                          {solicitud.estado === 'completado' && 'Completado'}
+                          {solicitud.estado === 'rechazado' && 'Rechazado'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Supervisor:</span>
+                          <span className="font-medium">{solicitud.supervisorName}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Monto:</span>
+                          <span className="font-medium">
+                            {solicitud.monto 
+                              ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
+                              : <span className="text-muted-foreground italic">Pendiente</span>
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Fecha Solicitud:</span>
+                          <span>{format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Fecha Entrega:</span>
+                          <span>
+                            {solicitud.fechaEntrega
+                              ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
+                              : '-'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {userRole === 'admin' && (
+                        <Button
+                          className="w-full mt-4"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onEditEstado(solicitud)}
+                          data-testid={`button-cambiar-estado-mobile-${solicitud.id}`}
+                        >
+                          Cambiar Estado
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          </>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             No hay solicitudes para mostrar
@@ -1128,7 +1203,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
   return (
     <>
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">Inventario de Marketing</h2>
           <p className="text-muted-foreground">Gestión de materiales y suministros de marketing</p>
@@ -1140,6 +1215,7 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
               setInventarioDialogOpen(true);
             }}
             data-testid="button-nuevo-item"
+            className="w-full sm:w-auto"
           >
             <Plus className="mr-2 h-4 w-4" />
             Nuevo Item
@@ -1209,71 +1285,146 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
               No hay items en el inventario
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead>Cantidad</TableHead>
-                  <TableHead>Ubicación</TableHead>
-                  <TableHead>Costo Unitario</TableHead>
-                  <TableHead>Estado</TableHead>
-                  {userRole === 'admin' && <TableHead>Acciones</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead>Cantidad</TableHead>
+                      <TableHead>Ubicación</TableHead>
+                      <TableHead>Costo Unitario</TableHead>
+                      <TableHead>Estado</TableHead>
+                      {userRole === 'admin' && <TableHead>Acciones</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item: any) => (
+                      <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
+                        <TableCell className="font-medium">{item.nombre}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.descripcion || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {item.cantidad} {item.unidad}
+                            {item.cantidad <= (item.stockMinimo || 0) && (
+                              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{item.ubicacion || '-'}</TableCell>
+                        <TableCell>
+                          {item.costoUnitario 
+                            ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={estadoConfig[item.estado as keyof typeof estadoConfig]?.color}>
+                            {estadoConfig[item.estado as keyof typeof estadoConfig]?.label}
+                          </Badge>
+                        </TableCell>
+                        {userRole === 'admin' && (
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(item)}
+                                data-testid={`button-edit-${item.id}`}
+                              >
+                                Editar
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDelete(item.id)}
+                                disabled={deleteMutation.isPending}
+                                data-testid={`button-delete-${item.id}`}
+                              >
+                                Eliminar
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden space-y-4">
                 {items.map((item: any) => (
-                  <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
-                    <TableCell className="font-medium">{item.nombre}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {item.descripcion || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {item.cantidad} {item.unidad}
-                        {item.cantidad <= (item.stockMinimo || 0) && (
-                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  <Card key={item.id} data-testid={`card-item-${item.id}`}>
+                    <CardContent className="pt-6">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-start">
+                          <h3 className="font-semibold text-lg">{item.nombre}</h3>
+                          <Badge className={estadoConfig[item.estado as keyof typeof estadoConfig]?.color}>
+                            {estadoConfig[item.estado as keyof typeof estadoConfig]?.label}
+                          </Badge>
+                        </div>
+                        
+                        {item.descripcion && (
+                          <p className="text-sm text-muted-foreground">{item.descripcion}</p>
+                        )}
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Cantidad:</span>
+                            <span className="font-medium flex items-center gap-2">
+                              {item.cantidad} {item.unidad}
+                              {item.cantidad <= (item.stockMinimo || 0) && (
+                                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Ubicación:</span>
+                            <span>{item.ubicacion || '-'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Costo Unitario:</span>
+                            <span className="font-medium">
+                              {item.costoUnitario 
+                                ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
+                                : '-'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {userRole === 'admin' && (
+                          <div className="flex gap-2 mt-4">
+                            <Button
+                              className="flex-1"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(item)}
+                              data-testid={`button-edit-mobile-${item.id}`}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              className="flex-1"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDelete(item.id)}
+                              disabled={deleteMutation.isPending}
+                              data-testid={`button-delete-mobile-${item.id}`}
+                            >
+                              Eliminar
+                            </Button>
+                          </div>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell>{item.ubicacion || '-'}</TableCell>
-                    <TableCell>
-                      {item.costoUnitario 
-                        ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={estadoConfig[item.estado as keyof typeof estadoConfig]?.color}>
-                        {estadoConfig[item.estado as keyof typeof estadoConfig]?.label}
-                      </Badge>
-                    </TableCell>
-                    {userRole === 'admin' && (
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(item)}
-                            data-testid={`button-edit-${item.id}`}
-                          >
-                            Editar
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDelete(item.id)}
-                            disabled={deleteMutation.isPending}
-                            data-testid={`button-delete-${item.id}`}
-                          >
-                            Eliminar
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
+                    </CardContent>
+                  </Card>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
