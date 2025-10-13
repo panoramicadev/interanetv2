@@ -3202,7 +3202,7 @@ export const solicitudesMarketing = pgTable("solicitudes_marketing", {
   urlReferencia: text("url_referencia"), // URL de referencia (ingresada por supervisor)
   pdfPresupuesto: text("pdf_presupuesto"), // URL del PDF presupuestado (subido por admin)
   estado: varchar("estado").notNull().default("solicitado"), // solicitado, en_proceso, completado, rechazado
-  supervisorId: varchar("supervisor_id").references(() => users.id),
+  supervisorId: varchar("supervisor_id").references(() => salespeopleUsers.id),
   supervisorName: varchar("supervisor_name"),
   fechaSolicitud: timestamp("fecha_solicitud").notNull().defaultNow(),
   fechaEntrega: date("fecha_entrega"), // Fecha esperada de entrega
@@ -3220,9 +3220,9 @@ export const presupuestoMarketingRelations = relations(presupuestoMarketing, ({ 
 }));
 
 export const solicitudesMarketingRelations = relations(solicitudesMarketing, ({ one }) => ({
-  supervisor: one(users, {
+  supervisor: one(salespeopleUsers, {
     fields: [solicitudesMarketing.supervisorId],
-    references: [users.id],
+    references: [salespeopleUsers.id],
   }),
 }));
 
