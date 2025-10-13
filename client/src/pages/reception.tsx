@@ -181,8 +181,8 @@ export default function Reception() {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [copiedSku, setCopiedSku] = useState<string | null>(null);
-  const [selectedVendor, setSelectedVendor] = useState<string>("");
-  const [selectedClient, setSelectedClient] = useState<string>("");
+  const [selectedVendor, setSelectedVendor] = useState<string>("all");
+  const [selectedClient, setSelectedClient] = useState<string>("all");
 
   // Redirect if not reception user
   useEffect(() => {
@@ -211,8 +211,8 @@ export default function Reception() {
   // Filter only sent quotes and apply additional filters
   const sentQuotes = quotes.filter(q => {
     if (q.status !== 'sent') return false;
-    if (selectedVendor && q.creatorName !== selectedVendor) return false;
-    if (selectedClient && q.clientName !== selectedClient) return false;
+    if (selectedVendor !== 'all' && q.creatorName !== selectedVendor) return false;
+    if (selectedClient !== 'all' && q.clientName !== selectedClient) return false;
     return true;
   });
 
@@ -485,9 +485,9 @@ export default function Reception() {
                     <SelectValue placeholder="Todos los vendedores" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos los vendedores</SelectItem>
+                    <SelectItem value="all">Todos los vendedores</SelectItem>
                     {uniqueVendors.map((vendor) => (
-                      <SelectItem key={vendor || 'unknown'} value={vendor || ''}>
+                      <SelectItem key={vendor || 'unknown'} value={vendor || 'unknown'}>
                         {vendor}
                       </SelectItem>
                     ))}
@@ -502,7 +502,7 @@ export default function Reception() {
                     <SelectValue placeholder="Todos los clientes" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos los clientes</SelectItem>
+                    <SelectItem value="all">Todos los clientes</SelectItem>
                     {uniqueClients.map((client) => (
                       <SelectItem key={client} value={client}>
                         {client}
