@@ -316,7 +316,7 @@ export default function ReclamosGeneralesPage() {
     return null;
   };
 
-  if (!user || (user.role !== 'salesperson' && user.role !== 'admin' && user.role !== 'supervisor')) {
+  if (!user || (user.role !== 'salesperson' && user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'tecnico_obra')) {
     return (
       <div className="container mx-auto p-6">
         <Card>
