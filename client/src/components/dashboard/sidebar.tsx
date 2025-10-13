@@ -15,7 +15,8 @@ import {
   Calculator,
   Palette,
   Wrench,
-  Receipt
+  Receipt,
+  AlertTriangle
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import type { User, SalespersonUser } from "@shared/schema";
@@ -105,19 +106,34 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
         
         <nav className="flex-1 p-4 space-y-1">
           {user?.role === 'tecnico_obra' ? (
-            // Técnico de Obra solo ve Visitas Técnicas
-            <Link href="/visitas-tecnicas">
-              <Button
-                variant="ghost"
-                className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
-                  location === "/visitas-tecnicas" ? "bg-slate-800 text-white" : ""
-                }`}
-                data-testid="nav-visitas-tecnicas"
-              >
-                <Wrench className="w-5 h-5 mr-3" />
-                Visitas Técnicas
-              </Button>
-            </Link>
+            // Técnico de Obra ve Visitas Técnicas y Reclamos Generales
+            <>
+              <Link href="/visitas-tecnicas">
+                <Button
+                  variant="ghost"
+                  className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                    location === "/visitas-tecnicas" ? "bg-slate-800 text-white" : ""
+                  }`}
+                  data-testid="nav-visitas-tecnicas"
+                >
+                  <Wrench className="w-5 h-5 mr-3" />
+                  Visitas Técnicas
+                </Button>
+              </Link>
+              
+              <Link href="/reclamos-generales">
+                <Button
+                  variant="ghost"
+                  className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                    location === "/reclamos-generales" ? "bg-slate-800 text-white" : ""
+                  }`}
+                  data-testid="nav-reclamos-generales"
+                >
+                  <AlertTriangle className="w-5 h-5 mr-3" />
+                  Reclamos Generales
+                </Button>
+              </Link>
+            </>
           ) : (
             // Otros roles ven el menú completo
             <>
@@ -172,6 +188,19 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                     >
                       <Wrench className="w-5 h-5 mr-3" />
                       Visitas Técnicas
+                    </Button>
+                  </Link>
+                  
+                  <Link href="/reclamos-generales">
+                    <Button
+                      variant="ghost"
+                      className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                        location === "/reclamos-generales" ? "bg-slate-800 text-white" : ""
+                      }`}
+                      data-testid="nav-reclamos-generales-admin"
+                    >
+                      <AlertTriangle className="w-5 h-5 mr-3" />
+                      Reclamos Generales
                     </Button>
                   </Link>
                   
