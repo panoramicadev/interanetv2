@@ -19,7 +19,8 @@ import {
   PaintBucket,
   Building2,
   Wrench,
-  AlertTriangle
+  AlertTriangle,
+  Warehouse
 } from "lucide-react";
 
 interface SidebarItem {
@@ -63,6 +64,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/productos",
       label: "Gestión de Productos",
       icon: Package,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
     },
     {
       href: "/lista-precios",
@@ -160,6 +166,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/productos",
       label: "Gestión de Productos",
       icon: Package,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
     },
     {
       href: "/lista-precios",
