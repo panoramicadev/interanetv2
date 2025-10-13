@@ -288,81 +288,84 @@ export default function SalespersonDetail({
             )}
           </div>
 
-          {/* Dashboard Filters Info & Salesperson Selector (when embedded) */}
+          {/* Dashboard Filters Info (when embedded) - Interactive Badges */}
           {embedded && dashboardGlobalFilter && (
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="text-gray-700 font-medium">Filtros del Dashboard:</span>
-                
-                {/* Vista Info */}
-                <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-lg border border-blue-200">
-                  <Filter className="h-3.5 w-3.5" />
-                  <span>
-                    {dashboardGlobalFilter.type === "all" && "Todos"}
-                    {dashboardGlobalFilter.type === "global" && "Solo metas globales"}
-                    {dashboardGlobalFilter.type === "segment" && `Segmento: ${dashboardGlobalFilter.value}`}
-                    {dashboardGlobalFilter.type === "salesperson" && `Vendedor: ${dashboardGlobalFilter.value}`}
-                  </span>
-                </div>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="text-gray-700 font-medium">Filtros del Dashboard:</span>
+              
+              {/* Vendedor Badge - Interactive */}
+              {onSalespersonChange && allSalespeople.length > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer">
+                      <Filter className="h-3.5 w-3.5" />
+                      <span>
+                        {dashboardGlobalFilter.type === "all" && "Todos"}
+                        {dashboardGlobalFilter.type === "global" && "Solo metas globales"}
+                        {dashboardGlobalFilter.type === "segment" && `Segmento: ${dashboardGlobalFilter.value}`}
+                        {dashboardGlobalFilter.type === "salesperson" && `Vendedor: ${dashboardGlobalFilter.value}`}
+                      </span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-3 rounded-xl border-gray-200" align="start">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Cambiar vendedor:
+                      </label>
+                      <Select 
+                        value={salespersonName || ""} 
+                        onValueChange={(value) => {
+                          if (onSalespersonChange) {
+                            onSalespersonChange(value);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-full rounded-lg border-gray-200">
+                          <SelectValue placeholder="Seleccionar vendedor" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-gray-200 max-h-80">
+                          {allSalespeople.map((sp) => (
+                            <SelectItem key={sp.salesperson} value={sp.salesperson}>
+                              {sp.salesperson}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
 
-                {/* Period Info */}
-                {dashboardFilterType && (
-                  <div className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200">
-                    <CalendarIcon className="h-3.5 w-3.5" />
-                    <span>
-                      {dashboardFilterType === "day" && (dashboardSelectedPeriod ? `Día: ${format(new Date(dashboardSelectedPeriod), "dd/MM/yyyy")}` : "Día")}
-                      {dashboardFilterType === "month" && (dashboardSelectedPeriod ? `Mes: ${format(new Date(dashboardSelectedPeriod + "-01"), "MMM yyyy")}` : "Mes")}
-                      {dashboardFilterType === "year" && (dashboardSelectedPeriod ? `Año: ${dashboardSelectedPeriod}` : "Año")}
-                      {dashboardFilterType === "range" && (dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_") ? 
-                        `Rango: ${format(new Date(dashboardSelectedPeriod.split("_")[0]), "dd/MM")} - ${format(new Date(dashboardSelectedPeriod.split("_")[1]), "dd/MM")}` : "Rango")}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Salesperson Selector */}
-                {onSalespersonChange && allSalespeople.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                      Cambiar a:
-                    </label>
-                    <Select 
-                      value={salespersonName || ""} 
-                      onValueChange={(value) => {
-                        if (onSalespersonChange) {
-                          onSalespersonChange(value);
-                        }
-                      }}
+              {/* Rango Badge - Interactive */}
+              {dashboardFilterType && onBack && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200 hover:bg-green-100 transition-colors cursor-pointer">
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      <span>
+                        {dashboardFilterType === "day" && (dashboardSelectedPeriod ? `Día: ${format(new Date(dashboardSelectedPeriod), "dd/MM/yyyy")}` : "Día")}
+                        {dashboardFilterType === "month" && (dashboardSelectedPeriod ? `Mes: ${format(new Date(dashboardSelectedPeriod + "-01"), "MMM yyyy")}` : "Mes")}
+                        {dashboardFilterType === "year" && (dashboardSelectedPeriod ? `Año: ${dashboardSelectedPeriod}` : "Año")}
+                        {dashboardFilterType === "range" && (dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_") ? 
+                          `Rango: ${format(new Date(dashboardSelectedPeriod.split("_")[0]), "dd/MM")} - ${format(new Date(dashboardSelectedPeriod.split("_")[1]), "dd/MM")}` : "Rango")}
+                      </span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-3 rounded-xl border-gray-200" align="start">
+                    <div className="text-sm text-gray-600">
+                      Para cambiar el rango de fechas, vuelve al dashboard principal.
+                    </div>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={onBack}
+                      className="mt-3 w-full rounded-lg"
                     >
-                      <SelectTrigger className="w-64 rounded-xl border-gray-200 shadow-sm text-sm">
-                        <SelectValue placeholder="Seleccionar vendedor" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl border-gray-200 max-h-80">
-                        {allSalespeople.map((sp) => (
-                          <SelectItem key={sp.salesperson} value={sp.salesperson}>
-                            {sp.salesperson}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Action button to change filters */}
-                {onBack && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onBack}
-                    className="rounded-xl border-gray-200 shadow-sm flex items-center gap-2"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Cambiar filtros</span>
-                    <span className="sm:hidden">Filtros</span>
-                  </Button>
-                )}
-              </div>
+                      Ir al Dashboard
+                    </Button>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
           )}
         </header>
