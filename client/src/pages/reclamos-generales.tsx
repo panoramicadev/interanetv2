@@ -394,15 +394,16 @@ export default function ReclamosGeneralesPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-4 sm:p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Reclamos de Clientes</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Reclamos de Clientes</h1>
           <p className="text-muted-foreground">Gestión de reclamos y seguimiento</p>
         </div>
         <Button 
           onClick={() => setShowNewReclamoModal(true)}
           data-testid="button-create-reclamo"
+          className="w-full sm:w-auto"
         >
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Reclamo
@@ -502,7 +503,7 @@ export default function ReclamosGeneralesPage() {
                     return (
                       <Card key={reclamo.id} className="hover:bg-accent/50 transition-colors">
                         <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-4">
+                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="font-semibold" data-testid={`text-reclamo-cliente-${reclamo.id}`}>
@@ -521,7 +522,7 @@ export default function ReclamosGeneralesPage() {
                                 {reclamo.description}
                               </p>
                               
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
                                   {format(new Date(reclamo.fechaRegistro || ''), "dd MMM yyyy", { locale: es })}
@@ -547,7 +548,7 @@ export default function ReclamosGeneralesPage() {
                               )}
                             </div>
                             
-                            <div className="flex gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -556,6 +557,7 @@ export default function ReclamosGeneralesPage() {
                                   setShowDetailModal(true);
                                 }}
                                 data-testid={`button-view-reclamo-${reclamo.id}`}
+                                className="w-full sm:w-auto"
                               >
                                 <Eye className="h-4 w-4 mr-1" />
                                 Ver Detalle
@@ -570,6 +572,7 @@ export default function ReclamosGeneralesPage() {
                                     setShowCerrarModal(true);
                                   }}
                                   data-testid={`button-cerrar-reclamo-${reclamo.id}`}
+                                  className="w-full sm:w-auto"
                                 >
                                   <CheckCircle2 className="h-4 w-4 mr-1" />
                                   Cerrar
@@ -639,7 +642,7 @@ export default function ReclamosGeneralesPage() {
 
       {/* Create Reclamo Dialog */}
       <Dialog open={showNewReclamoModal} onOpenChange={setShowNewReclamoModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Nuevo Reclamo de Cliente</DialogTitle>
             <DialogDescription>
@@ -838,7 +841,7 @@ export default function ReclamosGeneralesPage() {
 
       {/* Detail Dialog */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Detalle del Reclamo</DialogTitle>
           </DialogHeader>
@@ -850,7 +853,7 @@ export default function ReclamosGeneralesPage() {
           ) : reclamoDetails ? (
             <div className="space-y-6">
               {/* Header info */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Cliente</Label>
                   <p className="font-semibold">{reclamoDetails.clientName}</p>
@@ -885,7 +888,7 @@ export default function ReclamosGeneralesPage() {
 
               {/* Product info */}
               {reclamoDetails.productName && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <Label className="text-muted-foreground">Producto Afectado</Label>
                     <p>{reclamoDetails.productName}</p>
@@ -963,7 +966,7 @@ export default function ReclamosGeneralesPage() {
 
       {/* Cerrar Reclamo Modal */}
       <Dialog open={showCerrarModal} onOpenChange={setShowCerrarModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Cerrar Reclamo</DialogTitle>
             <DialogDescription>

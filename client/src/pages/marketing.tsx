@@ -654,7 +654,7 @@ function PresupuestoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="dialog-presupuesto">
+      <DialogContent data-testid="dialog-presupuesto" className="w-[95vw] sm:w-full">
         <DialogHeader>
           <DialogTitle>Configurar Presupuesto Mensual</DialogTitle>
           <DialogDescription>
@@ -662,7 +662,7 @@ function PresupuestoDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="mes-presupuesto">Mes</Label>
               <Select
@@ -841,7 +841,7 @@ function SolicitudDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl" data-testid="dialog-nueva-solicitud">
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full" data-testid="dialog-nueva-solicitud">
         <DialogHeader>
           <DialogTitle>Nueva Solicitud de Marketing</DialogTitle>
           <DialogDescription>
@@ -1035,7 +1035,7 @@ function EstadoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="dialog-cambiar-estado">
+      <DialogContent data-testid="dialog-cambiar-estado" className="w-[95vw] sm:w-full">
         <DialogHeader>
           <DialogTitle>Cambiar Estado de Solicitud</DialogTitle>
           <DialogDescription>
@@ -1546,7 +1546,7 @@ function InventarioDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full">
         <DialogHeader>
           <DialogTitle>{item ? "Editar Item" : "Nuevo Item"}</DialogTitle>
           <DialogDescription>
@@ -1556,7 +1556,7 @@ function InventarioDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="nombre">Nombre*</Label>
               <Input
@@ -1594,7 +1594,7 @@ function InventarioDialog({
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="cantidad">Cantidad*</Label>
               <Input
@@ -1629,7 +1629,7 @@ function InventarioDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="ubicacion">Ubicación</Label>
               <Input
