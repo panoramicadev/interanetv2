@@ -250,7 +250,7 @@ export default function Reception() {
       sent: { label: 'Enviado', className: 'bg-blue-100 text-blue-800' },
       accepted: { label: 'Aceptado', className: 'bg-green-100 text-green-800' },
       rejected: { label: 'Rechazado', className: 'bg-red-100 text-red-800' },
-      converted: { label: 'Convertido', className: 'bg-purple-100 text-purple-800' },
+      converted: { label: 'Enviado como pedido', className: 'bg-purple-100 text-purple-800' },
     };
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
     return <Badge variant="secondary" className={config.className}>{config.label}</Badge>;
