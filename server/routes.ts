@@ -7171,6 +7171,285 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ==================================================================================
+  // RECLAMOS GENERALES ROUTES
+  // ==================================================================================
+
+  // Get all reclamos with optional filters
+  app.get('/api/reclamos-generales', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const filters: any = {};
+      
+      if (req.query.vendedorId) filters.vendedorId = req.query.vendedorId;
+      if (req.query.tecnicoId) filters.tecnicoId = req.query.tecnicoId;
+      if (req.query.estado) filters.estado = req.query.estado;
+      if (req.query.gravedad) filters.gravedad = req.query.gravedad;
+      if (req.query.limit) filters.limit = parseInt(req.query.limit);
+      if (req.query.offset) filters.offset = parseInt(req.query.offset);
+      
+      const reclamos = await storage.getReclamosGenerales(filters);
+      res.json(reclamos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener reclamos', error: error.message });
+    }
+  }));
+
+  // Get reclamo by ID
+  app.get('/api/reclamos-generales/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const reclamo = await storage.getReclamoGeneralById(req.params.id);
+      
+      if (!reclamo) {
+        return res.status(404).json({ message: 'Reclamo no encontrado' });
+      }
+      
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener reclamo', error: error.message });
+    }
+  }));
+
+  // Get reclamo with photos and historial
+  app.get('/api/reclamos-generales/:id/details', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const reclamo = await storage.getReclamoGeneralWithDetails(req.params.id);
+      
+      if (!reclamo) {
+        return res.status(404).json({ message: 'Reclamo no encontrado' });
+      }
+      
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener detalles del reclamo', error: error.message });
+    }
+  }));
+
+  // Create reclamo
+  app.post('/api/reclamos-generales', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Add vendedor info from authenticated user
+      const reclamoData = {
+        ...req.body,
+        vendedorId: user.id,
+        vendedorName: user.salespersonName || `${user.firstName} ${user.lastName}`,
+      };
+      
+      const reclamo = await storage.createReclamoGeneral(reclamoData);
+      res.status(201).json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear reclamo', error: error.message });
+    }
+  }));
+
+  // Update reclamo
+  app.patch('/api/reclamos-generales/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const reclamo = await storage.updateReclamoGeneral(req.params.id, req.body);
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar reclamo', error: error.message });
+    }
+  }));
+
+  // Delete reclamo
+  app.delete('/api/reclamos-generales/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteReclamoGeneral(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar reclamo', error: error.message });
+    }
+  }));
+
+  // Assign tecnico to reclamo
+  app.post('/api/reclamos-generales/:id/assign-tecnico', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { tecnicoId, tecnicoName } = req.body;
+      
+      if (!tecnicoId || !tecnicoName) {
+        return res.status(400).json({ message: 'tecnicoId y tecnicoName son requeridos' });
+      }
+      
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      const reclamo = await storage.assignTecnicoToReclamo(
+        req.params.id,
+        tecnicoId,
+        tecnicoName,
+        user.id,
+        userName
+      );
+      
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al asignar técnico', error: error.message });
+    }
+  }));
+
+  // Update reclamo estado
+  app.post('/api/reclamos-generales/:id/update-estado', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { nuevoEstado, notas } = req.body;
+      
+      if (!nuevoEstado) {
+        return res.status(400).json({ message: 'nuevoEstado es requerido' });
+      }
+      
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      const reclamo = await storage.updateReclamoGeneralEstado(
+        req.params.id,
+        nuevoEstado,
+        user.id,
+        userName,
+        notas
+      );
+      
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar estado', error: error.message });
+    }
+  }));
+
+  // Derivar to laboratorio
+  app.post('/api/reclamos-generales/:id/derivar-laboratorio', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      
+      const reclamo = await storage.derivarReclamoGeneralLaboratorio(req.params.id, user.id, userName);
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al derivar a laboratorio', error: error.message });
+    }
+  }));
+
+  // Derivar to producción
+  app.post('/api/reclamos-generales/:id/derivar-produccion', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      
+      const reclamo = await storage.derivarReclamoGeneralProduccion(req.params.id, user.id, userName);
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al derivar a producción', error: error.message });
+    }
+  }));
+
+  // Update informe laboratorio
+  app.post('/api/reclamos-generales/:id/informe-laboratorio', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { informe } = req.body;
+      
+      if (!informe) {
+        return res.status(400).json({ message: 'informe es requerido' });
+      }
+      
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      const reclamo = await storage.updateInformeLaboratorio(req.params.id, informe, user.id, userName);
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar informe', error: error.message });
+    }
+  }));
+
+  // Update informe producción
+  app.post('/api/reclamos-generales/:id/informe-produccion', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { informe } = req.body;
+      
+      if (!informe) {
+        return res.status(400).json({ message: 'informe es requerido' });
+      }
+      
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      const reclamo = await storage.updateInformeProduccion(req.params.id, informe, user.id, userName);
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar informe', error: error.message });
+    }
+  }));
+
+  // Update informe técnico
+  app.post('/api/reclamos-generales/:id/informe-tecnico', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { informe } = req.body;
+      
+      if (!informe) {
+        return res.status(400).json({ message: 'informe es requerido' });
+      }
+      
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      const reclamo = await storage.updateInformeTecnico(req.params.id, informe, user.id, userName);
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar informe', error: error.message });
+    }
+  }));
+
+  // Cerrar reclamo
+  app.post('/api/reclamos-generales/:id/cerrar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { notas } = req.body;
+      
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      const reclamo = await storage.cerrarReclamoGeneral(req.params.id, user.id, userName, notas);
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al cerrar reclamo', error: error.message });
+    }
+  }));
+
+  // Photos operations
+  app.post('/api/reclamos-generales/:id/photos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const photoData = {
+        reclamoId: req.params.id,
+        ...req.body,
+      };
+      
+      const photo = await storage.createReclamoGeneralPhoto(photoData);
+      res.status(201).json(photo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear foto', error: error.message });
+    }
+  }));
+
+  app.get('/api/reclamos-generales/:id/photos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const photos = await storage.getReclamoGeneralPhotos(req.params.id);
+      res.json(photos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener fotos', error: error.message });
+    }
+  }));
+
+  app.delete('/api/reclamos-generales/photos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteReclamoGeneralPhoto(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar foto', error: error.message });
+    }
+  }));
+
+  // Historial operations
+  app.get('/api/reclamos-generales/:id/historial', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const historial = await storage.getReclamoGeneralHistorial(req.params.id);
+      res.json(historial);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener historial', error: error.message });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
