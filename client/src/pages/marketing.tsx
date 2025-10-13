@@ -43,7 +43,8 @@ interface SolicitudMarketing {
   titulo: string;
   descripcion: string;
   monto: string | null;
-  pdfUrl: string | null;
+  urlReferencia: string | null;
+  pdfPresupuesto: string | null;
   estado: string;
   supervisorId: string | null;
   supervisorName: string | null;
@@ -628,7 +629,7 @@ function SolicitudDialog({
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
-  const [pdfUrl, setPdfUrl] = useState("");
+  const [urlReferencia, setUrlReferencia] = useState("");
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -651,7 +652,7 @@ function SolicitudDialog({
       setTitulo("");
       setDescripcion("");
       setFechaEntrega("");
-      setPdfUrl("");
+      setUrlReferencia("");
     },
     onError: (error: Error) => {
       toast({
@@ -678,7 +679,7 @@ function SolicitudDialog({
       mes,
       anio,
       fechaEntrega: fechaEntrega || null,
-      pdfUrl: pdfUrl || null,
+      urlReferencia: urlReferencia || null,
     });
   };
 
@@ -724,16 +725,16 @@ function SolicitudDialog({
             />
           </div>
           <div>
-            <Label htmlFor="pdfUrl">URL del PDF (Opcional)</Label>
+            <Label htmlFor="urlReferencia">URL de Referencia (Opcional)</Label>
             <Input
-              id="pdfUrl"
+              id="urlReferencia"
               placeholder="https://ejemplo.com/documento.pdf"
-              value={pdfUrl}
-              onChange={(e) => setPdfUrl(e.target.value)}
-              data-testid="input-pdf-url"
+              value={urlReferencia}
+              onChange={(e) => setUrlReferencia(e.target.value)}
+              data-testid="input-url-referencia"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Puede subir un PDF con el detalle de la solicitud
+              Puede agregar un enlace de referencia con detalles de la solicitud
             </p>
           </div>
         </div>
