@@ -140,7 +140,7 @@ export default function ReclamosGeneralesPage() {
   // Get user's reclamos
   const { data: reclamos = [], isLoading: reclamosLoading } = useQuery<ReclamoGeneral[]>({
     queryKey: ['/api/reclamos-generales', { vendedorId: user?.id }],
-    enabled: user?.role === 'salesperson' || user?.role === 'admin' || user?.role === 'supervisor',
+    enabled: user?.role === 'salesperson' || user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra',
   });
 
   // Get reclamo details
