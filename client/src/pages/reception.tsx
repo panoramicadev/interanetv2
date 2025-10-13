@@ -809,9 +809,11 @@ export default function Reception() {
                                 <span>{item.type === 'custom' ? item.customSku : item.productCode}</span>
                                 <button
                                   onClick={(e) => {
+                                    e.preventDefault();
                                     e.stopPropagation();
                                     handleCopySku(item.type === 'custom' ? item.customSku || '' : item.productCode || '');
                                   }}
+                                  type="button"
                                   className="p-1 hover:bg-gray-100 rounded transition-colors"
                                   title="Copiar SKU"
                                   data-testid={`button-copy-sku-${item.id}`}
