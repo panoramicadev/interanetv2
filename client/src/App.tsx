@@ -36,6 +36,7 @@ import QuotesPage from "@/pages/quotes";
 import OrdersPage from "@/pages/orders";
 import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
 import ReclamosGeneralesPage from "@/pages/reclamos-generales";
+import Marketing from "@/pages/marketing";
 import Reception from "@/pages/reception";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
@@ -120,6 +121,7 @@ function Router() {
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
             <Route path="/reclamos-generales" component={ReclamosGeneralesPage} />
+            <Route path="/marketing" component={Marketing} />
             
             {/* Rutas de Tintometría */}
             <Route path="/tintometria" component={() => {
