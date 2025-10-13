@@ -7524,7 +7524,7 @@ export function registerRoutes(app: Express): Server {
         }
         
         // Get supervisor info
-        const supervisor = await storage.getUserById(req.body.supervisorId);
+        const supervisor = await storage.getUser(req.body.supervisorId);
         if (!supervisor) {
           return res.status(404).json({ message: 'Supervisor no encontrado' });
         }
