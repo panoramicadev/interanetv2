@@ -7537,14 +7537,24 @@ export function registerRoutes(app: Express): Server {
         supervisorName = supervisor.salespersonName || `${supervisor.firstName} ${supervisor.lastName}`;
       }
       
-      const solicitud = await storage.createSolicitudMarketing({
+      // Prepare solicitud data
+      const solicitudData: any = {
         ...req.body,
         supervisorId,
         supervisorName,
-      });
+      };
+      
+      // Convert fechaEntrega to proper format if provided
+      if (solicitudData.fechaEntrega) {
+        // Ensure it's in YYYY-MM-DD format (remove time if present)
+        solicitudData.fechaEntrega = solicitudData.fechaEntrega.split('T')[0];
+      }
+      
+      const solicitud = await storage.createSolicitudMarketing(solicitudData);
       
       res.status(201).json(solicitud);
     } catch (error: any) {
+      console.error('Error creating marketing solicitud:', error);
       res.status(500).json({ message: 'Error al crear solicitud', error: error.message });
     }
   }));
