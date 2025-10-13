@@ -34,7 +34,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -118,105 +118,124 @@ export default function Marketing() {
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">Marketing</h1>
-          <p className="text-muted-foreground">Gestión de presupuesto y solicitudes de marketing</p>
-        </div>
-        <div className="flex gap-2">
-          {user.role === 'admin' && (
-            <>
-              <Button 
-                variant="outline"
-                onClick={() => setPresupuestoDialogOpen(true)}
-                data-testid="button-config-presupuesto"
-              >
-                <DollarSign className="mr-2 h-4 w-4" />
-                Presupuesto
-              </Button>
+      <div>
+        <h1 className="text-3xl font-bold" data-testid="text-page-title">Marketing</h1>
+        <p className="text-muted-foreground">Gestión de presupuesto, solicitudes e inventario de marketing</p>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="solicitudes" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="solicitudes" data-testid="tab-solicitudes">
+            <FileText className="mr-2 h-4 w-4" />
+            Presupuesto y Solicitudes
+          </TabsTrigger>
+          <TabsTrigger value="inventario" data-testid="tab-inventario">
+            <Package className="mr-2 h-4 w-4" />
+            Inventario
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Tab: Presupuesto y Solicitudes */}
+        <TabsContent value="solicitudes" className="space-y-6">
+          <div className="flex justify-end gap-2">
+            {user.role === 'admin' && (
+              <>
+                <Button 
+                  variant="outline"
+                  onClick={() => setPresupuestoDialogOpen(true)}
+                  data-testid="button-config-presupuesto"
+                >
+                  <DollarSign className="mr-2 h-4 w-4" />
+                  Presupuesto
+                </Button>
+                <Button 
+                  onClick={() => setSolicitudDialogOpen(true)}
+                  data-testid="button-nueva-solicitud"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Solicitudes
+                </Button>
+              </>
+            )}
+            {user.role === 'supervisor' && (
               <Button 
                 onClick={() => setSolicitudDialogOpen(true)}
                 data-testid="button-nueva-solicitud"
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Solicitudes
+                Nueva Solicitud
               </Button>
-            </>
-          )}
-          {user.role === 'supervisor' && (
-            <Button 
-              onClick={() => setSolicitudDialogOpen(true)}
-              data-testid="button-nueva-solicitud"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Nueva Solicitud
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Period Selector */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Seleccionar Período</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <Label>Mes</Label>
-              <Select
-                value={selectedMes.toString()}
-                onValueChange={(value) => setSelectedMes(parseInt(value))}
-              >
-                <SelectTrigger data-testid="select-mes">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {mesesNombres.map((mes, index) => (
-                    <SelectItem key={index + 1} value={(index + 1).toString()}>
-                      {mes}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex-1">
-              <Label>Año</Label>
-              <Select
-                value={selectedAnio.toString()}
-                onValueChange={(value) => setSelectedAnio(parseInt(value))}
-              >
-                <SelectTrigger data-testid="select-anio">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[2024, 2025, 2026].map((anio) => (
-                    <SelectItem key={anio} value={anio.toString()}>
-                      {anio}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            )}
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Metrics Dashboard */}
-      <MetricsDashboard mes={selectedMes} anio={selectedAnio} />
+          {/* Period Selector */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Seleccionar Período</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <Label>Mes</Label>
+                  <Select
+                    value={selectedMes.toString()}
+                    onValueChange={(value) => setSelectedMes(parseInt(value))}
+                  >
+                    <SelectTrigger data-testid="select-mes">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mesesNombres.map((mes, index) => (
+                        <SelectItem key={index + 1} value={(index + 1).toString()}>
+                          {mes}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Label>Año</Label>
+                  <Select
+                    value={selectedAnio.toString()}
+                    onValueChange={(value) => setSelectedAnio(parseInt(value))}
+                  >
+                    <SelectTrigger data-testid="select-anio">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[2024, 2025, 2026].map((anio) => (
+                        <SelectItem key={anio} value={anio.toString()}>
+                          {anio}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Solicitudes List */}
-      <SolicitudesList
-        mes={selectedMes}
-        anio={selectedAnio}
-        selectedEstado={selectedEstado}
-        onEstadoChange={setSelectedEstado}
-        onEditEstado={(solicitud) => {
-          setSelectedSolicitud(solicitud);
-          setEstadoDialogOpen(true);
-        }}
-        userRole={user.role}
-      />
+          <MetricsDashboard mes={selectedMes} anio={selectedAnio} />
+
+          <SolicitudesList
+            mes={selectedMes}
+            anio={selectedAnio}
+            selectedEstado={selectedEstado}
+            onEstadoChange={setSelectedEstado}
+            onEditEstado={(solicitud) => {
+              setSelectedSolicitud(solicitud);
+              setEstadoDialogOpen(true);
+            }}
+            userRole={user.role}
+          />
+        </TabsContent>
+
+        {/* Tab: Inventario */}
+        <TabsContent value="inventario" className="space-y-6">
+          <InventarioMarketing userRole={user.role} />
+        </TabsContent>
+      </Tabs>
 
       {/* Dialogs */}
       <PresupuestoDialog
@@ -1033,6 +1052,477 @@ function EstadoDialog({
             data-testid="button-guardar-estado"
           >
             {updateMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Inventario Marketing Component
+function InventarioMarketing({ userRole }: { userRole: string }) {
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [inventarioDialogOpen, setInventarioDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ['/api/marketing/inventario', search],
+    enabled: true,
+  });
+
+  const { data: summary } = useQuery({
+    queryKey: ['/api/marketing/inventario/summary'],
+    enabled: true,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/marketing/inventario/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario/summary'] });
+      toast({
+        title: "Item eliminado",
+        description: "El item ha sido eliminado correctamente",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Error al eliminar el item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEdit = (item: any) => {
+    setSelectedItem(item);
+    setInventarioDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("¿Está seguro de eliminar este item?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const estadoConfig = {
+    disponible: { label: "Disponible", color: "bg-green-500" },
+    agotado: { label: "Agotado", color: "bg-red-500" },
+    por_llegar: { label: "Por Llegar", color: "bg-yellow-500" },
+  };
+
+  return (
+    <>
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Inventario de Marketing</h2>
+          <p className="text-muted-foreground">Gestión de materiales y suministros de marketing</p>
+        </div>
+        {userRole === 'admin' && (
+          <Button
+            onClick={() => {
+              setSelectedItem(null);
+              setInventarioDialogOpen(true);
+            }}
+            data-testid="button-nuevo-item"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo Item
+          </Button>
+        )}
+      </div>
+
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Items</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.totalItems}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Stock Bajo</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.stockBajo}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                ${summary.valorTotal.toLocaleString('es-CL')}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Search */}
+      <Card>
+        <CardContent className="pt-6">
+          <Input
+            placeholder="Buscar por nombre, descripción o ubicación..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            data-testid="input-search-inventario"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Items Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Items de Inventario</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : items.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No hay items en el inventario
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead>Cantidad</TableHead>
+                  <TableHead>Ubicación</TableHead>
+                  <TableHead>Costo Unitario</TableHead>
+                  <TableHead>Estado</TableHead>
+                  {userRole === 'admin' && <TableHead>Acciones</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((item: any) => (
+                  <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
+                    <TableCell className="font-medium">{item.nombre}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {item.descripcion || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {item.cantidad} {item.unidad}
+                        {item.cantidad <= (item.stockMinimo || 0) && (
+                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{item.ubicacion || '-'}</TableCell>
+                    <TableCell>
+                      {item.costoUnitario 
+                        ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={estadoConfig[item.estado as keyof typeof estadoConfig]?.color}>
+                        {estadoConfig[item.estado as keyof typeof estadoConfig]?.label}
+                      </Badge>
+                    </TableCell>
+                    {userRole === 'admin' && (
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(item)}
+                            data-testid={`button-edit-${item.id}`}
+                          >
+                            Editar
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(item.id)}
+                            disabled={deleteMutation.isPending}
+                            data-testid={`button-delete-${item.id}`}
+                          >
+                            Eliminar
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Inventario Dialog */}
+      <InventarioDialog
+        open={inventarioDialogOpen}
+        onOpenChange={setInventarioDialogOpen}
+        item={selectedItem}
+      />
+    </>
+  );
+}
+
+// Inventario Dialog Component
+function InventarioDialog({
+  open,
+  onOpenChange,
+  item,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item: any | null;
+}) {
+  const { toast } = useToast();
+  const [nombre, setNombre] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [cantidad, setCantidad] = useState("");
+  const [unidad, setUnidad] = useState("unidades");
+  const [ubicacion, setUbicacion] = useState("");
+  const [costoUnitario, setCostoUnitario] = useState("");
+  const [proveedor, setProveedor] = useState("");
+  const [estado, setEstado] = useState("disponible");
+  const [stockMinimo, setStockMinimo] = useState("");
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: any) => {
+      if (item) {
+        return await apiRequest("PATCH", `/api/marketing/inventario/${item.id}`, data);
+      } else {
+        return await apiRequest("POST", "/api/marketing/inventario", data);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario/summary'] });
+      toast({
+        title: item ? "Item actualizado" : "Item creado",
+        description: item 
+          ? "El item ha sido actualizado correctamente"
+          : "El item ha sido creado correctamente",
+      });
+      onOpenChange(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Error al guardar el item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetForm = () => {
+    setNombre("");
+    setDescripcion("");
+    setCantidad("");
+    setUnidad("unidades");
+    setUbicacion("");
+    setCostoUnitario("");
+    setProveedor("");
+    setEstado("disponible");
+    setStockMinimo("");
+  };
+
+  const handleSubmit = () => {
+    if (!nombre || !cantidad) {
+      toast({
+        title: "Error",
+        description: "Nombre y cantidad son requeridos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const data = {
+      nombre,
+      descripcion: descripcion || null,
+      cantidad: parseInt(cantidad),
+      unidad,
+      ubicacion: ubicacion || null,
+      costoUnitario: costoUnitario ? parseFloat(costoUnitario) : null,
+      proveedor: proveedor || null,
+      estado,
+      stockMinimo: stockMinimo ? parseInt(stockMinimo) : 0,
+    };
+
+    saveMutation.mutate(data);
+  };
+
+  // Load item data when editing
+  if (item && open && nombre === "") {
+    setNombre(item.nombre || "");
+    setDescripcion(item.descripcion || "");
+    setCantidad(item.cantidad?.toString() || "");
+    setUnidad(item.unidad || "unidades");
+    setUbicacion(item.ubicacion || "");
+    setCostoUnitario(item.costoUnitario || "");
+    setProveedor(item.proveedor || "");
+    setEstado(item.estado || "disponible");
+    setStockMinimo(item.stockMinimo?.toString() || "");
+  }
+
+  // Reset form when dialog closes
+  if (!open && nombre !== "") {
+    resetForm();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{item ? "Editar Item" : "Nuevo Item"}</DialogTitle>
+          <DialogDescription>
+            {item 
+              ? "Actualice la información del item de inventario"
+              : "Complete la información del nuevo item de inventario"}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="nombre">Nombre*</Label>
+              <Input
+                id="nombre"
+                placeholder="Ej: Volantes promocionales"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                data-testid="input-nombre"
+              />
+            </div>
+            <div>
+              <Label htmlFor="estado">Estado</Label>
+              <Select value={estado} onValueChange={setEstado}>
+                <SelectTrigger id="estado" data-testid="select-estado">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disponible">Disponible</SelectItem>
+                  <SelectItem value="agotado">Agotado</SelectItem>
+                  <SelectItem value="por_llegar">Por Llegar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="descripcion">Descripción</Label>
+            <Textarea
+              id="descripcion"
+              placeholder="Descripción del item"
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={2}
+              data-testid="input-descripcion"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="cantidad">Cantidad*</Label>
+              <Input
+                id="cantidad"
+                type="number"
+                placeholder="100"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value)}
+                data-testid="input-cantidad"
+              />
+            </div>
+            <div>
+              <Label htmlFor="unidad">Unidad</Label>
+              <Input
+                id="unidad"
+                placeholder="unidades"
+                value={unidad}
+                onChange={(e) => setUnidad(e.target.value)}
+                data-testid="input-unidad"
+              />
+            </div>
+            <div>
+              <Label htmlFor="stockMinimo">Stock Mínimo</Label>
+              <Input
+                id="stockMinimo"
+                type="number"
+                placeholder="10"
+                value={stockMinimo}
+                onChange={(e) => setStockMinimo(e.target.value)}
+                data-testid="input-stock-minimo"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="ubicacion">Ubicación</Label>
+              <Input
+                id="ubicacion"
+                placeholder="Bodega A - Estante 3"
+                value={ubicacion}
+                onChange={(e) => setUbicacion(e.target.value)}
+                data-testid="input-ubicacion"
+              />
+            </div>
+            <div>
+              <Label htmlFor="proveedor">Proveedor</Label>
+              <Input
+                id="proveedor"
+                placeholder="Nombre del proveedor"
+                value={proveedor}
+                onChange={(e) => setProveedor(e.target.value)}
+                data-testid="input-proveedor"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="costoUnitario">Costo Unitario</Label>
+            <Input
+              id="costoUnitario"
+              type="number"
+              placeholder="1500"
+              value={costoUnitario}
+              onChange={(e) => setCostoUnitario(e.target.value)}
+              data-testid="input-costo-unitario"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-inventario"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={saveMutation.isPending}
+            data-testid="button-guardar-inventario"
+          >
+            {saveMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Guardando...
