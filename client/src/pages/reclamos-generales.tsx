@@ -561,7 +561,7 @@ export default function ReclamosGeneralesPage() {
                                 Ver Detalle
                               </Button>
                               
-                              {reclamo.estado !== 'cerrado' && (
+                              {reclamo.estado !== 'cerrado' && user?.role === 'tecnico_obra' && (
                                 <Button
                                   variant="default"
                                   size="sm"
