@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { FileText, Package, DollarSign, Eye, CheckCircle, XCircle, Download, FileDown } from "lucide-react";
+import { FileText, Package, DollarSign, Eye, CheckCircle, XCircle, Download, FileDown, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { pdf } from "@react-pdf/renderer";
@@ -179,6 +179,7 @@ export default function Reception() {
   const { toast } = useToast();
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [copiedSku, setCopiedSku] = useState<string | null>(null);
 
   // Redirect if not reception user
   useEffect(() => {
@@ -374,6 +375,28 @@ export default function Reception() {
       title: "Función en desarrollo",
       description: "La descarga del Archivo Random estará disponible próximamente.",
     });
+  };
+
+  const handleCopySku = async (sku: string) => {
+    try {
+      await navigator.clipboard.writeText(sku);
+      setCopiedSku(sku);
+      toast({
+        title: "SKU copiado",
+        description: `El código ${sku} ha sido copiado al portapapeles.`,
+      });
+      
+      // Reset the copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedSku(null);
+      }, 2000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo copiar el SKU al portapapeles.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading || !user) {
@@ -650,7 +673,24 @@ export default function Reception() {
                               )}
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-600">
-                              {item.type === 'custom' ? item.customSku : item.productCode}
+                              <div className="flex items-center gap-2">
+                                <span>{item.type === 'custom' ? item.customSku : item.productCode}</span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopySku(item.type === 'custom' ? item.customSku || '' : item.productCode || '');
+                                  }}
+                                  className="p-1 hover:bg-gray-100 rounded transition-colors"
+                                  title="Copiar SKU"
+                                  data-testid={`button-copy-sku-${item.id}`}
+                                >
+                                  {copiedSku === (item.type === 'custom' ? item.customSku : item.productCode) ? (
+                                    <Check className="h-3.5 w-3.5 text-green-600" />
+                                  ) : (
+                                    <Copy className="h-3.5 w-3.5 text-gray-500" />
+                                  )}
+                                </button>
+                              </div>
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-900 text-right">
                               {item.quantity}
