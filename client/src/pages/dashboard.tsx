@@ -457,11 +457,17 @@ export default function Dashboard() {
       setSelectedFilter("all");
     };
     
+    const handleSalespersonChange = (newSalesperson: string) => {
+      setGlobalFilter({ type: "salesperson", value: newSalesperson });
+    };
+    
     return (
       <SalespersonDetail 
+        key={globalFilter.value} // Force remount when salesperson changes
         salespersonName={globalFilter.value} 
         embedded={true}
         onBack={handleBack}
+        onSalespersonChange={handleSalespersonChange}
         dashboardGlobalFilter={globalFilter}
         dashboardFilterType={filterType}
         dashboardSelectedPeriod={selectedPeriod}
