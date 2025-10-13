@@ -139,14 +139,33 @@ export default function ReclamosGeneralesPage() {
 
   // Get user's reclamos
   const { data: reclamos = [], isLoading: reclamosLoading } = useQuery<ReclamoGeneral[]>({
-    queryKey: ['/api/reclamos-generales', { vendedorId: user?.id }],
-    enabled: user?.role === 'salesperson' || user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra',
+    queryKey: ['/api/reclamos-generales', 'vendedorId', user?.id],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (user?.id) {
+        params.append('vendedorId', user.id);
+      }
+      const url = `/api/reclamos-generales?${params.toString()}`;
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Error al obtener reclamos');
+      return response.json();
+    },
+    enabled: !!user && (user.role === 'salesperson' || user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra'),
   });
 
   // Get reclamo details
-  const { data: reclamoDetails, isLoading: detailsLoading } = useQuery<ReclamoWithDetails>({
+  const { data: reclamoDetails, isLoading: detailsLoading} = useQuery<ReclamoWithDetails>({
     queryKey: ['/api/reclamos-generales', selectedReclamoId, 'details'],
-    enabled: !!selectedReclamoId,
+    queryFn: async () => {
+      const response = await fetch(`/api/reclamos-generales/${selectedReclamoId}/details`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Error al obtener detalles del reclamo');
+      return response.json();
+    },
+    enabled: !!selectedReclamoId && typeof selectedReclamoId === 'string',
   });
 
   // Get clients for dropdown
@@ -160,12 +179,14 @@ export default function ReclamosGeneralesPage() {
   // Create reclamo mutation
   const createReclamoMutation = useMutation({
     mutationFn: async (data: any): Promise<ReclamoGeneral> => {
-      return await apiRequest('/api/reclamos-generales', {
+      const response = await apiRequest('/api/reclamos-generales', {
         method: 'POST',
         data: data,
-      }) as unknown as Promise<ReclamoGeneral>;
+      });
+      return response as ReclamoGeneral;
     },
     onSuccess: async (reclamo: ReclamoGeneral) => {
+      console.log('Reclamo creado:', reclamo);
       // Upload photos if any
       if (selectedFiles.length > 0) {
         const uploadPromises = selectedFiles.map(file => {
