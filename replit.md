@@ -67,9 +67,10 @@ Preferred communication style: Simple, everyday language.
 - **NVV Dashboard Integration**: Notas de Venta card displays total pending amount using pre-calculated totalPendiente field from database.
 - **Goals Progress**: Goals measured exclusively using Ventas Totales (excluding GDV transactions) for accurate progress tracking.
 - **Dashboard Enhancements**: 
-  - 3-card layout: Ventas Totales (with NVV+GDV), Total Acumulado del Año (with best historical year), and Unidades Vendidas (with client count).
+  - 3-card layout: Ventas Totales (with NVV+GDV), Total Acumulado del Año (with best historical year and YTD comparison), and Unidades Vendidas (with client count).
   - Best historical year feature displays the year with highest sales and its amount on the "Total Acumulado del Año" card.
-  - Embedded salesperson detail view: Selecting a salesperson from filters shows their dedicated dashboard with back navigation to return to main dashboard.
+  - YTD comparison: "Total Acumulado del Año" card shows accurate year-to-date comparison for current year (e.g., Oct 13, 2025 vs Oct 13, 2024), and full-year comparison for historical years. Includes leap year handling (Feb 29 adjusts to Feb 28 of prior year).
+  - Embedded salesperson detail view: Selecting a salesperson from filters shows their dedicated dashboard with back navigation to return to main dashboard. Dashboard filters displayed as read-only badges with "Cambiar filtros" button.
 
 ## External Dependencies
 
