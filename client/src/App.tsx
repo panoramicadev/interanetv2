@@ -35,6 +35,7 @@ import Carrito from "@/pages/carrito";
 import QuotesPage from "@/pages/quotes";
 import OrdersPage from "@/pages/orders";
 import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
+import Reception from "@/pages/reception";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
@@ -83,6 +84,8 @@ function Router() {
                   return <SalespersonDashboard />;
                 case 'tecnico_obra':
                   return <VisitasTecnicasPage />;
+                case 'reception':
+                  return <Reception />;
                 case 'client':
                   // Los clientes van directamente al ecommerce
                   window.location.replace('/tienda');
