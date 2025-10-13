@@ -492,12 +492,20 @@ function PresupuestoDialog({
   anio: number;
 }) {
   const { toast } = useToast();
+  const currentDate = new Date();
   const [presupuestoTotal, setPresupuestoTotal] = useState("");
+  const [selectedMes, setSelectedMes] = useState(currentDate.getMonth() + 1);
+  const [selectedAnio, setSelectedAnio] = useState(currentDate.getFullYear());
+
+  const mesesNombres = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
 
   const { data: presupuestoActual } = useQuery({
-    queryKey: ['/api/marketing/presupuesto', mes, anio],
+    queryKey: ['/api/marketing/presupuesto', selectedMes, selectedAnio],
     queryFn: async () => {
-      const response = await fetch(`/api/marketing/presupuesto/${mes}/${anio}`, {
+      const response = await fetch(`/api/marketing/presupuesto/${selectedMes}/${selectedAnio}`, {
         credentials: 'include'
       });
       if (!response.ok) {
@@ -511,12 +519,7 @@ function PresupuestoDialog({
 
   const saveMutation = useMutation({
     mutationFn: async (data: { mes: number; anio: number; presupuestoTotal: number }) => {
-      const response = await apiRequest('/api/marketing/presupuesto', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      return response.json();
+      return await apiRequest('POST', '/api/marketing/presupuesto', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/marketing/presupuesto'] });
@@ -549,8 +552,8 @@ function PresupuestoDialog({
     }
 
     saveMutation.mutate({
-      mes,
-      anio,
+      mes: selectedMes,
+      anio: selectedAnio,
       presupuestoTotal: monto,
     });
   };
@@ -561,20 +564,58 @@ function PresupuestoDialog({
         <DialogHeader>
           <DialogTitle>Configurar Presupuesto Mensual</DialogTitle>
           <DialogDescription>
-            Configure el presupuesto total para el período seleccionado
+            Seleccione el período y configure el presupuesto total
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="mes-presupuesto">Mes</Label>
+              <Select
+                value={selectedMes.toString()}
+                onValueChange={(value) => setSelectedMes(parseInt(value))}
+              >
+                <SelectTrigger id="mes-presupuesto" data-testid="select-mes-presupuesto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {mesesNombres.map((mes, index) => (
+                    <SelectItem key={index + 1} value={(index + 1).toString()}>
+                      {mes}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="anio-presupuesto">Año</Label>
+              <Select
+                value={selectedAnio.toString()}
+                onValueChange={(value) => setSelectedAnio(parseInt(value))}
+              >
+                <SelectTrigger id="anio-presupuesto" data-testid="select-anio-presupuesto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2024, 2025, 2026].map((anio) => (
+                    <SelectItem key={anio} value={anio.toString()}>
+                      {anio}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           {presupuestoActual && (
             <div className="p-4 bg-muted rounded-md">
-              <p className="text-sm text-muted-foreground">Presupuesto actual:</p>
+              <p className="text-sm text-muted-foreground">Presupuesto actual para {mesesNombres[selectedMes - 1]} {selectedAnio}:</p>
               <p className="text-2xl font-bold">
                 ${parseFloat(presupuestoActual.presupuestoTotal).toLocaleString('es-CL')}
               </p>
             </div>
           )}
           <div>
-            <Label htmlFor="presupuestoTotal">Presupuesto Total</Label>
+            <Label htmlFor="presupuestoTotal">Presupuesto Total (CLP)</Label>
             <Input
               id="presupuestoTotal"
               type="number"
@@ -641,12 +682,7 @@ function SolicitudDialog({
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('/api/marketing/solicitudes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      return response.json();
+      return await apiRequest('POST', '/api/marketing/solicitudes', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
@@ -830,12 +866,7 @@ function EstadoDialog({
 
   const updateMutation = useMutation({
     mutationFn: async (data: { estado: string; motivoRechazo?: string; monto?: number; pdfPresupuesto?: string }) => {
-      const response = await apiRequest(`/api/marketing/solicitudes/${solicitud?.id}/estado`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      return response.json();
+      return await apiRequest('POST', `/api/marketing/solicitudes/${solicitud?.id}/estado`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
