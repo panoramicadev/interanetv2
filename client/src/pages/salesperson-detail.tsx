@@ -38,6 +38,7 @@ interface SalespersonDetailProps {
   salespersonName?: string;
   embedded?: boolean;
   onBack?: () => void;
+  onSalespersonChange?: (salespersonName: string) => void; // Callback to change salesperson when embedded
   // Dashboard filter props (when embedded) - for display only
   dashboardGlobalFilter?: {
     type: "all" | "global" | "segment" | "salesperson";
@@ -47,10 +48,22 @@ interface SalespersonDetailProps {
   dashboardSelectedPeriod?: string; // For showing the specific period value
 }
 
+interface TopSalesperson {
+  salesperson: string;
+  totalSales: number;
+  transactionCount: number;
+}
+
+interface TopSalespeopleResponse {
+  items: TopSalesperson[];
+  periodTotalSales: number;
+}
+
 export default function SalespersonDetail({ 
   salespersonName: propSalespersonName, 
   embedded = false, 
   onBack,
+  onSalespersonChange,
   dashboardGlobalFilter,
   dashboardFilterType,
   dashboardSelectedPeriod
@@ -58,15 +71,47 @@ export default function SalespersonDetail({
   const { salespersonName: paramSalespersonName } = useParams();
   const salespersonName = propSalespersonName || paramSalespersonName;
   
-  // Date filter states
+  // Date filter states - Initialize from dashboard props if embedded
+  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">(() => {
+    return dashboardFilterType || "month";
+  });
+  
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    if (dashboardSelectedPeriod) {
+      return dashboardSelectedPeriod;
+    }
     return format(new Date(), "yyyy-MM");
   });
-  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">("month");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [startDate, setStartDate] = useState<Date | undefined>();
-  const [endDate, setEndDate] = useState<Date | undefined>();
+  
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
+    if (dashboardFilterType === "day" && dashboardSelectedPeriod) {
+      return new Date(dashboardSelectedPeriod);
+    }
+    return new Date();
+  });
+  
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    if (dashboardFilterType === "year" && dashboardSelectedPeriod) {
+      return parseInt(dashboardSelectedPeriod);
+    }
+    return new Date().getFullYear();
+  });
+  
+  const [startDate, setStartDate] = useState<Date | undefined>(() => {
+    if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
+      const [start] = dashboardSelectedPeriod.split("_");
+      return new Date(start);
+    }
+    return undefined;
+  });
+  
+  const [endDate, setEndDate] = useState<Date | undefined>(() => {
+    if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
+      const [, end] = dashboardSelectedPeriod.split("_");
+      return new Date(end);
+    }
+    return undefined;
+  });
   
   // Segment filter state
   const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
@@ -121,6 +166,14 @@ export default function SalespersonDetail({
     queryKey: [`/api/sales/salesperson/${salespersonName}/segments?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!salespersonName,
   });
+
+  // Fetch all salespeople for the selector (only when embedded)
+  const { data: allSalespeopleResponse } = useQuery<TopSalespeopleResponse>({
+    queryKey: [`/api/sales/top-salespeople?limit=5000&period=${selectedPeriod}&filterType=${filterType}`],
+    enabled: embedded,
+  });
+  
+  const allSalespeople = allSalespeopleResponse?.items || [];
 
   if (!salespersonName) {
     return (
@@ -399,6 +452,34 @@ export default function SalespersonDetail({
                 </Select>
               )}
             </div>
+
+            {/* Salesperson Selector - Only when embedded */}
+            {embedded && onSalespersonChange && allSalespeople.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Vendedor:
+                </label>
+                <Select 
+                  value={salespersonName || ""} 
+                  onValueChange={(value) => {
+                    if (onSalespersonChange) {
+                      onSalespersonChange(value);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-64 rounded-xl border-gray-200 shadow-sm text-sm">
+                    <SelectValue placeholder="Seleccionar vendedor" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-gray-200 max-h-80">
+                    {allSalespeople.map((sp) => (
+                      <SelectItem key={sp.salesperson} value={sp.salesperson}>
+                        {sp.salesperson}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </header>
 
