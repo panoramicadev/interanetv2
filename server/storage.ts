@@ -8717,15 +8717,15 @@ export class DatabaseStorage implements IStorage {
           endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       }
       
-      // Get visitas in date range - convert dates to ISO strings for timestamp comparison
-      const startDateISO = startDate.toISOString();
-      const endDateISO = endDate.toISOString();
+      // Get visitas in date range using SQL CAST for date comparison
+      // Set endDate to end of day for inclusive range
+      endDate.setHours(23, 59, 59, 999);
       
       const visitas = await db.select().from(visitasTecnicas)
         .where(
           and(
-            gte(visitasTecnicas.createdAt, startDateISO),
-            lte(visitasTecnicas.createdAt, endDateISO)
+            sql`${visitasTecnicas.createdAt}::date >= ${startDate.toISOString().split('T')[0]}::date`,
+            sql`${visitasTecnicas.createdAt}::date <= ${endDate.toISOString().split('T')[0]}::date`
           )
         );
       
