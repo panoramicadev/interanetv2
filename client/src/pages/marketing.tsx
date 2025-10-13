@@ -622,7 +622,6 @@ function SolicitudDialog({
   const { toast } = useToast();
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
-  const [monto, setMonto] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [pdfUrl, setPdfUrl] = useState("");
 
@@ -646,7 +645,6 @@ function SolicitudDialog({
       // Reset form
       setTitulo("");
       setDescripcion("");
-      setMonto("");
       setFechaEntrega("");
       setPdfUrl("");
     },
@@ -660,7 +658,7 @@ function SolicitudDialog({
   });
 
   const handleSubmit = () => {
-    if (!titulo || !descripcion || !monto) {
+    if (!titulo || !descripcion) {
       toast({
         title: "Error",
         description: "Complete todos los campos requeridos",
@@ -669,20 +667,9 @@ function SolicitudDialog({
       return;
     }
 
-    const montoNum = parseFloat(monto);
-    if (isNaN(montoNum) || montoNum <= 0) {
-      toast({
-        title: "Error",
-        description: "Ingrese un monto válido",
-        variant: "destructive",
-      });
-      return;
-    }
-
     createMutation.mutate({
       titulo,
       descripcion,
-      monto: montoNum,
       mes,
       anio,
       fechaEntrega: fechaEntrega || null,
@@ -721,28 +708,15 @@ function SolicitudDialog({
               data-testid="input-descripcion"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="monto">Monto (CLP)*</Label>
-              <Input
-                id="monto"
-                type="number"
-                placeholder="Ej: 500000"
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-                data-testid="input-monto"
-              />
-            </div>
-            <div>
-              <Label htmlFor="fechaEntrega">Fecha de Entrega Esperada</Label>
-              <Input
-                id="fechaEntrega"
-                type="date"
-                value={fechaEntrega}
-                onChange={(e) => setFechaEntrega(e.target.value)}
-                data-testid="input-fecha-entrega"
-              />
-            </div>
+          <div>
+            <Label htmlFor="fechaEntrega">Fecha de Entrega Esperada</Label>
+            <Input
+              id="fechaEntrega"
+              type="date"
+              value={fechaEntrega}
+              onChange={(e) => setFechaEntrega(e.target.value)}
+              data-testid="input-fecha-entrega"
+            />
           </div>
           <div>
             <Label htmlFor="pdfUrl">URL del PDF (Opcional)</Label>
