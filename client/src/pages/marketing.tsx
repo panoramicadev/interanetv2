@@ -625,11 +625,19 @@ function SolicitudDialog({
   mes: number;
   anio: number;
 }) {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [urlReferencia, setUrlReferencia] = useState("");
+  const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
+
+  // Obtener lista de supervisores (solo para admin)
+  const { data: supervisores = [] } = useQuery<any[]>({
+    queryKey: ['/api/users/salespeople/supervisors'],
+    enabled: user?.role === 'admin',
+  });
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -653,6 +661,7 @@ function SolicitudDialog({
       setDescripcion("");
       setFechaEntrega("");
       setUrlReferencia("");
+      setSelectedSupervisorId("");
     },
     onError: (error: Error) => {
       toast({
@@ -673,14 +682,31 @@ function SolicitudDialog({
       return;
     }
 
-    createMutation.mutate({
+    // Si es admin, debe seleccionar un supervisor
+    if (user?.role === 'admin' && !selectedSupervisorId) {
+      toast({
+        title: "Error",
+        description: "Debe seleccionar un supervisor",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const data: any = {
       titulo,
       descripcion,
       mes,
       anio,
       fechaEntrega: fechaEntrega || null,
       urlReferencia: urlReferencia || null,
-    });
+    };
+
+    // Si es admin, incluir supervisorId
+    if (user?.role === 'admin') {
+      data.supervisorId = selectedSupervisorId;
+    }
+
+    createMutation.mutate(data);
   };
 
   return (
@@ -714,6 +740,26 @@ function SolicitudDialog({
               data-testid="input-descripcion"
             />
           </div>
+          {user?.role === 'admin' && (
+            <div>
+              <Label htmlFor="supervisor">Supervisor*</Label>
+              <Select value={selectedSupervisorId} onValueChange={setSelectedSupervisorId}>
+                <SelectTrigger data-testid="select-supervisor">
+                  <SelectValue placeholder="Seleccione un supervisor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {supervisores.map((supervisor: any) => (
+                    <SelectItem key={supervisor.id} value={supervisor.id} data-testid={`option-supervisor-${supervisor.id}`}>
+                      {supervisor.salespersonName || `${supervisor.firstName} ${supervisor.lastName}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Seleccione el supervisor que realiza la solicitud
+              </p>
+            </div>
+          )}
           <div>
             <Label htmlFor="fechaEntrega">Fecha de Entrega Esperada</Label>
             <Input

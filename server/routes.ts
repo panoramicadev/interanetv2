@@ -7509,16 +7509,37 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Only supervisor can create solicitudes
-      if (user.role !== 'supervisor') {
-        return res.status(403).json({ message: 'Solo supervisores pueden crear solicitudes' });
+      // Only supervisor and admin can create solicitudes
+      if (user.role !== 'supervisor' && user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo supervisores y administradores pueden crear solicitudes' });
       }
       
-      const supervisorName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      let supervisorId = user.id;
+      let supervisorName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      
+      // If admin is creating, they must specify supervisorId
+      if (user.role === 'admin') {
+        if (!req.body.supervisorId) {
+          return res.status(400).json({ message: 'Debe especificar el supervisor' });
+        }
+        
+        // Get supervisor info
+        const supervisor = await storage.getUserById(req.body.supervisorId);
+        if (!supervisor) {
+          return res.status(404).json({ message: 'Supervisor no encontrado' });
+        }
+        
+        if (supervisor.role !== 'supervisor') {
+          return res.status(400).json({ message: 'El usuario seleccionado debe ser supervisor' });
+        }
+        
+        supervisorId = supervisor.id;
+        supervisorName = supervisor.salespersonName || `${supervisor.firstName} ${supervisor.lastName}`;
+      }
       
       const solicitud = await storage.createSolicitudMarketing({
         ...req.body,
-        supervisorId: user.id,
+        supervisorId,
         supervisorName,
       });
       
