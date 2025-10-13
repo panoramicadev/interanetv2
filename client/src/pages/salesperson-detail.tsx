@@ -288,38 +288,66 @@ export default function SalespersonDetail({
             )}
           </div>
 
-          {/* Dashboard Filters Info (when embedded) */}
+          {/* Dashboard Filters Info & Salesperson Selector (when embedded) */}
           {embedded && dashboardGlobalFilter && (
-            <div className="mb-4 pb-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="text-gray-700 font-medium">Filtros del Dashboard:</span>
-                  
-                  {/* Vista Info */}
-                  <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-lg border border-blue-200">
-                    <Filter className="h-3.5 w-3.5" />
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <span className="text-gray-700 font-medium">Filtros del Dashboard:</span>
+                
+                {/* Vista Info */}
+                <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-lg border border-blue-200">
+                  <Filter className="h-3.5 w-3.5" />
+                  <span>
+                    {dashboardGlobalFilter.type === "all" && "Todos"}
+                    {dashboardGlobalFilter.type === "global" && "Solo metas globales"}
+                    {dashboardGlobalFilter.type === "segment" && `Segmento: ${dashboardGlobalFilter.value}`}
+                    {dashboardGlobalFilter.type === "salesperson" && `Vendedor: ${dashboardGlobalFilter.value}`}
+                  </span>
+                </div>
+
+                {/* Period Info */}
+                {dashboardFilterType && (
+                  <div className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200">
+                    <CalendarIcon className="h-3.5 w-3.5" />
                     <span>
-                      {dashboardGlobalFilter.type === "all" && "Todos"}
-                      {dashboardGlobalFilter.type === "global" && "Solo metas globales"}
-                      {dashboardGlobalFilter.type === "segment" && `Segmento: ${dashboardGlobalFilter.value}`}
-                      {dashboardGlobalFilter.type === "salesperson" && `Vendedor: ${dashboardGlobalFilter.value}`}
+                      {dashboardFilterType === "day" && (dashboardSelectedPeriod ? `Día: ${format(new Date(dashboardSelectedPeriod), "dd/MM/yyyy")}` : "Día")}
+                      {dashboardFilterType === "month" && (dashboardSelectedPeriod ? `Mes: ${format(new Date(dashboardSelectedPeriod + "-01"), "MMM yyyy")}` : "Mes")}
+                      {dashboardFilterType === "year" && (dashboardSelectedPeriod ? `Año: ${dashboardSelectedPeriod}` : "Año")}
+                      {dashboardFilterType === "range" && (dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_") ? 
+                        `Rango: ${format(new Date(dashboardSelectedPeriod.split("_")[0]), "dd/MM")} - ${format(new Date(dashboardSelectedPeriod.split("_")[1]), "dd/MM")}` : "Rango")}
                     </span>
                   </div>
+                )}
+              </div>
 
-                  {/* Period Info */}
-                  {dashboardFilterType && (
-                    <div className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200">
-                      <CalendarIcon className="h-3.5 w-3.5" />
-                      <span>
-                        {dashboardFilterType === "day" && (dashboardSelectedPeriod ? `Día: ${format(new Date(dashboardSelectedPeriod), "dd/MM/yyyy")}` : "Día")}
-                        {dashboardFilterType === "month" && (dashboardSelectedPeriod ? `Mes: ${format(new Date(dashboardSelectedPeriod + "-01"), "MMM yyyy")}` : "Mes")}
-                        {dashboardFilterType === "year" && (dashboardSelectedPeriod ? `Año: ${dashboardSelectedPeriod}` : "Año")}
-                        {dashboardFilterType === "range" && (dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_") ? 
-                          `Rango: ${format(new Date(dashboardSelectedPeriod.split("_")[0]), "dd/MM")} - ${format(new Date(dashboardSelectedPeriod.split("_")[1]), "dd/MM")}` : "Rango")}
-                      </span>
-                    </div>
-                  )}
-                </div>
+              <div className="flex items-center gap-3">
+                {/* Salesperson Selector */}
+                {onSalespersonChange && allSalespeople.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                      Cambiar a:
+                    </label>
+                    <Select 
+                      value={salespersonName || ""} 
+                      onValueChange={(value) => {
+                        if (onSalespersonChange) {
+                          onSalespersonChange(value);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-64 rounded-xl border-gray-200 shadow-sm text-sm">
+                        <SelectValue placeholder="Seleccionar vendedor" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-gray-200 max-h-80">
+                        {allSalespeople.map((sp) => (
+                          <SelectItem key={sp.salesperson} value={sp.salesperson}>
+                            {sp.salesperson}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {/* Action button to change filters */}
                 {onBack && (
@@ -335,34 +363,6 @@ export default function SalespersonDetail({
                   </Button>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Salesperson Selector - Only when embedded */}
-          {embedded && onSalespersonChange && allSalespeople.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                Cambiar a:
-              </label>
-              <Select 
-                value={salespersonName || ""} 
-                onValueChange={(value) => {
-                  if (onSalespersonChange) {
-                    onSalespersonChange(value);
-                  }
-                }}
-              >
-                <SelectTrigger className="w-80 rounded-xl border-gray-200 shadow-sm text-sm">
-                  <SelectValue placeholder="Seleccionar vendedor" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-gray-200 max-h-80">
-                  {allSalespeople.map((sp) => (
-                    <SelectItem key={sp.salesperson} value={sp.salesperson}>
-                      {sp.salesperson}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           )}
         </header>
