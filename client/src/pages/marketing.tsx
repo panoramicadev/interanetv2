@@ -42,7 +42,7 @@ interface SolicitudMarketing {
   id: string;
   titulo: string;
   descripcion: string;
-  monto: string;
+  monto: string | null;
   pdfUrl: string | null;
   estado: string;
   supervisorId: string | null;
@@ -424,7 +424,12 @@ function SolicitudesList({
                 <TableRow key={solicitud.id} data-testid={`row-solicitud-${solicitud.id}`}>
                   <TableCell className="font-medium">{solicitud.titulo}</TableCell>
                   <TableCell>{solicitud.supervisorName}</TableCell>
-                  <TableCell>${parseFloat(solicitud.monto).toLocaleString('es-CL')}</TableCell>
+                  <TableCell>
+                    {solicitud.monto 
+                      ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
+                      : <span className="text-muted-foreground italic">Pendiente</span>
+                    }
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant={
@@ -773,9 +778,10 @@ function EstadoDialog({
   const { toast } = useToast();
   const [nuevoEstado, setNuevoEstado] = useState("");
   const [motivoRechazo, setMotivoRechazo] = useState("");
+  const [monto, setMonto] = useState("");
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { estado: string; motivoRechazo?: string }) => {
+    mutationFn: async (data: { estado: string; motivoRechazo?: string; monto?: number }) => {
       const response = await apiRequest(`/api/marketing/solicitudes/${solicitud?.id}/estado`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -793,6 +799,7 @@ function EstadoDialog({
       onOpenChange(false);
       setNuevoEstado("");
       setMotivoRechazo("");
+      setMonto("");
     },
     onError: (error: Error) => {
       toast({
@@ -822,9 +829,32 @@ function EstadoDialog({
       return;
     }
 
+    // Si la solicitud no tiene monto y se está aprobando (en_proceso o completado), requerir monto
+    if (!solicitud?.monto && (nuevoEstado === 'en_proceso' || nuevoEstado === 'completado')) {
+      if (!monto) {
+        toast({
+          title: "Error",
+          description: "Debe ingresar el monto presupuestado",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const montoNum = parseFloat(monto);
+      if (isNaN(montoNum) || montoNum <= 0) {
+        toast({
+          title: "Error",
+          description: "Ingrese un monto válido",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     updateMutation.mutate({
       estado: nuevoEstado,
       motivoRechazo: nuevoEstado === 'rechazado' ? motivoRechazo : undefined,
+      monto: monto && !solicitud?.monto ? parseFloat(monto) : undefined,
     });
   };
 
@@ -863,6 +893,22 @@ function EstadoDialog({
               </SelectContent>
             </Select>
           </div>
+          {!solicitud?.monto && (nuevoEstado === 'en_proceso' || nuevoEstado === 'completado') && (
+            <div>
+              <Label htmlFor="monto">Monto Presupuestado (CLP)*</Label>
+              <Input
+                id="monto"
+                type="number"
+                placeholder="Ej: 500000"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                data-testid="input-monto-aprobacion"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Ingrese el monto luego de presupuestar la solicitud
+              </p>
+            </div>
+          )}
           {nuevoEstado === 'rechazado' && (
             <div>
               <Label htmlFor="motivoRechazo">Motivo de Rechazo*</Label>
