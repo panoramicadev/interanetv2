@@ -1073,12 +1073,16 @@ function InventarioMarketing({ userRole }: { userRole: string }) {
   const [inventarioDialogOpen, setInventarioDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
-  const { data: items = [], isLoading } = useQuery({
+  const { data: items = [], isLoading } = useQuery<any[]>({
     queryKey: ['/api/marketing/inventario', search],
     enabled: true,
   });
 
-  const { data: summary } = useQuery({
+  const { data: summary } = useQuery<{
+    totalItems: number;
+    stockBajo: number;
+    valorTotal: number;
+  }>({
     queryKey: ['/api/marketing/inventario/summary'],
     enabled: true,
   });
