@@ -18,7 +18,8 @@ import {
   ChevronDown,
   PaintBucket,
   Building2,
-  Wrench
+  Wrench,
+  AlertTriangle
 } from "lucide-react";
 
 interface SidebarItem {
@@ -93,6 +94,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/visitas-tecnicas",
       label: "Visita Técnica",
       icon: FileCheck,
+    },
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
     },
     {
       href: "/tintometria",
@@ -180,6 +186,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/visitas-tecnicas",
       label: "Visita Técnica",
       icon: FileCheck,
+    },
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
     },
     {
       href: "/tintometria",
@@ -310,6 +321,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/visitas-tecnicas",
       label: "Visitas Técnicas",
       icon: Wrench,
+    },
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
     },
     {
       href: "/clientes",
