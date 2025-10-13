@@ -7450,6 +7450,201 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ==================================================================================
+  // MARKETING MODULE routes
+  // ==================================================================================
+  
+  // Presupuesto Marketing routes
+  app.post('/api/marketing/presupuesto', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin can create/update presupuesto
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { mes, anio, presupuestoTotal } = req.body;
+      
+      // Check if presupuesto already exists for this period
+      const existing = await storage.getPresupuestoMarketing(mes, anio);
+      
+      if (existing) {
+        // Update existing
+        const updated = await storage.updatePresupuestoMarketing(existing.id, { presupuestoTotal });
+        return res.json(updated);
+      } else {
+        // Create new
+        const presupuesto = await storage.createPresupuestoMarketing({
+          mes,
+          anio,
+          presupuestoTotal,
+        });
+        return res.status(201).json(presupuesto);
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al guardar presupuesto', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/presupuesto/:mes/:anio', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const mes = parseInt(req.params.mes);
+      const anio = parseInt(req.params.anio);
+      
+      const presupuesto = await storage.getPresupuestoMarketing(mes, anio);
+      
+      if (!presupuesto) {
+        return res.status(404).json({ message: 'Presupuesto no encontrado' });
+      }
+      
+      res.json(presupuesto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener presupuesto', error: error.message });
+    }
+  }));
+
+  // Solicitudes Marketing routes
+  app.post('/api/marketing/solicitudes', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only supervisor can create solicitudes
+      if (user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'Solo supervisores pueden crear solicitudes' });
+      }
+      
+      const supervisorName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      
+      const solicitud = await storage.createSolicitudMarketing({
+        ...req.body,
+        supervisorId: user.id,
+        supervisorName,
+      });
+      
+      res.status(201).json(solicitud);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear solicitud', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/solicitudes', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { mes, anio, estado } = req.query;
+      
+      const filters: any = {};
+      
+      if (mes) filters.mes = parseInt(mes as string);
+      if (anio) filters.anio = parseInt(anio as string);
+      if (estado) filters.estado = estado as string;
+      
+      // Supervisors can only see their own solicitudes
+      if (user.role === 'supervisor') {
+        filters.supervisorId = user.id;
+      }
+      
+      const solicitudes = await storage.getSolicitudesMarketing(filters);
+      res.json(solicitudes);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener solicitudes', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/solicitudes/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const solicitud = await storage.getSolicitudMarketingById(req.params.id);
+      
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud no encontrada' });
+      }
+      
+      res.json(solicitud);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener solicitud', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/solicitudes/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const solicitud = await storage.getSolicitudMarketingById(req.params.id);
+      
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud no encontrada' });
+      }
+      
+      // Only admin can update estado, only supervisor can update their own solicitudes
+      if (req.body.estado && user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede cambiar el estado' });
+      }
+      
+      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const updated = await storage.updateSolicitudMarketing(req.params.id, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar solicitud', error: error.message });
+    }
+  }));
+
+  app.delete('/api/marketing/solicitudes/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin can delete
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      await storage.deleteSolicitudMarketing(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar solicitud', error: error.message });
+    }
+  }));
+
+  // Cambiar estado de solicitud
+  app.post('/api/marketing/solicitudes/:id/estado', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { estado, motivoRechazo } = req.body;
+      
+      // Only admin can change estado
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede cambiar el estado' });
+      }
+      
+      if (!estado) {
+        return res.status(400).json({ message: 'Estado es requerido' });
+      }
+      
+      if (estado === 'rechazado' && !motivoRechazo) {
+        return res.status(400).json({ message: 'Motivo de rechazo es requerido' });
+      }
+      
+      const solicitud = await storage.updateSolicitudMarketingEstado(req.params.id, estado, motivoRechazo);
+      res.json(solicitud);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al cambiar estado', error: error.message });
+    }
+  }));
+
+  // Marketing metrics
+  app.get('/api/marketing/metrics/:mes/:anio', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const mes = parseInt(req.params.mes);
+      const anio = parseInt(req.params.anio);
+      
+      const metrics = await storage.getMarketingMetrics(mes, anio);
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener métricas', error: error.message });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
