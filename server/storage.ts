@@ -1010,6 +1010,27 @@ export interface IStorage {
       rechazado: number;
     };
   }>;
+
+  // ==================================================================================
+  // INVENTORY operations
+  // ==================================================================================
+  
+  getInventory(filters?: {
+    search?: string;
+    warehouse?: string;
+  }): Promise<any[]>;
+  
+  getInventorySummary(filters?: {
+    search?: string;
+    warehouse?: string;
+  }): Promise<{
+    totalProducts: number;
+    totalQuantity: number;
+    totalAvailable: number;
+    lowStock: number;
+  }>;
+  
+  getWarehouses(): Promise<{ code: string; name: string }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -10274,6 +10295,96 @@ export class DatabaseStorage implements IStorage {
       totalSolicitudes: solicitudes.length,
       solicitudesPorEstado,
     };
+  }
+
+  // ==================================================================================
+  // INVENTORY operations
+  // ==================================================================================
+  
+  async getInventory(filters?: {
+    search?: string;
+    warehouse?: string;
+  }): Promise<any[]> {
+    let query = db
+      .select({
+        id: productStock.id,
+        productSku: productStock.productSku,
+        productName: products.nokopr,
+        warehouseCode: productStock.warehouseCode,
+        warehouseName: warehouses.name,
+        quantity: productStock.physicalStock1,
+        reservedQuantity: productStock.committedStock1,
+        availableQuantity: productStock.availableStock1,
+        lastUpdated: productStock.lastUpdated,
+      })
+      .from(productStock)
+      .leftJoin(products, eq(productStock.productSku, products.kopr))
+      .leftJoin(warehouses, eq(productStock.warehouseCode, warehouses.code));
+    
+    const conditions = [];
+    
+    if (filters?.search) {
+      const searchTerm = `%${filters.search.toLowerCase()}%`;
+      conditions.push(
+        or(
+          ilike(productStock.productSku, searchTerm),
+          ilike(products.nokopr, searchTerm)
+        )
+      );
+    }
+    
+    if (filters?.warehouse) {
+      conditions.push(eq(productStock.warehouseCode, filters.warehouse));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    const results = await query.orderBy(asc(productStock.productSku));
+    
+    return results.map(row => ({
+      ...row,
+      quantity: parseFloat(row.quantity as any) || 0,
+      reservedQuantity: parseFloat(row.reservedQuantity as any) || 0,
+      availableQuantity: parseFloat(row.availableQuantity as any) || 0,
+    }));
+  }
+  
+  async getInventorySummary(filters?: {
+    search?: string;
+    warehouse?: string;
+  }): Promise<{
+    totalProducts: number;
+    totalQuantity: number;
+    totalAvailable: number;
+    lowStock: number;
+  }> {
+    const inventory = await this.getInventory(filters);
+    
+    const totalProducts = inventory.length;
+    const totalQuantity = inventory.reduce((sum, item) => sum + item.quantity, 0);
+    const totalAvailable = inventory.reduce((sum, item) => sum + item.availableQuantity, 0);
+    const lowStock = inventory.filter(item => item.availableQuantity < 10 && item.availableQuantity > 0).length;
+    
+    return {
+      totalProducts,
+      totalQuantity,
+      totalAvailable,
+      lowStock,
+    };
+  }
+  
+  async getWarehouses(): Promise<{ code: string; name: string }[]> {
+    const results = await db
+      .select({
+        code: warehouses.code,
+        name: warehouses.name,
+      })
+      .from(warehouses)
+      .orderBy(asc(warehouses.name));
+    
+    return results;
   }
 
 }

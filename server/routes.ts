@@ -7645,6 +7645,52 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ==================================================================================
+  // INVENTORY routes
+  // ==================================================================================
+  
+  // Get inventory with filters
+  app.get('/api/inventory', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { search, warehouse } = req.query;
+      
+      const filters: any = {};
+      if (search) filters.search = search;
+      if (warehouse) filters.warehouse = warehouse;
+      
+      const inventory = await storage.getInventory(filters);
+      res.json(inventory);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener inventario', error: error.message });
+    }
+  }));
+
+  // Get inventory summary
+  app.get('/api/inventory/summary', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { search, warehouse } = req.query;
+      
+      const filters: any = {};
+      if (search) filters.search = search;
+      if (warehouse) filters.warehouse = warehouse;
+      
+      const summary = await storage.getInventorySummary(filters);
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener resumen de inventario', error: error.message });
+    }
+  }));
+
+  // Get warehouses list
+  app.get('/api/warehouses', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const warehouses = await storage.getWarehouses();
+      res.json(warehouses);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener bodegas', error: error.message });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
