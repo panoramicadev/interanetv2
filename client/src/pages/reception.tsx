@@ -7,9 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { FileText, Package, DollarSign, Eye, CheckCircle, XCircle } from "lucide-react";
+import { FileText, Package, DollarSign, Eye, CheckCircle, XCircle, Download, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { pdf } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 
 interface Quote {
   id: string;
@@ -51,6 +53,125 @@ interface QuoteItem {
 interface QuoteWithItems extends Quote {
   items: QuoteItem[];
 }
+
+// PDF Styles
+const pdfStyles = StyleSheet.create({
+  page: {
+    padding: 40,
+    fontSize: 9,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  section: {
+    marginBottom: 15,
+  },
+  table: {
+    marginTop: 10,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingVertical: 8,
+  },
+  tableHeader: {
+    backgroundColor: '#f3f4f6',
+    fontWeight: 'bold',
+  },
+  col1: { width: '40%', paddingRight: 5 },
+  col2: { width: '15%', paddingRight: 5, textAlign: 'right' },
+  col3: { width: '15%', paddingRight: 5, textAlign: 'right' },
+  col4: { width: '15%', paddingRight: 5, textAlign: 'right' },
+  col5: { width: '15%', textAlign: 'right' },
+  totals: {
+    marginTop: 20,
+    alignItems: 'flex-end',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: 200,
+    marginBottom: 5,
+  },
+});
+
+// PDF Document Component
+const QuotePDFDocument = ({ quote, items }: { quote: QuoteWithItems; items: QuoteItem[] }) => {
+  const formatCurrency = (value: number | string) => {
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    return `$${num.toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  };
+
+  return (
+    <Document>
+      <Page size="A4" style={pdfStyles.page}>
+        <View style={pdfStyles.header}>
+          <View>
+            <Text style={pdfStyles.title}>PRESUPUESTO</Text>
+            <Text>N° {quote.quoteNumber}</Text>
+            <Text>Fecha: {format(new Date(quote.createdAt), 'dd/MM/yyyy')}</Text>
+          </View>
+        </View>
+
+        <View style={pdfStyles.section}>
+          <Text style={{ fontWeight: 'bold', marginBottom: 5 }}>Cliente:</Text>
+          <Text>{quote.clientName}</Text>
+          {quote.clientRut && <Text>RUT: {quote.clientRut}</Text>}
+          {quote.clientEmail && <Text>Email: {quote.clientEmail}</Text>}
+          {quote.clientPhone && <Text>Teléfono: {quote.clientPhone}</Text>}
+        </View>
+
+        <View style={pdfStyles.table}>
+          <View style={[pdfStyles.tableRow, pdfStyles.tableHeader]}>
+            <Text style={pdfStyles.col1}>Producto</Text>
+            <Text style={pdfStyles.col2}>SKU</Text>
+            <Text style={pdfStyles.col3}>Cantidad</Text>
+            <Text style={pdfStyles.col4}>P. Unit.</Text>
+            <Text style={pdfStyles.col5}>Total</Text>
+          </View>
+          {items.map((item, index) => (
+            <View key={index} style={pdfStyles.tableRow}>
+              <Text style={pdfStyles.col1}>{item.productName}</Text>
+              <Text style={pdfStyles.col2}>{item.type === 'custom' ? item.customSku : item.productCode}</Text>
+              <Text style={pdfStyles.col3}>{item.quantity}</Text>
+              <Text style={pdfStyles.col4}>{formatCurrency(Number(item.unitPrice))}</Text>
+              <Text style={pdfStyles.col5}>{formatCurrency(Number(item.totalPrice))}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={pdfStyles.totals}>
+          <View style={pdfStyles.totalRow}>
+            <Text>Subtotal:</Text>
+            <Text>{formatCurrency(Number(quote.subtotal))}</Text>
+          </View>
+          {quote.discount && Number(quote.discount) > 0 && (
+            <View style={pdfStyles.totalRow}>
+              <Text>Descuento:</Text>
+              <Text>-{formatCurrency(Number(quote.discount))}</Text>
+            </View>
+          )}
+          <View style={pdfStyles.totalRow}>
+            <Text>IVA ({quote.taxRate || 19}%):</Text>
+            <Text>{formatCurrency(Number(quote.taxAmount || 0))}</Text>
+          </View>
+          <View style={[pdfStyles.totalRow, { borderTopWidth: 1, paddingTop: 5 }]}>
+            <Text style={{ fontWeight: 'bold' }}>Total:</Text>
+            <Text style={{ fontWeight: 'bold' }}>{formatCurrency(Number(quote.total))}</Text>
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+};
 
 export default function Reception() {
   const { user, isLoading } = useAuth();
@@ -156,6 +277,74 @@ export default function Reception() {
   const handleReject = () => {
     if (!selectedQuoteId) return;
     updateStatusMutation.mutate({ quoteId: selectedQuoteId, status: "rejected" });
+  };
+
+  const generatePDFFilename = (clientName: string, createdAt: string | Date, quoteNumber: string): string => {
+    const cleanName = clientName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9\s]/g, "")
+      .replace(/\s+/g, "")
+      .substring(0, 30);
+    
+    const date = new Date(createdAt);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2);
+    
+    const quoteNum = String(quoteNumber).padStart(3, '0');
+    
+    return `${cleanName}-${day}${month}${year}-${quoteNum}.pdf`;
+  };
+
+  const handleDownloadPDF = async (quote: QuoteWithItems) => {
+    try {
+      if (!quote.items || quote.items.length === 0) {
+        toast({
+          title: "Error",
+          description: "No se pueden generar PDFs de presupuestos sin productos.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const pdfBlob = await pdf(<QuotePDFDocument quote={quote} items={quote.items} />).toBlob();
+      const url = URL.createObjectURL(pdfBlob);
+      
+      const pdfFilename = generatePDFFilename(
+        quote.clientName || 'Cliente',
+        quote.createdAt || new Date(),
+        quote.quoteNumber || 'XXX'
+      );
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = pdfFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "PDF descargado",
+        description: `El archivo ${pdfFilename} se ha descargado correctamente.`,
+      });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo generar el PDF.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadRandomFile = (quote: Quote) => {
+    // Placeholder para el archivo random - por ahora solo muestra un mensaje
+    toast({
+      title: "Función en desarrollo",
+      description: "La descarga del Archivo Random estará disponible próximamente.",
+    });
   };
 
   if (isLoading || !user) {
@@ -270,7 +459,7 @@ export default function Reception() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 ml-4">
+                    <div className="flex items-center gap-3 ml-4">
                       <div className="text-right">
                         <div className="text-lg font-bold text-gray-900">
                           {formatCurrency(Number(quote.total || 0))}
@@ -279,18 +468,44 @@ export default function Reception() {
                           Subtotal: {formatCurrency(Number(quote.subtotal || 0))}
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewQuote(quote.id);
-                        }}
-                        data-testid={`button-view-quote-${quote.id}`}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Ver
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewQuote(quote.id);
+                          }}
+                          data-testid={`button-view-quote-${quote.id}`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const quoteWithItems = await queryClient.fetchQuery({
+                              queryKey: ["/api/quotes", quote.id, "with-items"],
+                            });
+                            handleDownloadPDF(quoteWithItems);
+                          }}
+                          data-testid={`button-download-pdf-${quote.id}`}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadRandomFile(quote);
+                          }}
+                          data-testid={`button-download-random-${quote.id}`}
+                        >
+                          <FileDown className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -441,30 +656,52 @@ export default function Reception() {
                   </div>
                 </div>
 
-                {/* Action Buttons - Only show for sent quotes */}
-                {selectedQuote.status === 'sent' && (
-                  <div className="border-t pt-6 flex gap-3 justify-end">
+                {/* Download Buttons */}
+                <div className="border-t pt-6 flex gap-3 justify-between">
+                  <div className="flex gap-3">
                     <Button
                       variant="outline"
-                      onClick={handleReject}
-                      disabled={updateStatusMutation.isPending}
-                      className="border-red-300 text-red-700 hover:bg-red-50"
-                      data-testid="button-reject-quote"
+                      onClick={() => handleDownloadPDF(selectedQuote)}
+                      data-testid="button-modal-download-pdf"
                     >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      {updateStatusMutation.isPending ? "Procesando..." : "Rechazar"}
+                      <Download className="h-4 w-4 mr-2" />
+                      Descargar PDF
                     </Button>
                     <Button
-                      onClick={handleConvertToOrder}
-                      disabled={updateStatusMutation.isPending}
-                      className="bg-green-600 hover:bg-green-700"
-                      data-testid="button-convert-quote"
+                      variant="outline"
+                      onClick={() => handleDownloadRandomFile(selectedQuote)}
+                      data-testid="button-modal-download-random"
                     >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      {updateStatusMutation.isPending ? "Procesando..." : "Convertir a Pedido"}
+                      <FileDown className="h-4 w-4 mr-2" />
+                      Archivo Random
                     </Button>
                   </div>
-                )}
+
+                  {/* Action Buttons - Only show for sent quotes */}
+                  {selectedQuote.status === 'sent' && (
+                    <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={handleReject}
+                        disabled={updateStatusMutation.isPending}
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                        data-testid="button-reject-quote"
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        {updateStatusMutation.isPending ? "Procesando..." : "Rechazar"}
+                      </Button>
+                      <Button
+                        onClick={handleConvertToOrder}
+                        disabled={updateStatusMutation.isPending}
+                        className="bg-green-600 hover:bg-green-700"
+                        data-testid="button-convert-quote"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        {updateStatusMutation.isPending ? "Procesando..." : "Convertir a Pedido"}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : null}
           </DialogContent>
