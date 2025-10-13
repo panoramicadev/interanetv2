@@ -3257,3 +3257,37 @@ export const insertSolicitudMarketingSchema = createInsertSchema(solicitudesMark
   mes: z.number().min(1).max(12),
   anio: z.number().min(2020).max(2100),
 });
+
+// Tabla de inventario de marketing
+export const inventarioMarketing = pgTable("inventario_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  cantidad: integer("cantidad").notNull().default(0),
+  unidad: varchar("unidad", { length: 50 }).notNull().default("unidades"), // unidades, paquetes, cajas, etc
+  ubicacion: varchar("ubicacion", { length: 255 }), // bodega o ubicación física
+  costoUnitario: numeric("costo_unitario", { precision: 15, scale: 2 }),
+  proveedor: varchar("proveedor", { length: 255 }),
+  estado: varchar("estado").notNull().default("disponible"), // disponible, agotado, por_llegar
+  stockMinimo: integer("stock_minimo").default(0), // Alerta de stock bajo
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Types
+export type InventarioMarketing = typeof inventarioMarketing.$inferSelect;
+export type InsertInventarioMarketing = typeof inventarioMarketing.$inferInsert;
+
+// Schema de validación
+export const insertInventarioMarketingSchema = createInsertSchema(inventarioMarketing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  nombre: z.string().min(1, "El nombre es requerido"),
+  cantidad: z.number().min(0, "La cantidad no puede ser negativa"),
+  unidad: z.string().min(1, "La unidad es requerida"),
+  estado: z.enum(["disponible", "agotado", "por_llegar"]).default("disponible"),
+  costoUnitario: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val).optional(),
+  stockMinimo: z.number().min(0).optional(),
+});
