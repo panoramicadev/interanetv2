@@ -995,7 +995,7 @@ export interface IStorage {
   deleteSolicitudMarketing(id: string): Promise<void>;
   
   // Cambiar estado de solicitud
-  updateSolicitudMarketingEstado(id: string, nuevoEstado: string, motivoRechazo?: string): Promise<SolicitudMarketing>;
+  updateSolicitudMarketingEstado(id: string, nuevoEstado: string, motivoRechazo?: string, monto?: number): Promise<SolicitudMarketing>;
   
   // Métricas de marketing
   getMarketingMetrics(mes: number, anio: number): Promise<{
@@ -10233,7 +10233,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Cambiar estado de solicitud
-  async updateSolicitudMarketingEstado(id: string, nuevoEstado: string, motivoRechazo?: string): Promise<SolicitudMarketing> {
+  async updateSolicitudMarketingEstado(id: string, nuevoEstado: string, motivoRechazo?: string, monto?: number): Promise<SolicitudMarketing> {
     const updateData: any = {
       estado: nuevoEstado,
       updatedAt: new Date(),
@@ -10245,6 +10245,10 @@ export class DatabaseStorage implements IStorage {
     
     if (nuevoEstado === 'rechazado' && motivoRechazo) {
       updateData.motivoRechazo = motivoRechazo;
+    }
+    
+    if (monto !== undefined) {
+      updateData.monto = monto.toString();
     }
     
     const [result] = await db
