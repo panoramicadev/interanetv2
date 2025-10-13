@@ -17,6 +17,10 @@ interface Quote {
   total: number;
   createdAt: string;
   salespersonName?: string;
+  creatorName?: string;
+  creatorEmail?: string;
+  creatorFirstName?: string;
+  creatorLastName?: string;
 }
 
 export default function Reception() {
@@ -150,13 +154,18 @@ export default function Reception() {
                           Enviado
                         </Badge>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm text-gray-600">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm text-gray-600">
                         <div>
                           <span className="font-medium">Cliente:</span> {quote.clientName}
                         </div>
                         <div>
                           <span className="font-medium">Fecha:</span> {formatDate(quote.createdAt)}
                         </div>
+                        {quote.creatorName && (
+                          <div>
+                            <span className="font-medium">Enviado por:</span> {quote.creatorName}
+                          </div>
+                        )}
                         {quote.salespersonName && (
                           <div>
                             <span className="font-medium">Vendedor:</span> {quote.salespersonName}
