@@ -118,6 +118,16 @@ import {
   type InsertReceta,
   type Parametro,
   type InsertParametro,
+  // Reclamos Generales tables
+  reclamosGenerales,
+  reclamosGeneralesPhotos,
+  reclamosGeneralesHistorial,
+  type ReclamoGeneral,
+  type InsertReclamoGeneral,
+  type ReclamoGeneralPhoto,
+  type InsertReclamoGeneralPhoto,
+  type ReclamoGeneralHistorial,
+  type InsertReclamoGeneralHistorial,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
@@ -906,6 +916,53 @@ export interface IStorage {
   recordFileUpload(upload: InsertFileUpload): Promise<FileUpload>;
   getLastFileUpload(fileType?: string): Promise<FileUpload | undefined>;
   getFileUploadHistory(fileType?: string, limit?: number): Promise<FileUpload[]>;
+
+  // Reclamos Generales operations
+  createReclamoGeneral(reclamo: InsertReclamoGeneral): Promise<ReclamoGeneral>;
+  getReclamosGenerales(filters?: {
+    vendedorId?: string;
+    tecnicoId?: string;
+    estado?: string;
+    gravedad?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ReclamoGeneral[]>;
+  getReclamoGeneralById(id: string): Promise<ReclamoGeneral | undefined>;
+  updateReclamoGeneral(id: string, updates: Partial<InsertReclamoGeneral>): Promise<ReclamoGeneral>;
+  deleteReclamoGeneral(id: string): Promise<void>;
+
+  // Reclamos Generales Photos operations
+  createReclamoGeneralPhoto(photo: InsertReclamoGeneralPhoto): Promise<ReclamoGeneralPhoto>;
+  getReclamoGeneralPhotos(reclamoId: string): Promise<ReclamoGeneralPhoto[]>;
+  deleteReclamoGeneralPhoto(id: string): Promise<void>;
+
+  // Reclamos Generales Historial operations
+  createReclamoGeneralHistorial(historial: InsertReclamoGeneralHistorial): Promise<ReclamoGeneralHistorial>;
+  getReclamoGeneralHistorial(reclamoId: string): Promise<ReclamoGeneralHistorial[]>;
+
+  // Combined operations
+  getReclamoGeneralWithDetails(id: string): Promise<(ReclamoGeneral & { 
+    photos: ReclamoGeneralPhoto[];
+    historial: ReclamoGeneralHistorial[];
+  }) | undefined>;
+  
+  // Asignar técnico y cambiar estado
+  assignTecnicoToReclamo(id: string, tecnicoId: string, tecnicoName: string, userId: string, userName: string): Promise<ReclamoGeneral>;
+  
+  // Cambiar estado del reclamo
+  updateReclamoGeneralEstado(id: string, nuevoEstado: string, userId: string, userName: string, notas?: string): Promise<ReclamoGeneral>;
+  
+  // Derivar a laboratorio o producción
+  derivarReclamoGeneralLaboratorio(id: string, userId: string, userName: string): Promise<ReclamoGeneral>;
+  derivarReclamoGeneralProduccion(id: string, userId: string, userName: string): Promise<ReclamoGeneral>;
+  
+  // Informes
+  updateInformeLaboratorio(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
+  updateInformeProduccion(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
+  updateInformeTecnico(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
+  
+  // Cerrar reclamo
+  cerrarReclamoGeneral(id: string, userId: string, userName: string, notas?: string): Promise<ReclamoGeneral>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -9570,6 +9627,427 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     
     return admin?.id || null;
+  }
+
+  // ==================================================================================
+  // RECLAMOS GENERALES OPERATIONS
+  // ==================================================================================
+
+  async createReclamoGeneral(reclamo: InsertReclamoGeneral): Promise<ReclamoGeneral> {
+    const [newReclamo] = await db
+      .insert(reclamosGenerales)
+      .values(reclamo)
+      .returning();
+    
+    // Create initial historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: newReclamo.id,
+      estadoAnterior: null,
+      estadoNuevo: newReclamo.estado,
+      userId: reclamo.vendedorId,
+      userName: reclamo.vendedorName || '',
+      notas: 'Reclamo creado',
+    });
+    
+    return newReclamo;
+  }
+
+  async getReclamosGenerales(filters?: {
+    vendedorId?: string;
+    tecnicoId?: string;
+    estado?: string;
+    gravedad?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ReclamoGeneral[]> {
+    const conditions = [];
+    
+    if (filters?.vendedorId) {
+      conditions.push(eq(reclamosGenerales.vendedorId, filters.vendedorId));
+    }
+    
+    if (filters?.tecnicoId) {
+      conditions.push(eq(reclamosGenerales.tecnicoId, filters.tecnicoId));
+    }
+    
+    if (filters?.estado) {
+      conditions.push(eq(reclamosGenerales.estado, filters.estado));
+    }
+    
+    if (filters?.gravedad) {
+      conditions.push(eq(reclamosGenerales.gravedad, filters.gravedad));
+    }
+    
+    let query = db
+      .select()
+      .from(reclamosGenerales)
+      .orderBy(desc(reclamosGenerales.fechaRegistro));
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+    
+    if (filters?.offset) {
+      query = query.offset(filters.offset);
+    }
+    
+    return await query;
+  }
+
+  async getReclamoGeneralById(id: string): Promise<ReclamoGeneral | undefined> {
+    const [reclamo] = await db
+      .select()
+      .from(reclamosGenerales)
+      .where(eq(reclamosGenerales.id, id));
+    
+    return reclamo;
+  }
+
+  async updateReclamoGeneral(id: string, updates: Partial<InsertReclamoGeneral>): Promise<ReclamoGeneral> {
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    return updated;
+  }
+
+  async deleteReclamoGeneral(id: string): Promise<void> {
+    await db.delete(reclamosGenerales).where(eq(reclamosGenerales.id, id));
+  }
+
+  // Reclamos Generales Photos operations
+  async createReclamoGeneralPhoto(photo: InsertReclamoGeneralPhoto): Promise<ReclamoGeneralPhoto> {
+    const [newPhoto] = await db
+      .insert(reclamosGeneralesPhotos)
+      .values(photo)
+      .returning();
+    
+    return newPhoto;
+  }
+
+  async getReclamoGeneralPhotos(reclamoId: string): Promise<ReclamoGeneralPhoto[]> {
+    return await db
+      .select()
+      .from(reclamosGeneralesPhotos)
+      .where(eq(reclamosGeneralesPhotos.reclamoId, reclamoId))
+      .orderBy(desc(reclamosGeneralesPhotos.uploadedAt));
+  }
+
+  async deleteReclamoGeneralPhoto(id: string): Promise<void> {
+    await db.delete(reclamosGeneralesPhotos).where(eq(reclamosGeneralesPhotos.id, id));
+  }
+
+  // Reclamos Generales Historial operations
+  async createReclamoGeneralHistorial(historial: InsertReclamoGeneralHistorial): Promise<ReclamoGeneralHistorial> {
+    const [newHistorial] = await db
+      .insert(reclamosGeneralesHistorial)
+      .values(historial)
+      .returning();
+    
+    return newHistorial;
+  }
+
+  async getReclamoGeneralHistorial(reclamoId: string): Promise<ReclamoGeneralHistorial[]> {
+    return await db
+      .select()
+      .from(reclamosGeneralesHistorial)
+      .where(eq(reclamosGeneralesHistorial.reclamoId, reclamoId))
+      .orderBy(desc(reclamosGeneralesHistorial.createdAt));
+  }
+
+  // Combined operations
+  async getReclamoGeneralWithDetails(id: string): Promise<(ReclamoGeneral & { 
+    photos: ReclamoGeneralPhoto[];
+    historial: ReclamoGeneralHistorial[];
+  }) | undefined> {
+    const reclamo = await this.getReclamoGeneralById(id);
+    
+    if (!reclamo) {
+      return undefined;
+    }
+    
+    const photos = await this.getReclamoGeneralPhotos(id);
+    const historial = await this.getReclamoGeneralHistorial(id);
+    
+    return {
+      ...reclamo,
+      photos,
+      historial,
+    };
+  }
+
+  // Asignar técnico y cambiar estado
+  async assignTecnicoToReclamo(
+    id: string, 
+    tecnicoId: string, 
+    tecnicoName: string, 
+    userId: string, 
+    userName: string
+  ): Promise<ReclamoGeneral> {
+    const reclamo = await this.getReclamoGeneralById(id);
+    
+    if (!reclamo) {
+      throw new Error('Reclamo not found');
+    }
+    
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        tecnicoId,
+        tecnicoName,
+        estado: 'en_revision_tecnica',
+        fechaAsignacionTecnico: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: reclamo.estado,
+      estadoNuevo: 'en_revision_tecnica',
+      userId,
+      userName,
+      notas: `Técnico asignado: ${tecnicoName}`,
+    });
+    
+    return updated;
+  }
+
+  // Cambiar estado del reclamo
+  async updateReclamoGeneralEstado(
+    id: string, 
+    nuevoEstado: string, 
+    userId: string, 
+    userName: string, 
+    notas?: string
+  ): Promise<ReclamoGeneral> {
+    const reclamo = await this.getReclamoGeneralById(id);
+    
+    if (!reclamo) {
+      throw new Error('Reclamo not found');
+    }
+    
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        estado: nuevoEstado,
+        updatedAt: new Date(),
+      })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: reclamo.estado,
+      estadoNuevo: nuevoEstado,
+      userId,
+      userName,
+      notas: notas || `Estado actualizado a ${nuevoEstado}`,
+    });
+    
+    return updated;
+  }
+
+  // Derivar a laboratorio
+  async derivarReclamoGeneralLaboratorio(
+    id: string, 
+    userId: string, 
+    userName: string
+  ): Promise<ReclamoGeneral> {
+    const reclamo = await this.getReclamoGeneralById(id);
+    
+    if (!reclamo) {
+      throw new Error('Reclamo not found');
+    }
+    
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        derivadoLaboratorio: true,
+        estado: 'en_laboratorio',
+        fechaEnvioLaboratorio: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: reclamo.estado,
+      estadoNuevo: 'en_laboratorio',
+      userId,
+      userName,
+      notas: 'Reclamo derivado a laboratorio',
+    });
+    
+    return updated;
+  }
+
+  // Derivar a producción
+  async derivarReclamoGeneralProduccion(
+    id: string, 
+    userId: string, 
+    userName: string
+  ): Promise<ReclamoGeneral> {
+    const reclamo = await this.getReclamoGeneralById(id);
+    
+    if (!reclamo) {
+      throw new Error('Reclamo not found');
+    }
+    
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        derivadoProduccion: true,
+        estado: 'en_produccion',
+        updatedAt: new Date(),
+      })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: reclamo.estado,
+      estadoNuevo: 'en_produccion',
+      userId,
+      userName,
+      notas: 'Reclamo derivado a producción',
+    });
+    
+    return updated;
+  }
+
+  // Update informes
+  async updateInformeLaboratorio(
+    id: string, 
+    informe: string, 
+    userId: string, 
+    userName: string
+  ): Promise<ReclamoGeneral> {
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        informeLaboratorio: informe,
+        fechaRespuestaLaboratorio: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: null,
+      estadoNuevo: updated.estado,
+      userId,
+      userName,
+      notas: 'Informe de laboratorio agregado',
+    });
+    
+    return updated;
+  }
+
+  async updateInformeProduccion(
+    id: string, 
+    informe: string, 
+    userId: string, 
+    userName: string
+  ): Promise<ReclamoGeneral> {
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        informeProduccion: informe,
+        updatedAt: new Date(),
+      })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: null,
+      estadoNuevo: updated.estado,
+      userId,
+      userName,
+      notas: 'Informe de producción agregado',
+    });
+    
+    return updated;
+  }
+
+  async updateInformeTecnico(
+    id: string, 
+    informe: string, 
+    userId: string, 
+    userName: string
+  ): Promise<ReclamoGeneral> {
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        informeTecnico: informe,
+        updatedAt: new Date(),
+      })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: null,
+      estadoNuevo: updated.estado,
+      userId,
+      userName,
+      notas: 'Informe técnico agregado',
+    });
+    
+    return updated;
+  }
+
+  // Cerrar reclamo
+  async cerrarReclamoGeneral(
+    id: string, 
+    userId: string, 
+    userName: string, 
+    notas?: string
+  ): Promise<ReclamoGeneral> {
+    const reclamo = await this.getReclamoGeneralById(id);
+    
+    if (!reclamo) {
+      throw new Error('Reclamo not found');
+    }
+    
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        estado: 'cerrado',
+        fechaCierre: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: reclamo.estado,
+      estadoNuevo: 'cerrado',
+      userId,
+      userName,
+      notas: notas || 'Reclamo cerrado',
+    });
+    
+    return updated;
   }
 
 }
