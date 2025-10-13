@@ -97,7 +97,7 @@ export default function Reception() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {formatCurrency(sentQuotes.reduce((sum, q) => sum + q.total, 0))}
+                {formatCurrency(sentQuotes.reduce((sum, q) => sum + Number(q.total || 0), 0))}
               </div>
             </CardContent>
           </Card>
@@ -166,10 +166,10 @@ export default function Reception() {
                     </div>
                     <div className="text-right ml-4">
                       <div className="text-lg font-bold text-gray-900">
-                        {formatCurrency(quote.total)}
+                        {formatCurrency(Number(quote.total || 0))}
                       </div>
                       <div className="text-xs text-gray-500">
-                        Subtotal: {formatCurrency(quote.subtotal)}
+                        Subtotal: {formatCurrency(Number(quote.subtotal || 0))}
                       </div>
                     </div>
                   </div>
