@@ -461,6 +461,20 @@ export default function Dashboard() {
       setGlobalFilter({ type: "salesperson", value: newSalesperson });
     };
     
+    const handleDateFilterChange = (
+      newFilterType: "day" | "month" | "year" | "range",
+      newPeriod: string,
+      newDate?: Date,
+      newYear?: number,
+      newRange?: { from?: Date; to?: Date }
+    ) => {
+      setFilterType(newFilterType);
+      setSelectedPeriod(newPeriod);
+      if (newDate) setSelectedDate(newDate);
+      if (newYear) setSelectedYear(newYear);
+      if (newRange !== undefined) setDateRange(newRange as any);
+    };
+    
     return (
       <SalespersonDetail 
         key={globalFilter.value} // Force remount when salesperson changes
@@ -468,9 +482,13 @@ export default function Dashboard() {
         embedded={true}
         onBack={handleBack}
         onSalespersonChange={handleSalespersonChange}
+        onDateFilterChange={handleDateFilterChange}
         dashboardGlobalFilter={globalFilter}
         dashboardFilterType={filterType}
         dashboardSelectedPeriod={selectedPeriod}
+        dashboardSelectedDate={selectedDate}
+        dashboardSelectedYear={selectedYear}
+        dashboardDateRange={dateRange}
       />
     );
   }

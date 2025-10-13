@@ -39,13 +39,23 @@ interface SalespersonDetailProps {
   embedded?: boolean;
   onBack?: () => void;
   onSalespersonChange?: (salespersonName: string) => void; // Callback to change salesperson when embedded
-  // Dashboard filter props (when embedded) - for display only
+  onDateFilterChange?: (
+    filterType: "day" | "month" | "year" | "range",
+    period: string,
+    date?: Date,
+    year?: number,
+    range?: { from?: Date; to?: Date }
+  ) => void; // Callback to change date filters when embedded
+  // Dashboard filter props (when embedded)
   dashboardGlobalFilter?: {
     type: "all" | "global" | "segment" | "salesperson";
     value?: string;
   };
   dashboardFilterType?: "day" | "month" | "year" | "range";
-  dashboardSelectedPeriod?: string; // For showing the specific period value
+  dashboardSelectedPeriod?: string;
+  dashboardSelectedDate?: Date;
+  dashboardSelectedYear?: number;
+  dashboardDateRange?: { from?: Date; to?: Date };
 }
 
 interface TopSalesperson {
@@ -64,9 +74,13 @@ export default function SalespersonDetail({
   embedded = false, 
   onBack,
   onSalespersonChange,
+  onDateFilterChange,
   dashboardGlobalFilter,
   dashboardFilterType,
-  dashboardSelectedPeriod
+  dashboardSelectedPeriod,
+  dashboardSelectedDate,
+  dashboardSelectedYear,
+  dashboardDateRange
 }: SalespersonDetailProps = {}) {
   const { salespersonName: paramSalespersonName } = useParams();
   const salespersonName = propSalespersonName || paramSalespersonName;
@@ -337,7 +351,7 @@ export default function SalespersonDetail({
               )}
 
               {/* Rango Badge - Interactive */}
-              {dashboardFilterType && onBack && (
+              {dashboardFilterType && onDateFilterChange && (
                 <Popover>
                   <PopoverTrigger asChild>
                     <button className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200 hover:bg-green-100 transition-colors cursor-pointer">
@@ -352,17 +366,117 @@ export default function SalespersonDetail({
                     </button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-3 rounded-xl border-gray-200" align="start">
-                    <div className="text-sm text-gray-600">
-                      Para cambiar el rango de fechas, vuelve al dashboard principal.
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-gray-700">
+                        Cambiar período:
+                      </label>
+                      
+                      {/* Filter Type Selector */}
+                      <Select 
+                        value={dashboardFilterType} 
+                        onValueChange={(value: "day" | "month" | "year" | "range") => {
+                          // Reset period when changing type
+                          if (value === "month") {
+                            const currentMonth = format(new Date(), "yyyy-MM");
+                            onDateFilterChange(value, currentMonth);
+                          } else if (value === "year") {
+                            const currentYear = new Date().getFullYear();
+                            onDateFilterChange(value, currentYear.toString(), undefined, currentYear);
+                          } else if (value === "day") {
+                            const today = new Date();
+                            const todayStr = format(today, "yyyy-MM-dd");
+                            onDateFilterChange(value, todayStr, today);
+                          } else if (value === "range") {
+                            onDateFilterChange(value, "", undefined, undefined, undefined);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-full rounded-lg border-gray-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-gray-200">
+                          <SelectItem value="day">Día</SelectItem>
+                          <SelectItem value="month">Mes</SelectItem>
+                          <SelectItem value="year">Año</SelectItem>
+                          <SelectItem value="range">Rango</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {/* Period Selector */}
+                      {dashboardFilterType === "day" && (
+                        <Calendar
+                          mode="single"
+                          selected={dashboardSelectedDate}
+                          onSelect={(date) => {
+                            if (date) {
+                              const dateStr = format(date, "yyyy-MM-dd");
+                              onDateFilterChange("day", dateStr, date);
+                            }
+                          }}
+                          className="rounded-lg border"
+                        />
+                      )}
+                      
+                      {dashboardFilterType === "month" && availablePeriods && (
+                        <Select 
+                          value={dashboardSelectedPeriod} 
+                          onValueChange={(value) => {
+                            onDateFilterChange("month", value);
+                          }}
+                        >
+                          <SelectTrigger className="w-full rounded-lg border-gray-200">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-gray-200 max-h-60">
+                            {availablePeriods.months.map((month: any) => (
+                              <SelectItem key={month.value} value={month.value}>
+                                {month.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      
+                      {dashboardFilterType === "year" && availablePeriods && (
+                        <Select 
+                          value={dashboardSelectedYear?.toString() || ""} 
+                          onValueChange={(value) => {
+                            const year = parseInt(value);
+                            onDateFilterChange("year", value, undefined, year);
+                          }}
+                        >
+                          <SelectTrigger className="w-full rounded-lg border-gray-200">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-gray-200">
+                            {availablePeriods.years.map((year: any) => (
+                              <SelectItem key={year.value} value={year.value}>
+                                {year.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      
+                      {dashboardFilterType === "range" && (
+                        <div className="space-y-2">
+                          <Calendar
+                            mode="range"
+                            selected={dashboardDateRange as any}
+                            onSelect={(range) => {
+                              if (range?.from && range?.to) {
+                                const rangeStr = `${format(range.from, "yyyy-MM-dd")}_${format(range.to, "yyyy-MM-dd")}`;
+                                onDateFilterChange("range", rangeStr, undefined, undefined, range);
+                              } else if (range?.from) {
+                                // Handle partial selection
+                                onDateFilterChange("range", "", undefined, undefined, range);
+                              }
+                            }}
+                            className="rounded-lg border"
+                          />
+                        </div>
+                      )}
                     </div>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={onBack}
-                      className="mt-3 w-full rounded-lg"
-                    >
-                      Ir al Dashboard
-                    </Button>
                   </PopoverContent>
                 </Popover>
               )}
