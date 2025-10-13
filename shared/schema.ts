@@ -35,7 +35,7 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  role: varchar("role").default("user"), // admin, supervisor, salesperson, client, tecnico_obra
+  role: varchar("role").default("user"), // admin, supervisor, salesperson, client, tecnico_obra, reception
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1101,7 +1101,7 @@ export const salespeopleUsers = pgTable("salespeople_users", {
   email: varchar("email").unique(),
   password: varchar("password"), // Hash de la contraseña
   isActive: boolean("is_active").default(true),
-  role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "salesperson" | "tecnico_obra" | "client"
+  role: varchar("role").default("salesperson"), // "admin" | "supervisor" | "salesperson" | "tecnico_obra" | "client" | "reception"
   supervisorId: varchar("supervisor_id"), // ID del supervisor que gestiona este vendedor (solo para role="salesperson")
   assignedSegment: varchar("assigned_segment"), // Segmento asignado al supervisor (solo para role="supervisor")
   createdAt: timestamp("created_at").defaultNow(),
@@ -1129,7 +1129,7 @@ export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, 
   username: z.string().min(2, "Usuario debe tener al menos 2 caracteres").optional().or(z.literal("")),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().or(z.literal("")),
-  role: z.enum(["admin", "supervisor", "salesperson", "tecnico_obra", "client"]).default("salesperson"),
+  role: z.enum(["admin", "supervisor", "salesperson", "tecnico_obra", "client", "reception"]).default("salesperson"),
   supervisorId: z.string().optional().nullable(),
   assignedSegment: z.string().optional().nullable(),
 }).omit({

@@ -346,6 +346,7 @@ export default function UsersPage() {
                             <SelectItem value="salesperson">Vendedor</SelectItem>
                             <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
                             <SelectItem value="client">Cliente</SelectItem>
+                            <SelectItem value="reception">Recepción</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -685,6 +686,7 @@ export default function UsersPage() {
                         <SelectItem value="salesperson">Vendedor</SelectItem>
                         <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
                         <SelectItem value="client">Cliente</SelectItem>
+                        <SelectItem value="reception">Recepción</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -887,7 +889,8 @@ export default function UsersPage() {
                             {user.role === 'admin' ? 'Administrador' : 
                              user.role === 'supervisor' ? 'Supervisor' :
                              user.role === 'tecnico_obra' ? 'Técnico de Obra' :
-                             user.role === 'client' ? 'Cliente' : 'Vendedor'}
+                             user.role === 'client' ? 'Cliente' : 
+                             user.role === 'reception' ? 'Recepción' : 'Vendedor'}
                           </Badge>
                         </TableCell>
                         <TableCell>{getSupervisorName(user.supervisorId)}</TableCell>
@@ -964,7 +967,8 @@ export default function UsersPage() {
                                 {user.role === 'admin' ? 'Admin' : 
                                  user.role === 'supervisor' ? 'Supervisor' :
                                  user.role === 'tecnico_obra' ? 'Técnico' :
-                                 user.role === 'client' ? 'Cliente' : 'Vendedor'}
+                                 user.role === 'client' ? 'Cliente' : 
+                                 user.role === 'reception' ? 'Recepción' : 'Vendedor'}
                               </Badge>
                             </div>
                           </div>

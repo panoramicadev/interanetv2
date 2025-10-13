@@ -38,7 +38,7 @@ Preferred communication style: Simple, everyday language.
 - **Strategy**: Passport.js Local Strategy
 - **Session Storage**: PostgreSQL via connect-pg-simple
 - **Security**: Bcrypt hashing, HTTP-only cookies, CSRF protection
-- **User Management**: Manual provisioning, role-based access control (admin, supervisor, salesperson, tecnico_obra, client)
+- **User Management**: Manual provisioning, role-based access control (admin, supervisor, salesperson, tecnico_obra, client, reception)
 
 ### Data Processing
 - **CSV Import**: Client-side parsing with Papa Parse
@@ -57,7 +57,7 @@ Preferred communication style: Simple, everyday language.
 - **Client Management**: Client credential assignment, user-client linking, salesperson assignment.
 - **E-commerce**: Ecommerce orders schema, notification system for order approval.
 - **Product Grouping System**: Parent-child model for product variations with unique SKUs and prices per variant. Admin interface for managing product groups with search, filters, and CRUD operations. Backend-compatible (ungrouped products maintain groupId=null).
-- **User Roles**: Admin, Supervisor, Salesperson, Técnico de Obra, Client with distinct dashboards and permissions.
+- **User Roles**: Admin, Supervisor, Salesperson, Técnico de Obra, Client, Reception with distinct dashboards and permissions. Reception role has read-only access to view all sent quotes.
 - **Technical Visits**: Four-step creation flow, custom product support, receptionist fields, general observations.
 - **Sales Analytics**: KPI metrics with accurate period-to-period comparison (current month truncated to current day for fair comparison), sales trend charts, detailed transaction records, segment analysis.
 - **Quote Management**: Role-based column visibility, real-time status updates, cart quantity input, PDF logo integration, email and Web Share API sharing.
