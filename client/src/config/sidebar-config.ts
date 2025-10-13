@@ -250,6 +250,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardList,
     },
     {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+    {
       href: "/tintometria",
       label: "Tintometría",
       icon: Palette,
