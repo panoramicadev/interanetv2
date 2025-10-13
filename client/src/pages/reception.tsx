@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { format } from "date-fns";
 import { FileText, Package, DollarSign, Eye, CheckCircle, XCircle, Download, FileDown, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { pdf } from "@react-pdf/renderer";
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
@@ -180,6 +181,8 @@ export default function Reception() {
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [copiedSku, setCopiedSku] = useState<string | null>(null);
+  const [selectedVendor, setSelectedVendor] = useState<string>("");
+  const [selectedClient, setSelectedClient] = useState<string>("");
 
   // Redirect if not reception user
   useEffect(() => {
@@ -205,8 +208,18 @@ export default function Reception() {
     enabled: !!selectedQuoteId,
   });
 
-  // Filter only sent quotes
-  const sentQuotes = quotes.filter(q => q.status === 'sent');
+  // Filter only sent quotes and apply additional filters
+  const sentQuotes = quotes.filter(q => {
+    if (q.status !== 'sent') return false;
+    if (selectedVendor && q.creatorName !== selectedVendor) return false;
+    if (selectedClient && q.clientName !== selectedClient) return false;
+    return true;
+  });
+
+  // Get unique vendors and clients from all sent quotes for filter options
+  const allSentQuotes = quotes.filter(q => q.status === 'sent');
+  const uniqueVendors = Array.from(new Set(allSentQuotes.map(q => q.creatorName).filter(Boolean)));
+  const uniqueClients = Array.from(new Set(allSentQuotes.map(q => q.clientName).filter(Boolean)));
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -458,6 +471,50 @@ export default function Reception() {
           </Card>
         </div>
 
+        {/* Filters */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Filtros</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Vendedor</label>
+                <Select value={selectedVendor} onValueChange={setSelectedVendor}>
+                  <SelectTrigger data-testid="select-vendor-filter">
+                    <SelectValue placeholder="Todos los vendedores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos los vendedores</SelectItem>
+                    {uniqueVendors.map((vendor) => (
+                      <SelectItem key={vendor || 'unknown'} value={vendor || ''}>
+                        {vendor}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Cliente</label>
+                <Select value={selectedClient} onValueChange={setSelectedClient}>
+                  <SelectTrigger data-testid="select-client-filter">
+                    <SelectValue placeholder="Todos los clientes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos los clientes</SelectItem>
+                    {uniqueClients.map((client) => (
+                      <SelectItem key={client} value={client}>
+                        {client}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Quotes List */}
         <Card>
           <CardHeader>
@@ -489,9 +546,7 @@ export default function Reception() {
                         <h3 className="text-lg font-bold text-gray-900">
                           Presupuesto #{quote.quoteNumber}
                         </h3>
-                        <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                          Enviado
-                        </Badge>
+                        {getStatusBadge(quote.status)}
                       </div>
                       <div className="text-right">
                         <div className="text-2xl font-bold text-gray-900">
