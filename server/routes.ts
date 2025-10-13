@@ -7610,7 +7610,7 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/marketing/solicitudes/:id/estado', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { estado, motivoRechazo, monto } = req.body;
+      const { estado, motivoRechazo, monto, pdfPresupuesto } = req.body;
       
       // Only admin can change estado
       if (user.role !== 'admin') {
@@ -7625,7 +7625,7 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'Motivo de rechazo es requerido' });
       }
       
-      const solicitud = await storage.updateSolicitudMarketingEstado(req.params.id, estado, motivoRechazo, monto);
+      const solicitud = await storage.updateSolicitudMarketingEstado(req.params.id, estado, motivoRechazo, monto, pdfPresupuesto);
       res.json(solicitud);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al cambiar estado', error: error.message });
