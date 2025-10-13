@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { FileText, Package, DollarSign, Eye } from "lucide-react";
+import { FileText, Package, DollarSign, Eye, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface Quote {
   id: string;
@@ -118,6 +119,43 @@ export default function Reception() {
     };
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
     return <Badge variant="secondary" className={config.className}>{config.label}</Badge>;
+  };
+
+  // Mutation to update quote status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ quoteId, status }: { quoteId: string; status: string }) => {
+      return await apiRequest(`/api/quotes/${quoteId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/quotes", selectedQuoteId, "with-items"] });
+      toast({
+        title: "Estado actualizado",
+        description: "El estado del presupuesto ha sido actualizado correctamente.",
+      });
+      handleCloseModal();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el estado del presupuesto.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleConvertToOrder = () => {
+    if (!selectedQuoteId) return;
+    updateStatusMutation.mutate({ quoteId: selectedQuoteId, status: "converted" });
+  };
+
+  const handleReject = () => {
+    if (!selectedQuoteId) return;
+    updateStatusMutation.mutate({ quoteId: selectedQuoteId, status: "rejected" });
   };
 
   if (isLoading || !user) {
@@ -402,6 +440,31 @@ export default function Reception() {
                     </div>
                   </div>
                 </div>
+
+                {/* Action Buttons - Only show for sent quotes */}
+                {selectedQuote.status === 'sent' && (
+                  <div className="border-t pt-6 flex gap-3 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={handleReject}
+                      disabled={updateStatusMutation.isPending}
+                      className="border-red-300 text-red-700 hover:bg-red-50"
+                      data-testid="button-reject-quote"
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      {updateStatusMutation.isPending ? "Procesando..." : "Rechazar"}
+                    </Button>
+                    <Button
+                      onClick={handleConvertToOrder}
+                      disabled={updateStatusMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700"
+                      data-testid="button-convert-quote"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      {updateStatusMutation.isPending ? "Procesando..." : "Convertir a Pedido"}
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : null}
           </DialogContent>
