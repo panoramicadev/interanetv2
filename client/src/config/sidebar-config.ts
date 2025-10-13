@@ -101,6 +101,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: AlertTriangle,
     },
     {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
+    },
+    {
       href: "/tintometria",
       label: "Tintometría",
       icon: Palette,
@@ -193,6 +198,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: AlertTriangle,
     },
     {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
+    },
+    {
       href: "/tintometria",
       label: "Tintometría",
       icon: Palette,
@@ -253,6 +263,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
+    },
+    {
+      href: "/marketing",
+      label: "Marketing",
+      icon: TrendingUp,
     },
     {
       href: "/tintometria",
