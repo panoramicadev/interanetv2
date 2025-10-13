@@ -428,7 +428,7 @@ export default function Reception() {
       const fileContent = lines.join('\n');
       
       // Crear y descargar el archivo
-      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+      const blob = new Blob([fileContent], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       
       // Generar nombre del archivo
@@ -444,7 +444,7 @@ export default function Reception() {
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const year = String(date.getFullYear()).slice(-2);
       
-      const filename = `${cleanName}-${day}${month}${year}-${quoteWithItems.quoteNumber}.txt`;
+      const filename = `${cleanName}-${day}${month}${year}-${quoteWithItems.quoteNumber}.csv`;
       
       const a = document.createElement('a');
       a.href = url;
