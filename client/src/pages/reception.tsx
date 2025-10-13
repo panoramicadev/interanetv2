@@ -452,89 +452,96 @@ export default function Reception() {
                 <p className="text-gray-500">No hay presupuestos enviados en este momento</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {sentQuotes.map((quote) => (
                   <div
                     key={quote.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="group border rounded-xl p-5 hover:shadow-md transition-all duration-200 cursor-pointer bg-white hover:border-blue-300"
                     onClick={() => handleViewQuote(quote.id)}
                     data-testid={`quote-${quote.id}`}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-gray-900">
+                    {/* Header - Quote Number and Status */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-bold text-gray-900">
                           Presupuesto #{quote.quoteNumber}
                         </h3>
                         <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                           Enviado
                         </Badge>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm text-gray-600">
-                        <div>
-                          <span className="font-medium">Cliente:</span> {quote.clientName}
-                        </div>
-                        <div>
-                          <span className="font-medium">Fecha:</span> {formatDate(quote.createdAt)}
-                        </div>
-                        {quote.creatorName && (
-                          <div>
-                            <span className="font-medium">Enviado por:</span> {quote.creatorName}
-                          </div>
-                        )}
-                        {quote.salespersonName && (
-                          <div>
-                            <span className="font-medium">Vendedor:</span> {quote.salespersonName}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 ml-4">
                       <div className="text-right">
-                        <div className="text-lg font-bold text-gray-900">
+                        <div className="text-2xl font-bold text-gray-900">
                           {formatCurrency(Number(quote.total || 0))}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-sm text-gray-500">
                           Subtotal: {formatCurrency(Number(quote.subtotal || 0))}
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewQuote(quote.id);
-                          }}
-                          data-testid={`button-view-quote-${quote.id}`}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const quoteWithItems = await queryClient.fetchQuery({
-                              queryKey: ["/api/quotes", quote.id, "with-items"],
-                            });
-                            handleDownloadPDF(quoteWithItems);
-                          }}
-                          data-testid={`button-download-pdf-${quote.id}`}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownloadRandomFile(quote);
-                          }}
-                          data-testid={`button-download-random-${quote.id}`}
-                        >
-                          <FileDown className="h-4 w-4" />
-                        </Button>
+                    </div>
+
+                    {/* Info Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Cliente</span>
+                        <span className="text-sm font-medium text-gray-900">{quote.clientName}</span>
                       </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Fecha</span>
+                        <span className="text-sm font-medium text-gray-900">{formatDate(quote.createdAt)}</span>
+                      </div>
+                      {quote.creatorName && (
+                        <div className="flex flex-col">
+                          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Enviado por</span>
+                          <span className="text-sm font-medium text-gray-900">{quote.creatorName}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewQuote(quote.id);
+                        }}
+                        className="flex items-center gap-2 hover:bg-blue-50 hover:border-blue-300"
+                        data-testid={`button-view-quote-${quote.id}`}
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span>Ver</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const quoteWithItems = await queryClient.fetchQuery({
+                            queryKey: ["/api/quotes", quote.id, "with-items"],
+                          });
+                          handleDownloadPDF(quoteWithItems);
+                        }}
+                        className="flex items-center gap-2 hover:bg-green-50 hover:border-green-300"
+                        data-testid={`button-download-pdf-${quote.id}`}
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>PDF</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadRandomFile(quote);
+                        }}
+                        className="flex items-center gap-2 hover:bg-purple-50 hover:border-purple-300"
+                        data-testid={`button-download-random-${quote.id}`}
+                      >
+                        <FileDown className="h-4 w-4" />
+                        <span>Archivo</span>
+                      </Button>
                     </div>
                   </div>
                 ))}
