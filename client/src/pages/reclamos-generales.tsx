@@ -183,10 +183,10 @@ export default function ReclamosGeneralesPage() {
         method: 'POST',
         data: data,
       });
-      return response as ReclamoGeneral;
+      return await response.json();
     },
     onSuccess: async (reclamo: ReclamoGeneral) => {
-      console.log('Reclamo creado:', reclamo);
+      console.log('Reclamo creado con ID:', reclamo.id);
       // Upload photos if any
       if (selectedFiles.length > 0) {
         const uploadPromises = selectedFiles.map(file => {
