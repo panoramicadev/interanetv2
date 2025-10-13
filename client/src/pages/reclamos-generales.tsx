@@ -280,7 +280,7 @@ export default function ReclamosGeneralesPage() {
     });
   };
 
-  const filteredClients = clients.filter(client => 
+  const filteredClients = (clients || []).filter(client => 
     client.koen.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
     client.nokoen.toLowerCase().includes(clientSearchTerm.toLowerCase())
   );
