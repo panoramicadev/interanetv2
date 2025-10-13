@@ -3198,7 +3198,7 @@ export const solicitudesMarketing = pgTable("solicitudes_marketing", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   titulo: varchar("titulo", { length: 255 }).notNull(),
   descripcion: text("descripcion").notNull(),
-  monto: numeric("monto", { precision: 15, scale: 2 }).notNull(),
+  monto: numeric("monto", { precision: 15, scale: 2 }), // Nullable - se ingresa al aprobar
   pdfUrl: text("pdf_url"), // URL del PDF subido
   estado: varchar("estado").notNull().default("solicitado"), // solicitado, en_proceso, completado, rechazado
   supervisorId: varchar("supervisor_id").references(() => users.id),
@@ -3251,7 +3251,7 @@ export const insertSolicitudMarketingSchema = createInsertSchema(solicitudesMark
 }).extend({
   titulo: z.string().min(1, "El título es requerido"),
   descripcion: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
-  monto: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
+  monto: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val).optional(),
   estado: z.enum(["solicitado", "en_proceso", "completado", "rechazado"]).optional(),
   mes: z.number().min(1).max(12),
   anio: z.number().min(2020).max(2100),
