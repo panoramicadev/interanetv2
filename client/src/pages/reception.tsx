@@ -208,16 +208,17 @@ export default function Reception() {
     enabled: !!selectedQuoteId,
   });
 
-  // Filter only sent quotes and apply additional filters
+  // Filter sent, converted, and rejected quotes and apply additional filters
   const sentQuotes = quotes.filter(q => {
-    if (q.status !== 'sent') return false;
+    // Include sent, converted, and rejected quotes
+    if (!['sent', 'converted', 'rejected'].includes(q.status)) return false;
     if (selectedVendor !== 'all' && q.creatorName !== selectedVendor) return false;
     if (selectedClient !== 'all' && q.clientName !== selectedClient) return false;
     return true;
   });
 
-  // Get unique vendors and clients from all sent quotes for filter options
-  const allSentQuotes = quotes.filter(q => q.status === 'sent');
+  // Get unique vendors and clients from all sent/converted/rejected quotes for filter options
+  const allSentQuotes = quotes.filter(q => ['sent', 'converted', 'rejected'].includes(q.status));
   const uniqueVendors = Array.from(new Set(allSentQuotes.map(q => q.creatorName).filter(Boolean)));
   const uniqueClients = Array.from(new Set(allSentQuotes.map(q => q.clientName).filter(Boolean)));
 
@@ -498,7 +499,7 @@ export default function Reception() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Recepción</h1>
-          <p className="text-gray-600">Presupuestos enviados pendientes de gestión</p>
+          <p className="text-gray-600">Presupuestos enviados y gestionados</p>
         </div>
 
         {/* Stats Card */}
@@ -527,13 +528,13 @@ export default function Reception() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Estado</CardTitle>
+              <CardTitle className="text-sm font-medium">Filtro Activo</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
                 <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                  Enviados
+                  Recepción
                 </Badge>
               </div>
             </CardContent>
@@ -587,7 +588,7 @@ export default function Reception() {
         {/* Quotes List */}
         <Card>
           <CardHeader>
-            <CardTitle>Presupuestos Enviados</CardTitle>
+            <CardTitle>Presupuestos</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoadingQuotes ? (
