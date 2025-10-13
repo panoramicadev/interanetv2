@@ -7676,6 +7676,93 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Inventario Marketing routes
+  app.post('/api/marketing/inventario', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin can create inventory items
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede crear items de inventario' });
+      }
+      
+      const item = await storage.createInventarioMarketing(req.body);
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al crear item de inventario', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/inventario', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { search, estado } = req.query;
+      
+      const filters: any = {};
+      if (search) filters.search = search as string;
+      if (estado) filters.estado = estado as string;
+      
+      const items = await storage.getInventarioMarketing(filters);
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener inventario', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/inventario/summary', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const summary = await storage.getInventarioMarketingSummary();
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener resumen de inventario', error: error.message });
+    }
+  }));
+
+  app.get('/api/marketing/inventario/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const item = await storage.getInventarioMarketingById(req.params.id);
+      
+      if (!item) {
+        return res.status(404).json({ message: 'Item no encontrado' });
+      }
+      
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener item', error: error.message });
+    }
+  }));
+
+  app.patch('/api/marketing/inventario/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin can update inventory items
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede actualizar items de inventario' });
+      }
+      
+      const item = await storage.updateInventarioMarketing(req.params.id, req.body);
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar item', error: error.message });
+    }
+  }));
+
+  app.delete('/api/marketing/inventario/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin can delete inventory items
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede eliminar items de inventario' });
+      }
+      
+      await storage.deleteInventarioMarketing(req.params.id);
+      res.json({ message: 'Item eliminado correctamente' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar item', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // INVENTORY routes
   // ==================================================================================
