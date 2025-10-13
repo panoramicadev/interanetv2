@@ -382,12 +382,89 @@ export default function Reception() {
     }
   };
 
-  const handleDownloadRandomFile = (quote: Quote) => {
-    // Placeholder para el archivo random - por ahora solo muestra un mensaje
-    toast({
-      title: "Función en desarrollo",
-      description: "La descarga del Archivo Random estará disponible próximamente.",
-    });
+  const handleDownloadRandomFile = async (quote: QuoteWithItems | Quote) => {
+    try {
+      // Obtener los items si no están presentes
+      let quoteWithItems: QuoteWithItems;
+      if ('items' in quote && quote.items) {
+        quoteWithItems = quote as QuoteWithItems;
+      } else {
+        quoteWithItems = await queryClient.fetchQuery({
+          queryKey: ["/api/quotes", quote.id, "with-items"],
+        });
+      }
+
+      if (!quoteWithItems.items || quoteWithItems.items.length === 0) {
+        toast({
+          title: "Error",
+          description: "No se pueden generar archivos de presupuestos sin productos.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Generar contenido del archivo según especificaciones
+      const lines = quoteWithItems.items.map(item => {
+        const codigo = item.type === 'custom' ? (item.customSku || '') : (item.productCode || '');
+        const cantidadUd1 = String(item.quantity || 0);
+        const cantidadUd2 = '0';
+        const unidadTransaccion = '1';
+        const bodegaDestino = '';
+        const precio = String(item.unitPrice || 0);
+        
+        // Formato fecha AAAAMMDD
+        const fecha = new Date(quoteWithItems.createdAt);
+        const year = fecha.getFullYear();
+        const month = String(fecha.getMonth() + 1).padStart(2, '0');
+        const day = String(fecha.getDate()).padStart(2, '0');
+        const fechaFormato = `${year}${month}${day}`;
+        
+        const observaciones = item.notes || '';
+        
+        return `${codigo};${cantidadUd1};${cantidadUd2};${unidadTransaccion};${bodegaDestino};${precio};${fechaFormato};${observaciones}`;
+      });
+
+      const fileContent = lines.join('\n');
+      
+      // Crear y descargar el archivo
+      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      
+      // Generar nombre del archivo
+      const cleanName = quoteWithItems.clientName
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9\s]/g, "")
+        .replace(/\s+/g, "")
+        .substring(0, 30);
+      
+      const date = new Date(quoteWithItems.createdAt);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = String(date.getFullYear()).slice(-2);
+      
+      const filename = `${cleanName}-${day}${month}${year}-${quoteWithItems.quoteNumber}.txt`;
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Archivo descargado",
+        description: `El archivo ${filename} se ha descargado correctamente.`,
+      });
+    } catch (error) {
+      console.error("Error generating file:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo generar el archivo de importación.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCopySku = async (sku: string) => {
