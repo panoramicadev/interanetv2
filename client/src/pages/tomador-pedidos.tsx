@@ -551,8 +551,8 @@ const QuotePDFDocument = ({ quote, items }: { quote: any; items: any[] }) => {
               <View key={index} style={pdfStyles.tableRow}>
                 <View style={pdfStyles.col1}>
                   <Text style={pdfStyles.productName}>{item.productName}</Text>
-                  {item.productCode && item.productCode.trim() !== '' && (
-                    <Text style={pdfStyles.productSku}>SKU: {item.productCode}</Text>
+                  {(item.productCode || item.customSku) && (item.productCode || item.customSku).trim() !== '' && (
+                    <Text style={pdfStyles.productSku}>SKU: {item.productCode || item.customSku}</Text>
                   )}
                 </View>
                 <Text style={[pdfStyles.cellText, pdfStyles.col2]}>UN</Text>
