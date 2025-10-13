@@ -131,10 +131,13 @@ import {
   // Marketing module tables
   presupuestoMarketing,
   solicitudesMarketing,
+  inventarioMarketing,
   type PresupuestoMarketing,
   type InsertPresupuestoMarketing,
   type SolicitudMarketing,
   type InsertSolicitudMarketing,
+  type InventarioMarketing,
+  type InsertInventarioMarketing,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
@@ -1009,6 +1012,23 @@ export interface IStorage {
       completado: number;
       rechazado: number;
     };
+  }>;
+
+  // Inventario Marketing operations
+  createInventarioMarketing(item: InsertInventarioMarketing): Promise<InventarioMarketing>;
+  getInventarioMarketing(filters?: {
+    search?: string;
+    estado?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<InventarioMarketing[]>;
+  getInventarioMarketingById(id: string): Promise<InventarioMarketing | undefined>;
+  updateInventarioMarketing(id: string, updates: Partial<InsertInventarioMarketing>): Promise<InventarioMarketing>;
+  deleteInventarioMarketing(id: string): Promise<void>;
+  getInventarioMarketingSummary(): Promise<{
+    totalItems: number;
+    stockBajo: number;
+    valorTotal: number;
   }>;
 
   // ==================================================================================
@@ -10302,6 +10322,104 @@ export class DatabaseStorage implements IStorage {
       presupuestoDisponible: presupuestoTotal - presupuestoUtilizado,
       totalSolicitudes: solicitudes.length,
       solicitudesPorEstado,
+    };
+  }
+
+  // Inventario Marketing operations
+  async createInventarioMarketing(item: InsertInventarioMarketing): Promise<InventarioMarketing> {
+    const [result] = await db
+      .insert(inventarioMarketing)
+      .values(item)
+      .returning();
+    return result;
+  }
+
+  async getInventarioMarketing(filters?: {
+    search?: string;
+    estado?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<InventarioMarketing[]> {
+    const conditions = [];
+    
+    if (filters?.search) {
+      conditions.push(
+        or(
+          ilike(inventarioMarketing.nombre, `%${filters.search}%`),
+          ilike(inventarioMarketing.descripcion, `%${filters.search}%`),
+          ilike(inventarioMarketing.ubicacion, `%${filters.search}%`)
+        )
+      );
+    }
+    
+    if (filters?.estado) {
+      conditions.push(eq(inventarioMarketing.estado, filters.estado));
+    }
+
+    let query = db
+      .select()
+      .from(inventarioMarketing)
+      .orderBy(desc(inventarioMarketing.createdAt));
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+
+    if (filters?.offset) {
+      query = query.offset(filters.offset);
+    }
+
+    return await query;
+  }
+
+  async getInventarioMarketingById(id: string): Promise<InventarioMarketing | undefined> {
+    const [result] = await db
+      .select()
+      .from(inventarioMarketing)
+      .where(eq(inventarioMarketing.id, id));
+    return result;
+  }
+
+  async updateInventarioMarketing(id: string, updates: Partial<InsertInventarioMarketing>): Promise<InventarioMarketing> {
+    const [result] = await db
+      .update(inventarioMarketing)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(inventarioMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteInventarioMarketing(id: string): Promise<void> {
+    await db
+      .delete(inventarioMarketing)
+      .where(eq(inventarioMarketing.id, id));
+  }
+
+  async getInventarioMarketingSummary(): Promise<{
+    totalItems: number;
+    stockBajo: number;
+    valorTotal: number;
+  }> {
+    const items = await this.getInventarioMarketing({});
+    
+    const totalItems = items.length;
+    const stockBajo = items.filter(item => item.cantidad <= (item.stockMinimo || 0)).length;
+    const valorTotal = items.reduce((sum, item) => {
+      const costo = parseFloat(item.costoUnitario as any) || 0;
+      return sum + (costo * item.cantidad);
+    }, 0);
+
+    return {
+      totalItems,
+      stockBajo,
+      valorTotal,
     };
   }
 
