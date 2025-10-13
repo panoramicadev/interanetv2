@@ -251,14 +251,43 @@ export default function Reception() {
         body: JSON.stringify({ status }),
       });
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      // Immediately update the query cache with the new status
+      queryClient.setQueryData(["/api/quotes", selectedQuoteId, "with-items"], (oldData: any) => {
+        if (oldData) {
+          return { ...oldData, status: variables.status };
+        }
+        return oldData;
+      });
+      
+      // Update the quotes list cache
+      queryClient.setQueryData(["/api/quotes"], (oldData: any) => {
+        if (oldData && Array.isArray(oldData)) {
+          return oldData.map((q: Quote) => 
+            q.id === variables.quoteId ? { ...q, status: variables.status } : q
+          );
+        }
+        return oldData;
+      });
+      
+      // Then refetch to ensure data consistency
       queryClient.invalidateQueries({ queryKey: ["/api/quotes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/quotes", selectedQuoteId, "with-items"] });
+      
+      const statusLabels = {
+        converted: "convertido a pedido",
+        rejected: "rechazado",
+      };
+      
       toast({
         title: "Estado actualizado",
-        description: "El estado del presupuesto ha sido actualizado correctamente.",
+        description: `El presupuesto ha sido ${statusLabels[variables.status as keyof typeof statusLabels] || "actualizado"} correctamente.`,
       });
-      handleCloseModal();
+      
+      // Close modal after a short delay to show the updated status
+      setTimeout(() => {
+        handleCloseModal();
+      }, 1500);
     },
     onError: (error: any) => {
       toast({
