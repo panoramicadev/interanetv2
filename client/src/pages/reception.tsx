@@ -471,21 +471,13 @@ export default function Reception() {
     try {
       await navigator.clipboard.writeText(sku);
       setCopiedSku(sku);
-      toast({
-        title: "SKU copiado",
-        description: `El código ${sku} ha sido copiado al portapapeles.`,
-      });
       
       // Reset the copied state after 2 seconds
       setTimeout(() => {
         setCopiedSku(null);
       }, 2000);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "No se pudo copiar el SKU al portapapeles.",
-        variant: "destructive",
-      });
+      console.error("Error copying SKU:", error);
     }
   };
 
