@@ -168,20 +168,30 @@ export default function ReclamosGeneralesPage() {
     onSuccess: async (reclamo: ReclamoGeneral) => {
       // Upload photos if any
       if (selectedFiles.length > 0) {
-        for (const file of selectedFiles) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const photoUrl = reader.result as string;
-            await apiRequest(`/api/reclamos-generales/${reclamo.id}/photos`, {
-              method: 'POST',
-              data: {
-                photoUrl: photoUrl,
-                description: file.name,
-              },
-            });
-          };
-          reader.readAsDataURL(file);
-        }
+        const uploadPromises = selectedFiles.map(file => {
+          return new Promise<void>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              try {
+                const photoUrl = reader.result as string;
+                await apiRequest(`/api/reclamos-generales/${reclamo.id}/photos`, {
+                  method: 'POST',
+                  data: {
+                    photoUrl: photoUrl,
+                    description: file.name,
+                  },
+                });
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        });
+        
+        await Promise.all(uploadPromises);
       }
       
       queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
