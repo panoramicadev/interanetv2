@@ -780,9 +780,10 @@ function EstadoDialog({
   const [nuevoEstado, setNuevoEstado] = useState("");
   const [motivoRechazo, setMotivoRechazo] = useState("");
   const [monto, setMonto] = useState("");
+  const [pdfPresupuesto, setPdfPresupuesto] = useState("");
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { estado: string; motivoRechazo?: string; monto?: number }) => {
+    mutationFn: async (data: { estado: string; motivoRechazo?: string; monto?: number; pdfPresupuesto?: string }) => {
       const response = await apiRequest(`/api/marketing/solicitudes/${solicitud?.id}/estado`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -801,6 +802,7 @@ function EstadoDialog({
       setNuevoEstado("");
       setMotivoRechazo("");
       setMonto("");
+      setPdfPresupuesto("");
     },
     onError: (error: Error) => {
       toast({
@@ -856,6 +858,7 @@ function EstadoDialog({
       estado: nuevoEstado,
       motivoRechazo: nuevoEstado === 'rechazado' ? motivoRechazo : undefined,
       monto: monto && !solicitud?.monto ? parseFloat(monto) : undefined,
+      pdfPresupuesto: pdfPresupuesto || undefined,
     });
   };
 
@@ -907,6 +910,21 @@ function EstadoDialog({
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Ingrese el monto luego de presupuestar la solicitud
+              </p>
+            </div>
+          )}
+          {(nuevoEstado === 'en_proceso' || nuevoEstado === 'completado') && (
+            <div>
+              <Label htmlFor="pdfPresupuesto">URL del PDF Presupuestado (Opcional)</Label>
+              <Input
+                id="pdfPresupuesto"
+                placeholder="https://ejemplo.com/presupuesto.pdf"
+                value={pdfPresupuesto}
+                onChange={(e) => setPdfPresupuesto(e.target.value)}
+                data-testid="input-pdf-presupuesto"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Suba el PDF con el presupuesto detallado
               </p>
             </div>
           )}
