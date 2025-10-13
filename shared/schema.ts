@@ -3025,3 +3025,154 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   title: z.string(),
   message: z.string(),
 });
+
+// ============================================
+// SISTEMA DE RECLAMOS GENERALES (separado de visitas técnicas)
+// ============================================
+
+// Tabla principal de reclamos generales
+export const reclamosGenerales = pgTable("reclamos_generales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Información del cliente
+  clientName: text("client_name").notNull(),
+  clientRut: varchar("client_rut"),
+  clientEmail: varchar("client_email"),
+  clientPhone: varchar("client_phone"),
+  clientAddress: text("client_address"),
+  
+  // Información del producto/servicio
+  productName: text("product_name").notNull(),
+  productSku: varchar("product_sku"),
+  lote: varchar("lote"), // Lote del producto
+  
+  // Descripción del reclamo
+  description: text("description").notNull(),
+  gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica
+  
+  // Flujo de trabajo
+  estado: varchar("estado").default("registrado").notNull(), // registrado, en_revision_tecnica, en_laboratorio, en_produccion, cerrado
+  
+  // Asignaciones
+  vendedorId: varchar("vendedor_id").notNull(), // FK to users.id (quien registra)
+  vendedorName: varchar("vendedor_name"), // Nombre del vendedor
+  tecnicoId: varchar("tecnico_id"), // FK to users.id (técnico asignado)
+  tecnicoName: varchar("tecnico_name"), // Nombre del técnico
+  
+  // Derivaciones
+  derivadoLaboratorio: boolean("derivado_laboratorio").default(false),
+  derivadoProduccion: boolean("derivado_produccion").default(false),
+  
+  // Informes y notas
+  informeLaboratorio: text("informe_laboratorio"),
+  informeProduccion: text("informe_produccion"),
+  informeTecnico: text("informe_tecnico"),
+  notasInternas: text("notas_internas"),
+  
+  // Fechas de seguimiento
+  fechaRegistro: timestamp("fecha_registro").defaultNow(),
+  fechaAsignacionTecnico: timestamp("fecha_asignacion_tecnico"),
+  fechaEnvioLaboratorio: timestamp("fecha_envio_laboratorio"),
+  fechaRespuestaLaboratorio: timestamp("fecha_respuesta_laboratorio"),
+  fechaCierre: timestamp("fecha_cierre"),
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  vendedorIdIdx: index("IDX_reclamos_gen_vendedor_id").on(table.vendedorId),
+  tecnicoIdIdx: index("IDX_reclamos_gen_tecnico_id").on(table.tecnicoId),
+  estadoIdx: index("IDX_reclamos_gen_estado").on(table.estado),
+  gravedadIdx: index("IDX_reclamos_gen_gravedad").on(table.gravedad),
+}));
+
+// Tabla de fotos de reclamos generales
+export const reclamosGeneralesPhotos = pgTable("reclamos_generales_photos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reclamoId: varchar("reclamo_id").notNull(), // FK to reclamosGenerales.id
+  photoUrl: text("photo_url").notNull(),
+  description: text("description"),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+}, (table) => ({
+  reclamoIdIdx: index("IDX_reclamos_gen_photos_reclamo_id").on(table.reclamoId),
+}));
+
+// Tabla de historial de estados de reclamos generales
+export const reclamosGeneralesHistorial = pgTable("reclamos_generales_historial", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reclamoId: varchar("reclamo_id").notNull(), // FK to reclamosGenerales.id
+  estadoAnterior: varchar("estado_anterior"),
+  estadoNuevo: varchar("estado_nuevo").notNull(),
+  userId: varchar("user_id").notNull(), // FK to users.id (quien hizo el cambio)
+  userName: varchar("user_name"), // Nombre del usuario
+  notas: text("notas"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  reclamoIdIdx: index("IDX_reclamos_gen_hist_reclamo_id").on(table.reclamoId),
+}));
+
+// Relaciones para reclamos generales
+export const reclamosGeneralesRelations = relations(reclamosGenerales, ({ one, many }) => ({
+  vendedor: one(users, {
+    fields: [reclamosGenerales.vendedorId],
+    references: [users.id],
+  }),
+  tecnico: one(users, {
+    fields: [reclamosGenerales.tecnicoId],
+    references: [users.id],
+  }),
+  photos: many(reclamosGeneralesPhotos),
+  historial: many(reclamosGeneralesHistorial),
+}));
+
+export const reclamosGeneralesPhotosRelations = relations(reclamosGeneralesPhotos, ({ one }) => ({
+  reclamo: one(reclamosGenerales, {
+    fields: [reclamosGeneralesPhotos.reclamoId],
+    references: [reclamosGenerales.id],
+  }),
+}));
+
+export const reclamosGeneralesHistorialRelations = relations(reclamosGeneralesHistorial, ({ one }) => ({
+  reclamo: one(reclamosGenerales, {
+    fields: [reclamosGeneralesHistorial.reclamoId],
+    references: [reclamosGenerales.id],
+  }),
+  user: one(users, {
+    fields: [reclamosGeneralesHistorial.userId],
+    references: [users.id],
+  }),
+}));
+
+// Types para reclamos generales
+export type ReclamoGeneral = typeof reclamosGenerales.$inferSelect;
+export type InsertReclamoGeneral = typeof reclamosGenerales.$inferInsert;
+
+export type ReclamoGeneralPhoto = typeof reclamosGeneralesPhotos.$inferSelect;
+export type InsertReclamoGeneralPhoto = typeof reclamosGeneralesPhotos.$inferInsert;
+
+export type ReclamoGeneralHistorial = typeof reclamosGeneralesHistorial.$inferSelect;
+export type InsertReclamoGeneralHistorial = typeof reclamosGeneralesHistorial.$inferInsert;
+
+// Schemas de validación para reclamos generales
+export const insertReclamoGeneralSchema = createInsertSchema(reclamosGenerales).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  fechaRegistro: true,
+}).extend({
+  clientName: z.string().min(1, "El nombre del cliente es requerido"),
+  productName: z.string().min(1, "El nombre del producto es requerido"),
+  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
+  gravedad: z.enum(["baja", "media", "alta", "critica"]),
+  estado: z.enum(["registrado", "en_revision_tecnica", "en_laboratorio", "en_produccion", "cerrado"]).optional(),
+});
+
+export const insertReclamoGeneralPhotoSchema = createInsertSchema(reclamosGeneralesPhotos).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertReclamoGeneralHistorialSchema = createInsertSchema(reclamosGeneralesHistorial).omit({
+  id: true,
+  createdAt: true,
+});
