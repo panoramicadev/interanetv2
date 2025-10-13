@@ -8635,11 +8635,12 @@ export class DatabaseStorage implements IStorage {
       // Calculate date range based on periodo
       const now = new Date();
       let startDate: Date;
-      let endDate: Date = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      let endDate: Date;
       
       switch (periodo) {
         case 'current':
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
           break;
         case 'last':
           startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -8648,20 +8649,26 @@ export class DatabaseStorage implements IStorage {
         case 'quarter':
           const quarterStart = Math.floor(now.getMonth() / 3) * 3;
           startDate = new Date(now.getFullYear(), quarterStart - 3, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
           break;
         case 'year':
           startDate = new Date(now.getFullYear(), 0, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
           break;
         default:
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       }
       
-      // Get visitas in date range
+      // Get visitas in date range - convert to YYYY-MM-DD format
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
       const visitas = await db.select().from(visitasTecnicas)
         .where(
           and(
-            gte(visitasTecnicas.createdAt, startDate.toISOString().split('T')[0]),
-            lte(visitasTecnicas.createdAt, endDate.toISOString().split('T')[0])
+            gte(visitasTecnicas.createdAt, startDateStr),
+            lte(visitasTecnicas.createdAt, endDateStr)
           )
         );
       
