@@ -279,6 +279,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const { data: yearlyTotals } = useQuery<{
     currentYearTotal: number;
     previousYearTotal: number;
+    comparisonYear: number;
+    comparisonDate: string;
+    isYTD: boolean;
   }>({
     queryKey: ['/api/sales/yearly-totals'],
   });
@@ -404,10 +407,53 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const salesChange = calculateChange(metrics?.totalSales || 0, metrics?.previousMonthSales);
   const unitsChange = calculateChange(metrics?.totalUnits || 0, metrics?.previousMonthUnits);
 
-  // Calculate year-over-year change for yearly totals
+  // Calculate year-over-year change for yearly totals (YTD comparison)
   const currentYearTotal = yearlyTotals?.currentYearTotal || 0;
   const previousYearTotal = yearlyTotals?.previousYearTotal || 0;
-  const yearlyChange = calculateChange(currentYearTotal, previousYearTotal);
+  
+  // Custom calculation for YTD comparison with proper text using API data
+  const calculateYearlyChange = (
+    current: number, 
+    previous: number,
+    comparisonYear?: number,
+    comparisonDate?: string,
+    isYTD?: boolean
+  ) => {
+    if (previous === undefined || previous === null || previous === 0) {
+      return { 
+        percentage: "Sin datos previos", 
+        comparisonText: "",
+        color: "text-gray-500" 
+      };
+    }
+    
+    const change = ((current - previous) / previous) * 100;
+    const sign = change >= 0 ? "+" : "";
+    const color = change >= 0 ? "text-green-600" : "text-red-600";
+    
+    // Build comparison text from API data
+    let comparisonText = "";
+    if (isYTD && comparisonDate && comparisonYear) {
+      const monthDay = format(new Date(comparisonDate), 'dd/MM');
+      comparisonText = `vs ${comparisonYear} al ${monthDay}`;
+    } else if (comparisonYear) {
+      comparisonText = `vs ${comparisonYear}`;
+    }
+    
+    return {
+      percentage: `${sign}${change.toFixed(1)}%`,
+      comparisonText,
+      color
+    };
+  };
+  
+  const yearlyChange = calculateYearlyChange(
+    currentYearTotal, 
+    previousYearTotal,
+    yearlyTotals?.comparisonYear,
+    yearlyTotals?.comparisonDate,
+    yearlyTotals?.isYTD
+  );
 
   // Calculate comparison changes
   const salesComparison = calculateComparisonChange(metrics?.totalSales || 0, comparisonMetrics?.totalSales, true);
