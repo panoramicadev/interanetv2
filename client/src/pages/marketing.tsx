@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useUser } from "@/hooks/use-user";
+import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,7 @@ interface MarketingMetrics {
 }
 
 export default function Marketing() {
-  const { user } = useUser();
+  const { user } = useAuth();
   const { toast } = useToast();
   const currentDate = new Date();
   const [selectedMes, setSelectedMes] = useState(currentDate.getMonth() + 1);
