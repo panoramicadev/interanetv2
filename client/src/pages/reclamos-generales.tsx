@@ -109,7 +109,9 @@ export default function ReclamosGeneralesPage() {
   const [activeTab, setActiveTab] = useState("mis-reclamos");
   const [showNewReclamoModal, setShowNewReclamoModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showCerrarModal, setShowCerrarModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
+  const [informeResolutivo, setInformeResolutivo] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [filterGravedad, setFilterGravedad] = useState<string>("all");
@@ -227,6 +229,34 @@ export default function ReclamosGeneralesPage() {
       toast({
         title: "Error",
         description: error.message || "No se pudo crear el reclamo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Cerrar reclamo mutation
+  const cerrarReclamoMutation = useMutation({
+    mutationFn: async ({ reclamoId, notas }: { reclamoId: string; notas: string }) => {
+      const response = await apiRequest(`/api/reclamos-generales/${reclamoId}/cerrar`, {
+        method: 'POST',
+        data: { notas },
+      });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
+      toast({
+        title: "Reclamo cerrado",
+        description: "El reclamo ha sido cerrado exitosamente.",
+      });
+      setShowCerrarModal(false);
+      setInformeResolutivo("");
+      setSelectedReclamoId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo cerrar el reclamo",
         variant: "destructive",
       });
     },
@@ -517,18 +547,35 @@ export default function ReclamosGeneralesPage() {
                               )}
                             </div>
                             
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedReclamoId(reclamo.id);
-                                setShowDetailModal(true);
-                              }}
-                              data-testid={`button-view-reclamo-${reclamo.id}`}
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              Ver Detalle
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedReclamoId(reclamo.id);
+                                  setShowDetailModal(true);
+                                }}
+                                data-testid={`button-view-reclamo-${reclamo.id}`}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Ver Detalle
+                              </Button>
+                              
+                              {reclamo.estado !== 'cerrado' && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedReclamoId(reclamo.id);
+                                    setShowCerrarModal(true);
+                                  }}
+                                  data-testid={`button-cerrar-reclamo-${reclamo.id}`}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Cerrar
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -911,6 +958,79 @@ export default function ReclamosGeneralesPage() {
           ) : (
             <p className="text-center text-muted-foreground">No se encontró el reclamo</p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cerrar Reclamo Modal */}
+      <Dialog open={showCerrarModal} onOpenChange={setShowCerrarModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cerrar Reclamo</DialogTitle>
+            <DialogDescription>
+              Ingrese el informe resolutivo para cerrar este reclamo
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="informe">Informe Resolutivo <span className="text-red-500">*</span></Label>
+              <Textarea
+                id="informe"
+                placeholder="Describa la solución aplicada y el resultado del reclamo..."
+                value={informeResolutivo}
+                onChange={(e) => setInformeResolutivo(e.target.value)}
+                rows={6}
+                className="mt-2"
+                data-testid="textarea-informe-resolutivo"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCerrarModal(false);
+                setInformeResolutivo("");
+                setSelectedReclamoId(null);
+              }}
+              data-testid="button-cancel-cerrar"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!informeResolutivo.trim()) {
+                  toast({
+                    title: "Error",
+                    description: "Debe ingresar el informe resolutivo",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                if (selectedReclamoId) {
+                  cerrarReclamoMutation.mutate({
+                    reclamoId: selectedReclamoId,
+                    notas: informeResolutivo,
+                  });
+                }
+              }}
+              disabled={cerrarReclamoMutation.isPending}
+              data-testid="button-confirm-cerrar"
+            >
+              {cerrarReclamoMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cerrando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Cerrar Reclamo
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
