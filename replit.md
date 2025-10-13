@@ -70,7 +70,7 @@ Preferred communication style: Simple, everyday language.
   - 3-card layout: Ventas Totales (with NVV+GDV), Total Acumulado del Año (with best historical year and YTD comparison), and Unidades Vendidas (with client count).
   - Best historical year feature displays the year with highest sales and its amount on the "Total Acumulado del Año" card.
   - YTD comparison: "Total Acumulado del Año" card shows accurate year-to-date comparison for current year (e.g., Oct 13, 2025 vs Oct 13, 2024), and full-year comparison for historical years. Includes leap year handling (Feb 29 adjusts to Feb 28 of prior year).
-  - Embedded salesperson detail view: Selecting a salesperson from filters shows their dedicated dashboard with back navigation to return to main dashboard. Dashboard filters displayed as read-only badges with "Cambiar filtros" button.
+  - Embedded salesperson detail view: Selecting a salesperson from filters shows their dedicated dashboard with back navigation to return to main dashboard. Dashboard filters displayed as read-only badges with "Cambiar filtros" button. Filters (including date ranges) are inherited from the main dashboard and persist when switching between salespeople. Includes in-panel salesperson selector to switch between vendors without leaving the detail view.
 
 ## External Dependencies
 
