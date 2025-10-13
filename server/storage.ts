@@ -270,6 +270,9 @@ export interface IStorage {
   getYearlyTotals(year: number): Promise<{
     currentYearTotal: number;
     previousYearTotal: number;
+    comparisonYear: number;
+    comparisonDate: string;
+    isYTD: boolean;
   }>;
   
   getBestYearHistorical(): Promise<{
@@ -1250,28 +1253,62 @@ export class DatabaseStorage implements IStorage {
   async getYearlyTotals(year: number): Promise<{
     currentYearTotal: number;
     previousYearTotal: number;
+    comparisonYear: number;
+    comparisonDate: string;
+    isYTD: boolean;
   }> {
-    const currentYearStart = `${year}-01-01`;
-    const currentYearEnd = `${year}-12-31`;
+    const today = new Date();
+    const currentCalendarYear = today.getFullYear();
     const previousYear = year - 1;
-    const previousYearStart = `${previousYear}-01-01`;
-    const previousYearEnd = `${previousYear}-12-31`;
+    
+    // Determine if we're looking at the current year (for YTD) or a historical year
+    const isCurrentYear = year === currentCalendarYear;
+    
+    let requestedYearStart: string;
+    let requestedYearEnd: string;
+    let previousYearStart: string;
+    let previousYearEnd: string;
+    
+    if (isCurrentYear) {
+      // Year-to-date comparison: current year up to today vs last year up to same date
+      requestedYearStart = `${year}-01-01`;
+      requestedYearEnd = today.toISOString().split('T')[0]; // Today's date
+      
+      previousYearStart = `${previousYear}-01-01`;
+      const sameDayLastYear = new Date(today);
+      sameDayLastYear.setFullYear(previousYear);
+      
+      // Handle leap year edge case: if today is Feb 29 and previous year is not a leap year,
+      // setFullYear will roll to March 1. Adjust to Feb 28 in that case.
+      if (today.getMonth() === 1 && today.getDate() === 29 && sameDayLastYear.getMonth() === 2) {
+        sameDayLastYear.setMonth(1, 28); // February 28
+      }
+      
+      previousYearEnd = sameDayLastYear.toISOString().split('T')[0];
+    } else {
+      // Historical year: compare full year to full previous year
+      requestedYearStart = `${year}-01-01`;
+      requestedYearEnd = `${year}-12-31`;
+      
+      previousYearStart = `${previousYear}-01-01`;
+      previousYearEnd = `${previousYear}-12-31`;
+    }
 
-    // Get current year total (excluding GDV)
-    const [currentYearMetrics] = await db
+    // Get requested year total (excluding GDV)
+    const [requestedYearMetrics] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
       .from(salesTransactions)
       .where(
         and(
-          gte(salesTransactions.feemdo, currentYearStart),
-          lte(salesTransactions.feemdo, currentYearEnd),
+          gte(salesTransactions.feemdo, requestedYearStart),
+          lte(salesTransactions.feemdo, requestedYearEnd),
           ne(salesTransactions.tido, 'GDV')
         )
       );
 
-    // Get previous year total (excluding GDV)
+    // Get previous year total (excluding GDV) - same period
     const [previousYearMetrics] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
@@ -1286,8 +1323,11 @@ export class DatabaseStorage implements IStorage {
       );
 
     return {
-      currentYearTotal: Number(currentYearMetrics.total),
+      currentYearTotal: Number(requestedYearMetrics.total),
       previousYearTotal: Number(previousYearMetrics.total),
+      comparisonYear: previousYear,
+      comparisonDate: isCurrentYear ? today.toISOString().split('T')[0] : `${year}-12-31`,
+      isYTD: isCurrentYear,
     };
   }
 
