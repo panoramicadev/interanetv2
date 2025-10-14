@@ -3291,3 +3291,48 @@ export const insertInventarioMarketingSchema = createInsertSchema(inventarioMark
   costoUnitario: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val).optional(),
   stockMinimo: z.number().min(0).optional(),
 });
+
+// Tabla de gastos empresariales
+export const gastosEmpresariales = pgTable("gastos_empresariales", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  monto: numeric("monto", { precision: 15, scale: 2 }).notNull(),
+  descripcion: text("descripcion").notNull(),
+  userId: varchar("user_id").notNull(), // Usuario que crea el gasto (vendedor)
+  centroCostos: varchar("centro_costos", { length: 255 }),
+  categoria: varchar("categoria", { length: 100 }).notNull(), // Combustibles, Colación, Gestión Ventas, etc.
+  tipoGasto: varchar("tipo_gasto", { length: 100 }).notNull().default("Reembolso"), // Reembolso, Gasto Directo, etc.
+  tipoDocumento: varchar("tipo_documento", { length: 100 }), // Boleta, Factura, Recibo, etc.
+  proveedor: varchar("proveedor", { length: 255 }),
+  rutProveedor: varchar("rut_proveedor", { length: 20 }),
+  numeroDocumento: varchar("numero_documento", { length: 100 }),
+  fechaEmision: date("fecha_emision"),
+  archivoUrl: varchar("archivo_url", { length: 500 }), // URL del documento adjunto
+  estado: varchar("estado", { length: 50 }).notNull().default("pendiente"), // pendiente, aprobado, rechazado
+  supervisorId: varchar("supervisor_id"), // Supervisor que aprueba/rechaza
+  fechaAprobacion: timestamp("fecha_aprobacion"),
+  comentarioRechazo: text("comentario_rechazo"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Types
+export type GastoEmpresarial = typeof gastosEmpresariales.$inferSelect;
+export type InsertGastoEmpresarial = typeof gastosEmpresariales.$inferInsert;
+
+// Schema de validación
+export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresariales).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  fechaAprobacion: true,
+}).extend({
+  monto: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
+  descripcion: z.string().min(1, "La descripción es requerida"),
+  userId: z.string().min(1, "El usuario es requerido"),
+  categoria: z.string().min(1, "La categoría es requerida"),
+  tipoGasto: z.string().min(1, "El tipo de gasto es requerido"),
+  estado: z.enum(["pendiente", "aprobado", "rechazado"]).default("pendiente"),
+  fechaEmision: z.string().or(z.date()).transform(val => 
+    typeof val === 'string' ? new Date(val) : val
+  ).optional(),
+});
