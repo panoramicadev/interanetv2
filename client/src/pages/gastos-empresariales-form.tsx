@@ -3,7 +3,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -65,10 +64,10 @@ export default function GastosEmpresarialesForm() {
     mutationFn: async (data: FormValues) => {
       return apiRequest('/api/gastos-empresariales', {
         method: 'POST',
-        body: JSON.stringify({
+        data: {
           ...data,
           monto: parseFloat(data.monto),
-        }),
+        },
       });
     },
     onSuccess: () => {
@@ -93,8 +92,7 @@ export default function GastosEmpresarialesForm() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           <Button
@@ -354,6 +352,5 @@ export default function GastosEmpresarialesForm() {
           </Form>
         </div>
       </div>
-    </DashboardLayout>
   );
 }

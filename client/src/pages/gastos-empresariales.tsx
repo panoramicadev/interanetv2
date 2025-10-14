@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -114,7 +113,7 @@ export default function GastosEmpresariales() {
     mutationFn: async ({ id, comentario }: { id: string; comentario: string }) => {
       return apiRequest(`/api/gastos-empresariales/${id}/rechazar`, {
         method: 'POST',
-        body: JSON.stringify({ comentario })
+        data: { comentario }
       });
     },
     onSuccess: () => {
@@ -198,7 +197,7 @@ export default function GastosEmpresariales() {
   };
 
   return (
-    <DashboardLayout>
+    <>
       <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -435,6 +434,6 @@ export default function GastosEmpresariales() {
           </div>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+    </>
   );
 }
