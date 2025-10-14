@@ -38,6 +38,9 @@ import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
 import ReclamosGeneralesPage from "@/pages/reclamos-generales";
 import Marketing from "@/pages/marketing";
 import Inventario from "@/pages/inventario";
+import GastosEmpresariales from "@/pages/gastos-empresariales";
+import GastosEmpresarialesForm from "@/pages/gastos-empresariales-form";
+import GastosEmpresarialesDashboard from "@/pages/gastos-empresariales-dashboard";
 import Reception from "@/pages/reception";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
@@ -124,6 +127,9 @@ function Router() {
             <Route path="/reclamos-generales" component={ReclamosGeneralesPage} />
             <Route path="/marketing" component={Marketing} />
             <Route path="/inventario" component={Inventario} />
+            <Route path="/gastos-empresariales" component={GastosEmpresariales} />
+            <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />
+            <Route path="/gastos-empresariales/dashboard" component={GastosEmpresarialesDashboard} />
             
             {/* Rutas de Tintometría */}
             <Route path="/tintometria" component={() => {

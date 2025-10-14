@@ -20,7 +20,8 @@ import {
   Building2,
   Wrench,
   AlertTriangle,
-  Warehouse
+  Warehouse,
+  Banknote
 } from "lucide-react";
 
 interface SidebarItem {
@@ -105,6 +106,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
+    },
+    {
+      href: "/gastos-empresariales",
+      label: "Gastos Empresariales",
+      icon: Banknote,
     },
     {
       href: "/tintometria",
@@ -204,6 +210,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: TrendingUp,
     },
     {
+      href: "/gastos-empresariales",
+      label: "Gastos Empresariales",
+      icon: Banknote,
+    },
+    {
       href: "/tintometria",
       label: "Tintometría",
       icon: Palette,
@@ -269,6 +280,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
+    },
+    {
+      href: "/gastos-empresariales",
+      label: "Gastos Empresariales",
+      icon: Banknote,
     },
     {
       href: "/tintometria",
