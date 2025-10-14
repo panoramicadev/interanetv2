@@ -138,6 +138,10 @@ import {
   type InsertSolicitudMarketing,
   type InventarioMarketing,
   type InsertInventarioMarketing,
+  // Gastos empresariales
+  gastosEmpresariales,
+  type GastoEmpresarial,
+  type InsertGastoEmpresarial,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
@@ -1051,6 +1055,56 @@ export interface IStorage {
   }>;
   
   getWarehouses(): Promise<{ code: string; name: string }[]>;
+
+  // ==================================================================================
+  // GASTOS EMPRESARIALES operations
+  // ==================================================================================
+  
+  createGastoEmpresarial(gasto: InsertGastoEmpresarial): Promise<GastoEmpresarial>;
+  getGastosEmpresariales(filters?: {
+    userId?: string;
+    estado?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    categoria?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<GastoEmpresarial[]>;
+  getGastoEmpresarialById(id: string): Promise<GastoEmpresarial | undefined>;
+  updateGastoEmpresarial(id: string, updates: Partial<InsertGastoEmpresarial>): Promise<GastoEmpresarial>;
+  deleteGastoEmpresarial(id: string): Promise<void>;
+  aprobarGastoEmpresarial(id: string, supervisorId: string): Promise<GastoEmpresarial>;
+  rechazarGastoEmpresarial(id: string, supervisorId: string, comentario: string): Promise<GastoEmpresarial>;
+  getGastosEmpresarialesSummary(filters?: {
+    userId?: string;
+    mes?: number;
+    anio?: number;
+  }): Promise<{
+    totalGastos: number;
+    totalAprobados: number;
+    totalPendientes: number;
+    totalRechazados: number;
+    montoPendiente: number;
+    montoAprobado: number;
+  }>;
+  getGastosEmpresarialesByCategoria(filters?: {
+    userId?: string;
+    mes?: number;
+    anio?: number;
+  }): Promise<Array<{
+    categoria: string;
+    total: number;
+    cantidad: number;
+  }>>;
+  getGastosEmpresarialesByUser(filters?: {
+    mes?: number;
+    anio?: number;
+  }): Promise<Array<{
+    userId: string;
+    userName: string;
+    total: number;
+    cantidad: number;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -10511,6 +10565,275 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(warehouses.name));
     
     return results;
+  }
+
+  // ==================================================================================
+  // GASTOS EMPRESARIALES operations
+  // ==================================================================================
+
+  async createGastoEmpresarial(gasto: InsertGastoEmpresarial): Promise<GastoEmpresarial> {
+    const [result] = await db
+      .insert(gastosEmpresariales)
+      .values(gasto)
+      .returning();
+    return result;
+  }
+
+  async getGastosEmpresariales(filters?: {
+    userId?: string;
+    estado?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    categoria?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<GastoEmpresarial[]> {
+    let query = db.select().from(gastosEmpresariales);
+
+    const conditions = [];
+
+    if (filters?.userId) {
+      conditions.push(eq(gastosEmpresariales.userId, filters.userId));
+    }
+
+    if (filters?.estado) {
+      conditions.push(eq(gastosEmpresariales.estado, filters.estado));
+    }
+
+    if (filters?.fechaDesde) {
+      conditions.push(gte(gastosEmpresariales.createdAt, new Date(filters.fechaDesde)));
+    }
+
+    if (filters?.fechaHasta) {
+      conditions.push(lte(gastosEmpresariales.createdAt, new Date(filters.fechaHasta)));
+    }
+
+    if (filters?.categoria) {
+      conditions.push(eq(gastosEmpresariales.categoria, filters.categoria));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    query = query.orderBy(desc(gastosEmpresariales.createdAt)) as any;
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+
+    if (filters?.offset) {
+      query = query.offset(filters.offset) as any;
+    }
+
+    return await query;
+  }
+
+  async getGastoEmpresarialById(id: string): Promise<GastoEmpresarial | undefined> {
+    const [result] = await db
+      .select()
+      .from(gastosEmpresariales)
+      .where(eq(gastosEmpresariales.id, id));
+    return result;
+  }
+
+  async updateGastoEmpresarial(id: string, updates: Partial<InsertGastoEmpresarial>): Promise<GastoEmpresarial> {
+    const [result] = await db
+      .update(gastosEmpresariales)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(gastosEmpresariales.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteGastoEmpresarial(id: string): Promise<void> {
+    await db
+      .delete(gastosEmpresariales)
+      .where(eq(gastosEmpresariales.id, id));
+  }
+
+  async aprobarGastoEmpresarial(id: string, supervisorId: string): Promise<GastoEmpresarial> {
+    const [result] = await db
+      .update(gastosEmpresariales)
+      .set({
+        estado: 'aprobado',
+        supervisorId,
+        fechaAprobacion: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(gastosEmpresariales.id, id))
+      .returning();
+    return result;
+  }
+
+  async rechazarGastoEmpresarial(id: string, supervisorId: string, comentario: string): Promise<GastoEmpresarial> {
+    const [result] = await db
+      .update(gastosEmpresariales)
+      .set({
+        estado: 'rechazado',
+        supervisorId,
+        comentarioRechazo: comentario,
+        fechaAprobacion: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(gastosEmpresariales.id, id))
+      .returning();
+    return result;
+  }
+
+  async getGastosEmpresarialesSummary(filters?: {
+    userId?: string;
+    mes?: number;
+    anio?: number;
+  }): Promise<{
+    totalGastos: number;
+    totalAprobados: number;
+    totalPendientes: number;
+    totalRechazados: number;
+    montoPendiente: number;
+    montoAprobado: number;
+  }> {
+    const conditions = [];
+
+    if (filters?.userId) {
+      conditions.push(eq(gastosEmpresariales.userId, filters.userId));
+    }
+
+    if (filters?.mes && filters?.anio) {
+      const startDate = new Date(filters.anio, filters.mes - 1, 1);
+      const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
+      conditions.push(
+        and(
+          gte(gastosEmpresariales.createdAt, startDate),
+          lte(gastosEmpresariales.createdAt, endDate)
+        )
+      );
+    }
+
+    let query = db.select().from(gastosEmpresariales);
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const gastos = await query;
+
+    const totalGastos = gastos.length;
+    const totalAprobados = gastos.filter(g => g.estado === 'aprobado').length;
+    const totalPendientes = gastos.filter(g => g.estado === 'pendiente').length;
+    const totalRechazados = gastos.filter(g => g.estado === 'rechazado').length;
+
+    const montoPendiente = gastos
+      .filter(g => g.estado === 'pendiente')
+      .reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
+
+    const montoAprobado = gastos
+      .filter(g => g.estado === 'aprobado')
+      .reduce((sum, g) => sum + parseFloat(g.monto as any || '0'), 0);
+
+    return {
+      totalGastos,
+      totalAprobados,
+      totalPendientes,
+      totalRechazados,
+      montoPendiente,
+      montoAprobado,
+    };
+  }
+
+  async getGastosEmpresarialesByCategoria(filters?: {
+    userId?: string;
+    mes?: number;
+    anio?: number;
+  }): Promise<Array<{
+    categoria: string;
+    total: number;
+    cantidad: number;
+  }>> {
+    const conditions = [];
+
+    if (filters?.userId) {
+      conditions.push(eq(gastosEmpresariales.userId, filters.userId));
+    }
+
+    if (filters?.mes && filters?.anio) {
+      const startDate = new Date(filters.anio, filters.mes - 1, 1);
+      const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
+      conditions.push(
+        and(
+          gte(gastosEmpresariales.createdAt, startDate),
+          lte(gastosEmpresariales.createdAt, endDate)
+        )
+      );
+    }
+
+    // Only count approved expenses for analytics
+    conditions.push(eq(gastosEmpresariales.estado, 'aprobado'));
+
+    const results = await db
+      .select({
+        categoria: gastosEmpresariales.categoria,
+        total: sql<number>`SUM(${gastosEmpresariales.monto})`,
+        cantidad: sql<number>`COUNT(*)`,
+      })
+      .from(gastosEmpresariales)
+      .where(and(...conditions))
+      .groupBy(gastosEmpresariales.categoria);
+
+    return results.map(r => ({
+      categoria: r.categoria || 'Sin categoría',
+      total: parseFloat(r.total as any) || 0,
+      cantidad: parseInt(r.cantidad as any) || 0,
+    }));
+  }
+
+  async getGastosEmpresarialesByUser(filters?: {
+    mes?: number;
+    anio?: number;
+  }): Promise<Array<{
+    userId: string;
+    userName: string;
+    total: number;
+    cantidad: number;
+  }>> {
+    const conditions = [];
+
+    if (filters?.mes && filters?.anio) {
+      const startDate = new Date(filters.anio, filters.mes - 1, 1);
+      const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
+      conditions.push(
+        and(
+          gte(gastosEmpresariales.createdAt, startDate),
+          lte(gastosEmpresariales.createdAt, endDate)
+        )
+      );
+    }
+
+    // Only count approved expenses for analytics
+    conditions.push(eq(gastosEmpresariales.estado, 'aprobado'));
+
+    const results = await db
+      .select({
+        userId: gastosEmpresariales.userId,
+        userName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${salespeopleUsers.salespersonName}, 'Usuario Desconocido')`,
+        total: sql<number>`SUM(${gastosEmpresariales.monto})`,
+        cantidad: sql<number>`COUNT(*)`,
+      })
+      .from(gastosEmpresariales)
+      .leftJoin(users, eq(gastosEmpresariales.userId, users.id))
+      .leftJoin(salespeopleUsers, eq(gastosEmpresariales.userId, salespeopleUsers.id))
+      .where(and(...conditions))
+      .groupBy(gastosEmpresariales.userId, users.firstName, users.lastName, salespeopleUsers.salespersonName);
+
+    return results.map(r => ({
+      userId: r.userId,
+      userName: r.userName || 'Usuario Desconocido',
+      total: parseFloat(r.total as any) || 0,
+      cantidad: parseInt(r.cantidad as any) || 0,
+    }));
   }
 
 }
