@@ -108,9 +108,13 @@ export default function Dashboard() {
   const [localGlobalFilter, setLocalGlobalFilter] = useState(globalFilter);
   const [localComparePeriod, setLocalComparePeriod] = useState(comparePeriod);
   
-  // Reset comparison period when filter type changes
+  // Set default comparison period based on filter type
   useEffect(() => {
-    setComparePeriod("none");
+    if (filterType === "month") {
+      setComparePeriod("same-month-last-year");
+    } else {
+      setComparePeriod("none");
+    }
   }, [filterType]);
   
   // Update local state when drawer opens

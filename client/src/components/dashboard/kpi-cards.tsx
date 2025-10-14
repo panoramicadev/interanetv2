@@ -103,25 +103,14 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
           const [year, month] = currentPeriod.split('-').map(Number);
           const currentDate = new Date();
-          const currentYear = currentDate.getFullYear();
-          const currentMonth = currentDate.getMonth() + 1; // 0-indexed to 1-indexed
           
-          // Si es el mes actual, comparar hasta el día actual
-          if (year === currentYear && month === currentMonth) {
-            const dayOfMonth = currentDate.getDate();
-            const previousMonthDate = new Date(year, month - 2, 1); // mes anterior
-            const fromDate = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), 1);
-            const toDate = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), dayOfMonth);
-            const result = `${format(fromDate, 'yyyy-MM-dd')}_${format(toDate, 'yyyy-MM-dd')}`;
-            console.log('[DEBUG] Previous month (current month mode - until day', dayOfMonth, ') resolved to:', result);
-            return result;
-          }
-          
-          // Si es un mes pasado, comparar el mes completo anterior
-          const date = new Date(year, month - 1, 1);
-          date.setMonth(date.getMonth() - 1);
-          const result = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          console.log('[DEBUG] Previous month resolved to:', result);
+          // Siempre comparar hasta el día actual (del mes actual)
+          const dayOfMonth = currentDate.getDate();
+          const previousMonthDate = new Date(year, month - 2, 1); // mes anterior
+          const fromDate = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), 1);
+          const toDate = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), dayOfMonth);
+          const result = `${format(fromDate, 'yyyy-MM-dd')}_${format(toDate, 'yyyy-MM-dd')}`;
+          console.log('[DEBUG] Previous month (until day', dayOfMonth, ') resolved to:', result);
           return result;
         }
         break;
@@ -130,22 +119,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
         if (filterType === "month" && currentPeriod.match(/^\d{4}-\d{2}$/)) {
           const [year, month] = currentPeriod.split('-').map(Number);
           const currentDate = new Date();
-          const currentYear = currentDate.getFullYear();
-          const currentMonth = currentDate.getMonth() + 1;
           
-          // Si es el mes actual, comparar hasta el día actual del año pasado
-          if (year === currentYear && month === currentMonth) {
-            const dayOfMonth = currentDate.getDate();
-            const fromDate = new Date(year - 1, month - 1, 1);
-            const toDate = new Date(year - 1, month - 1, dayOfMonth);
-            const result = `${format(fromDate, 'yyyy-MM-dd')}_${format(toDate, 'yyyy-MM-dd')}`;
-            console.log('[DEBUG] Same month last year (current month mode - until day', dayOfMonth, ') resolved to:', result);
-            return result;
-          }
-          
-          // Si es un mes pasado, comparar el mes completo del año pasado
-          const result = `${year - 1}-${String(month).padStart(2, '0')}`;
-          console.log('[DEBUG] Same month last year resolved to:', result);
+          // Siempre comparar hasta el día actual (del mes actual) en el año anterior
+          const dayOfMonth = currentDate.getDate();
+          const fromDate = new Date(year - 1, month - 1, 1);
+          const toDate = new Date(year - 1, month - 1, dayOfMonth);
+          const result = `${format(fromDate, 'yyyy-MM-dd')}_${format(toDate, 'yyyy-MM-dd')}`;
+          console.log('[DEBUG] Same month last year (until day', dayOfMonth, ') resolved to:', result);
           return result;
         }
         break;
