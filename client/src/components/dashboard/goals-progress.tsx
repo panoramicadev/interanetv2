@@ -427,7 +427,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                       {goal.isCompleted ? "Excedente" : "Falta"}
                     </div>
                     <div className={`text-xs sm:text-sm font-semibold whitespace-nowrap overflow-hidden ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
-                      {goal.isCompleted ? "✓" : formatCurrency(goal.remaining)}
+                      {goal.isCompleted ? `${goal.percentage.toFixed(0)}% ${formatCurrency(goal.currentSales)}` : formatCurrency(goal.remaining)}
                     </div>
                   </div>
                 </div>
@@ -521,7 +521,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                         {goal.isCompleted ? "Excedente" : "Falta"}
                       </div>
                       <div className={`text-sm font-semibold ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
-                        {goal.isCompleted ? "✓" : formatCurrency(goal.remaining)}
+                        {goal.isCompleted ? `${goal.percentage.toFixed(0)}% ${formatCurrency(goal.currentSales)}` : formatCurrency(goal.remaining)}
                       </div>
                     </div>
                   </div>
