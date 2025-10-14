@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -164,8 +163,7 @@ export default function GastosEmpresarialesDashboard() {
   const years = Array.from({ length: 5 }, (_, i) => (currentYear - i).toString());
 
   return (
-    <DashboardLayout>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -305,6 +303,5 @@ export default function GastosEmpresarialesDashboard() {
           </Card>
         </div>
       </div>
-    </DashboardLayout>
   );
 }
