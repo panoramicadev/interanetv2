@@ -599,6 +599,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const renderYearlyCard = (kpi: any) => {
     const bestYearValue = bestYear?.bestYear || 0;
     const bestYearTotalValue = bestYear?.bestYearTotal || 0;
+    
+    // Calcular el monto de la diferencia
+    const currentTotal = currentYearTotal || 0;
+    const previousTotal = previousYearTotal || 0;
+    const difference = currentTotal - previousTotal;
+    const differenceFormatted = formatCurrency(Math.abs(difference));
+    const differenceSign = difference >= 0 ? '+' : '-';
 
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
@@ -614,10 +621,15 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {kpi.value}
             </p>
-            <div className="flex items-baseline gap-1.5">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
               <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
                 {kpi.change.percentage}
               </span>
+              {previousTotal > 0 && (
+                <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                  {differenceSign}{differenceFormatted}
+                </span>
+              )}
               {kpi.change.comparisonText && (
                 <span className="text-[10px] text-gray-500">
                   {kpi.change.comparisonText}
