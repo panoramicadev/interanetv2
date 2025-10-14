@@ -478,8 +478,32 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   // Renderizar tarjeta personalizada para Ventas Totales
   const renderSalesCard = (kpi: any) => {
     const salesTotal = Number(metrics?.totalSales || 0);
-    const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
-    const gdvSales = Number(metrics?.gdvSales || 0);
+    
+    // Verificar si el mes seleccionado ya terminó
+    const isMonthClosed = () => {
+      if (filterType !== "month") return false;
+      
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+      
+      // Parsear el período seleccionado
+      if (selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+        const [year, month] = selectedPeriod.split('-').map(Number);
+        
+        // Si el año es anterior al actual, el mes está cerrado
+        if (year < currentYear) return true;
+        
+        // Si es el mismo año pero el mes es anterior al actual, está cerrado
+        if (year === currentYear && month < currentMonth) return true;
+      }
+      
+      return false;
+    };
+    
+    const monthClosed = isMonthClosed();
+    const nvvTotal = monthClosed ? 0 : Number(nvvMetrics?.totalAmount || 0);
+    const gdvSales = monthClosed ? 0 : Number(metrics?.gdvSales || 0);
     const combinedTotal = salesTotal + nvvTotal + gdvSales;
 
     return (
