@@ -593,11 +593,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   // Renderizar tarjeta personalizada para Total Acumulado del Año
   const renderYearlyCard = (kpi: any) => {
-    const currentYearTotal = yearlyTotals?.currentYearTotal || 0;
-    const previousYearTotal = yearlyTotals?.previousYearTotal || 0;
-    const difference = currentYearTotal - previousYearTotal;
-    const differenceColor = difference >= 0 ? 'text-green-600' : 'text-red-600';
-    const differenceSign = difference >= 0 ? '+' : '';
+    const bestYearValue = bestYear?.bestYear || 0;
+    const bestYearTotalValue = bestYear?.bestYearTotal || 0;
 
     return (
       <div key={kpi.title} className="modern-card p-3 sm:p-5 lg:p-6 hover-lift">
@@ -623,13 +620,13 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </span>
               )}
             </div>
-            {/* Información adicional: Diferencia en monto vs año anterior */}
+            {/* Información adicional: Mejor año histórico */}
             <div className="mt-2 pt-2 border-t border-gray-100">
               <p className="text-xs text-gray-500 mb-1">
-                Diferencia vs año anterior
+                Mejor año: {bestYearValue}
               </p>
-              <p className={`text-xs font-semibold ${differenceColor} overflow-hidden text-ellipsis whitespace-nowrap min-w-0`} title={formatCurrency(difference)}>
-                {differenceSign}{formatCurrency(Math.abs(difference))}
+              <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={formatCurrency(bestYearTotalValue)}>
+                {formatCurrency(bestYearTotalValue)}
               </p>
             </div>
           </div>
