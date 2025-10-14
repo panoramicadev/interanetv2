@@ -15,7 +15,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { localImageStorage } from "./localImageStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema } from "../shared/schema";
+import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema } from "../shared/schema";
 import { eq, and, isNotNull, ne } from "drizzle-orm";
 import { emailService } from "./services/email";
 
@@ -7806,6 +7806,239 @@ export function registerRoutes(app: Express): Server {
       res.json(warehouses);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener bodegas', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // GASTOS EMPRESARIALES routes
+  // ==================================================================================
+
+  // Create gasto
+  app.post('/api/gastos-empresariales', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only salesperson, supervisor and admin can create expenses
+      if (!['salesperson', 'supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para crear gastos' });
+      }
+      
+      const validated = insertGastoEmpresarialSchema.parse({
+        ...req.body,
+        userId: user.id, // Set the userId from authenticated user
+      });
+      
+      const gasto = await storage.createGastoEmpresarial(validated);
+      res.status(201).json(gasto);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Error al crear gasto', error: error.message });
+    }
+  }));
+
+  // Get gastos with filters
+  app.get('/api/gastos-empresariales', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { estado, fechaDesde, fechaHasta, categoria, userId, limit, offset } = req.query;
+      
+      const filters: any = {};
+      
+      // Salesperson can only see their own expenses
+      if (user.role === 'salesperson') {
+        filters.userId = user.id;
+      } else if (userId) {
+        // Supervisor and admin can filter by userId
+        filters.userId = userId;
+      }
+      
+      if (estado) filters.estado = estado;
+      if (fechaDesde) filters.fechaDesde = fechaDesde;
+      if (fechaHasta) filters.fechaHasta = fechaHasta;
+      if (categoria) filters.categoria = categoria;
+      if (limit) filters.limit = parseInt(limit);
+      if (offset) filters.offset = parseInt(offset);
+      
+      const gastos = await storage.getGastosEmpresariales(filters);
+      res.json(gastos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener gastos', error: error.message });
+    }
+  }));
+
+  // Get gasto by ID
+  app.get('/api/gastos-empresariales/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const gasto = await storage.getGastoEmpresarialById(req.params.id);
+      
+      if (!gasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+      
+      // Salesperson can only see their own expense
+      if (user.role === 'salesperson' && gasto.userId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      res.json(gasto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener gasto', error: error.message });
+    }
+  }));
+
+  // Update gasto
+  app.patch('/api/gastos-empresariales/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const gasto = await storage.getGastoEmpresarialById(req.params.id);
+      
+      if (!gasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+      
+      // Only the creator can update pending expenses
+      if (gasto.estado !== 'pendiente' || gasto.userId !== user.id) {
+        return res.status(403).json({ message: 'No se puede modificar este gasto' });
+      }
+      
+      const updated = await storage.updateGastoEmpresarial(req.params.id, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar gasto', error: error.message });
+    }
+  }));
+
+  // Delete gasto
+  app.delete('/api/gastos-empresariales/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const gasto = await storage.getGastoEmpresarialById(req.params.id);
+      
+      if (!gasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+      
+      // Only the creator can delete pending expenses or admin
+      if ((gasto.estado !== 'pendiente' || gasto.userId !== user.id) && user.role !== 'admin') {
+        return res.status(403).json({ message: 'No se puede eliminar este gasto' });
+      }
+      
+      await storage.deleteGastoEmpresarial(req.params.id);
+      res.json({ message: 'Gasto eliminado correctamente' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar gasto', error: error.message });
+    }
+  }));
+
+  // Approve gasto (supervisor/admin only)
+  app.post('/api/gastos-empresariales/:id/aprobar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo supervisores y admin pueden aprobar gastos' });
+      }
+      
+      const gasto = await storage.aprobarGastoEmpresarial(req.params.id, user.id);
+      res.json(gasto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al aprobar gasto', error: error.message });
+    }
+  }));
+
+  // Reject gasto (supervisor/admin only)
+  app.post('/api/gastos-empresariales/:id/rechazar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'Solo supervisores y admin pueden rechazar gastos' });
+      }
+      
+      const { comentario } = req.body;
+      if (!comentario) {
+        return res.status(400).json({ message: 'El comentario es requerido para rechazar' });
+      }
+      
+      const gasto = await storage.rechazarGastoEmpresarial(req.params.id, user.id, comentario);
+      res.json(gasto);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al rechazar gasto', error: error.message });
+    }
+  }));
+
+  // Get gastos summary
+  app.get('/api/gastos-empresariales/analytics/summary', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { mes, anio, userId } = req.query;
+      
+      const filters: any = {};
+      
+      // Salesperson can only see their own summary
+      if (user.role === 'salesperson') {
+        filters.userId = user.id;
+      } else if (userId) {
+        filters.userId = userId;
+      }
+      
+      if (mes) filters.mes = parseInt(mes);
+      if (anio) filters.anio = parseInt(anio);
+      
+      const summary = await storage.getGastosEmpresarialesSummary(filters);
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener resumen', error: error.message });
+    }
+  }));
+
+  // Get gastos by categoria
+  app.get('/api/gastos-empresariales/analytics/por-categoria', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { mes, anio, userId } = req.query;
+      
+      const filters: any = {};
+      
+      // Salesperson can only see their own analytics
+      if (user.role === 'salesperson') {
+        filters.userId = user.id;
+      } else if (userId) {
+        filters.userId = userId;
+      }
+      
+      if (mes) filters.mes = parseInt(mes);
+      if (anio) filters.anio = parseInt(anio);
+      
+      const data = await storage.getGastosEmpresarialesByCategoria(filters);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener datos por categoría', error: error.message });
+    }
+  }));
+
+  // Get gastos by user (supervisor/admin only)
+  app.get('/api/gastos-empresariales/analytics/por-usuario', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { mes, anio } = req.query;
+      
+      const filters: any = {};
+      if (mes) filters.mes = parseInt(mes);
+      if (anio) filters.anio = parseInt(anio);
+      
+      const data = await storage.getGastosEmpresarialesByUser(filters);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener datos por usuario', error: error.message });
     }
   }));
 
