@@ -3476,7 +3476,7 @@ export const factVentas = ventasSchema.table("fact_ventas", {
   recaprre: boolean("recaprre"),
   pfpr: numeric("pfpr", { precision: 18, scale: 6 }),
   hfpr: numeric("hfpr", { precision: 18, scale: 6 }),
-  monto: numeric("monto", { precision: 20, scale: 0 }),
+  monto: numeric("monto", { precision: 20, scale: 2 }),
   ocdo: text("ocdo"),
   nokoprct: text("nokoprct"),
   nokozo: numeric("nokozo", { precision: 18, scale: 6 }),
