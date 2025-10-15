@@ -12,6 +12,7 @@ import {
   boolean,
   unique,
   uniqueIndex,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -3336,3 +3337,171 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
     typeof val === 'string' ? new Date(val) : val
   ).optional(),
 });
+
+// ===== TABLAS DE STAGING PARA IMPORTACIÓN DESDE SQL SERVER =====
+
+// Staging: MAEEDO (Encabezado de documentos)
+export const stgMaeedo = pgTable("stg_maeedo", {
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }).primaryKey(),
+  tido: text("tido"),
+  nudo: text("nudo"),
+  feemli: date("feemli"),
+  endo: text("endo"),
+  suendo: text("suendo"),
+  suli: text("suli"),
+  bosulido: text("bosulido"),
+  kofudo: text("kofudo"),
+  vanedo: numeric("vanedo", { precision: 18, scale: 4 }),
+  vaivdo: numeric("vaivdo", { precision: 18, scale: 4 }),
+  vabrdo: numeric("vabrdo", { precision: 18, scale: 4 }),
+});
+
+// Staging: MAEDDO (Detalle de documentos)
+export const stgMaeddo = pgTable("stg_maeddo", {
+  idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(),
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }).notNull(),
+  koprct: text("koprct"),
+  nokopr: text("nokopr"),
+  udtrpr: text("udtrpr"),
+  caprco: numeric("caprco", { precision: 18, scale: 4 }),
+  preuni: numeric("preuni", { precision: 18, scale: 6 }),
+  vaneli: numeric("vaneli", { precision: 18, scale: 4 }),
+  devol1: numeric("devol1", { precision: 18, scale: 4 }),
+  devol2: numeric("devol2", { precision: 18, scale: 4 }),
+  stockfis: numeric("stockfis", { precision: 18, scale: 4 }),
+});
+
+// Staging: MAEEN (Entidades/Clientes)
+export const stgMaeen = pgTable("stg_maeen", {
+  koen: text("koen").primaryKey(),
+  nokoen: text("nokoen"),
+  rut: text("rut"),
+  zona: text("zona"),
+});
+
+// Staging: MAEPR (Productos)
+export const stgMaepr = pgTable("stg_maepr", {
+  kopr: text("kopr").primaryKey(),
+  nomrpr: text("nomrpr"),
+  ud01pr: text("ud01pr"),
+  ud02pr: text("ud02pr"),
+  tipr: text("tipr"),
+});
+
+// Staging: MAEVEN (Vendedores)
+export const stgMaeven = pgTable("stg_maeven", {
+  kofu: text("kofu").primaryKey(),
+  nokofu: text("nokofu"),
+});
+
+// Staging: TABBO (Bodegas)
+export const stgTabbo = pgTable("stg_tabbo", {
+  suli: text("suli").notNull(),
+  bosuli: text("bosuli").notNull(),
+  nobosuli: text("nobosuli"),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.suli, table.bosuli] }),
+}));
+
+// Staging: TABPP (Precios de productos)
+export const stgTabpp = pgTable("stg_tabpp", {
+  kopr: text("kopr").primaryKey(),
+  listacost: numeric("listacost", { precision: 18, scale: 4 }),
+  liscosmod: numeric("liscosmod", { precision: 18, scale: 4 }),
+});
+
+// ===== TABLA FINAL: FACT_VENTAS (79 columnas) =====
+export const factVentas = pgTable("fact_ventas", {
+  idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(),
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }),
+  tido: text("tido"),
+  nudo: numeric("nudo", { precision: 20, scale: 0 }),
+  endo: text("endo"),
+  suendo: text("suendo"),
+  sudo: numeric("sudo", { precision: 20, scale: 0 }),
+  feemdo: date("feemdo"),
+  feulvedo: date("feulvedo"),
+  kofudo: text("kofudo"),
+  modo: text("modo"),
+  timodo: text("timodo"),
+  tamodo: numeric("tamodo", { precision: 18, scale: 6 }),
+  caprad: numeric("caprad", { precision: 20, scale: 0 }),
+  caprex: numeric("caprex", { precision: 20, scale: 0 }),
+  vanedo: numeric("vanedo", { precision: 20, scale: 0 }),
+  vaivdo: numeric("vaivdo", { precision: 18, scale: 6 }),
+  vabrdo: numeric("vabrdo", { precision: 20, scale: 0 }),
+  lilg: text("lilg"),
+  nulido: numeric("nulido", { precision: 20, scale: 0 }),
+  sulido: numeric("sulido", { precision: 20, scale: 0 }),
+  luvtlido: numeric("luvtlido", { precision: 18, scale: 6 }),
+  bosulido: numeric("bosulido", { precision: 20, scale: 0 }),
+  kofulido: text("kofulido"),
+  prct: boolean("prct"),
+  tict: numeric("tict", { precision: 18, scale: 6 }),
+  tipr: text("tipr"),
+  nusepr: numeric("nusepr", { precision: 18, scale: 6 }),
+  koprct: text("koprct"),
+  udtrpr: numeric("udtrpr", { precision: 20, scale: 0 }),
+  rludpr: numeric("rludpr", { precision: 18, scale: 6 }),
+  caprco1: numeric("caprco1", { precision: 18, scale: 6 }),
+  caprad1: numeric("caprad1", { precision: 18, scale: 6 }),
+  caprex1: numeric("caprex1", { precision: 18, scale: 6 }),
+  caprnc1: numeric("caprnc1", { precision: 18, scale: 6 }),
+  ud01pr: text("ud01pr"),
+  caprco2: numeric("caprco2", { precision: 20, scale: 0 }),
+  caprad2: numeric("caprad2", { precision: 20, scale: 0 }),
+  caprex2: numeric("caprex2", { precision: 20, scale: 0 }),
+  caprnc2: numeric("caprnc2", { precision: 20, scale: 0 }),
+  ud02pr: text("ud02pr"),
+  ppprne: numeric("ppprne", { precision: 18, scale: 6 }),
+  ppprbr: numeric("ppprbr", { precision: 18, scale: 6 }),
+  vaneli: numeric("vaneli", { precision: 20, scale: 0 }),
+  vabrli: numeric("vabrli", { precision: 20, scale: 0 }),
+  feemli: date("feemli"),
+  feerli: timestamp("feerli"),
+  ppprpm: numeric("ppprpm", { precision: 18, scale: 6 }),
+  ppprpmifrs: numeric("ppprpmifrs", { precision: 18, scale: 6 }),
+  logistica: numeric("logistica", { precision: 20, scale: 0 }),
+  eslido: text("eslido"),
+  ppprnere1: numeric("ppprnere1", { precision: 18, scale: 6 }),
+  ppprnere2: numeric("ppprnere2", { precision: 18, scale: 6 }),
+  fmpr: numeric("fmpr", { precision: 20, scale: 0 }),
+  mrpr: numeric("mrpr", { precision: 18, scale: 6 }),
+  zona: numeric("zona", { precision: 18, scale: 6 }),
+  ruen: numeric("ruen", { precision: 18, scale: 6 }),
+  recaprre: boolean("recaprre"),
+  pfpr: numeric("pfpr", { precision: 18, scale: 6 }),
+  hfpr: numeric("hfpr", { precision: 18, scale: 6 }),
+  monto: numeric("monto", { precision: 20, scale: 0 }),
+  ocdo: text("ocdo"),
+  nokoprct: text("nokoprct"),
+  nokozo: numeric("nokozo", { precision: 18, scale: 6 }),
+  nosudo: text("nosudo"),
+  nokofu: text("nokofu"),
+  nokofudo: text("nokofudo"),
+  nobosuli: text("nobosuli"),
+  nokoen: text("nokoen"),
+  noruen: text("noruen"),
+  nomrpr: numeric("nomrpr", { precision: 18, scale: 6 }),
+  nofmpr: text("nofmpr"),
+  nopfpr: text("nopfpr"),
+  nohfpr: text("nohfpr"),
+  devol1: numeric("devol1", { precision: 20, scale: 0 }),
+  devol2: numeric("devol2", { precision: 20, scale: 0 }),
+  stockfis: numeric("stockfis", { precision: 20, scale: 0 }),
+  listacost: numeric("listacost", { precision: 18, scale: 6 }),
+  liscosmod: numeric("liscosmod", { precision: 20, scale: 0 }),
+}, (table) => ({
+  ixFeemli: index("ix_fact_ventas_feemli_id").on(table.feemli, table.idmaeedo, table.idmaeddo),
+  ixCliente: index("ix_fact_ventas_cliente").on(table.endo),
+  ixProducto: index("ix_fact_ventas_producto").on(table.koprct),
+  ixVendedor: index("ix_fact_ventas_vendedor").on(table.kofudo),
+  ixBodega: index("ix_fact_ventas_bodega").on(table.bosulido),
+}));
+
+// Types para fact_ventas
+export type FactVentas = typeof factVentas.$inferSelect;
+export type InsertFactVentas = typeof factVentas.$inferInsert;
+
+// Schema de validación para importación
+export const insertFactVentasSchema = createInsertSchema(factVentas);
