@@ -3414,6 +3414,25 @@ export const stgTabpp = ventasSchema.table("stg_tabpp", {
   liscosmod: numeric("liscosmod", { precision: 18, scale: 4 }),
 });
 
+// ===== TABLA DE CONTROL ETL (Watermark) =====
+export const etlExecutionLog = ventasSchema.table("etl_execution_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  executionDate: timestamp("execution_date").notNull().defaultNow(),
+  status: varchar("status", { length: 20 }).notNull(), // success, failed, running
+  period: varchar("period", { length: 7 }).notNull(), // Formato: YYYY-MM
+  documentTypes: text("document_types").notNull(), // FCV,GDV,FVL,NCV
+  branches: text("branches").notNull(), // 004,006,007
+  recordsProcessed: integer("records_processed"),
+  executionTimeMs: integer("execution_time_ms"),
+  errorMessage: text("error_message"),
+  statistics: text("statistics"), // JSON con detalles de cada tabla
+  watermarkDate: timestamp("watermark_date"), // Última fecha procesada
+});
+
+// Types para etlExecutionLog
+export type EtlExecutionLog = typeof etlExecutionLog.$inferSelect;
+export type InsertEtlExecutionLog = typeof etlExecutionLog.$inferInsert;
+
 // ===== TABLA FINAL: FACT_VENTAS (79 columnas) =====
 export const factVentas = ventasSchema.table("fact_ventas", {
   idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(),
