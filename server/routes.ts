@@ -8042,6 +8042,38 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ETL Ventas - Verificar datos SQL Server
+  app.get('/api/etl-ventas/verificar-maeddo', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const sqlServerConnection = (await import('./sqlserver')).default;
+      
+      const query = `
+        SELECT TOP 10
+          d.IDMAEDDO, d.IDMAEEDO, d.TIDO, d.KOPRCT,
+          d.NOKOPR, d.CAPRCO1, d.CAPRCO2, d.PPPRNE,
+          d.FEEMLI
+        FROM dbo.MAEDDO d
+        ORDER BY d.FEEMLI DESC, d.IDMAEDDO DESC
+      `;
+      
+      const result = await sqlServerConnection.query(query);
+      
+      res.json({
+        total: result.recordset.length,
+        registros: result.recordset
+      });
+    } catch (error: any) {
+      console.error('Error verificando MAEDDO:', error);
+      res.status(500).json({ message: 'Error al verificar datos', error: error.message });
+    }
+  }));
+
   // ETL Ventas - Ejecutar ETL
   app.post('/api/etl-ventas/run', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
