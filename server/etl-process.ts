@@ -63,12 +63,12 @@ async function extractAndLoad() {
     // Filtros
     const mesActual = '2025-10';
     const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV'];
-    const sucursal = '004';
+    const sucursales = ['004', '006', '007'];
 
     console.log('📋 FILTROS APLICADOS:');
     console.log(`   Periodo: ${mesActual}`);
     console.log(`   Tipos documento: ${tiposDoc.join(', ')}`);
-    console.log(`   Sucursal (SUDO): ${sucursal}\n`);
+    console.log(`   Sucursales (SUDO): ${sucursales.join(', ')}\n`);
 
     // 1. EXTRAER Y CARGAR MAEEDO (Encabezados)
     console.log('1️⃣  Extrayendo MAEEDO (Encabezados)...');
@@ -77,7 +77,7 @@ async function extractAndLoad() {
       SELECT *
       FROM dbo.MAEEDO
       WHERE TIDO IN ('${tiposDoc.join("','")}')
-        AND SUDO = '${sucursal}'
+        AND SUDO IN ('${sucursales.join("','")}')
         AND CONVERT(VARCHAR(7), FEEMDO, 120) = '${mesActual}'
       ORDER BY FEEMDO, NUDO
     `);
@@ -138,7 +138,7 @@ async function extractAndLoad() {
       FROM dbo.MAEDDO d
       INNER JOIN dbo.MAEEDO e ON d.IDMAEEDO = e.IDMAEEDO
       WHERE e.TIDO IN ('${tiposDoc.join("','")}')
-        AND e.SUDO = '${sucursal}'
+        AND e.SUDO IN ('${sucursales.join("','")}')
         AND CONVERT(VARCHAR(7), e.FEEMDO, 120) = '${mesActual}'
       ORDER BY d.IDMAEEDO, d.KOPRCT
     `);
@@ -189,7 +189,7 @@ async function extractAndLoad() {
       FROM dbo.MAEEN en
       INNER JOIN dbo.MAEEDO e ON en.KOEN = e.ENDO
       WHERE e.TIDO IN ('${tiposDoc.join("','")}')
-        AND e.SUDO = '${sucursal}'
+        AND e.SUDO IN ('${sucursales.join("','")}')
         AND CONVERT(VARCHAR(7), e.FEEMDO, 120) = '${mesActual}'
     `);
     
@@ -226,7 +226,7 @@ async function extractAndLoad() {
       INNER JOIN dbo.MAEDDO d ON pr.KOPR = d.KOPRCT
       INNER JOIN dbo.MAEEDO e ON d.IDMAEEDO = e.IDMAEEDO
       WHERE e.TIDO IN ('${tiposDoc.join("','")}')
-        AND e.SUDO = '${sucursal}'
+        AND e.SUDO IN ('${sucursales.join("','")}')
         AND CONVERT(VARCHAR(7), e.FEEMDO, 120) = '${mesActual}'
     `);
     
@@ -262,7 +262,7 @@ async function extractAndLoad() {
         'VENDEDOR ' + e.KOFUDO as nokofu
       FROM dbo.MAEEDO e
       WHERE e.TIDO IN ('${tiposDoc.join("','")}')
-        AND e.SUDO = '${sucursal}'
+        AND e.SUDO IN ('${sucursales.join("','")}')
         AND CONVERT(VARCHAR(7), e.FEEMDO, 120) = '${mesActual}'
         AND e.KOFUDO IS NOT NULL
         AND e.KOFUDO <> ''
@@ -321,7 +321,7 @@ async function extractAndLoad() {
       INNER JOIN dbo.MAEDDO d ON pr.KOPR = d.KOPRCT
       INNER JOIN dbo.MAEEDO e ON d.IDMAEEDO = e.IDMAEEDO
       WHERE e.TIDO IN ('${tiposDoc.join("','")}')
-        AND e.SUDO = '${sucursal}'
+        AND e.SUDO IN ('${sucursales.join("','")}')
         AND CONVERT(VARCHAR(7), e.FEEMDO, 120) = '${mesActual}'
     `);
     
@@ -385,7 +385,7 @@ async function extractAndLoad() {
       LEFT JOIN dbo.MAEEN en ON e.ENDO = en.KOEN
       LEFT JOIN dbo.MAEPR pr ON d.KOPRCT = pr.KOPR
       WHERE e.TIDO IN ('${tiposDoc.join("','")}')
-        AND e.SUDO = '${sucursal}'
+        AND e.SUDO IN ('${sucursales.join("','")}')
         AND CONVERT(VARCHAR(7), e.FEEMDO, 120) = '${mesActual}'
       ORDER BY e.FEEMDO, e.NUDO, d.KOPRCT
     `);
