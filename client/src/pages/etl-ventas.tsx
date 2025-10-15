@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Database, RefreshCw, BarChart3, Calendar, TrendingUp, Users } from "lucide-react";
+import { Database, RefreshCw, BarChart3, Calendar, TrendingUp, Users, Search } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 export default function ETLVentasPage() {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
+  const [maeddoData, setMaeddoData] = useState<any>(null);
 
   const { data: estado, isLoading: estadoLoading } = useQuery({
     queryKey: ['/api/etl-ventas/estado'],
@@ -18,6 +19,27 @@ export default function ETLVentasPage() {
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['/api/etl-ventas/stats'],
+  });
+
+  const verificarMaeddoMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('/api/etl-ventas/verificar-maeddo');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setMaeddoData(data);
+      toast({
+        title: "Verificación completada",
+        description: `Se encontraron ${data.total} registros más recientes`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al verificar datos",
+        description: error.message || "No se pudo conectar a SQL Server",
+        variant: "destructive",
+      });
+    }
   });
 
   const runETLMutation = useMutation({
@@ -66,24 +88,45 @@ export default function ETLVentasPage() {
             Sincronización de datos desde SQL Server Panoramica
           </p>
         </div>
-        <Button
-          onClick={() => runETLMutation.mutate()}
-          disabled={isRunning}
-          size="lg"
-          data-testid="button-ejecutar-etl"
-        >
-          {isRunning ? (
-            <>
-              <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
-              Ejecutando...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="mr-2 h-5 w-5" />
-              Ejecutar ETL
-            </>
-          )}
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            onClick={() => verificarMaeddoMutation.mutate()}
+            disabled={verificarMaeddoMutation.isPending}
+            variant="outline"
+            size="lg"
+            data-testid="button-verificar-maeddo"
+          >
+            {verificarMaeddoMutation.isPending ? (
+              <>
+                <Search className="mr-2 h-5 w-5 animate-spin" />
+                Verificando...
+              </>
+            ) : (
+              <>
+                <Search className="mr-2 h-5 w-5" />
+                Verificar MAEDDO
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={() => runETLMutation.mutate()}
+            disabled={isRunning}
+            size="lg"
+            data-testid="button-ejecutar-etl"
+          >
+            {isRunning ? (
+              <>
+                <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
+                Ejecutando...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-5 w-5" />
+                Ejecutar ETL
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -218,6 +261,47 @@ export default function ETLVentasPage() {
           )}
         </CardContent>
       </Card>
+
+      {maeddoData && (
+        <Card data-testid="card-maeddo-verificacion">
+          <CardHeader>
+            <CardTitle>Datos Más Recientes de MAEDDO (SQL Server)</CardTitle>
+            <CardDescription>Últimos {maeddoData.total} registros ordenados por fecha</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">IDMAEDDO</th>
+                    <th className="text-left p-2">IDMAEEDO</th>
+                    <th className="text-left p-2">TIDO</th>
+                    <th className="text-left p-2">KOPRCT</th>
+                    <th className="text-left p-2">NOKOPR</th>
+                    <th className="text-right p-2">CAPRCO2</th>
+                    <th className="text-right p-2">PPPRNE</th>
+                    <th className="text-left p-2">FEEMLI</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {maeddoData.registros.map((reg: any, idx: number) => (
+                    <tr key={idx} className="border-b hover:bg-muted/50">
+                      <td className="p-2 font-mono text-xs">{reg.IDMAEDDO}</td>
+                      <td className="p-2 font-mono text-xs">{reg.IDMAEEDO}</td>
+                      <td className="p-2">{reg.TIDO}</td>
+                      <td className="p-2 font-mono text-xs">{reg.KOPRCT}</td>
+                      <td className="p-2 text-xs">{reg.NOKOPR}</td>
+                      <td className="p-2 text-right">{reg.CAPRCO2}</td>
+                      <td className="p-2 text-right">${parseInt(reg.PPPRNE || 0).toLocaleString('es-CL')}</td>
+                      <td className="p-2">{reg.FEEMLI ? format(new Date(reg.FEEMLI), 'dd/MM/yyyy', { locale: es }) : 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card data-testid="card-proceso">
         <CardHeader>
