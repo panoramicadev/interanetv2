@@ -8042,6 +8042,75 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ETL Ventas - Ejecutar ETL
+  app.post('/api/etl-ventas/run', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { runETL } = await import('./etl-ventas');
+      await runETL();
+      
+      res.json({ message: 'ETL ejecutado exitosamente' });
+    } catch (error: any) {
+      console.error('Error ejecutando ETL:', error);
+      res.status(500).json({ message: 'Error al ejecutar ETL', error: error.message });
+    }
+  }));
+
+  // ETL Ventas - Obtener estado
+  app.get('/api/etl-ventas/estado', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { sql } = await import('drizzle-orm');
+      const result = await db.execute(sql`
+        SELECT ult_feemli, ult_idmaeedo, actualizado_en 
+        FROM ventas.etl_estado 
+        WHERE id = 1
+      `);
+      
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      console.error('Error obteniendo estado ETL:', error);
+      res.status(500).json({ message: 'Error al obtener estado', error: error.message });
+    }
+  }));
+
+  // ETL Ventas - Obtener estadísticas fact_ventas
+  app.get('/api/etl-ventas/stats', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { sql } = await import('drizzle-orm');
+      const result = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_registros,
+          MIN(feemdo) as fecha_min,
+          MAX(feemdo) as fecha_max,
+          SUM(monto) as monto_total,
+          COUNT(DISTINCT nokofu) as total_vendedores
+        FROM ventas.fact_ventas
+      `);
+      
+      res.json(result.rows[0]);
+    } catch (error: any) {
+      console.error('Error obteniendo estadísticas:', error);
+      res.status(500).json({ message: 'Error al obtener estadísticas', error: error.message });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
