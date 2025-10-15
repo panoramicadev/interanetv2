@@ -350,37 +350,108 @@ async function extractAndLoad() {
     });
     console.log(`   ✅ ${tabpp.recordset.length} registros cargados en ${Date.now() - startTabpp}ms\n`);
 
-    // 8. PROCESAR Y CARGAR FACT_VENTAS
-    console.log('8️⃣  Procesando y cargando FACT_VENTAS...');
+    // 8. PROCESAR Y CARGAR FACT_VENTAS (79 COLUMNAS COMPLETAS)
+    console.log('8️⃣  Procesando y cargando FACT_VENTAS (todas las columnas)...');
     const startFactVentas = Date.now();
     
     const factData = await pool.request().query(`
       SELECT 
-        d.IDMAEDDO,
+        -- Columnas de MAEEDO (encabezado)
         e.IDMAEEDO,
         e.TIDO,
         e.NUDO,
         e.ENDO,
+        e.SUENDO,
         e.SUDO,
         e.FEEMDO,
+        e.FEULVEDO,
         e.KOFUDO,
-        d.KOPRCT,
-        d.CAPRCO1,
-        d.CAPREX1,
-        d.CAPRCO2,
-        d.CAPREX2,
-        d.UDTRPR,
-        d.PPPRNE,
-        d.VANELI,
-        d.VABRLI,
+        e.MODO,
+        e.TIMODO,
+        e.TAMODO,
+        e.CAPRAD,
+        e.CAPREX,
         e.VANEDO,
         e.VAIVDO,
         e.VABRDO,
-        e.ESDO,
-        e.MEARDO,
-        e.FEEMDO as FEEMLI
+        
+        -- Columnas de MAEDDO (detalle)
+        d.LILG,
+        d.NULIDO,
+        d.SULIDO,
+        d.LUVTLIDO,
+        d.BOSULIDO,
+        d.KOFULIDO,
+        d.PRCT,
+        d.TICT,
+        d.TIPR,
+        d.NUSEPR,
+        d.KOPRCT,
+        d.UDTRPR,
+        d.RLUDPR,
+        d.CAPRCO1,
+        d.CAPRAD1,
+        d.CAPREX1,
+        d.CAPRNC1,
+        d.UD01PR,
+        d.CAPRCO2,
+        d.CAPRAD2,
+        d.CAPREX2,
+        d.CAPRNC2,
+        d.UD02PR,
+        d.PPPRNE,
+        d.PPPRBR,
+        d.VANELI,
+        d.VABRLI,
+        d.FEEMLI,
+        d.FEERLI,
+        d.PPPRPM,
+        d.PPPRPMIFRS,
+        d.LOGISTICA,
+        d.ESLIDO,
+        d.PPPRNERE1,
+        d.PPPRNERE2,
+        d.IDMAEDDO,
+        
+        -- Columnas de MAEPR (producto)
+        pr.FMPR,
+        pr.MRPR,
+        pr.ZONA,
+        pr.RUEN,
+        pr.RECAPRRE,
+        pr.PFPR,
+        pr.HFPR,
+        
+        -- Columna calculada MONTO
+        (d.CAPRCO2 * d.PPPRNE) as MONTO,
+        
+        -- Columnas adicionales
+        e.OCDO,
+        pr.NOKOPR as NOKOPRCT,
+        pr.KOZO as NOKOZO,
+        su.NOKOSU as NOSUDO,
+        fu.NOKOFU,
+        fu.NOKOFU as NOKOFUDO,
+        bo.NOKOBO as NOBOSULI,
+        en.NOKOEN,
+        en.RUEN as NORUEN,
+        pr.MRPR as NOMRPR,
+        pr.FMPR as NOFMPR,
+        pr.PFPR as NOPFPR,
+        pr.HFPR as NOHFPR,
+        0 as DEVOL1,
+        0 as DEVOL2,
+        0 as STOCKFIS,
+        pr.PM as LISTACOST,
+        0 as LISCOSMOD
+        
       FROM dbo.MAEEDO e
       INNER JOIN dbo.MAEDDO d ON e.IDMAEEDO = d.IDMAEEDO
+      LEFT JOIN dbo.MAEPR pr ON d.KOPRCT = pr.KOPR
+      LEFT JOIN dbo.MAEEN en ON e.ENDO = en.KOEN AND en.TIEN = 'C'
+      LEFT JOIN dbo.TABFU fu ON e.KOFUDO = fu.KOFU
+      LEFT JOIN dbo.TABBO bo ON d.BOSULIDO = bo.KOBO
+      LEFT JOIN dbo.TABSU su ON e.SUDO = su.KOSU
       WHERE e.TIDO IN ('${tiposDoc.join("','")}')
         AND e.SUDO IN ('${sucursales.join("','")}')
         AND CONVERT(VARCHAR(7), e.FEEMDO, 120) = '${mesActual}'
@@ -390,29 +461,96 @@ async function extractAndLoad() {
     if (factData.recordset.length > 0) {
       await db.insert(factVentas).values(
         factData.recordset.map(r => ({
-          idmaeddo: r.IDMAEDDO,
+          // Columnas de MAEEDO (encabezado)
           idmaeedo: r.IDMAEEDO,
           tido: typeof r.TIDO === 'string' ? r.TIDO.trim() : r.TIDO,
           nudo: r.NUDO,
           endo: typeof r.ENDO === 'string' ? r.ENDO.trim() : r.ENDO,
+          suendo: typeof r.SUENDO === 'string' ? r.SUENDO.trim() : r.SUENDO,
           sudo: r.SUDO,
           feemdo: r.FEEMDO,
+          feulvedo: r.FEULVEDO,
           kofudo: typeof r.KOFUDO === 'string' ? r.KOFUDO.trim() : r.KOFUDO,
-          koprct: typeof r.KOPRCT === 'string' ? r.KOPRCT.trim() : r.KOPRCT,
-          caprco1: r.CAPRCO1,
-          caprex1: r.CAPREX1,
-          caprco2: r.CAPRCO2,
-          caprex2: r.CAPREX2,
-          udtrpr: r.UDTRPR,
-          ppprne: r.PPPRNE,
-          vaneli: r.VANELI,
-          vabrli: r.VABRLI,
+          modo: typeof r.MODO === 'string' ? r.MODO.trim() : r.MODO,
+          timodo: typeof r.TIMODO === 'string' ? r.TIMODO.trim() : r.TIMODO,
+          tamodo: r.TAMODO,
+          caprad: r.CAPRAD,
+          caprex: r.CAPREX,
           vanedo: r.VANEDO,
           vaivdo: r.VAIVDO,
           vabrdo: r.VABRDO,
-          eslido: typeof r.ESDO === 'string' ? r.ESDO.trim() : r.ESDO,
+          
+          // Columnas de MAEDDO (detalle)
+          lilg: typeof r.LILG === 'string' ? r.LILG.trim() : r.LILG,
+          nulido: r.NULIDO,
+          sulido: r.SULIDO,
+          luvtlido: r.LUVTLIDO,
+          bosulido: r.BOSULIDO,
+          kofulido: typeof r.KOFULIDO === 'string' ? r.KOFULIDO.trim() : r.KOFULIDO,
+          prct: r.PRCT,
+          tict: r.TICT,
+          tipr: typeof r.TIPR === 'string' ? r.TIPR.trim() : r.TIPR,
+          nusepr: r.NUSEPR,
+          koprct: typeof r.KOPRCT === 'string' ? r.KOPRCT.trim() : r.KOPRCT,
+          udtrpr: r.UDTRPR,
+          rludpr: r.RLUDPR,
+          caprco1: r.CAPRCO1,
+          caprad1: r.CAPRAD1,
+          caprex1: r.CAPREX1,
+          caprnc1: r.CAPRNC1,
+          ud01pr: typeof r.UD01PR === 'string' ? r.UD01PR.trim() : r.UD01PR,
+          caprco2: r.CAPRCO2,
+          caprad2: r.CAPRAD2,
+          caprex2: r.CAPREX2,
+          caprnc2: r.CAPRNC2,
+          ud02pr: typeof r.UD02PR === 'string' ? r.UD02PR.trim() : r.UD02PR,
+          ppprne: r.PPPRNE,
+          ppprbr: r.PPPRBR,
+          vaneli: r.VANELI,
+          vabrli: r.VABRLI,
           feemli: r.FEEMLI,
-          monto: (r.CAPRCO2 && r.PPPRNE) ? String(r.CAPRCO2 * r.PPPRNE) : null, // Cálculo: cantidad * precio unitario
+          feerli: r.FEERLI,
+          ppprpm: r.PPPRPM,
+          ppprpmifrs: r.PPPRPMIFRS,
+          logistica: r.LOGISTICA,
+          eslido: typeof r.ESLIDO === 'string' ? r.ESLIDO.trim() : r.ESLIDO,
+          ppprnere1: r.PPPRNERE1,
+          ppprnere2: r.PPPRNERE2,
+          idmaeddo: r.IDMAEDDO,
+          
+          // Columnas de MAEPR (producto)
+          fmpr: r.FMPR,
+          mrpr: r.MRPR,
+          zona: r.ZONA,
+          ruen: r.RUEN,
+          recaprre: r.RECAPRRE,
+          pfpr: r.PFPR,
+          hfpr: r.HFPR,
+          
+          // Columna calculada
+          monto: r.MONTO ? String(r.MONTO) : null,
+          
+          // Columnas descriptivas (nombres)
+          ocdo: typeof r.OCDO === 'string' ? r.OCDO.trim() : r.OCDO,
+          nokoprct: typeof r.NOKOPRCT === 'string' ? r.NOKOPRCT.trim() : r.NOKOPRCT,
+          nokozo: r.NOKOZO,
+          nosudo: typeof r.NOSUDO === 'string' ? r.NOSUDO.trim() : r.NOSUDO,
+          nokofu: typeof r.NOKOFU === 'string' ? r.NOKOFU.trim() : r.NOKOFU,
+          nokofudo: typeof r.NOKOFUDO === 'string' ? r.NOKOFUDO.trim() : r.NOKOFUDO,
+          nobosuli: typeof r.NOBOSULI === 'string' ? r.NOBOSULI.trim() : r.NOBOSULI,
+          nokoen: typeof r.NOKOEN === 'string' ? r.NOKOEN.trim() : r.NOKOEN,
+          noruen: r.NORUEN,
+          nomrpr: r.NOMRPR,
+          nofmpr: typeof r.NOFMPR === 'string' ? r.NOFMPR.trim() : r.NOFMPR,
+          nopfpr: r.NOPFPR,
+          nohfpr: r.NOHFPR,
+          
+          // Campos siempre vacíos
+          devol1: r.DEVOL1,
+          devol2: r.DEVOL2,
+          stockfis: r.STOCKFIS,
+          listacost: r.LISTACOST,
+          liscosmod: r.LISCOSMOD,
         }))
       ).onConflictDoNothing();
     }
