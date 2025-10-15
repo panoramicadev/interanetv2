@@ -142,6 +142,17 @@ import {
   gastosEmpresariales,
   type GastoEmpresarial,
   type InsertGastoEmpresarial,
+  // Staging tables and fact_ventas
+  stgMaeedo,
+  stgMaeddo,
+  stgMaeen,
+  stgMaepr,
+  stgMaeven,
+  stgTabbo,
+  stgTabpp,
+  factVentas,
+  type FactVentas,
+  type InsertFactVentas,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
@@ -1105,6 +1116,27 @@ export interface IStorage {
     total: number;
     cantidad: number;
   }>>;
+
+  // Fact Ventas operations
+  getFactVentas(filters?: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+    cliente?: string;
+    producto?: string;
+    vendedor?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<FactVentas[]>;
+  getFactVentasStats(filters?: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+    cliente?: string;
+    vendedor?: string;
+  }): Promise<{
+    totalVentas: number;
+    totalUnidades: number;
+    totalTransacciones: number;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -10834,6 +10866,103 @@ export class DatabaseStorage implements IStorage {
       total: parseFloat(r.total as any) || 0,
       cantidad: parseInt(r.cantidad as any) || 0,
     }));
+  }
+
+  // ===== Fact Ventas Operations =====
+  async getFactVentas(filters?: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+    cliente?: string;
+    producto?: string;
+    vendedor?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<FactVentas[]> {
+    const conditions = [];
+
+    if (filters?.fechaDesde) {
+      conditions.push(gte(factVentas.feemli, new Date(filters.fechaDesde)));
+    }
+
+    if (filters?.fechaHasta) {
+      conditions.push(lte(factVentas.feemli, new Date(filters.fechaHasta)));
+    }
+
+    if (filters?.cliente) {
+      conditions.push(ilike(factVentas.endo, `%${filters.cliente}%`));
+    }
+
+    if (filters?.producto) {
+      conditions.push(ilike(factVentas.koprct, `%${filters.producto}%`));
+    }
+
+    if (filters?.vendedor) {
+      conditions.push(ilike(factVentas.kofudo, `%${filters.vendedor}%`));
+    }
+
+    const query = db
+      .select()
+      .from(factVentas)
+      .orderBy(desc(factVentas.feemli), desc(factVentas.idmaeedo));
+
+    if (conditions.length > 0) {
+      query.where(and(...conditions));
+    }
+
+    if (filters?.limit) {
+      query.limit(filters.limit);
+    }
+
+    if (filters?.offset) {
+      query.offset(filters.offset);
+    }
+
+    return await query;
+  }
+
+  async getFactVentasStats(filters?: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+    cliente?: string;
+    vendedor?: string;
+  }): Promise<{
+    totalVentas: number;
+    totalUnidades: number;
+    totalTransacciones: number;
+  }> {
+    const conditions = [];
+
+    if (filters?.fechaDesde) {
+      conditions.push(gte(factVentas.feemli, new Date(filters.fechaDesde)));
+    }
+
+    if (filters?.fechaHasta) {
+      conditions.push(lte(factVentas.feemli, new Date(filters.fechaHasta)));
+    }
+
+    if (filters?.cliente) {
+      conditions.push(ilike(factVentas.endo, `%${filters.cliente}%`));
+    }
+
+    if (filters?.vendedor) {
+      conditions.push(ilike(factVentas.kofudo, `%${filters.vendedor}%`));
+    }
+
+    const results = await db
+      .select({
+        totalVentas: sql<number>`SUM(COALESCE(${factVentas.vaneli}, 0))`,
+        totalUnidades: sql<number>`SUM(COALESCE(${factVentas.caprco2}, 0))`,
+        totalTransacciones: sql<number>`COUNT(*)`,
+      })
+      .from(factVentas)
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+    const result = results[0];
+    return {
+      totalVentas: parseFloat(result.totalVentas as any) || 0,
+      totalUnidades: parseFloat(result.totalUnidades as any) || 0,
+      totalTransacciones: parseInt(result.totalTransacciones as any) || 0,
+    };
   }
 
 }
