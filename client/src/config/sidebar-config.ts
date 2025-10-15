@@ -21,7 +21,8 @@ import {
   Wrench,
   AlertTriangle,
   Warehouse,
-  Banknote
+  Banknote,
+  Database
 } from "lucide-react";
 
 interface SidebarItem {
@@ -111,6 +112,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Gastos Empresariales",
       icon: Banknote,
+    },
+    {
+      href: "/etl-ventas",
+      label: "ETL Ventas",
+      icon: Database,
     },
     {
       href: "/tintometria",
@@ -213,6 +219,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Gastos Empresariales",
       icon: Banknote,
+    },
+    {
+      href: "/etl-ventas",
+      label: "ETL Ventas",
+      icon: Database,
     },
     {
       href: "/tintometria",
