@@ -8042,49 +8042,6 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // ==================================================================================
-  // FACT VENTAS routes
-  // ==================================================================================
-
-  // Get fact_ventas with filters
-  app.get('/api/fact-ventas', requireAuth, asyncHandler(async (req: any, res: any) => {
-    try {
-      const { fechaDesde, fechaHasta, cliente, producto, vendedor, limit, offset } = req.query;
-      
-      const filters: any = {};
-      if (fechaDesde) filters.fechaDesde = fechaDesde;
-      if (fechaHasta) filters.fechaHasta = fechaHasta;
-      if (cliente) filters.cliente = cliente;
-      if (producto) filters.producto = producto;
-      if (vendedor) filters.vendedor = vendedor;
-      if (limit) filters.limit = parseInt(limit);
-      if (offset) filters.offset = parseInt(offset);
-      
-      const ventas = await storage.getFactVentas(filters);
-      res.json(ventas);
-    } catch (error: any) {
-      res.status(500).json({ message: 'Error al obtener ventas', error: error.message });
-    }
-  }));
-
-  // Get fact_ventas statistics
-  app.get('/api/fact-ventas/stats', requireAuth, asyncHandler(async (req: any, res: any) => {
-    try {
-      const { fechaDesde, fechaHasta, cliente, vendedor } = req.query;
-      
-      const filters: any = {};
-      if (fechaDesde) filters.fechaDesde = fechaDesde;
-      if (fechaHasta) filters.fechaHasta = fechaHasta;
-      if (cliente) filters.cliente = cliente;
-      if (vendedor) filters.vendedor = vendedor;
-      
-      const stats = await storage.getFactVentasStats(filters);
-      res.json(stats);
-    } catch (error: any) {
-      res.status(500).json({ message: 'Error al obtener estadísticas', error: error.message });
-    }
-  }));
-
   const httpServer = createServer(app);
   return httpServer;
 }

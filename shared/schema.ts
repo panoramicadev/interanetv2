@@ -13,6 +13,7 @@ import {
   unique,
   uniqueIndex,
   primaryKey,
+  pgSchema,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -3338,10 +3339,13 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   ).optional(),
 });
 
+// ===== ESQUEMA VENTAS PARA TABLAS ETL =====
+export const ventasSchema = pgSchema("ventas");
+
 // ===== TABLAS DE STAGING PARA IMPORTACIÓN DESDE SQL SERVER =====
 
 // Staging: MAEEDO (Encabezado de documentos)
-export const stgMaeedo = pgTable("stg_maeedo", {
+export const stgMaeedo = ventasSchema.table("stg_maeedo", {
   idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }).primaryKey(),
   tido: text("tido"),
   nudo: text("nudo"),
@@ -3357,7 +3361,7 @@ export const stgMaeedo = pgTable("stg_maeedo", {
 });
 
 // Staging: MAEDDO (Detalle de documentos)
-export const stgMaeddo = pgTable("stg_maeddo", {
+export const stgMaeddo = ventasSchema.table("stg_maeddo", {
   idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(),
   idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }).notNull(),
   koprct: text("koprct"),
@@ -3372,7 +3376,7 @@ export const stgMaeddo = pgTable("stg_maeddo", {
 });
 
 // Staging: MAEEN (Entidades/Clientes)
-export const stgMaeen = pgTable("stg_maeen", {
+export const stgMaeen = ventasSchema.table("stg_maeen", {
   koen: text("koen").primaryKey(),
   nokoen: text("nokoen"),
   rut: text("rut"),
@@ -3380,7 +3384,7 @@ export const stgMaeen = pgTable("stg_maeen", {
 });
 
 // Staging: MAEPR (Productos)
-export const stgMaepr = pgTable("stg_maepr", {
+export const stgMaepr = ventasSchema.table("stg_maepr", {
   kopr: text("kopr").primaryKey(),
   nomrpr: text("nomrpr"),
   ud01pr: text("ud01pr"),
@@ -3389,13 +3393,13 @@ export const stgMaepr = pgTable("stg_maepr", {
 });
 
 // Staging: MAEVEN (Vendedores)
-export const stgMaeven = pgTable("stg_maeven", {
+export const stgMaeven = ventasSchema.table("stg_maeven", {
   kofu: text("kofu").primaryKey(),
   nokofu: text("nokofu"),
 });
 
 // Staging: TABBO (Bodegas)
-export const stgTabbo = pgTable("stg_tabbo", {
+export const stgTabbo = ventasSchema.table("stg_tabbo", {
   suli: text("suli").notNull(),
   bosuli: text("bosuli").notNull(),
   nobosuli: text("nobosuli"),
@@ -3404,14 +3408,14 @@ export const stgTabbo = pgTable("stg_tabbo", {
 }));
 
 // Staging: TABPP (Precios de productos)
-export const stgTabpp = pgTable("stg_tabpp", {
+export const stgTabpp = ventasSchema.table("stg_tabpp", {
   kopr: text("kopr").primaryKey(),
   listacost: numeric("listacost", { precision: 18, scale: 4 }),
   liscosmod: numeric("liscosmod", { precision: 18, scale: 4 }),
 });
 
 // ===== TABLA FINAL: FACT_VENTAS (79 columnas) =====
-export const factVentas = pgTable("fact_ventas", {
+export const factVentas = ventasSchema.table("fact_ventas", {
   idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(),
   idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }),
   tido: text("tido"),
