@@ -9,7 +9,8 @@ import {
   stgMaeven, 
   stgTabbo, 
   stgTabpp,
-  factVentas 
+  factVentas,
+  etlExecutionLog
 } from '../shared/schema';
 
 const sqlServerConfig: mssql.config = {
@@ -37,6 +38,18 @@ interface ETLStats {
 async function extractAndLoad() {
   const stats: ETLStats[] = [];
   let pool: mssql.ConnectionPool | null = null;
+  const startTime = Date.now();
+  const mesActual = '2025-10';
+  const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV'];
+  const sucursales = ['004', '006', '007'];
+
+  // Registrar inicio de ejecución
+  const [executionLog] = await db.insert(etlExecutionLog).values({
+    status: 'running',
+    period: mesActual,
+    documentTypes: tiposDoc.join(','),
+    branches: sucursales.join(','),
+  }).returning();
 
   try {
     console.log('🚀 INICIANDO PROCESO ETL');
@@ -59,11 +72,6 @@ async function extractAndLoad() {
     pool = new mssql.ConnectionPool(sqlServerConfig);
     await pool.connect();
     console.log('✅ Conectado a SQL Server\n');
-
-    // Filtros
-    const mesActual = '2025-10';
-    const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV'];
-    const sucursales = ['004', '006', '007'];
 
     console.log('📋 FILTROS APLICADOS:');
     console.log(`   Periodo: ${mesActual}`);
@@ -404,7 +412,7 @@ async function extractAndLoad() {
           vabrdo: r.VABRDO,
           eslido: typeof r.ESDO === 'string' ? r.ESDO.trim() : r.ESDO,
           feemli: r.FEEMLI,
-          monto: (r.CAPRCO2 && r.PPPRNE) ? r.CAPRCO2 * r.PPPRNE : null, // Cálculo: cantidad * precio unitario
+          monto: (r.CAPRCO2 && r.PPPRNE) ? String(r.CAPRCO2 * r.PPPRNE) : null, // Cálculo: cantidad * precio unitario
         }))
       ).onConflictDoNothing();
     }
@@ -437,6 +445,17 @@ async function extractAndLoad() {
       console.log('✅ Conexión a SQL Server cerrada\n');
     }
 
+    // Actualizar registro de ejecución con éxito
+    await db.update(etlExecutionLog)
+      .set({
+        status: 'success',
+        recordsProcessed: totalRegistros,
+        executionTimeMs: Date.now() - startTime,
+        statistics: JSON.stringify(stats),
+        watermarkDate: new Date(`${mesActual}-15T23:59:59`), // Última fecha procesada
+      })
+      .where(sql`id = ${executionLog.id}`);
+
     return stats;
 
   } catch (error: any) {
@@ -445,6 +464,15 @@ async function extractAndLoad() {
     if (error.stack) {
       console.error(`\n   Stack: ${error.stack}`);
     }
+    
+    // Actualizar registro de ejecución con error
+    await db.update(etlExecutionLog)
+      .set({
+        status: 'failed',
+        executionTimeMs: Date.now() - startTime,
+        errorMessage: error.message,
+      })
+      .where(sql`id = ${executionLog.id}`);
     
     if (pool) {
       await pool.close();
