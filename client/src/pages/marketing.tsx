@@ -34,7 +34,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2 } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -45,6 +45,7 @@ interface SolicitudMarketing {
   monto: string | null;
   urlReferencia: string | null;
   pdfPresupuesto: string | null;
+  pasos: { nombre: string; completado: boolean; orden: number }[] | null;
   estado: string;
   supervisorId: string | null;
   supervisorName: string | null;
@@ -384,6 +385,65 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
   );
 }
 
+// Pasos Checklist Component
+function PasosChecklist({
+  solicitudId,
+  pasos,
+  userRole,
+}: {
+  solicitudId: string;
+  pasos: { nombre: string; completado: boolean; orden: number }[];
+  userRole: string;
+}) {
+  const { toast } = useToast();
+
+  const togglePasoMutation = useMutation({
+    mutationFn: async ({ index }: { index: number }) => {
+      return await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitudId}/pasos/${index}/toggle`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el paso",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleToggle = (index: number) => {
+    if (userRole === 'admin' || userRole === 'supervisor') {
+      togglePasoMutation.mutate({ index });
+    }
+  };
+
+  if (!pasos || pasos.length === 0) {
+    return <span className="text-muted-foreground italic text-sm">Sin pasos</span>;
+  }
+
+  return (
+    <div className="space-y-1">
+      {pasos.map((paso, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={paso.completado}
+            onChange={() => handleToggle(index)}
+            disabled={userRole !== 'admin' && userRole !== 'supervisor'}
+            className="h-4 w-4 cursor-pointer disabled:cursor-not-allowed"
+            data-testid={`checkbox-paso-${index}`}
+          />
+          <span className={`text-sm ${paso.completado ? 'line-through text-muted-foreground' : ''}`}>
+            {paso.nombre}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Solicitudes List Component
 function SolicitudesList({
   mes,
@@ -468,6 +528,7 @@ function SolicitudesList({
                     <TableHead>Estado</TableHead>
                     <TableHead>Fecha Solicitud</TableHead>
                     <TableHead>Fecha Entrega</TableHead>
+                    <TableHead>Pasos</TableHead>
                     {userRole === 'admin' && <TableHead>Acciones</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -503,6 +564,9 @@ function SolicitudesList({
                         {solicitud.fechaEntrega
                           ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
                           : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <PasosChecklist solicitudId={solicitud.id} pasos={solicitud.pasos || []} userRole={userRole} />
                       </TableCell>
                       {userRole === 'admin' && (
                         <TableCell>
@@ -593,6 +657,15 @@ function SolicitudesList({
                           </span>
                         </div>
                       </div>
+
+                      {(solicitud.pasos && solicitud.pasos.length > 0) && (
+                        <div className="pt-3 border-t">
+                          <span className="text-sm font-medium text-muted-foreground">Pasos:</span>
+                          <div className="mt-2">
+                            <PasosChecklist solicitudId={solicitud.id} pasos={solicitud.pasos} userRole={userRole} />
+                          </div>
+                        </div>
+                      )}
 
                       {userRole === 'admin' && (
                         <div className="flex gap-2 mt-4">
@@ -838,6 +911,8 @@ function SolicitudDialog({
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [urlReferencia, setUrlReferencia] = useState("");
   const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
+  const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
+  const [nuevoPaso, setNuevoPaso] = useState("");
 
   // Obtener lista de supervisores (solo para admin)
   const { data: supervisores = [] } = useQuery<any[]>({
@@ -863,6 +938,8 @@ function SolicitudDialog({
       setFechaEntrega("");
       setUrlReferencia("");
       setSelectedSupervisorId("");
+      setPasos([]);
+      setNuevoPaso("");
     },
     onError: (error: Error) => {
       toast({
@@ -900,6 +977,7 @@ function SolicitudDialog({
       anio,
       fechaEntrega: fechaEntrega || null,
       urlReferencia: urlReferencia || null,
+      pasos,
     };
 
     // Si es admin, incluir supervisorId
@@ -983,6 +1061,62 @@ function SolicitudDialog({
             <p className="text-xs text-muted-foreground mt-1">
               Puede agregar un enlace de referencia con detalles de la solicitud
             </p>
+          </div>
+          <div>
+            <Label>Pasos / Checklist (Opcional)</Label>
+            <div className="space-y-2 mt-2">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Ej: Diseño, Impresión, Cotización..."
+                  value={nuevoPaso}
+                  onChange={(e) => setNuevoPaso(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (nuevoPaso.trim()) {
+                        setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                        setNuevoPaso("");
+                      }
+                    }
+                  }}
+                  data-testid="input-nuevo-paso"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (nuevoPaso.trim()) {
+                      setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                      setNuevoPaso("");
+                    }
+                  }}
+                  data-testid="button-agregar-paso"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {pasos.length > 0 && (
+                <div className="border rounded-md p-2 space-y-1">
+                  {pasos.map((paso, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                      <span className="text-sm">{paso.nombre}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
+                        data-testid={`button-eliminar-paso-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Agregue pasos o tareas que se deben completar para esta solicitud
+              </p>
+            </div>
           </div>
         </div>
         <DialogFooter>
@@ -1218,6 +1352,8 @@ function EditSolicitudDialog({
   const [descripcion, setDescripcion] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [urlReferencia, setUrlReferencia] = useState("");
+  const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
+  const [nuevoPaso, setNuevoPaso] = useState("");
 
   // Pre-cargar datos cuando se abre el diálogo
   useEffect(() => {
@@ -1226,6 +1362,8 @@ function EditSolicitudDialog({
       setDescripcion(solicitud.descripcion || "");
       setFechaEntrega(solicitud.fechaEntrega || "");
       setUrlReferencia(solicitud.urlReferencia || "");
+      setPasos(solicitud.pasos || []);
+      setNuevoPaso("");
     }
   }, [solicitud, open]);
 
@@ -1266,6 +1404,7 @@ function EditSolicitudDialog({
       descripcion,
       fechaEntrega: fechaEntrega || null,
       urlReferencia: urlReferencia || null,
+      pasos,
     });
   };
 
@@ -1323,6 +1462,62 @@ function EditSolicitudDialog({
             <p className="text-xs text-muted-foreground mt-1">
               Adjunte un enlace con información de referencia
             </p>
+          </div>
+          <div>
+            <Label>Pasos / Checklist</Label>
+            <div className="space-y-2 mt-2">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Ej: Diseño, Impresión, Cotización..."
+                  value={nuevoPaso}
+                  onChange={(e) => setNuevoPaso(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (nuevoPaso.trim()) {
+                        setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                        setNuevoPaso("");
+                      }
+                    }
+                  }}
+                  data-testid="input-edit-nuevo-paso"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (nuevoPaso.trim()) {
+                      setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                      setNuevoPaso("");
+                    }
+                  }}
+                  data-testid="button-edit-agregar-paso"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {pasos.length > 0 && (
+                <div className="border rounded-md p-2 space-y-1">
+                  {pasos.map((paso, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                      <span className="text-sm">{paso.nombre}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
+                        data-testid={`button-edit-eliminar-paso-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Agregue o elimine pasos según sea necesario
+              </p>
+            </div>
           </div>
         </div>
         <DialogFooter>
