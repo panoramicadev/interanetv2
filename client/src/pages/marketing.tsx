@@ -294,6 +294,7 @@ export default function Marketing() {
         open={viewDialogOpen}
         onOpenChange={setViewDialogOpen}
         solicitud={selectedSolicitud}
+        userRole={user.role}
       />
     </div>
   );
@@ -600,7 +601,13 @@ function SolicitudesList({
                           : '-'}
                       </TableCell>
                       <TableCell>
-                        <PasosChecklist solicitudId={solicitud.id} pasos={solicitud.pasos || []} userRole={userRole} />
+                        {solicitud.pasos && solicitud.pasos.length > 0 ? (
+                          <span className="text-sm">
+                            {solicitud.pasos.filter(p => p.completado).length}/{solicitud.pasos.length}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
                       </TableCell>
                       {userRole === 'admin' && (
                         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -722,11 +729,11 @@ function SolicitudesList({
                       </div>
 
                       {(solicitud.pasos && solicitud.pasos.length > 0) && (
-                        <div className="pt-3 border-t">
+                        <div className="flex justify-between pt-3 border-t">
                           <span className="text-sm font-medium text-muted-foreground">Pasos:</span>
-                          <div className="mt-2">
-                            <PasosChecklist solicitudId={solicitud.id} pasos={solicitud.pasos} userRole={userRole} />
-                          </div>
+                          <span className="text-sm font-medium">
+                            {solicitud.pasos.filter(p => p.completado).length}/{solicitud.pasos.length}
+                          </span>
                         </div>
                       )}
 
@@ -1759,10 +1766,12 @@ function ViewSolicitudDialog({
   open,
   onOpenChange,
   solicitud,
+  userRole,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   solicitud: SolicitudMarketing | null;
+  userRole: string;
 }) {
   if (!solicitud) return null;
 
@@ -1883,19 +1892,12 @@ function ViewSolicitudDialog({
             {solicitud.pasos && solicitud.pasos.length > 0 && (
               <div>
                 <Label className="text-muted-foreground">Pasos / Checklist</Label>
-                <div className="border rounded-md p-3 mt-2 space-y-2">
-                  {solicitud.pasos.map((paso, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      {paso.completado ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <Circle className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <span className={paso.completado ? "line-through text-muted-foreground" : ""}>
-                        {paso.nombre}
-                      </span>
-                    </div>
-                  ))}
+                <div className="border rounded-md p-3 mt-2">
+                  <PasosChecklist 
+                    solicitudId={solicitud.id} 
+                    pasos={solicitud.pasos} 
+                    userRole={userRole} 
+                  />
                 </div>
               </div>
             )}
