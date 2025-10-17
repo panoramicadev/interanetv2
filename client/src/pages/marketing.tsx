@@ -34,7 +34,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -83,6 +83,7 @@ export default function Marketing() {
   const [estadoDialogOpen, setEstadoDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudMarketing | null>(null);
 
   if (!user) {
@@ -242,6 +243,10 @@ export default function Marketing() {
               setSelectedSolicitud(solicitud);
               setDeleteDialogOpen(true);
             }}
+            onView={(solicitud) => {
+              setSelectedSolicitud(solicitud);
+              setViewDialogOpen(true);
+            }}
             userRole={user.role}
           />
         </TabsContent>
@@ -282,6 +287,12 @@ export default function Marketing() {
       <DeleteSolicitudDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
+        solicitud={selectedSolicitud}
+      />
+
+      <ViewSolicitudDialog
+        open={viewDialogOpen}
+        onOpenChange={setViewDialogOpen}
         solicitud={selectedSolicitud}
       />
     </div>
@@ -454,6 +465,7 @@ function SolicitudesList({
   onEditEstado,
   onEdit,
   onDelete,
+  onView,
   userRole,
 }: {
   mes: number;
@@ -463,6 +475,7 @@ function SolicitudesList({
   onEditEstado: (solicitud: SolicitudMarketing) => void;
   onEdit: (solicitud: SolicitudMarketing) => void;
   onDelete: (solicitud: SolicitudMarketing) => void;
+  onView: (solicitud: SolicitudMarketing) => void;
   userRole: string;
 }) {
   const { data: solicitudes, isLoading } = useQuery<SolicitudMarketing[]>({
@@ -536,7 +549,12 @@ function SolicitudesList({
                 </TableHeader>
                 <TableBody>
                   {solicitudes.map((solicitud) => (
-                    <TableRow key={solicitud.id} data-testid={`row-solicitud-${solicitud.id}`}>
+                    <TableRow 
+                      key={solicitud.id} 
+                      data-testid={`row-solicitud-${solicitud.id}`}
+                      className="cursor-pointer"
+                      onClick={() => onView(solicitud)}
+                    >
                       <TableCell className="font-medium">{solicitud.titulo}</TableCell>
                       <TableCell>{solicitud.supervisorName}</TableCell>
                       <TableCell>
@@ -585,12 +603,15 @@ function SolicitudesList({
                         <PasosChecklist solicitudId={solicitud.id} pasos={solicitud.pasos || []} userRole={userRole} />
                       </TableCell>
                       {userRole === 'admin' && (
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <div className="flex gap-2">
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => onEdit(solicitud)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(solicitud);
+                              }}
                               data-testid={`button-editar-${solicitud.id}`}
                               title="Editar solicitud"
                             >
@@ -599,7 +620,10 @@ function SolicitudesList({
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => onEditEstado(solicitud)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditEstado(solicitud);
+                              }}
                               data-testid={`button-cambiar-estado-${solicitud.id}`}
                               title="Cambiar estado"
                             >
@@ -608,7 +632,10 @@ function SolicitudesList({
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => onDelete(solicitud)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(solicitud);
+                              }}
                               data-testid={`button-eliminar-${solicitud.id}`}
                               title="Eliminar solicitud"
                               className="text-destructive hover:text-destructive"
@@ -627,7 +654,12 @@ function SolicitudesList({
             {/* Mobile Cards */}
             <div className="md:hidden space-y-4">
               {solicitudes.map((solicitud) => (
-                <Card key={solicitud.id} data-testid={`card-solicitud-${solicitud.id}`}>
+                <Card 
+                  key={solicitud.id} 
+                  data-testid={`card-solicitud-${solicitud.id}`}
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => onView(solicitud)}
+                >
                   <CardContent className="pt-6">
                     <div className="space-y-3">
                       <div className="flex justify-between items-start">
@@ -699,12 +731,15 @@ function SolicitudesList({
                       )}
 
                       {userRole === 'admin' && (
-                        <div className="flex gap-2 mt-4">
+                        <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
                           <Button
                             className="flex-1"
                             size="sm"
                             variant="outline"
-                            onClick={() => onEdit(solicitud)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEdit(solicitud);
+                            }}
                             data-testid={`button-editar-mobile-${solicitud.id}`}
                           >
                             <Edit className="h-4 w-4 mr-2" />
@@ -714,7 +749,10 @@ function SolicitudesList({
                             className="flex-1"
                             size="sm"
                             variant="outline"
-                            onClick={() => onEditEstado(solicitud)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditEstado(solicitud);
+                            }}
                             data-testid={`button-cambiar-estado-mobile-${solicitud.id}`}
                           >
                             <CheckCircle className="h-4 w-4 mr-2" />
@@ -724,7 +762,10 @@ function SolicitudesList({
                             className="flex-1"
                             size="sm"
                             variant="outline"
-                            onClick={() => onDelete(solicitud)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(solicitud);
+                            }}
                             data-testid={`button-eliminar-mobile-${solicitud.id}`}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
@@ -1706,6 +1747,175 @@ function DeleteSolicitudDialog({
             ) : (
               'Eliminar'
             )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// View Solicitud Dialog Component
+function ViewSolicitudDialog({
+  open,
+  onOpenChange,
+  solicitud,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  solicitud: SolicitudMarketing | null;
+}) {
+  if (!solicitud) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-ver-solicitud">
+        <DialogHeader>
+          <DialogTitle>Detalles de la Solicitud</DialogTitle>
+          <DialogDescription>
+            Información completa de la solicitud de marketing
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="space-y-4 py-4">
+            {/* Título */}
+            <div>
+              <Label className="text-muted-foreground">Título</Label>
+              <p className="text-base font-medium mt-1">{solicitud.titulo}</p>
+            </div>
+
+            {/* Descripción */}
+            <div>
+              <Label className="text-muted-foreground">Descripción</Label>
+              <p className="text-base mt-1 whitespace-pre-wrap">{solicitud.descripcion}</p>
+            </div>
+
+            {/* Info Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Supervisor */}
+              <div>
+                <Label className="text-muted-foreground">Supervisor</Label>
+                <p className="text-base mt-1">{solicitud.supervisorName}</p>
+              </div>
+
+              {/* Urgencia */}
+              <div>
+                <Label className="text-muted-foreground">Nivel de Urgencia</Label>
+                <div className="mt-1">
+                  <Badge
+                    className={
+                      solicitud.urgencia === 'alta' ? 'bg-red-500 text-white' :
+                      solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white' :
+                      'bg-green-500 text-white'
+                    }
+                  >
+                    {solicitud.urgencia === 'alta' && 'Alta'}
+                    {solicitud.urgencia === 'media' && 'Media'}
+                    {solicitud.urgencia === 'baja' && 'Normal'}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Estado */}
+              <div>
+                <Label className="text-muted-foreground">Estado</Label>
+                <div className="mt-1">
+                  <Badge
+                    className={
+                      solicitud.estado === 'rechazado' ? 'bg-red-500 text-white' :
+                      solicitud.estado === 'completado' ? 'bg-green-500 text-white' :
+                      'bg-yellow-500 text-white'
+                    }
+                  >
+                    {solicitud.estado === 'solicitado' && 'Solicitado'}
+                    {solicitud.estado === 'en_proceso' && 'En Proceso'}
+                    {solicitud.estado === 'completado' && 'Completado'}
+                    {solicitud.estado === 'rechazado' && 'Rechazado'}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Monto */}
+              <div>
+                <Label className="text-muted-foreground">Monto</Label>
+                <p className="text-base mt-1">
+                  {solicitud.monto 
+                    ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
+                    : <span className="text-muted-foreground italic">Pendiente</span>
+                  }
+                </p>
+              </div>
+
+              {/* Fecha Solicitud */}
+              <div>
+                <Label className="text-muted-foreground">Fecha de Solicitud</Label>
+                <p className="text-base mt-1">
+                  {format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}
+                </p>
+              </div>
+
+              {/* Fecha Entrega */}
+              <div>
+                <Label className="text-muted-foreground">Fecha de Entrega Esperada</Label>
+                <p className="text-base mt-1">
+                  {solicitud.fechaEntrega
+                    ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
+                    : <span className="text-muted-foreground">-</span>}
+                </p>
+              </div>
+            </div>
+
+            {/* URL de Referencia */}
+            {solicitud.urlReferencia && (
+              <div>
+                <Label className="text-muted-foreground">URL de Referencia</Label>
+                <a 
+                  href={solicitud.urlReferencia} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-base text-blue-500 hover:underline mt-1 block break-all"
+                >
+                  {solicitud.urlReferencia}
+                </a>
+              </div>
+            )}
+
+            {/* Pasos / Checklist */}
+            {solicitud.pasos && solicitud.pasos.length > 0 && (
+              <div>
+                <Label className="text-muted-foreground">Pasos / Checklist</Label>
+                <div className="border rounded-md p-3 mt-2 space-y-2">
+                  {solicitud.pasos.map((paso, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      {paso.completado ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Circle className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className={paso.completado ? "line-through text-muted-foreground" : ""}>
+                        {paso.nombre}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Motivo de Rechazo */}
+            {solicitud.estado === 'rechazado' && solicitud.motivoRechazo && (
+              <div className="border-l-4 border-red-500 bg-red-50 p-4 rounded">
+                <Label className="text-red-700">Motivo de Rechazo</Label>
+                <p className="text-sm mt-1 text-red-600">{solicitud.motivoRechazo}</p>
+              </div>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cerrar-ver-solicitud"
+          >
+            Cerrar
           </Button>
         </DialogFooter>
       </DialogContent>
