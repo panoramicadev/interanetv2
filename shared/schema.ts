@@ -3444,6 +3444,8 @@ export const factVentas = ventasSchema.table("fact_ventas", {
   sudo: numeric("sudo", { precision: 20, scale: 0 }),
   feemdo: date("feemdo"),
   feulvedo: date("feulvedo"),
+  esdo: text("esdo"),
+  espgdo: text("espgdo"),
   kofudo: text("kofudo"),
   modo: text("modo"),
   timodo: text("timodo"),
