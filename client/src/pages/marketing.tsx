@@ -1003,17 +1003,8 @@ function EstadoDialog({
       return;
     }
 
-    // Si la solicitud no tiene monto y se está aprobando (en_proceso o completado), requerir monto
-    if (!solicitud?.monto && (nuevoEstado === 'en_proceso' || nuevoEstado === 'completado')) {
-      if (!monto) {
-        toast({
-          title: "Error",
-          description: "Debe ingresar el monto presupuestado",
-          variant: "destructive",
-        });
-        return;
-      }
-      
+    // Validar monto solo si se ingresó algún valor
+    if (monto && monto.trim() !== '') {
       const montoNum = parseFloat(monto);
       if (isNaN(montoNum) || montoNum <= 0) {
         toast({
@@ -1028,7 +1019,7 @@ function EstadoDialog({
     updateMutation.mutate({
       estado: nuevoEstado,
       motivoRechazo: nuevoEstado === 'rechazado' ? motivoRechazo : undefined,
-      monto: monto && !solicitud?.monto ? parseFloat(monto) : undefined,
+      monto: monto && monto.trim() !== '' ? parseFloat(monto) : undefined,
       pdfPresupuesto: pdfPresupuesto || undefined,
     });
   };
@@ -1070,7 +1061,7 @@ function EstadoDialog({
           </div>
           {!solicitud?.monto && (nuevoEstado === 'en_proceso' || nuevoEstado === 'completado') && (
             <div>
-              <Label htmlFor="monto">Monto Presupuestado (CLP)*</Label>
+              <Label htmlFor="monto">Monto Presupuestado (CLP) - Opcional</Label>
               <Input
                 id="monto"
                 type="number"
@@ -1080,7 +1071,7 @@ function EstadoDialog({
                 data-testid="input-monto-aprobacion"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Ingrese el monto luego de presupuestar la solicitud
+                Puede ingresar el monto ahora o más adelante
               </p>
             </div>
           )}
