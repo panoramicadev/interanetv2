@@ -3342,6 +3342,52 @@ export const insertGastoEmpresarialSchema = createInsertSchema(gastosEmpresarial
   ).optional(),
 });
 
+// Tabla de promesas de compra semanales
+export const promesasCompra = pgTable("promesas_compra", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vendedorId: varchar("vendedor_id").notNull(), // FK to users.id
+  clienteId: varchar("cliente_id").notNull(), // Código del cliente (koen)
+  clienteNombre: varchar("cliente_nombre", { length: 255 }).notNull(),
+  montoPrometido: numeric("monto_prometido", { precision: 15, scale: 2 }).notNull(),
+  semana: varchar("semana", { length: 10 }).notNull(), // Formato: YYYY-WW (ej: 2025-42)
+  anio: integer("anio").notNull(),
+  numeroSemana: integer("numero_semana").notNull(), // 1-52
+  fechaInicio: date("fecha_inicio").notNull(), // Primer día de la semana
+  fechaFin: date("fecha_fin").notNull(), // Último día de la semana
+  observaciones: text("observaciones"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  vendedorIdx: index("IDX_promesas_compra_vendedor").on(table.vendedorId),
+  semanaIdx: index("IDX_promesas_compra_semana").on(table.semana),
+  clienteIdx: index("IDX_promesas_compra_cliente").on(table.clienteId),
+}));
+
+// Types
+export type PromesaCompra = typeof promesasCompra.$inferSelect;
+export type InsertPromesaCompra = typeof promesasCompra.$inferInsert;
+
+// Schema de validación
+export const insertPromesaCompraSchema = createInsertSchema(promesasCompra).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  montoPrometido: z.string().or(z.number()).transform(val => typeof val === 'string' ? parseFloat(val) : val),
+  vendedorId: z.string().min(1, "El vendedor es requerido"),
+  clienteId: z.string().min(1, "El cliente es requerido"),
+  clienteNombre: z.string().min(1, "El nombre del cliente es requerido"),
+  semana: z.string().regex(/^\d{4}-\d{2}$/, "Formato de semana inválido (debe ser YYYY-WW)"),
+  anio: z.number().min(2020).max(2100),
+  numeroSemana: z.number().min(1).max(53),
+  fechaInicio: z.string().or(z.date()).transform(val => 
+    typeof val === 'string' ? new Date(val) : val
+  ),
+  fechaFin: z.string().or(z.date()).transform(val => 
+    typeof val === 'string' ? new Date(val) : val
+  ),
+});
+
 // ===== ESQUEMA VENTAS PARA TABLAS ETL =====
 export const ventasSchema = pgSchema("ventas");
 
