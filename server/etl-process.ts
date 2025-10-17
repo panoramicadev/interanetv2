@@ -354,6 +354,8 @@ async function extractAndLoadMonth(mesActual: string, pool: mssql.ConnectionPool
         e.SUDO,
         e.FEEMDO,
         e.FEULVEDO,
+        e.ESDO,
+        e.ESPGDO,
         e.KOFUDO,
         e.MODO,
         e.TIMODO,
@@ -447,6 +449,10 @@ async function extractAndLoadMonth(mesActual: string, pool: mssql.ConnectionPool
       WHERE e.TIDO IN ('${tiposDoc.join("','")}')
         AND e.SUDO IN ('${sucursales.join("','")}')
         AND CONVERT(VARCHAR(7), e.FEEMDO, 120) = '${mesActual}'
+        AND (
+          e.TIDO != 'GDV' 
+          OR (e.TIDO = 'GDV' AND (e.ESDO IS NULL OR e.ESDO = '' OR e.ESDO = ' '))
+        )
       ORDER BY e.FEEMDO, e.NUDO, d.KOPRCT
     `);
     
@@ -478,6 +484,8 @@ async function extractAndLoadMonth(mesActual: string, pool: mssql.ConnectionPool
           sudo: r.SUDO,
           feemdo: r.FEEMDO,
           feulvedo: r.FEULVEDO,
+          esdo: typeof r.ESDO === 'string' ? r.ESDO.trim() : r.ESDO,
+          espgdo: typeof r.ESPGDO === 'string' ? r.ESPGDO.trim() : r.ESPGDO,
           kofudo: typeof r.KOFUDO === 'string' ? r.KOFUDO.trim() : r.KOFUDO,
           modo: typeof r.MODO === 'string' ? r.MODO.trim() : r.MODO,
           timodo: typeof r.TIMODO === 'string' ? r.TIMODO.trim() : r.TIMODO,
