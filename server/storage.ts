@@ -142,6 +142,10 @@ import {
   gastosEmpresariales,
   type GastoEmpresarial,
   type InsertGastoEmpresarial,
+  // Promesas de compra
+  promesasCompra,
+  type PromesaCompra,
+  type InsertPromesaCompra,
   // Staging tables and fact_ventas
   stgMaeedo,
   stgMaeddo,
@@ -1116,6 +1120,33 @@ export interface IStorage {
     userName: string;
     total: number;
     cantidad: number;
+  }>>;
+
+  // ==================================================================================
+  // PROMESAS DE COMPRA operations
+  // ==================================================================================
+  
+  createPromesaCompra(promesa: InsertPromesaCompra): Promise<PromesaCompra>;
+  getPromesasCompra(filters?: {
+    vendedorId?: string;
+    clienteId?: string;
+    semana?: string;
+    anio?: number;
+    limit?: number;
+    offset?: number;
+  }): Promise<PromesaCompra[]>;
+  getPromesaCompraById(id: string): Promise<PromesaCompra | undefined>;
+  updatePromesaCompra(id: string, updates: Partial<InsertPromesaCompra>): Promise<PromesaCompra>;
+  deletePromesaCompra(id: string): Promise<void>;
+  getPromesasConCumplimiento(filters?: {
+    vendedorId?: string;
+    semana?: string;
+    anio?: number;
+  }): Promise<Array<{
+    promesa: PromesaCompra;
+    ventasReales: number;
+    cumplimiento: number;
+    estado: 'cumplido' | 'superado' | 'no_cumplido';
   }>>;
 }
 
@@ -10882,6 +10913,164 @@ export class DatabaseStorage implements IStorage {
       total: parseFloat(r.total as any) || 0,
       cantidad: parseInt(r.cantidad as any) || 0,
     }));
+  }
+
+  // ==================================================================================
+  // PROMESAS DE COMPRA operations
+  // ==================================================================================
+  
+  async createPromesaCompra(promesa: InsertPromesaCompra): Promise<PromesaCompra> {
+    const [newPromesa] = await db.insert(promesasCompra).values(promesa).returning();
+    return newPromesa;
+  }
+
+  async getPromesasCompra(filters?: {
+    vendedorId?: string;
+    clienteId?: string;
+    semana?: string;
+    anio?: number;
+    limit?: number;
+    offset?: number;
+  }): Promise<PromesaCompra[]> {
+    const conditions = [];
+
+    if (filters?.vendedorId) {
+      conditions.push(eq(promesasCompra.vendedorId, filters.vendedorId));
+    }
+
+    if (filters?.clienteId) {
+      conditions.push(eq(promesasCompra.clienteId, filters.clienteId));
+    }
+
+    if (filters?.semana) {
+      conditions.push(eq(promesasCompra.semana, filters.semana));
+    }
+
+    if (filters?.anio) {
+      conditions.push(eq(promesasCompra.anio, filters.anio));
+    }
+
+    let query = db.select().from(promesasCompra).orderBy(desc(promesasCompra.createdAt));
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+
+    if (filters?.offset) {
+      query = query.offset(filters.offset) as any;
+    }
+
+    return await query;
+  }
+
+  async getPromesaCompraById(id: string): Promise<PromesaCompra | undefined> {
+    const [promesa] = await db.select().from(promesasCompra).where(eq(promesasCompra.id, id));
+    return promesa;
+  }
+
+  async updatePromesaCompra(id: string, updates: Partial<InsertPromesaCompra>): Promise<PromesaCompra> {
+    const [updated] = await db
+      .update(promesasCompra)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(promesasCompra.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePromesaCompra(id: string): Promise<void> {
+    await db.delete(promesasCompra).where(eq(promesasCompra.id, id));
+  }
+
+  async getPromesasConCumplimiento(filters?: {
+    vendedorId?: string;
+    semana?: string;
+    anio?: number;
+  }): Promise<Array<{
+    promesa: PromesaCompra;
+    ventasReales: number;
+    cumplimiento: number;
+    estado: 'cumplido' | 'superado' | 'no_cumplido';
+  }>> {
+    const conditions = [];
+
+    if (filters?.vendedorId) {
+      conditions.push(eq(promesasCompra.vendedorId, filters.vendedorId));
+    }
+
+    if (filters?.semana) {
+      conditions.push(eq(promesasCompra.semana, filters.semana));
+    }
+
+    if (filters?.anio) {
+      conditions.push(eq(promesasCompra.anio, filters.anio));
+    }
+
+    let query = db.select().from(promesasCompra).orderBy(desc(promesasCompra.semana));
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const promesas = await query;
+
+    const resultados = await Promise.all(
+      promesas.map(async (promesa) => {
+        // Calcular ventas reales (facturas + NVV) para el cliente en la semana
+        const ventasFacturas = await db
+          .select({
+            total: sql<number>`SUM(${salesTransactions.monto})`,
+          })
+          .from(salesTransactions)
+          .where(
+            and(
+              eq(salesTransactions.nokoen, promesa.clienteNombre),
+              gte(salesTransactions.feemdo, promesa.fechaInicio),
+              lte(salesTransactions.feemdo, promesa.fechaFin),
+              inArray(salesTransactions.tido, ['FCV', 'FVL']) // Solo facturas
+            )
+          );
+
+        const ventasNvv = await db
+          .select({
+            total: sql<number>`SUM(${nvvPendingSales.totalPendiente})`,
+          })
+          .from(nvvPendingSales)
+          .where(
+            and(
+              eq(nvvPendingSales.nokoen, promesa.clienteNombre),
+              gte(nvvPendingSales.feemli, promesa.fechaInicio),
+              lte(nvvPendingSales.feemli, promesa.fechaFin)
+            )
+          );
+
+        const totalFacturas = parseFloat(ventasFacturas[0]?.total as any || '0');
+        const totalNvv = parseFloat(ventasNvv[0]?.total as any || '0');
+        const ventasReales = totalFacturas + totalNvv;
+
+        const montoPrometido = parseFloat(promesa.montoPrometido as any);
+        const cumplimiento = montoPrometido > 0 ? (ventasReales / montoPrometido) * 100 : 0;
+
+        let estado: 'cumplido' | 'superado' | 'no_cumplido';
+        if (ventasReales >= montoPrometido && montoPrometido > 0) {
+          estado = ventasReales > montoPrometido ? 'superado' : 'cumplido';
+        } else {
+          estado = 'no_cumplido';
+        }
+
+        return {
+          promesa,
+          ventasReales,
+          cumplimiento,
+          estado,
+        };
+      })
+    );
+
+    return resultados;
   }
 
 }
