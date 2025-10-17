@@ -7758,6 +7758,34 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Update solicitud notas
+  app.patch('/api/marketing/solicitudes/:id/notas', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const solicitud = await storage.getSolicitudMarketingById(req.params.id);
+      
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud no encontrada' });
+      }
+      
+      // Supervisor can update their own solicitudes, admin can update all
+      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { notas } = req.body;
+      
+      const updated = await storage.updateSolicitudMarketing(req.params.id, { notas });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar notas', error: error.message });
+    }
+  }));
+
   // Marketing metrics
   app.get('/api/marketing/metrics/:mes/:anio', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
