@@ -21,7 +21,8 @@ import {
   Wrench,
   AlertTriangle,
   Warehouse,
-  Banknote
+  Banknote,
+  HandHeart
 } from "lucide-react";
 
 interface SidebarItem {
@@ -111,6 +112,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Gastos Empresariales",
       icon: Banknote,
+    },
+    {
+      href: "/promesas-compra",
+      label: "Promesas de Compra",
+      icon: HandHeart,
     },
     {
       href: "/tintometria",
@@ -215,6 +221,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
+      href: "/promesas-compra",
+      label: "Promesas de Compra",
+      icon: HandHeart,
+    },
+    {
       href: "/tintometria",
       label: "Tintometría",
       icon: Palette,
@@ -285,6 +296,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Gastos Empresariales",
       icon: Banknote,
+    },
+    {
+      href: "/promesas-compra",
+      label: "Promesas de Compra",
+      icon: HandHeart,
     },
     {
       href: "/tintometria",
