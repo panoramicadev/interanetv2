@@ -331,7 +331,7 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            ${metrics?.presupuestoTotal.toLocaleString('es-CL') || '0'}
+            ${metrics ? metrics.presupuestoTotal.toLocaleString('es-CL') : '0'}
           </div>
           <p className="text-xs text-muted-foreground">
             Presupuesto mensual asignado
@@ -346,7 +346,7 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            ${metrics?.presupuestoUtilizado.toLocaleString('es-CL') || '0'}
+            ${metrics ? metrics.presupuestoUtilizado.toLocaleString('es-CL') : '0'}
           </div>
           <div className="mt-2">
             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -373,7 +373,7 @@ function MetricsDashboard({ mes, anio }: { mes: number; anio: number }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            ${metrics?.presupuestoDisponible.toLocaleString('es-CL') || '0'}
+            ${metrics ? metrics.presupuestoDisponible.toLocaleString('es-CL') : '0'}
           </div>
           <p className="text-xs text-muted-foreground">
             {metrics?.totalSolicitudes || 0} solicitudes totales
