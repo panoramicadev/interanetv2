@@ -35,11 +35,9 @@ interface ETLStats {
   tiempoMs: number;
 }
 
-async function extractAndLoad() {
+async function extractAndLoadMonth(mesActual: string, pool: mssql.ConnectionPool) {
   const stats: ETLStats[] = [];
-  let pool: mssql.ConnectionPool | null = null;
   const startTime = Date.now();
-  const mesActual = '2025-10';
   const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV'];
   const sucursales = ['004', '006', '007'];
 
@@ -52,12 +50,10 @@ async function extractAndLoad() {
   }).returning();
 
   try {
-    console.log('🚀 INICIANDO PROCESO ETL');
-    console.log('========================\n');
+    console.log(`\n📅 PROCESANDO MES: ${mesActual}`);
+    console.log('─────────────────────────────────────────────────');
     
-    // Limpiar tablas staging y fact antes de cargar
-    console.log('🧹 Limpiando tablas staging y fact...');
-    await db.execute(sql`TRUNCATE TABLE ventas.fact_ventas CASCADE`);
+    // Limpiar solo tablas staging (no fact_ventas, acumularemos datos)
     await db.execute(sql`TRUNCATE TABLE ventas.stg_maeedo CASCADE`);
     await db.execute(sql`TRUNCATE TABLE ventas.stg_maeddo CASCADE`);
     await db.execute(sql`TRUNCATE TABLE ventas.stg_maeen CASCADE`);
@@ -65,13 +61,6 @@ async function extractAndLoad() {
     await db.execute(sql`TRUNCATE TABLE ventas.stg_maeven CASCADE`);
     await db.execute(sql`TRUNCATE TABLE ventas.stg_tabbo CASCADE`);
     await db.execute(sql`TRUNCATE TABLE ventas.stg_tabpp CASCADE`);
-    console.log('✅ Tablas limpiadas\n');
-    
-    // Conectar a SQL Server
-    console.log('🔄 Conectando a SQL Server...');
-    pool = new mssql.ConnectionPool(sqlServerConfig);
-    await pool.connect();
-    console.log('✅ Conectado a SQL Server\n');
 
     console.log('📋 FILTROS APLICADOS:');
     console.log(`   Periodo: ${mesActual}`);
@@ -459,12 +448,14 @@ async function extractAndLoad() {
     `);
     
     if (factData.recordset.length > 0) {
-      // Helper para limpiar valores numéricos (convierte espacios/strings vacíos a null)
+      // Helper para limpiar valores numéricos (convierte espacios/strings vacíos/no numéricos a null)
       const cleanNumeric = (val: any) => {
         if (val === null || val === undefined) return null;
         if (typeof val === 'string') {
           const trimmed = val.trim();
-          if (trimmed === '') return null; // Solo eliminar strings vacíos
+          if (trimmed === '') return null;
+          // Si contiene letras o símbolos no numéricos (excepto punto y menos), retornar null
+          if (/[a-zA-Z]/.test(trimmed)) return null;
         }
         return val;
       };
@@ -593,11 +584,6 @@ async function extractAndLoad() {
     console.log(`   TOTAL           | ${String(totalRegistros).padStart(8)} registros | ${totalTiempo}s`);
     console.log('─────────────────────────────────────────────────\n');
 
-    if (pool) {
-      await pool.close();
-      console.log('✅ Conexión a SQL Server cerrada\n');
-    }
-
     // Actualizar registro de ejecución con éxito
     await db.update(etlExecutionLog)
       .set({
@@ -605,11 +591,11 @@ async function extractAndLoad() {
         recordsProcessed: totalRegistros,
         executionTimeMs: Date.now() - startTime,
         statistics: JSON.stringify(stats),
-        watermarkDate: new Date(`${mesActual}-15T23:59:59`), // Última fecha procesada
+        watermarkDate: new Date(`${mesActual}-28T23:59:59`), // Última fecha procesada
       })
       .where(sql`id = ${executionLog.id}`);
 
-    return stats;
+    return { stats, totalRegistros };
 
   } catch (error: any) {
     console.error('\n❌ ERROR EN PROCESO ETL:');
@@ -627,6 +613,57 @@ async function extractAndLoad() {
       })
       .where(sql`id = ${executionLog.id}`);
     
+    throw error;
+  }
+}
+
+async function extractAndLoadYear() {
+  let pool: mssql.ConnectionPool | null = null;
+  const year = 2025;
+  const currentMonth = 10; // Octubre
+  
+  try {
+    console.log('🚀 INICIANDO ETL ANUAL 2025');
+    console.log('═══════════════════════════════════════════════════\n');
+    
+    // Limpiar fact_ventas al inicio
+    console.log('🧹 Limpiando tabla fact_ventas...');
+    await db.execute(sql`TRUNCATE TABLE ventas.fact_ventas CASCADE`);
+    console.log('✅ Tabla limpiada\n');
+    
+    // Conectar a SQL Server una sola vez
+    console.log('🔄 Conectando a SQL Server...');
+    pool = new mssql.ConnectionPool(sqlServerConfig);
+    await pool.connect();
+    console.log('✅ Conectado a SQL Server\n');
+    
+    let totalRegistrosAnio = 0;
+    const startTimeYear = Date.now();
+    
+    // Procesar cada mes desde enero hasta el mes actual
+    for (let mes = 1; mes <= currentMonth; mes++) {
+      const mesStr = `${year}-${String(mes).padStart(2, '0')}`;
+      const result = await extractAndLoadMonth(mesStr, pool);
+      totalRegistrosAnio += result.totalRegistros;
+    }
+    
+    if (pool) {
+      await pool.close();
+      console.log('\n✅ Conexión a SQL Server cerrada\n');
+    }
+    
+    const tiempoTotalMinutos = ((Date.now() - startTimeYear) / 1000 / 60).toFixed(2);
+    
+    console.log('\n╔═══════════════════════════════════════════════════╗');
+    console.log('║        ✅ ETL ANUAL 2025 COMPLETADO               ║');
+    console.log('╚═══════════════════════════════════════════════════╝\n');
+    console.log(`📊 TOTAL REGISTROS CARGADOS: ${totalRegistrosAnio.toLocaleString()}`);
+    console.log(`⏱️  TIEMPO TOTAL: ${tiempoTotalMinutos} minutos\n`);
+    
+  } catch (error: any) {
+    console.error('\n❌ ERROR EN PROCESO ETL ANUAL:');
+    console.error(`   ${error.message}`);
+    
     if (pool) {
       await pool.close();
     }
@@ -635,13 +672,13 @@ async function extractAndLoad() {
   }
 }
 
-// Ejecutar ETL
-extractAndLoad()
+// Ejecutar ETL Anual
+extractAndLoadYear()
   .then(() => {
-    console.log('🎉 ETL finalizado exitosamente');
+    console.log('🎉 ETL Anual finalizado exitosamente');
     process.exit(0);
   })
   .catch((error) => {
-    console.error('💥 ETL falló:', error.message);
+    console.error('💥 ETL Anual falló:', error.message);
     process.exit(1);
   });
