@@ -43,6 +43,7 @@ interface SolicitudMarketing {
   titulo: string;
   descripcion: string;
   monto: string | null;
+  urgencia: 'baja' | 'media' | 'alta';
   urlReferencia: string | null;
   pdfPresupuesto: string | null;
   pasos: { nombre: string; completado: boolean; orden: number }[] | null;
@@ -525,6 +526,7 @@ function SolicitudesList({
                     <TableHead>Título</TableHead>
                     <TableHead>Supervisor</TableHead>
                     <TableHead>Monto</TableHead>
+                    <TableHead>Urgencia</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Fecha Solicitud</TableHead>
                     <TableHead>Fecha Entrega</TableHead>
@@ -542,6 +544,20 @@ function SolicitudesList({
                           ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
                           : <span className="text-muted-foreground italic">Pendiente</span>
                         }
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            solicitud.urgencia === 'alta' ? 'destructive' :
+                            solicitud.urgencia === 'media' ? 'default' :
+                            'secondary'
+                          }
+                          data-testid={`badge-urgencia-${solicitud.id}`}
+                        >
+                          {solicitud.urgencia === 'alta' && '🔴 Alta'}
+                          {solicitud.urgencia === 'media' && '🟡 Media'}
+                          {solicitud.urgencia === 'baja' && '🟢 Baja'}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -643,6 +659,21 @@ function SolicitudesList({
                               : <span className="text-muted-foreground italic">Pendiente</span>
                             }
                           </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Urgencia:</span>
+                          <Badge
+                            variant={
+                              solicitud.urgencia === 'alta' ? 'destructive' :
+                              solicitud.urgencia === 'media' ? 'default' :
+                              'secondary'
+                            }
+                            data-testid={`badge-urgencia-mobile-${solicitud.id}`}
+                          >
+                            {solicitud.urgencia === 'alta' && '🔴 Alta'}
+                            {solicitud.urgencia === 'media' && '🟡 Media'}
+                            {solicitud.urgencia === 'baja' && '🟢 Baja'}
+                          </Badge>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Fecha Solicitud:</span>
