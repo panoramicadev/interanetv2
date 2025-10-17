@@ -34,7 +34,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -79,6 +79,8 @@ export default function Marketing() {
   const [presupuestoDialogOpen, setPresupuestoDialogOpen] = useState(false);
   const [solicitudDialogOpen, setSolicitudDialogOpen] = useState(false);
   const [estadoDialogOpen, setEstadoDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudMarketing | null>(null);
 
   if (!user) {
@@ -230,6 +232,14 @@ export default function Marketing() {
               setSelectedSolicitud(solicitud);
               setEstadoDialogOpen(true);
             }}
+            onEdit={(solicitud) => {
+              setSelectedSolicitud(solicitud);
+              setEditDialogOpen(true);
+            }}
+            onDelete={(solicitud) => {
+              setSelectedSolicitud(solicitud);
+              setDeleteDialogOpen(true);
+            }}
             userRole={user.role}
           />
         </TabsContent>
@@ -369,6 +379,8 @@ function SolicitudesList({
   selectedEstado,
   onEstadoChange,
   onEditEstado,
+  onEdit,
+  onDelete,
   userRole,
 }: {
   mes: number;
@@ -376,6 +388,8 @@ function SolicitudesList({
   selectedEstado: string;
   onEstadoChange: (estado: string) => void;
   onEditEstado: (solicitud: SolicitudMarketing) => void;
+  onEdit: (solicitud: SolicitudMarketing) => void;
+  onDelete: (solicitud: SolicitudMarketing) => void;
   userRole: string;
 }) {
   const { data: solicitudes, isLoading } = useQuery<SolicitudMarketing[]>({
@@ -480,14 +494,36 @@ function SolicitudesList({
                       </TableCell>
                       {userRole === 'admin' && (
                         <TableCell>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => onEditEstado(solicitud)}
-                            data-testid={`button-cambiar-estado-${solicitud.id}`}
-                          >
-                            Cambiar Estado
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onEdit(solicitud)}
+                              data-testid={`button-editar-${solicitud.id}`}
+                              title="Editar solicitud"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onEditEstado(solicitud)}
+                              data-testid={`button-cambiar-estado-${solicitud.id}`}
+                              title="Cambiar estado"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onDelete(solicitud)}
+                              data-testid={`button-eliminar-${solicitud.id}`}
+                              title="Eliminar solicitud"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>
@@ -547,15 +583,38 @@ function SolicitudesList({
                       </div>
 
                       {userRole === 'admin' && (
-                        <Button
-                          className="w-full mt-4"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onEditEstado(solicitud)}
-                          data-testid={`button-cambiar-estado-mobile-${solicitud.id}`}
-                        >
-                          Cambiar Estado
-                        </Button>
+                        <div className="flex gap-2 mt-4">
+                          <Button
+                            className="flex-1"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onEdit(solicitud)}
+                            data-testid={`button-editar-mobile-${solicitud.id}`}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Editar
+                          </Button>
+                          <Button
+                            className="flex-1"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onEditEstado(solicitud)}
+                            data-testid={`button-cambiar-estado-mobile-${solicitud.id}`}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Estado
+                          </Button>
+                          <Button
+                            className="flex-1"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onDelete(solicitud)}
+                            data-testid={`button-eliminar-mobile-${solicitud.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Eliminar
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </CardContent>
