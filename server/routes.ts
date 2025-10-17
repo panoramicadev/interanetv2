@@ -7550,6 +7550,20 @@ export function registerRoutes(app: Express): Server {
         solicitudData.fechaEntrega = solicitudData.fechaEntrega.split('T')[0];
       }
       
+      // Validate urgency limit: max 3 "alta" urgency solicitudes per user
+      if (solicitudData.urgencia === 'alta') {
+        const urgentSolicitudes = await storage.getSolicitudesMarketingByUrgency(supervisorId, 'alta');
+        const activeUrgentCount = urgentSolicitudes.filter(s => 
+          s.estado !== 'completado' && s.estado !== 'rechazado'
+        ).length;
+        
+        if (activeUrgentCount >= 3) {
+          return res.status(400).json({ 
+            message: 'No puedes tener más de 3 solicitudes con urgencia alta activas. Completa o cancela algunas antes de crear una nueva.' 
+          });
+        }
+      }
+      
       const solicitud = await storage.createSolicitudMarketing(solicitudData);
       
       res.status(201).json(solicitud);
@@ -7612,6 +7626,20 @@ export function registerRoutes(app: Express): Server {
       
       if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
         return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      // Validate urgency limit when changing to "alta"
+      if (req.body.urgencia === 'alta' && solicitud.urgencia !== 'alta') {
+        const urgentSolicitudes = await storage.getSolicitudesMarketingByUrgency(solicitud.supervisorId!, 'alta');
+        const activeUrgentCount = urgentSolicitudes.filter(s => 
+          s.id !== solicitud.id && s.estado !== 'completado' && s.estado !== 'rechazado'
+        ).length;
+        
+        if (activeUrgentCount >= 3) {
+          return res.status(400).json({ 
+            message: 'No puedes tener más de 3 solicitudes con urgencia alta activas. Completa o cancela algunas antes de cambiar la urgencia.' 
+          });
+        }
       }
       
       const updated = await storage.updateSolicitudMarketing(req.params.id, req.body);

@@ -1009,6 +1009,7 @@ export interface IStorage {
     offset?: number;
   }): Promise<SolicitudMarketing[]>;
   getSolicitudMarketingById(id: string): Promise<SolicitudMarketing | undefined>;
+  getSolicitudesMarketingByUrgency(supervisorId: string, urgencia: string): Promise<SolicitudMarketing[]>;
   updateSolicitudMarketing(id: string, updates: Partial<InsertSolicitudMarketing>): Promise<SolicitudMarketing>;
   deleteSolicitudMarketing(id: string): Promise<void>;
   
@@ -10297,6 +10298,19 @@ export class DatabaseStorage implements IStorage {
       .from(solicitudesMarketing)
       .where(eq(solicitudesMarketing.id, id));
     return result;
+  }
+
+  async getSolicitudesMarketingByUrgency(supervisorId: string, urgencia: string): Promise<SolicitudMarketing[]> {
+    const results = await db
+      .select()
+      .from(solicitudesMarketing)
+      .where(
+        and(
+          eq(solicitudesMarketing.supervisorId, supervisorId),
+          eq(solicitudesMarketing.urgencia, urgencia)
+        )
+      );
+    return results;
   }
 
   async updateSolicitudMarketing(id: string, updates: Partial<InsertSolicitudMarketing>): Promise<SolicitudMarketing> {
