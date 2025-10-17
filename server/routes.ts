@@ -7663,6 +7663,73 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Update pasos for a solicitud
+  app.patch('/api/marketing/solicitudes/:id/pasos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const solicitud = await storage.getSolicitudMarketingById(req.params.id);
+      
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud no encontrada' });
+      }
+      
+      // Supervisor can update their own solicitudes, admin can update all
+      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const { pasos } = req.body;
+      
+      if (!Array.isArray(pasos)) {
+        return res.status(400).json({ message: 'Pasos debe ser un array' });
+      }
+      
+      const updated = await storage.updateSolicitudMarketing(req.params.id, { pasos });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar pasos', error: error.message });
+    }
+  }));
+
+  // Toggle paso completado
+  app.patch('/api/marketing/solicitudes/:id/pasos/:index/toggle', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const solicitud = await storage.getSolicitudMarketingById(req.params.id);
+      
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud no encontrada' });
+      }
+      
+      // Supervisor can update their own solicitudes, admin can update all
+      if (user.role === 'supervisor' && solicitud.supervisorId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const index = parseInt(req.params.index);
+      const pasos = (solicitud.pasos as any[]) || [];
+      
+      if (index < 0 || index >= pasos.length) {
+        return res.status(400).json({ message: 'Índice de paso inválido' });
+      }
+      
+      pasos[index].completado = !pasos[index].completado;
+      
+      const updated = await storage.updateSolicitudMarketing(req.params.id, { pasos });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar paso', error: error.message });
+    }
+  }));
+
   // Marketing metrics
   app.get('/api/marketing/metrics/:mes/:anio', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
