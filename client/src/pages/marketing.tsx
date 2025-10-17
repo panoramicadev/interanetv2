@@ -47,6 +47,7 @@ interface SolicitudMarketing {
   urlReferencia: string | null;
   pdfPresupuesto: string | null;
   pasos: { nombre: string; completado: boolean; orden: number }[] | null;
+  notas: string | null;
   estado: string;
   supervisorId: string | null;
   supervisorName: string | null;
@@ -1773,11 +1774,53 @@ function ViewSolicitudDialog({
   solicitud: SolicitudMarketing | null;
   userRole: string;
 }) {
+  const { toast } = useToast();
+  const [notas, setNotas] = useState("");
+  const [isEditingNotas, setIsEditingNotas] = useState(false);
+
+  useEffect(() => {
+    if (solicitud) {
+      setNotas(solicitud.notas || "");
+    }
+  }, [solicitud]);
+
+  const updateNotasMutation = useMutation({
+    mutationFn: async (newNotas: string) => {
+      return await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud!.id}/notas`, { notas: newNotas });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+      toast({
+        title: "Notas actualizadas",
+        description: "Las notas se han guardado correctamente",
+      });
+      setIsEditingNotas(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron guardar las notas",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveNotas = () => {
+    updateNotasMutation.mutate(notas);
+  };
+
+  const handleCancelNotas = () => {
+    setNotas(solicitud?.notas || "");
+    setIsEditingNotas(false);
+  };
+
   if (!solicitud) return null;
+
+  const canEditNotas = userRole === 'admin' || userRole === 'supervisor';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-ver-solicitud">
+      <DialogContent className="max-w-6xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-ver-solicitud">
         <DialogHeader>
           <DialogTitle>Detalles de la Solicitud</DialogTitle>
           <DialogDescription>
@@ -1785,130 +1828,224 @@ function ViewSolicitudDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto pr-2">
-          <div className="space-y-4 py-4">
-            {/* Título */}
-            <div>
-              <Label className="text-muted-foreground">Título</Label>
-              <p className="text-base font-medium mt-1">{solicitud.titulo}</p>
-            </div>
-
-            {/* Descripción */}
-            <div>
-              <Label className="text-muted-foreground">Descripción</Label>
-              <p className="text-base mt-1 whitespace-pre-wrap">{solicitud.descripcion}</p>
-            </div>
-
-            {/* Info Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Supervisor */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-4">
+            {/* Columna principal (2/3) */}
+            <div className="lg:col-span-2 space-y-4">
+              {/* Título */}
               <div>
-                <Label className="text-muted-foreground">Supervisor</Label>
-                <p className="text-base mt-1">{solicitud.supervisorName}</p>
+                <Label className="text-muted-foreground text-sm">Título</Label>
+                <p className="text-lg font-semibold mt-1">{solicitud.titulo}</p>
               </div>
 
-              {/* Urgencia */}
+              {/* Descripción */}
               <div>
-                <Label className="text-muted-foreground">Nivel de Urgencia</Label>
-                <div className="mt-1">
-                  <Badge
-                    className={
-                      solicitud.urgencia === 'alta' ? 'bg-red-500 text-white' :
-                      solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white' :
-                      'bg-green-500 text-white'
+                <Label className="text-muted-foreground text-sm">Descripción</Label>
+                <p className="text-base mt-1 whitespace-pre-wrap">{solicitud.descripcion}</p>
+              </div>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Supervisor */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Supervisor</Label>
+                  <p className="text-base mt-1">{solicitud.supervisorName}</p>
+                </div>
+
+                {/* Urgencia */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Nivel de Urgencia</Label>
+                  <div className="mt-1">
+                    <Badge
+                      className={
+                        solicitud.urgencia === 'alta' ? 'bg-red-500 text-white' :
+                        solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white' :
+                        'bg-green-500 text-white'
+                      }
+                    >
+                      {solicitud.urgencia === 'alta' && 'Alta'}
+                      {solicitud.urgencia === 'media' && 'Media'}
+                      {solicitud.urgencia === 'baja' && 'Normal'}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Estado */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Estado</Label>
+                  <div className="mt-1">
+                    <Badge
+                      className={
+                        solicitud.estado === 'rechazado' ? 'bg-red-500 text-white' :
+                        solicitud.estado === 'completado' ? 'bg-green-500 text-white' :
+                        'bg-yellow-500 text-white'
+                      }
+                    >
+                      {solicitud.estado === 'solicitado' && 'Solicitado'}
+                      {solicitud.estado === 'en_proceso' && 'En Proceso'}
+                      {solicitud.estado === 'completado' && 'Completado'}
+                      {solicitud.estado === 'rechazado' && 'Rechazado'}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Monto */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Monto</Label>
+                  <p className="text-base mt-1">
+                    {solicitud.monto 
+                      ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
+                      : <span className="text-muted-foreground italic">Pendiente</span>
                     }
-                  >
-                    {solicitud.urgencia === 'alta' && 'Alta'}
-                    {solicitud.urgencia === 'media' && 'Media'}
-                    {solicitud.urgencia === 'baja' && 'Normal'}
-                  </Badge>
+                  </p>
+                </div>
+
+                {/* Fecha Solicitud */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Fecha de Solicitud</Label>
+                  <p className="text-base mt-1">
+                    {format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}
+                  </p>
+                </div>
+
+                {/* Fecha Entrega */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Fecha de Entrega Esperada</Label>
+                  <p className="text-base mt-1">
+                    {solicitud.fechaEntrega
+                      ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
+                      : <span className="text-muted-foreground">-</span>}
+                  </p>
                 </div>
               </div>
 
-              {/* Estado */}
-              <div>
-                <Label className="text-muted-foreground">Estado</Label>
-                <div className="mt-1">
-                  <Badge
-                    className={
-                      solicitud.estado === 'rechazado' ? 'bg-red-500 text-white' :
-                      solicitud.estado === 'completado' ? 'bg-green-500 text-white' :
-                      'bg-yellow-500 text-white'
-                    }
+              {/* URL de Referencia */}
+              {solicitud.urlReferencia && (
+                <div>
+                  <Label className="text-muted-foreground text-sm">URL de Referencia</Label>
+                  <a 
+                    href={solicitud.urlReferencia} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-base text-blue-500 hover:underline mt-1 block break-all"
                   >
-                    {solicitud.estado === 'solicitado' && 'Solicitado'}
-                    {solicitud.estado === 'en_proceso' && 'En Proceso'}
-                    {solicitud.estado === 'completado' && 'Completado'}
-                    {solicitud.estado === 'rechazado' && 'Rechazado'}
-                  </Badge>
+                    {solicitud.urlReferencia}
+                  </a>
                 </div>
-              </div>
+              )}
 
-              {/* Monto */}
-              <div>
-                <Label className="text-muted-foreground">Monto</Label>
-                <p className="text-base mt-1">
-                  {solicitud.monto 
-                    ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
-                    : <span className="text-muted-foreground italic">Pendiente</span>
-                  }
-                </p>
-              </div>
+              {/* Pasos / Checklist */}
+              {solicitud.pasos && solicitud.pasos.length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground text-sm font-semibold">Pasos / Checklist</Label>
+                  <div className="mt-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <div className="space-y-3">
+                      {solicitud.pasos.map((paso, index) => (
+                        <div key={index} className="flex items-start gap-3 group">
+                          <div className="flex-shrink-0 mt-0.5">
+                            <input
+                              type="checkbox"
+                              checked={paso.completado}
+                              onChange={() => {
+                                if (userRole === 'admin' || userRole === 'supervisor') {
+                                  const toggleMutation = async () => {
+                                    await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud.id}/pasos/${index}/toggle`, {});
+                                    queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+                                  };
+                                  toggleMutation();
+                                }
+                              }}
+                              disabled={userRole !== 'admin' && userRole !== 'supervisor'}
+                              className="h-5 w-5 rounded border-2 border-blue-400 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                              data-testid={`checkbox-paso-${index}`}
+                            />
+                          </div>
+                          <span className={`flex-1 text-base transition-all ${paso.completado ? 'line-through text-muted-foreground' : 'text-foreground font-medium'}`}>
+                            {paso.nombre}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">Progreso:</span>
+                        <span className="font-semibold text-blue-600 dark:text-blue-400">
+                          {solicitud.pasos.filter(p => p.completado).length} / {solicitud.pasos.length} completados
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              {/* Fecha Solicitud */}
-              <div>
-                <Label className="text-muted-foreground">Fecha de Solicitud</Label>
-                <p className="text-base mt-1">
-                  {format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}
-                </p>
-              </div>
-
-              {/* Fecha Entrega */}
-              <div>
-                <Label className="text-muted-foreground">Fecha de Entrega Esperada</Label>
-                <p className="text-base mt-1">
-                  {solicitud.fechaEntrega
-                    ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
-                    : <span className="text-muted-foreground">-</span>}
-                </p>
-              </div>
+              {/* Motivo de Rechazo */}
+              {solicitud.estado === 'rechazado' && solicitud.motivoRechazo && (
+                <div className="border-l-4 border-red-500 bg-red-50 dark:bg-red-950 p-4 rounded">
+                  <Label className="text-red-700 dark:text-red-400 font-semibold">Motivo de Rechazo</Label>
+                  <p className="text-sm mt-1 text-red-600 dark:text-red-300">{solicitud.motivoRechazo}</p>
+                </div>
+              )}
             </div>
 
-            {/* URL de Referencia */}
-            {solicitud.urlReferencia && (
-              <div>
-                <Label className="text-muted-foreground">URL de Referencia</Label>
-                <a 
-                  href={solicitud.urlReferencia} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-base text-blue-500 hover:underline mt-1 block break-all"
-                >
-                  {solicitud.urlReferencia}
-                </a>
-              </div>
-            )}
-
-            {/* Pasos / Checklist */}
-            {solicitud.pasos && solicitud.pasos.length > 0 && (
-              <div>
-                <Label className="text-muted-foreground">Pasos / Checklist</Label>
-                <div className="border rounded-md p-3 mt-2">
-                  <PasosChecklist 
-                    solicitudId={solicitud.id} 
-                    pasos={solicitud.pasos} 
-                    userRole={userRole} 
-                  />
+            {/* Columna de Notas (1/3) */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-0 bg-muted/50 border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-sm font-semibold">Notas de Actividad</Label>
+                  {canEditNotas && !isEditingNotas && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setIsEditingNotas(true)}
+                      data-testid="button-editar-notas"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
+                {isEditingNotas ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={notas}
+                      onChange={(e) => setNotas(e.target.value)}
+                      placeholder="Escribe notas sobre la actividad de esta solicitud..."
+                      className="min-h-[200px] resize-none"
+                      data-testid="textarea-notas"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleSaveNotas}
+                        disabled={updateNotasMutation.isPending}
+                        data-testid="button-guardar-notas"
+                        className="flex-1"
+                      >
+                        {updateNotasMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                            Guardando...
+                          </>
+                        ) : (
+                          'Guardar'
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCancelNotas}
+                        disabled={updateNotasMutation.isPending}
+                        data-testid="button-cancelar-notas"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap min-h-[100px]">
+                    {notas || <span className="italic">No hay notas registradas</span>}
+                  </div>
+                )}
               </div>
-            )}
-
-            {/* Motivo de Rechazo */}
-            {solicitud.estado === 'rechazado' && solicitud.motivoRechazo && (
-              <div className="border-l-4 border-red-500 bg-red-50 p-4 rounded">
-                <Label className="text-red-700">Motivo de Rechazo</Label>
-                <p className="text-sm mt-1 text-red-600">{solicitud.motivoRechazo}</p>
-              </div>
-            )}
+            </div>
           </div>
         </div>
         <DialogFooter>
