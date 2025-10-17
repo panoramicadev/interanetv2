@@ -3203,6 +3203,7 @@ export const solicitudesMarketing = pgTable("solicitudes_marketing", {
   monto: numeric("monto", { precision: 15, scale: 2 }), // Nullable - se ingresa al aprobar
   urlReferencia: text("url_referencia"), // URL de referencia (ingresada por supervisor)
   pdfPresupuesto: text("pdf_presupuesto"), // URL del PDF presupuestado (subido por admin)
+  pasos: jsonb("pasos").$type<{ nombre: string; completado: boolean; orden: number }[]>().default(sql`'[]'::jsonb`), // Array de pasos/checklist
   estado: varchar("estado").notNull().default("solicitado"), // solicitado, en_proceso, completado, rechazado
   supervisorId: varchar("supervisor_id").references(() => salespeopleUsers.id),
   supervisorName: varchar("supervisor_name"),
