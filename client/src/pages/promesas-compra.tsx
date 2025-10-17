@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useUser } from "@/hooks/use-user";
+import { useAuth } from "@/hooks/useAuth";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks } from "date-fns";
 import { es } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -58,7 +58,7 @@ interface Cliente {
 }
 
 export default function PromesasCompraPage() {
-  const { user } = useUser();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchClient, setSearchClient] = useState("");
