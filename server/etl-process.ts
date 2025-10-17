@@ -38,7 +38,7 @@ interface ETLStats {
 async function extractAndLoadMonth(mesActual: string, pool: mssql.ConnectionPool) {
   const stats: ETLStats[] = [];
   const startTime = Date.now();
-  const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV'];
+  const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV', 'BLV', 'FDV'];
   const sucursales = ['004', '006', '007'];
 
   // Registrar inicio de ejecución
