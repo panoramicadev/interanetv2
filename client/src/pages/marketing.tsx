@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -268,6 +268,18 @@ export default function Marketing() {
       <EstadoDialog
         open={estadoDialogOpen}
         onOpenChange={setEstadoDialogOpen}
+        solicitud={selectedSolicitud}
+      />
+
+      <EditSolicitudDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        solicitud={selectedSolicitud}
+      />
+
+      <DeleteSolicitudDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
         solicitud={selectedSolicitud}
       />
     </div>
@@ -1183,6 +1195,236 @@ function EstadoDialog({
               </>
             ) : (
               'Guardar'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Edit Solicitud Dialog Component
+function EditSolicitudDialog({
+  open,
+  onOpenChange,
+  solicitud,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  solicitud: SolicitudMarketing | null;
+}) {
+  const { toast } = useToast();
+  const [titulo, setTitulo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [fechaEntrega, setFechaEntrega] = useState("");
+  const [urlReferencia, setUrlReferencia] = useState("");
+
+  // Pre-cargar datos cuando se abre el diálogo
+  useEffect(() => {
+    if (solicitud && open) {
+      setTitulo(solicitud.titulo || "");
+      setDescripcion(solicitud.descripcion || "");
+      setFechaEntrega(solicitud.fechaEntrega || "");
+      setUrlReferencia(solicitud.urlReferencia || "");
+    }
+  }, [solicitud, open]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud?.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
+      toast({
+        title: "Solicitud actualizada",
+        description: "Los cambios han sido guardados correctamente",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar la solicitud",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!titulo || !descripcion) {
+      toast({
+        title: "Error",
+        description: "Complete todos los campos requeridos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateMutation.mutate({
+      titulo,
+      descripcion,
+      fechaEntrega: fechaEntrega || null,
+      urlReferencia: urlReferencia || null,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full" data-testid="dialog-editar-solicitud">
+        <DialogHeader>
+          <DialogTitle>Editar Solicitud de Marketing</DialogTitle>
+          <DialogDescription>
+            Modifique los campos necesarios
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div>
+            <Label htmlFor="edit-titulo">Título*</Label>
+            <Input
+              id="edit-titulo"
+              placeholder="Ej: Campaña publicitaria redes sociales"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              data-testid="input-edit-titulo"
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-descripcion">Descripción*</Label>
+            <Textarea
+              id="edit-descripcion"
+              placeholder="Describa los detalles de la solicitud..."
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={4}
+              data-testid="input-edit-descripcion"
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-fechaEntrega">Fecha de Entrega Esperada</Label>
+            <Input
+              id="edit-fechaEntrega"
+              type="date"
+              value={fechaEntrega}
+              onChange={(e) => setFechaEntrega(e.target.value)}
+              data-testid="input-edit-fecha-entrega"
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-urlReferencia">URL de Referencia</Label>
+            <Input
+              id="edit-urlReferencia"
+              type="url"
+              placeholder="https://ejemplo.com/referencia"
+              value={urlReferencia}
+              onChange={(e) => setUrlReferencia(e.target.value)}
+              data-testid="input-edit-url-referencia"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Adjunte un enlace con información de referencia
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-editar"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={updateMutation.isPending}
+            data-testid="button-guardar-editar"
+          >
+            {updateMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar Cambios'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Delete Solicitud Dialog Component
+function DeleteSolicitudDialog({
+  open,
+  onOpenChange,
+  solicitud,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  solicitud: SolicitudMarketing | null;
+}) {
+  const { toast } = useToast();
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('DELETE', `/api/marketing/solicitudes/${solicitud?.id}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
+      toast({
+        title: "Solicitud eliminada",
+        description: "La solicitud ha sido eliminada correctamente",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar la solicitud",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="dialog-eliminar-solicitud">
+        <DialogHeader>
+          <DialogTitle>Confirmar Eliminación</DialogTitle>
+          <DialogDescription>
+            ¿Está seguro que desea eliminar esta solicitud?
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <p className="text-sm">
+            <strong>Título:</strong> {solicitud?.titulo}
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Esta acción no se puede deshacer.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-eliminar"
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => deleteMutation.mutate()}
+            disabled={deleteMutation.isPending}
+            data-testid="button-confirmar-eliminar"
+          >
+            {deleteMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Eliminando...
+              </>
+            ) : (
+              'Eliminar'
             )}
           </Button>
         </DialogFooter>
