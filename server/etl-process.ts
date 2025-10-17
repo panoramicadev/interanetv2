@@ -411,8 +411,11 @@ async function extractAndLoadMonth(mesActual: string, pool: mssql.ConnectionPool
         pr.PFPR,
         pr.HFPR,
         
-        -- Columna calculada MONTO
-        (d.CAPRCO2 * d.PPPRNE) as MONTO,
+        -- Columna calculada MONTO (negativo para NCV - Notas de Crédito)
+        CASE 
+          WHEN e.TIDO = 'NCV' THEN (d.CAPRCO2 * d.PPPRNE * -1)
+          ELSE (d.CAPRCO2 * d.PPPRNE)
+        END as MONTO,
         
         -- Columnas adicionales (nombres descriptivos)
         e.NUCOCO as OCDO,
