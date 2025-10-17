@@ -908,6 +908,7 @@ function SolicitudDialog({
   const { toast } = useToast();
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [urgencia, setUrgencia] = useState("baja");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [urlReferencia, setUrlReferencia] = useState("");
   const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
@@ -935,6 +936,7 @@ function SolicitudDialog({
       // Reset form
       setTitulo("");
       setDescripcion("");
+      setUrgencia("baja");
       setFechaEntrega("");
       setUrlReferencia("");
       setSelectedSupervisorId("");
@@ -973,6 +975,7 @@ function SolicitudDialog({
     const data: any = {
       titulo,
       descripcion,
+      urgencia,
       mes,
       anio,
       fechaEntrega: fechaEntrega || null,
@@ -1018,6 +1021,28 @@ function SolicitudDialog({
               rows={4}
               data-testid="input-descripcion"
             />
+          </div>
+          <div>
+            <Label htmlFor="urgencia">Nivel de Urgencia*</Label>
+            <Select value={urgencia} onValueChange={setUrgencia}>
+              <SelectTrigger data-testid="select-urgencia">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="baja" data-testid="option-urgencia-baja">
+                  🟢 Baja - Normal
+                </SelectItem>
+                <SelectItem value="media" data-testid="option-urgencia-media">
+                  🟡 Media - Prioritaria
+                </SelectItem>
+                <SelectItem value="alta" data-testid="option-urgencia-alta">
+                  🔴 Alta - Urgente
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Máximo 3 solicitudes con urgencia alta activas por usuario
+            </p>
           </div>
           {user?.role === 'admin' && (
             <div>
@@ -1350,6 +1375,7 @@ function EditSolicitudDialog({
   const { toast } = useToast();
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [urgencia, setUrgencia] = useState("baja");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [urlReferencia, setUrlReferencia] = useState("");
   const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
@@ -1360,6 +1386,7 @@ function EditSolicitudDialog({
     if (solicitud && open) {
       setTitulo(solicitud.titulo || "");
       setDescripcion(solicitud.descripcion || "");
+      setUrgencia(solicitud.urgencia || "baja");
       setFechaEntrega(solicitud.fechaEntrega || "");
       setUrlReferencia(solicitud.urlReferencia || "");
       setPasos(solicitud.pasos || []);
@@ -1402,6 +1429,7 @@ function EditSolicitudDialog({
     updateMutation.mutate({
       titulo,
       descripcion,
+      urgencia,
       fechaEntrega: fechaEntrega || null,
       urlReferencia: urlReferencia || null,
       pasos,
@@ -1438,6 +1466,28 @@ function EditSolicitudDialog({
               rows={4}
               data-testid="input-edit-descripcion"
             />
+          </div>
+          <div>
+            <Label htmlFor="edit-urgencia">Nivel de Urgencia*</Label>
+            <Select value={urgencia} onValueChange={setUrgencia}>
+              <SelectTrigger data-testid="select-edit-urgencia">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="baja" data-testid="option-edit-urgencia-baja">
+                  🟢 Baja - Normal
+                </SelectItem>
+                <SelectItem value="media" data-testid="option-edit-urgencia-media">
+                  🟡 Media - Prioritaria
+                </SelectItem>
+                <SelectItem value="alta" data-testid="option-edit-urgencia-alta">
+                  🔴 Alta - Urgente
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Máximo 3 solicitudes con urgencia alta activas por usuario
+            </p>
           </div>
           <div>
             <Label htmlFor="edit-fechaEntrega">Fecha de Entrega Esperada</Label>
