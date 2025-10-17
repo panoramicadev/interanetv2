@@ -1024,14 +1024,15 @@ function SolicitudDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] sm:w-full" data-testid="dialog-nueva-solicitud">
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-nueva-solicitud">
         <DialogHeader>
           <DialogTitle>Nueva Solicitud de Marketing</DialogTitle>
           <DialogDescription>
             Complete el formulario para crear una nueva solicitud
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="space-y-4 py-4">
           <div>
             <Label htmlFor="titulo">Título*</Label>
             <Input
@@ -1173,6 +1174,7 @@ function SolicitudDialog({
                 Agregue pasos o tareas que se deben completar para esta solicitud
               </p>
             </div>
+          </div>
           </div>
         </div>
         <DialogFooter>
@@ -1469,14 +1471,15 @@ function EditSolicitudDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] sm:w-full" data-testid="dialog-editar-solicitud">
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-editar-solicitud">
         <DialogHeader>
           <DialogTitle>Editar Solicitud de Marketing</DialogTitle>
           <DialogDescription>
             Modifique los campos necesarios
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="space-y-4 py-4">
           <div>
             <Label htmlFor="edit-titulo">Título*</Label>
             <Input
@@ -1599,6 +1602,7 @@ function EditSolicitudDialog({
                 Agregue o elimine pasos según sea necesario
               </p>
             </div>
+          </div>
           </div>
         </div>
         <DialogFooter>
