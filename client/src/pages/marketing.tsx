@@ -546,7 +546,7 @@ function SolicitudesList({
                     <TableHead>Fecha Solicitud</TableHead>
                     <TableHead>Fecha Entrega</TableHead>
                     <TableHead>Pasos</TableHead>
-                    {userRole === 'admin' && <TableHead>Acciones</TableHead>}
+                    {(userRole === 'admin' || userRole === 'supervisor') && <TableHead>Acciones</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -610,7 +610,7 @@ function SolicitudesList({
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
                       </TableCell>
-                      {userRole === 'admin' && (
+                      {(userRole === 'admin' || userRole === 'supervisor') && (
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <div className="flex gap-2">
                             <Button
@@ -738,7 +738,7 @@ function SolicitudesList({
                         </div>
                       )}
 
-                      {userRole === 'admin' && (
+                      {(userRole === 'admin' || userRole === 'supervisor') && (
                         <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
                           <Button
                             className="flex-1"
