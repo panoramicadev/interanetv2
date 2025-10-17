@@ -3414,9 +3414,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSupervisors(): Promise<SalespersonUser[]> {
-    return await db.select().from(salespeopleUsers)
-      .where(eq(salespeopleUsers.role, 'supervisor'))
-      .orderBy(salespeopleUsers.salespersonName);
+    // Get supervisors from salespeopleUsers table
+    const supervisors = await db.select().from(salespeopleUsers)
+      .where(eq(salespeopleUsers.role, 'supervisor'));
+    
+    // Get admins from users table
+    const admins = await db.select().from(users)
+      .where(eq(users.role, 'admin'));
+    
+    // Convert admins to SalespersonUser format
+    const adminsSalespersonFormat = admins.map(admin => ({
+      id: admin.id,
+      salespersonName: `${admin.firstName || ''} ${admin.lastName || ''}`.trim() || admin.email,
+      username: admin.email,
+      email: admin.email,
+      password: '', // Never expose password hashes
+      isActive: true,
+      role: 'admin' as const,
+      supervisorId: null,
+      assignedSegment: null,
+      createdAt: admin.createdAt,
+      updatedAt: admin.updatedAt,
+    }));
+    
+    // Combine both arrays and sort by name
+    return [...supervisors, ...adminsSalespersonFormat]
+      .sort((a, b) => a.salespersonName.localeCompare(b.salespersonName));
   }
 
   async getSalespersonUser(id: string): Promise<SalespersonUser | undefined> {
