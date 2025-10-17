@@ -547,24 +547,24 @@ function SolicitudesList({
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={
-                            solicitud.urgencia === 'alta' ? 'destructive' :
-                            solicitud.urgencia === 'media' ? 'default' :
-                            'secondary'
+                          className={
+                            solicitud.urgencia === 'alta' ? 'bg-red-500 text-white hover:bg-red-600' :
+                            solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                            'bg-green-500 text-white hover:bg-green-600'
                           }
                           data-testid={`badge-urgencia-${solicitud.id}`}
                         >
-                          {solicitud.urgencia === 'alta' && '🔴 Alta'}
-                          {solicitud.urgencia === 'media' && '🟡 Media'}
-                          {solicitud.urgencia === 'baja' && '🟢 Baja'}
+                          {solicitud.urgencia === 'alta' && 'Alta'}
+                          {solicitud.urgencia === 'media' && 'Media'}
+                          {solicitud.urgencia === 'baja' && 'Normal'}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={
-                            solicitud.estado === 'rechazado' ? 'destructive' :
-                            solicitud.estado === 'completado' ? 'default' :
-                            'secondary'
+                          className={
+                            solicitud.estado === 'rechazado' ? 'bg-red-500 text-white hover:bg-red-600' :
+                            solicitud.estado === 'completado' ? 'bg-green-500 text-white hover:bg-green-600' :
+                            'bg-yellow-500 text-white hover:bg-yellow-600'
                           }
                         >
                           {solicitud.estado === 'solicitado' && 'Solicitado'}
@@ -633,10 +633,10 @@ function SolicitudesList({
                       <div className="flex justify-between items-start">
                         <h3 className="font-semibold text-lg">{solicitud.titulo}</h3>
                         <Badge
-                          variant={
-                            solicitud.estado === 'rechazado' ? 'destructive' :
-                            solicitud.estado === 'completado' ? 'default' :
-                            'secondary'
+                          className={
+                            solicitud.estado === 'rechazado' ? 'bg-red-500 text-white hover:bg-red-600' :
+                            solicitud.estado === 'completado' ? 'bg-green-500 text-white hover:bg-green-600' :
+                            'bg-yellow-500 text-white hover:bg-yellow-600'
                           }
                         >
                           {solicitud.estado === 'solicitado' && 'Solicitado'}
@@ -663,16 +663,16 @@ function SolicitudesList({
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Urgencia:</span>
                           <Badge
-                            variant={
-                              solicitud.urgencia === 'alta' ? 'destructive' :
-                              solicitud.urgencia === 'media' ? 'default' :
-                              'secondary'
+                            className={
+                              solicitud.urgencia === 'alta' ? 'bg-red-500 text-white hover:bg-red-600' :
+                              solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                              'bg-green-500 text-white hover:bg-green-600'
                             }
                             data-testid={`badge-urgencia-mobile-${solicitud.id}`}
                           >
-                            {solicitud.urgencia === 'alta' && '🔴 Alta'}
-                            {solicitud.urgencia === 'media' && '🟡 Media'}
-                            {solicitud.urgencia === 'baja' && '🟢 Baja'}
+                            {solicitud.urgencia === 'alta' && 'Alta'}
+                            {solicitud.urgencia === 'media' && 'Media'}
+                            {solicitud.urgencia === 'baja' && 'Normal'}
                           </Badge>
                         </div>
                         <div className="flex justify-between">
@@ -1061,13 +1061,13 @@ function SolicitudDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="baja" data-testid="option-urgencia-baja">
-                  🟢 Baja - Normal
+                  Normal
                 </SelectItem>
                 <SelectItem value="media" data-testid="option-urgencia-media">
-                  🟡 Media - Prioritaria
+                  Media
                 </SelectItem>
                 <SelectItem value="alta" data-testid="option-urgencia-alta">
-                  🔴 Alta - Urgente
+                  Alta
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -1506,13 +1506,13 @@ function EditSolicitudDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="baja" data-testid="option-edit-urgencia-baja">
-                  🟢 Baja - Normal
+                  Normal
                 </SelectItem>
                 <SelectItem value="media" data-testid="option-edit-urgencia-media">
-                  🟡 Media - Prioritaria
+                  Media
                 </SelectItem>
                 <SelectItem value="alta" data-testid="option-edit-urgencia-alta">
-                  🔴 Alta - Urgente
+                  Alta
                 </SelectItem>
               </SelectContent>
             </Select>
