@@ -15,7 +15,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { localImageStorage } from "./localImageStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema } from "../shared/schema";
+import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema } from "../shared/schema";
 import { eq, and, isNotNull, ne } from "drizzle-orm";
 import { emailService } from "./services/email";
 
@@ -8162,6 +8162,152 @@ export function registerRoutes(app: Express): Server {
       res.json(data);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener datos por usuario', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // PROMESAS DE COMPRA ROUTES
+  // ==================================================================================
+
+  // Create promesa de compra (salesperson only)
+  app.post('/api/promesas-compra', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      if (!['salesperson', 'supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const validatedData = insertPromesaCompraSchema.parse({
+        ...req.body,
+        vendedorId: user.id
+      });
+      
+      const promesa = await storage.createPromesaCompra(validatedData);
+      res.status(201).json(promesa);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Error al crear promesa de compra', error: error.message });
+    }
+  }));
+
+  // Get promesas de compra
+  app.get('/api/promesas-compra', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { vendedorId, clienteId, semana, anio, limit, offset } = req.query;
+      
+      const filters: any = {};
+      
+      // Salesperson can only see their own promesas
+      if (user.role === 'salesperson') {
+        filters.vendedorId = user.id;
+      } else if (vendedorId) {
+        filters.vendedorId = vendedorId;
+      }
+      
+      if (clienteId) filters.clienteId = clienteId;
+      if (semana) filters.semana = semana;
+      if (anio) filters.anio = parseInt(anio);
+      if (limit) filters.limit = parseInt(limit);
+      if (offset) filters.offset = parseInt(offset);
+      
+      const promesas = await storage.getPromesasCompra(filters);
+      res.json(promesas);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener promesas de compra', error: error.message });
+    }
+  }));
+
+  // Get promesa de compra by ID
+  app.get('/api/promesas-compra/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const promesa = await storage.getPromesaCompraById(req.params.id);
+      
+      if (!promesa) {
+        return res.status(404).json({ message: 'Promesa no encontrada' });
+      }
+      
+      // Check authorization
+      if (user.role === 'salesperson' && promesa.vendedorId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      res.json(promesa);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener promesa de compra', error: error.message });
+    }
+  }));
+
+  // Update promesa de compra
+  app.patch('/api/promesas-compra/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const promesa = await storage.getPromesaCompraById(req.params.id);
+      
+      if (!promesa) {
+        return res.status(404).json({ message: 'Promesa no encontrada' });
+      }
+      
+      // Check authorization
+      if (user.role === 'salesperson' && promesa.vendedorId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      const updated = await storage.updatePromesaCompra(req.params.id, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar promesa de compra', error: error.message });
+    }
+  }));
+
+  // Delete promesa de compra
+  app.delete('/api/promesas-compra/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const promesa = await storage.getPromesaCompraById(req.params.id);
+      
+      if (!promesa) {
+        return res.status(404).json({ message: 'Promesa no encontrada' });
+      }
+      
+      // Check authorization
+      if (user.role === 'salesperson' && promesa.vendedorId !== user.id) {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+      
+      await storage.deletePromesaCompra(req.params.id);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar promesa de compra', error: error.message });
+    }
+  }));
+
+  // Get promesas con cumplimiento (comparación con ventas reales)
+  app.get('/api/promesas-compra/cumplimiento/reporte', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { vendedorId, semana, anio } = req.query;
+      
+      const filters: any = {};
+      
+      // Salesperson can only see their own data
+      if (user.role === 'salesperson') {
+        filters.vendedorId = user.id;
+      } else if (vendedorId) {
+        filters.vendedorId = vendedorId;
+      }
+      
+      if (semana) filters.semana = semana;
+      if (anio) filters.anio = parseInt(anio);
+      
+      const resultados = await storage.getPromesasConCumplimiento(filters);
+      res.json(resultados);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener reporte de cumplimiento', error: error.message });
     }
   }));
 
