@@ -281,10 +281,33 @@ export default function ReclamosGeneralesPage() {
       setInformeResolutivo("");
       setSelectedReclamoId(null);
     },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: (error as any)?.message || "No se pudo cerrar el reclamo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete reclamo mutation (solo admin y tecnico_obra)
+  const deleteReclamoMutation = useMutation({
+    mutationFn: async (reclamoId: string) => {
+      await apiRequest(`/api/reclamos-generales/${reclamoId}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
+      toast({
+        title: "Reclamo eliminado",
+        description: "El reclamo ha sido eliminado exitosamente.",
+      });
+    },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "No se pudo cerrar el reclamo",
+        description: error.message || "No se pudo eliminar el reclamo",
         variant: "destructive",
       });
     },
@@ -599,6 +622,24 @@ export default function ReclamosGeneralesPage() {
                                 >
                                   <CheckCircle2 className="h-4 w-4 mr-1" />
                                   Cerrar
+                                </Button>
+                              )}
+
+                              {(user?.role === 'admin' || user?.role === 'tecnico_obra') && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (window.confirm('¿Está seguro que desea eliminar este reclamo? Esta acción no se puede deshacer.')) {
+                                      deleteReclamoMutation.mutate(reclamo.id);
+                                    }
+                                  }}
+                                  disabled={deleteReclamoMutation.isPending}
+                                  data-testid={`button-delete-reclamo-${reclamo.id}`}
+                                  className="w-full sm:w-auto"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Eliminar
                                 </Button>
                               )}
                             </div>
