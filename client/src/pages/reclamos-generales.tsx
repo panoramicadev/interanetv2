@@ -1876,7 +1876,8 @@ export default function ReclamosGeneralesPage() {
           ) : reclamoDetails ? (
             <div className="space-y-6 pt-4">
               {/* Resumen de Resolución - Cuando está resuelto o cerrado */}
-              {(reclamoDetails.estado === 'resuelto' || reclamoDetails.estado === 'cerrado') && reclamoDetails.informeLaboratorio && (
+              {(reclamoDetails.estado === 'resuelto' || reclamoDetails.estado === 'cerrado') && 
+               (reclamoDetails.informeLaboratorio || reclamoDetails.resolucionDescripcion) && (
                 <Card className="border-2 border-green-500 dark:border-green-600 bg-green-50 dark:bg-green-950 shadow-lg">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
@@ -1895,13 +1896,18 @@ export default function ReclamosGeneralesPage() {
                         Área responsable: {CATEGORIA_RESPONSABLE_OPTIONS.find(c => c.value === reclamoDetails.categoriaResponsable)?.label || reclamoDetails.categoriaResponsable}
                       </p>
                     )}
+                    {reclamoDetails.resolucionUsuarioName && (
+                      <p className="text-sm mt-1 text-green-700 dark:text-green-300">
+                        Resuelto por: {reclamoDetails.resolucionUsuarioName}
+                      </p>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
                       <p className={`text-sm whitespace-pre-wrap text-green-900 dark:text-green-100 ${!resumenExpanded && 'line-clamp-3'}`}>
-                        {reclamoDetails.informeLaboratorio}
+                        {reclamoDetails.informeLaboratorio || reclamoDetails.resolucionDescripcion}
                       </p>
-                      {reclamoDetails.informeLaboratorio.length > 150 && (
+                      {(reclamoDetails.informeLaboratorio || reclamoDetails.resolucionDescripcion || '').length > 150 && (
                         <Button
                           variant="link"
                           size="sm"
