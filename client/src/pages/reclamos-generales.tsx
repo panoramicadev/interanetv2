@@ -239,6 +239,13 @@ export default function ReclamosGeneralesPage() {
     return () => clearTimeout(timer);
   }, [clientSearchTerm]);
 
+  // Reset resumen expanded state when modal closes or reclamo changes
+  useEffect(() => {
+    if (!showDetailModal || !selectedReclamoId) {
+      setResumenExpanded(false);
+    }
+  }, [showDetailModal, selectedReclamoId]);
+
   // Compress image function
   const compressImage = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
