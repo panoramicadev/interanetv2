@@ -8311,6 +8311,38 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ============================================================================
+  // ETL Routes - Automatic incremental data warehouse updates
+  // ============================================================================
+  const { executeIncrementalETL, getETLStatus } = require('./etl-incremental');
+
+  // Execute ETL manually (admin only)
+  app.post('/api/etl/execute', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      console.log('📊 ETL manual execution requested by:', req.user.email);
+      const result = await executeIncrementalETL();
+      res.json(result);
+    } catch (error: any) {
+      console.error('ETL execution error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  }));
+
+  // Get ETL status and history
+  app.get('/api/etl/status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const status = await getETLStatus();
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ 
+        error: error.message 
+      });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
