@@ -71,5 +71,31 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Start ETL automatic scheduler (every 15 minutes)
+    const ETL_INTERVAL = 15 * 60 * 1000; // 15 minutes in milliseconds
+    const { executeIncrementalETL } = require('./etl-incremental');
+    
+    log('🔄 ETL automatic scheduler initialized (runs every 15 minutes)');
+    
+    // Run ETL on startup after 30 seconds (give the app time to fully initialize)
+    setTimeout(async () => {
+      try {
+        log('📊 Running initial ETL on startup...');
+        await executeIncrementalETL();
+      } catch (error: any) {
+        console.error('Initial ETL execution failed:', error.message);
+      }
+    }, 30000);
+    
+    // Schedule ETL to run every 15 minutes
+    setInterval(async () => {
+      try {
+        log('📊 Running scheduled ETL update...');
+        await executeIncrementalETL();
+      } catch (error: any) {
+        console.error('Scheduled ETL execution failed:', error.message);
+      }
+    }, ETL_INTERVAL);
   });
 })();
