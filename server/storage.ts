@@ -994,7 +994,7 @@ export interface IStorage {
   updateInformeTecnico(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   
   // Resolución laboratorio con evidencia
-  updateResolucionLaboratorio(id: string, informe: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string): Promise<ReclamoGeneral | null>;
+  updateResolucionLaboratorio(id: string, informe: string, categoriaResponsable: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string): Promise<ReclamoGeneral | null>;
   getReclamoGeneralResolucionPhotos(reclamoId: string): Promise<any[]>;
   
   // Cerrar reclamo
@@ -10240,6 +10240,7 @@ export class DatabaseStorage implements IStorage {
   async updateResolucionLaboratorio(
     id: string,
     informe: string,
+    categoriaResponsable: string,
     photos: Array<{ photoUrl: string; description?: string }>,
     userId: string,
     userName: string
@@ -10249,6 +10250,7 @@ export class DatabaseStorage implements IStorage {
       .update(reclamosGenerales)
       .set({
         informeLaboratorio: informe,
+        categoriaResponsable,
         fechaRespuestaLaboratorio: new Date(),
         updatedAt: new Date(),
       })

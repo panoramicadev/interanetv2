@@ -7490,10 +7490,14 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'Solo usuarios con rol laboratorio pueden subir resoluciones' });
       }
       
-      const { informe, photos } = req.body;
+      const { informe, categoriaResponsable, photos } = req.body;
       
       if (!informe) {
         return res.status(400).json({ message: 'El informe es requerido' });
+      }
+
+      if (!categoriaResponsable) {
+        return res.status(400).json({ message: 'La categoría responsable es requerida' });
       }
       
       if (!photos || !Array.isArray(photos) || photos.length === 0) {
@@ -7515,7 +7519,7 @@ export function registerRoutes(app: Express): Server {
       }
       
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
-      const reclamo = await storage.updateResolucionLaboratorio(req.params.id, informe, photos, user.id, userName);
+      const reclamo = await storage.updateResolucionLaboratorio(req.params.id, informe, categoriaResponsable, photos, user.id, userName);
       
       if (!reclamo) {
         return res.status(409).json({ message: 'El reclamo ya tiene una resolución o fue modificado por otro usuario' });
