@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import path from "path";
+import { executeIncrementalETL } from "./etl-incremental";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -74,7 +75,6 @@ app.use((req, res, next) => {
     
     // Start ETL automatic scheduler (every 15 minutes)
     const ETL_INTERVAL = 15 * 60 * 1000; // 15 minutes in milliseconds
-    const { executeIncrementalETL } = require('./etl-incremental');
     
     log('🔄 ETL automatic scheduler initialized (runs every 15 minutes)');
     

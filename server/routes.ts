@@ -18,6 +18,7 @@ import { db } from "./db";
 import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema } from "../shared/schema";
 import { eq, and, isNotNull, ne } from "drizzle-orm";
 import { emailService } from "./services/email";
+import { executeIncrementalETL, getETLStatus } from "./etl-incremental";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -8314,9 +8315,8 @@ export function registerRoutes(app: Express): Server {
   // ============================================================================
   // ETL Routes - Automatic incremental data warehouse updates
   // ============================================================================
-  const { executeIncrementalETL, getETLStatus } = require('./etl-incremental');
 
-  // Execute ETL manually (admin only)
+  // Execute ETL manually (admin/supervisor only)
   app.post('/api/etl/execute', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       console.log('📊 ETL manual execution requested by:', req.user.email);
