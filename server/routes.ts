@@ -7572,6 +7572,57 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Resolución genérica para áreas responsables
+  app.post('/api/reclamos-generales/:id/resolucion-area', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Validar que el usuario tiene rol de área o laboratorio
+      const isAreaRole = user.role && (user.role.startsWith('area_') || user.role === 'laboratorio');
+      if (!isAreaRole) {
+        return res.status(403).json({ message: 'No tiene permisos para subir resoluciones' });
+      }
+      
+      const { resolucionDescripcion, photos } = req.body;
+      
+      if (!resolucionDescripcion) {
+        return res.status(400).json({ message: 'La descripción de la resolución es requerida' });
+      }
+      
+      if (!photos || !Array.isArray(photos) || photos.length === 0) {
+        return res.status(400).json({ message: 'Se requiere al menos una foto de evidencia' });
+      }
+      
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      
+      try {
+        const reclamo = await storage.updateResolucionArea(
+          req.params.id, 
+          resolucionDescripcion, 
+          photos, 
+          user.id, 
+          userName,
+          user.role
+        );
+        
+        if (!reclamo) {
+          return res.status(409).json({ message: 'El reclamo ya tiene una resolución o fue modificado por otro usuario' });
+        }
+        
+        res.json(reclamo);
+      } catch (error: any) {
+        // Manejar errores de validación del storage
+        if (error.message.includes('no está en estado') || error.message.includes('No tiene permisos')) {
+          return res.status(400).json({ message: error.message });
+        }
+        throw error;
+      }
+    } catch (error: any) {
+      console.error('Error al subir resolución:', error);
+      res.status(500).json({ message: 'Error al subir resolución' });
+    }
+  }));
+
   // Get resolución photos
   app.get('/api/reclamos-generales/:id/resolucion-photos', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
