@@ -2846,7 +2846,10 @@ export class DatabaseStorage implements IStorage {
     averageTicket: number;
     salesFrequency: number;
   }> {
-    const conditions = [eq(salesTransactions.nokofu, salespersonName)];
+    const conditions = [
+      eq(salesTransactions.nokofu, salespersonName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
 
     // Apply date filters if period is provided
     if (period) {
@@ -2928,7 +2931,10 @@ export class DatabaseStorage implements IStorage {
     lastSale: string;
     daysSinceLastSale: number;
   }>> {
-    const conditions = [eq(salesTransactions.nokofu, salespersonName)];
+    const conditions = [
+      eq(salesTransactions.nokofu, salespersonName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
     
     // Filter by segment if provided
     if (segment) {
@@ -3016,6 +3022,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(salesTransactions.nokofu, salespersonName),
+      ne(salesTransactions.tido, 'GDV'), // Exclude GDV - only show invoiced sales
       sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`
     ];
 
