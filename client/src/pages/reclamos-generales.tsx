@@ -1428,7 +1428,8 @@ export default function ReclamosGeneralesPage() {
 
                                   {/* Opciones para Laboratorio y Áreas Responsables */}
                                   {((user?.role === 'laboratorio' && reclamo.estado === 'en_laboratorio') || 
-                                    (user?.role?.startsWith('area_') && reclamo.estado === 'en_area_responsable')) && (
+                                    (user?.role?.startsWith('area_') && reclamo.estado === 'en_area_responsable') ||
+                                    (organizationalRoles.includes(user?.role || '') && reclamo.estado === 'en_area_responsable')) && (
                                     <>
                                       <DropdownMenuItem
                                         onClick={() => {
@@ -1458,8 +1459,13 @@ export default function ReclamosGeneralesPage() {
                                     </>
                                   )}
                                   
-                                  {/* Opción de Cerrar para Técnico de Obra */}
-                                  {reclamo.estado !== 'cerrado' && user?.role === 'tecnico_obra' && (
+                                  {/* Opción de Cerrar - disponible para técnicos de obra, laboratorio, áreas y roles organizacionales */}
+                                  {reclamo.estado !== 'cerrado' && (
+                                    user?.role === 'tecnico_obra' ||
+                                    user?.role === 'laboratorio' ||
+                                    user?.role?.startsWith('area_') ||
+                                    organizationalRoles.includes(user?.role || '')
+                                  ) && (
                                     <DropdownMenuItem
                                       onClick={() => {
                                         setSelectedReclamoId(reclamo.id);
