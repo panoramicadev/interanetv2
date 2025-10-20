@@ -424,6 +424,30 @@ export default function ReclamosGeneralesPage() {
     },
   });
 
+  // Derivar a laboratorio mutation
+  const derivarLaboratorioMutation = useMutation({
+    mutationFn: async (reclamoId: string) => {
+      const response = await apiRequest(`/api/reclamos-generales/${reclamoId}/derivar-laboratorio`, {
+        method: 'POST',
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
+      toast({
+        title: "Reclamo derivado",
+        description: "El reclamo ha sido derivado a laboratorio exitosamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo derivar el reclamo a laboratorio",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Delete reclamo mutation (solo admin y tecnico_obra)
   const deleteReclamoMutation = useMutation({
     mutationFn: async (reclamoId: string) => {
@@ -908,6 +932,25 @@ export default function ReclamosGeneralesPage() {
                                       Subir Resolución
                                     </>
                                   )}
+                                </Button>
+                              )}
+
+                              {/* Botón para técnico: Derivar a Laboratorio */}
+                              {user?.role === 'tecnico_obra' && reclamo.estado !== 'cerrado' && reclamo.estado !== 'en_laboratorio' && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (window.confirm('¿Está seguro que desea derivar este reclamo a laboratorio?')) {
+                                      derivarLaboratorioMutation.mutate(reclamo.id);
+                                    }
+                                  }}
+                                  disabled={derivarLaboratorioMutation.isPending}
+                                  data-testid={`button-derivar-laboratorio-${reclamo.id}`}
+                                  className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700"
+                                >
+                                  <BarChart3 className="h-4 w-4 mr-1" />
+                                  Enviar a Laboratorio
                                 </Button>
                               )}
                               
