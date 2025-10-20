@@ -1758,7 +1758,7 @@ export default function ReclamosGeneralesPage() {
             <DialogTitle>Detalle del Reclamo</DialogTitle>
             {/* Botón para laboratorio y áreas responsables debajo del título */}
             {((user?.role === 'laboratorio' && reclamoDetails && reclamoDetails.estado === 'en_laboratorio') ||
-              (user?.role?.startsWith('area_') && reclamoDetails && reclamoDetails.estado === 'en_area_responsable')) && (
+              ((user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) && reclamoDetails && reclamoDetails.estado === 'en_area_responsable')) && (
               <Button
                 onClick={() => {
                   if (reclamoDetails.informeLaboratorio) {
