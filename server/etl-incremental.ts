@@ -497,15 +497,27 @@ export async function getETLStatus(etlName: string = 'ventas_incremental') {
     .from(etlExecutionLog)
     .where(sql`etl_name = ${etlName} AND (status = 'failed' OR status = 'error')`);
 
+  // Get total records in fact_ventas table
+  const totalFactVentasResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(factVentas);
+
   const lastExecution = lastExecutions[0] || null;
   const isRunning = lastExecution?.status === 'running';
 
+  // Add totalFactVentasRecords to lastExecution if it exists
+  const enrichedLastExecution = lastExecution ? {
+    ...lastExecution,
+    totalFactVentasRecords: totalFactVentasResult[0]?.count || 0
+  } : null;
+
   return {
-    lastExecution,
+    lastExecution: enrichedLastExecution,
     isRunning,
     history: lastExecutions,
     totalExecutions: totalExecutionsResult[0]?.count || 0,
     successfulExecutions: successfulExecutionsResult[0]?.count || 0,
     failedExecutions: failedExecutionsResult[0]?.count || 0,
+    totalFactVentasRecords: totalFactVentasResult[0]?.count || 0,
   };
 }

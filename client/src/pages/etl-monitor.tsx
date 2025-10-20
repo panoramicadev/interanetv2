@@ -324,9 +324,9 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                 </p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Registros Procesados</p>
+                <p className="text-sm text-muted-foreground">Total Registros fact_ventas</p>
                 <p className="font-semibold text-2xl" data-testid="text-records-processed">
-                  {lastExecution.recordsProcessed?.toLocaleString('es-CL') || '0'}
+                  {(lastExecution as any).totalFactVentasRecords?.toLocaleString('es-CL') || '0'}
                 </p>
               </div>
               <div>
