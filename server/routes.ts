@@ -7467,10 +7467,10 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/reclamos-generales/:id/cerrar', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { notas } = req.body;
+      const { notas, photos } = req.body;
       
       const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
-      const reclamo = await storage.cerrarReclamoGeneral(req.params.id, user.id, userName, notas);
+      const reclamo = await storage.cerrarReclamoGeneral(req.params.id, user.id, userName, notas, photos);
       res.json(reclamo);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al cerrar reclamo', error: error.message });

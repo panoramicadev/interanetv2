@@ -1012,7 +1012,7 @@ export interface IStorage {
   updateResolucionArea(id: string, resolucionDescripcion: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string, userRole: string): Promise<ReclamoGeneral | null>;
   
   // Cerrar reclamo
-  cerrarReclamoGeneral(id: string, userId: string, userName: string, notas?: string): Promise<ReclamoGeneral>;
+  cerrarReclamoGeneral(id: string, userId: string, userName: string, notas?: string, photos?: Array<{ photoUrl: string; description?: string }>): Promise<ReclamoGeneral>;
 
   // ==================================================================================
   // MARKETING MODULE operations
@@ -10523,7 +10523,8 @@ export class DatabaseStorage implements IStorage {
     id: string, 
     userId: string, 
     userName: string, 
-    notas?: string
+    notas?: string,
+    photos?: Array<{ photoUrl: string; description?: string }>
   ): Promise<ReclamoGeneral> {
     const reclamo = await this.getReclamoGeneralById(id);
     
@@ -10541,14 +10542,29 @@ export class DatabaseStorage implements IStorage {
       .where(eq(reclamosGenerales.id, id))
       .returning();
     
+    // Crear las fotos de evidencia si existen
+    if (photos && photos.length > 0) {
+      for (const photo of photos) {
+        await db.insert(reclamosGeneralesResolucionPhotos).values({
+          reclamoId: id,
+          photoUrl: photo.photoUrl,
+          description: photo.description || 'Evidencia de cierre del reclamo',
+        });
+      }
+    }
+    
     // Create historial entry
+    const notasConFotos = photos && photos.length > 0 
+      ? `${notas || 'Reclamo cerrado'} (${photos.length} foto(s) de evidencia)`
+      : (notas || 'Reclamo cerrado');
+    
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
       estadoAnterior: reclamo.estado,
       estadoNuevo: 'cerrado',
       userId,
       userName,
-      notas: notas || 'Reclamo cerrado',
+      notas: notasConFotos,
     });
     
     return updated;
