@@ -61,23 +61,25 @@ interface ReclamoWithDetails extends ReclamoGeneral {
 }
 
 const MOTIVO_OPTIONS = [
-  { value: 'defecto_materia_prima', label: 'Defecto en materia prima', area: 'materia_prima' },
-  { value: 'variacion_color', label: 'Variación de color', area: 'colores_variacion' },
-  { value: 'problema_aplicacion', label: 'Problema de aplicación', area: 'aplicacion' },
-  { value: 'rendimiento_bajo', label: 'Rendimiento bajo', area: 'aplicacion' },
-  { value: 'envase_defectuoso', label: 'Envase defectuoso', area: 'envase' },
-  { value: 'tapa_rota', label: 'Tapa rota o mal sellada', area: 'envase' },
-  { value: 'etiqueta_incorrecta', label: 'Etiqueta incorrecta', area: 'etiqueta' },
-  { value: 'etiqueta_despegada', label: 'Etiqueta despegada', area: 'etiqueta' },
-  { value: 'otro', label: 'Otro motivo', area: null },
+  { value: 'etiquetado', label: 'Etiquetado', area: 'produccion' },
+  { value: 'sellado', label: 'Sellado', area: 'produccion' },
+  { value: 'llenado_envase', label: 'Llenado del envase', area: 'produccion' },
+  { value: 'formato_envase', label: 'Formato de envase', area: 'produccion' },
+  { value: 'calidad_producto', label: 'Calidad de producto', area: 'laboratorio' },
+  { value: 'diferencia_color', label: 'Diferencia de color', area: 'laboratorio' },
+  { value: 'pedido_incompleto', label: 'Pedido incompleto', area: 'logistica' },
+  { value: 'producto_expirado', label: 'Producto expirado', area: 'logistica' },
+  { value: 'estado_envase', label: 'Estado del envase no adecuado', area: 'logistica' },
+  { value: 'producto_cambiado', label: 'Producto cambiado', area: 'logistica' },
+  { value: 'mal_aplicacion', label: 'Mal aplicación', area: 'aplicacion' },
+  { value: 'otro', label: 'Otro', area: null },
 ];
 
 const AREA_ASIGNADA_OPTIONS = [
-  { value: 'materia_prima', label: 'Materia Prima' },
-  { value: 'colores_variacion', label: 'Colores/Variación' },
-  { value: 'aplicacion', label: 'Aplicación' },
-  { value: 'envase', label: 'Envase' },
-  { value: 'etiqueta', label: 'Etiqueta' },
+  { value: 'produccion', label: 'Producción' },
+  { value: 'laboratorio', label: 'Laboratorio' },
+  { value: 'logistica', label: 'Logística' },
+  { value: 'aplicacion', label: 'Aplicación/Cliente' },
 ];
 
 const GRAVEDAD_OPTIONS = [
@@ -99,16 +101,16 @@ const TIPO_RECLAMO_OPTIONS = [
 ];
 
 const CATEGORIA_RESPONSABLE_OPTIONS = [
-  { value: 'materia_prima', label: 'Materia Prima' },
-  { value: 'colores_variacion', label: 'Colores (Variación)' },
-  { value: 'aplicacion', label: 'Aplicación' },
-  { value: 'envase', label: 'Envase' },
-  { value: 'etiqueta', label: 'Etiqueta' },
+  { value: 'produccion', label: 'Producción' },
+  { value: 'laboratorio', label: 'Laboratorio' },
+  { value: 'logistica', label: 'Logística' },
+  { value: 'aplicacion', label: 'Aplicación/Cliente' },
 ];
 
 const VALIDACION_AREA_OPTIONS = [
-  { value: 'materia_prima', label: 'Materia Prima' },
-  { value: 'colores', label: 'Colores' },
+  { value: 'produccion', label: 'Producción' },
+  { value: 'laboratorio', label: 'Laboratorio' },
+  { value: 'logistica', label: 'Logística' },
   { value: 'aplicacion', label: 'Aplicación' },
   { value: 'envase', label: 'Envase' },
   { value: 'etiqueta', label: 'Etiqueta' },
