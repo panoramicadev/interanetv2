@@ -1226,10 +1226,16 @@ export default function ReclamosGeneralesPage() {
                                 {reclamo.productName && (
                                   <span>Producto: {reclamo.productName}</span>
                                 )}
+                                {reclamo.vendedorName && (
+                                  <span className="flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    Creado por: {reclamo.vendedorName}
+                                  </span>
+                                )}
                                 {reclamo.tecnicoName && (
                                   <span className="flex items-center gap-1">
                                     <User className="h-3 w-3" />
-                                    {reclamo.tecnicoName}
+                                    Técnico: {reclamo.tecnicoName}
                                   </span>
                                 )}
                               </div>
@@ -1766,6 +1772,18 @@ export default function ReclamosGeneralesPage() {
                   <Label className="text-muted-foreground">Fecha Registro</Label>
                   <p>{format(new Date(reclamoDetails.fechaRegistro || ''), "dd MMMM yyyy HH:mm", { locale: es })}</p>
                 </div>
+                {reclamoDetails.vendedorName && (
+                  <div>
+                    <Label className="text-muted-foreground">Creado por</Label>
+                    <p className="font-medium">{reclamoDetails.vendedorName}</p>
+                  </div>
+                )}
+                {reclamoDetails.tecnicoName && (
+                  <div>
+                    <Label className="text-muted-foreground">Técnico Asignado</Label>
+                    <p className="font-medium">{reclamoDetails.tecnicoName}</p>
+                  </div>
+                )}
                 <div>
                   <Label className="text-muted-foreground">Estado</Label>
                   <div className="mt-1">
