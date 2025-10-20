@@ -213,6 +213,12 @@ export default function UsersPage() {
     }
   }, [watchedSalesperson, createForm]);
 
+  // Helper function to determine if a role should show segment field
+  const shouldShowSegmentField = (role: string | null | undefined) => {
+    const rolesWithoutSegment = ["laboratorio", "produccion", "logistica_bodega", "planificacion", "bodega_materias_primas", "prevencion_riesgos", "tecnico_obra", "client", "reception"];
+    return role && !rolesWithoutSegment.includes(role);
+  };
+
   // Clear fields when role changes
   useEffect(() => {
     if (watchedRole !== "salesperson") {
@@ -221,7 +227,7 @@ export default function UsersPage() {
     if (watchedRole !== "supervisor") {
       createForm.setValue("assignedSegment", null);
     }
-    if (watchedRole === "laboratorio") {
+    if (!shouldShowSegmentField(watchedRole)) {
       createForm.setValue("assignedSegment", null);
     }
   }, [watchedRole, createForm]);
@@ -349,6 +355,11 @@ export default function UsersPage() {
                             <SelectItem value="salesperson">Vendedor</SelectItem>
                             <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
                             <SelectItem value="laboratorio">Laboratorio</SelectItem>
+                            <SelectItem value="produccion">Producción</SelectItem>
+                            <SelectItem value="logistica_bodega">Logística y Bodega</SelectItem>
+                            <SelectItem value="planificacion">Planificación</SelectItem>
+                            <SelectItem value="bodega_materias_primas">Bodega Materias Primas</SelectItem>
+                            <SelectItem value="prevencion_riesgos">Prevención de Riesgos</SelectItem>
                             <SelectItem value="client">Cliente</SelectItem>
                             <SelectItem value="reception">Recepción</SelectItem>
                           </SelectContent>
@@ -511,7 +522,7 @@ export default function UsersPage() {
                     />
                   )}
 
-                  {watchedRole !== "laboratorio" && (
+                  {shouldShowSegmentField(watchedRole) && (
                     <FormField
                       control={createForm.control}
                       name="assignedSegment"
@@ -692,6 +703,11 @@ export default function UsersPage() {
                         <SelectItem value="salesperson">Vendedor</SelectItem>
                         <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
                         <SelectItem value="laboratorio">Laboratorio</SelectItem>
+                        <SelectItem value="produccion">Producción</SelectItem>
+                        <SelectItem value="logistica_bodega">Logística y Bodega</SelectItem>
+                        <SelectItem value="planificacion">Planificación</SelectItem>
+                        <SelectItem value="bodega_materias_primas">Bodega Materias Primas</SelectItem>
+                        <SelectItem value="prevencion_riesgos">Prevención de Riesgos</SelectItem>
                         <SelectItem value="client">Cliente</SelectItem>
                         <SelectItem value="reception">Recepción</SelectItem>
                       </SelectContent>
@@ -728,7 +744,7 @@ export default function UsersPage() {
                 />
               )}
 
-              {watchedEditRole !== "laboratorio" && (
+              {shouldShowSegmentField(watchedEditRole) && (
                 <FormField
                   control={editForm.control}
                   name="assignedSegment"
@@ -818,8 +834,29 @@ export default function UsersPage() {
                         <SelectItem value="tecnico_obra">
                           Técnicos de Obra ({salespeopleUsers.filter(u => u.role === 'tecnico_obra').length})
                         </SelectItem>
+                        <SelectItem value="laboratorio">
+                          Laboratorio ({salespeopleUsers.filter(u => u.role === 'laboratorio').length})
+                        </SelectItem>
+                        <SelectItem value="produccion">
+                          Producción ({salespeopleUsers.filter(u => u.role === 'produccion').length})
+                        </SelectItem>
+                        <SelectItem value="logistica_bodega">
+                          Logística y Bodega ({salespeopleUsers.filter(u => u.role === 'logistica_bodega').length})
+                        </SelectItem>
+                        <SelectItem value="planificacion">
+                          Planificación ({salespeopleUsers.filter(u => u.role === 'planificacion').length})
+                        </SelectItem>
+                        <SelectItem value="bodega_materias_primas">
+                          Bodega Materias Primas ({salespeopleUsers.filter(u => u.role === 'bodega_materias_primas').length})
+                        </SelectItem>
+                        <SelectItem value="prevencion_riesgos">
+                          Prevención de Riesgos ({salespeopleUsers.filter(u => u.role === 'prevencion_riesgos').length})
+                        </SelectItem>
                         <SelectItem value="client">
                           Clientes ({salespeopleUsers.filter(u => u.role === 'client').length})
+                        </SelectItem>
+                        <SelectItem value="reception">
+                          Recepción ({salespeopleUsers.filter(u => u.role === 'reception').length})
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -898,9 +935,14 @@ export default function UsersPage() {
                             {user.role === 'admin' ? 'Administrador' : 
                              user.role === 'supervisor' ? 'Supervisor' :
                              user.role === 'tecnico_obra' ? 'Técnico de Obra' :
+                             user.role === 'laboratorio' ? 'Laboratorio' :
+                             user.role === 'produccion' ? 'Producción' :
+                             user.role === 'logistica_bodega' ? 'Logística y Bodega' :
+                             user.role === 'planificacion' ? 'Planificación' :
+                             user.role === 'bodega_materias_primas' ? 'Bodega Materias Primas' :
+                             user.role === 'prevencion_riesgos' ? 'Prevención de Riesgos' :
                              user.role === 'client' ? 'Cliente' : 
-                             user.role === 'reception' ? 'Recepción' :
-                             user.role === 'laboratorio' ? 'Laboratorio' : 'Vendedor'}
+                             user.role === 'reception' ? 'Recepción' : 'Vendedor'}
                           </Badge>
                         </TableCell>
                         <TableCell>{getSupervisorName(user.supervisorId)}</TableCell>
@@ -977,9 +1019,14 @@ export default function UsersPage() {
                                 {user.role === 'admin' ? 'Admin' : 
                                  user.role === 'supervisor' ? 'Supervisor' :
                                  user.role === 'tecnico_obra' ? 'Técnico' :
+                                 user.role === 'laboratorio' ? 'Laboratorio' :
+                                 user.role === 'produccion' ? 'Producción' :
+                                 user.role === 'logistica_bodega' ? 'Logística y Bodega' :
+                                 user.role === 'planificacion' ? 'Planificación' :
+                                 user.role === 'bodega_materias_primas' ? 'Bodega MP' :
+                                 user.role === 'prevencion_riesgos' ? 'Prev. Riesgos' :
                                  user.role === 'client' ? 'Cliente' : 
-                                 user.role === 'reception' ? 'Recepción' :
-                                 user.role === 'laboratorio' ? 'Laboratorio' : 'Vendedor'}
+                                 user.role === 'reception' ? 'Recepción' : 'Vendedor'}
                               </Badge>
                             </div>
                           </div>
