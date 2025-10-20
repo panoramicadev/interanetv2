@@ -168,6 +168,7 @@ export default function ReclamosGeneralesPage() {
   const [showResolucionViewModal, setShowResolucionViewModal] = useState(false);
   const [showValidacionTecnicaModal, setShowValidacionTecnicaModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [validacionProcede, setValidacionProcede] = useState<boolean | null>(null);
   const [validacionAreaResponsable, setValidacionAreaResponsable] = useState("");
   const [validacionNotas, setValidacionNotas] = useState("");
@@ -409,6 +410,35 @@ export default function ReclamosGeneralesPage() {
       toast({
         title: "Error",
         description: error.message || "No se pudo crear el reclamo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update reclamo mutation
+  const updateReclamoMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }): Promise<ReclamoGeneral> => {
+      const response = await apiRequest(`/api/reclamos-generales/${id}`, {
+        method: 'PATCH',
+        data: data,
+      });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
+      toast({
+        title: "Reclamo actualizado",
+        description: "El reclamo ha sido actualizado exitosamente.",
+      });
+      resetForm();
+      setShowNewReclamoModal(false);
+      setIsEditMode(false);
+      setSelectedReclamoId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el reclamo",
         variant: "destructive",
       });
     },
@@ -788,7 +818,7 @@ export default function ReclamosGeneralesPage() {
       return;
     }
     
-    if (previewUrls.length === 0) {
+    if (!isEditMode && previewUrls.length === 0) {
       toast({
         title: "Error",
         description: "Debe adjuntar al menos una foto del reclamo",
@@ -797,8 +827,8 @@ export default function ReclamosGeneralesPage() {
       return;
     }
     
-    // Verify all files were compressed successfully
-    if (previewUrls.length !== selectedFiles.length) {
+    // Verify all files were compressed successfully (only for new uploads)
+    if (!isEditMode && previewUrls.length !== selectedFiles.length) {
       toast({
         title: "Error",
         description: "Algunas fotos no se procesaron correctamente. Por favor, elimínelas y vuelva a intentar.",
@@ -807,7 +837,7 @@ export default function ReclamosGeneralesPage() {
       return;
     }
 
-    createReclamoMutation.mutate({
+    const reclamoData = {
       clientName: formData.clientName,
       clientRut: formData.clientRut || null,
       clientEmail: formData.clientEmail || null,
@@ -820,8 +850,19 @@ export default function ReclamosGeneralesPage() {
       areaAsignadaInicial: formData.areaAsignadaInicial,
       description: formData.description,
       gravedad: formData.gravedad,
-      estado: 'registrado',
-    });
+    };
+
+    if (isEditMode && selectedReclamoId) {
+      updateReclamoMutation.mutate({
+        id: selectedReclamoId,
+        data: reclamoData,
+      });
+    } else {
+      createReclamoMutation.mutate({
+        ...reclamoData,
+        estado: 'registrado',
+      });
+    }
   };
 
   // Get user's area from role (e.g., area_materia_prima -> materia_prima)
@@ -864,7 +905,7 @@ export default function ReclamosGeneralesPage() {
         return reclamos;
       
       case 'mis-reclamos':
-        return reclamos.filter(r => r.creadorId === user?.id);
+        return reclamos.filter(r => r.vendedorId === user?.id);
       
       case 'pendientes-validacion':
         // Only for tecnico_obra: reclamos in "registrado" state
@@ -902,7 +943,7 @@ export default function ReclamosGeneralesPage() {
           return reclamos;
         
         case 'mis-reclamos':
-          return reclamos.filter(r => r.creadorId === user?.id);
+          return reclamos.filter(r => r.vendedorId === user?.id);
         
         case 'pendientes-validacion':
           return reclamos.filter(r => r.estado === 'registrado');
@@ -1192,21 +1233,51 @@ export default function ReclamosGeneralesPage() {
                                 Ver Detalle
                               </Button>
 
-                              {/* Botón de Validación Técnica para Técnico */}
+                              {/* Botones de Edición y Validación Técnica para Técnico */}
                               {user?.role === 'tecnico_obra' && reclamo.estado === 'registrado' && (
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedReclamoId(reclamo.id);
-                                    setShowValidacionTecnicaModal(true);
-                                  }}
-                                  data-testid={`button-validar-reclamo-${reclamo.id}`}
-                                  className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700"
-                                >
-                                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                                  Validar Reclamo
-                                </Button>
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedReclamoId(reclamo.id);
+                                      setIsEditMode(true);
+                                      setFormData({
+                                        clientName: reclamo.clientName,
+                                        clientRut: reclamo.clientRut || '',
+                                        clientEmail: reclamo.clientEmail || '',
+                                        clientPhone: reclamo.clientPhone || '',
+                                        clientAddress: reclamo.clientAddress || '',
+                                        productName: reclamo.productName,
+                                        productSku: reclamo.productSku || '',
+                                        lote: reclamo.lote || '',
+                                        motivo: reclamo.motivo || '',
+                                        areaAsignadaInicial: reclamo.areaAsignadaInicial || '',
+                                        description: reclamo.description,
+                                        gravedad: reclamo.gravedad,
+                                      });
+                                      setShowNewReclamoModal(true);
+                                    }}
+                                    data-testid={`button-edit-reclamo-${reclamo.id}`}
+                                    className="w-full sm:w-auto"
+                                  >
+                                    <FileText className="h-4 w-4 mr-1" />
+                                    Editar
+                                  </Button>
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedReclamoId(reclamo.id);
+                                      setShowValidacionTecnicaModal(true);
+                                    }}
+                                    data-testid={`button-validar-reclamo-${reclamo.id}`}
+                                    className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700"
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                    Validar
+                                  </Button>
+                                </>
                               )}
 
                               {/* Botón de Resolución para Laboratorio y Áreas Responsables */}
@@ -1355,13 +1426,19 @@ export default function ReclamosGeneralesPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Create Reclamo Dialog */}
-      <Dialog open={showNewReclamoModal} onOpenChange={setShowNewReclamoModal}>
+      {/* Create/Edit Reclamo Dialog */}
+      <Dialog open={showNewReclamoModal} onOpenChange={(open) => {
+        setShowNewReclamoModal(open);
+        if (!open) {
+          setIsEditMode(false);
+          setSelectedReclamoId(null);
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-hidden">
           <DialogHeader>
-            <DialogTitle>Nuevo Reclamo de Cliente</DialogTitle>
+            <DialogTitle>{isEditMode ? 'Editar Reclamo' : 'Nuevo Reclamo de Cliente'}</DialogTitle>
             <DialogDescription>
-              Complete la información del reclamo y adjunte fotos
+              {isEditMode ? 'Modifique la información del reclamo' : 'Complete la información del reclamo y adjunte fotos'}
             </DialogDescription>
           </DialogHeader>
           
@@ -1521,57 +1598,59 @@ export default function ReclamosGeneralesPage() {
               </div>
             </div>
 
-            {/* Photos Upload */}
-            <div className="space-y-2">
-              <Label>Fotos <span className="text-red-500">*</span></Label>
-              <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  data-testid="input-file-photos"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  data-testid="button-upload-photos"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Seleccionar Fotos
-                </Button>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Se requiere al menos una foto del reclamo
-                </p>
-              </div>
-              
-              {previewUrls.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                  {previewUrls.map((url, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={url}
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-32 object-cover rounded border"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeFile(index)}
-                        data-testid={`button-remove-photo-${index}`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
+            {/* Photos Upload - Only show when creating new reclamo */}
+            {!isEditMode && (
+              <div className="space-y-2">
+                <Label>Fotos <span className="text-red-500">*</span></Label>
+                <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    data-testid="input-file-photos"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    data-testid="button-upload-photos"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Seleccionar Fotos
+                  </Button>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Se requiere al menos una foto del reclamo
+                  </p>
                 </div>
-              )}
-            </div>
+                
+                {previewUrls.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                    {previewUrls.map((url, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={url}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-32 object-cover rounded border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeFile(index)}
+                          data-testid={`button-remove-photo-${index}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           </ScrollArea>
 
@@ -1581,6 +1660,8 @@ export default function ReclamosGeneralesPage() {
               onClick={() => {
                 resetForm();
                 setShowNewReclamoModal(false);
+                setIsEditMode(false);
+                setSelectedReclamoId(null);
               }}
               data-testid="button-cancel-reclamo"
             >
@@ -1588,18 +1669,18 @@ export default function ReclamosGeneralesPage() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={createReclamoMutation.isPending}
+              disabled={createReclamoMutation.isPending || updateReclamoMutation.isPending}
               data-testid="button-submit-reclamo"
             >
-              {createReclamoMutation.isPending && (
+              {(createReclamoMutation.isPending || updateReclamoMutation.isPending) && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               {uploadProgress.total > 0 ? (
                 `Subiendo foto ${uploadProgress.current}/${uploadProgress.total}...`
-              ) : createReclamoMutation.isPending ? (
-                'Creando reclamo...'
+              ) : (createReclamoMutation.isPending || updateReclamoMutation.isPending) ? (
+                isEditMode ? 'Actualizando reclamo...' : 'Creando reclamo...'
               ) : (
-                'Crear Reclamo'
+                isEditMode ? 'Actualizar Reclamo' : 'Crear Reclamo'
               )}
             </Button>
           </DialogFooter>
