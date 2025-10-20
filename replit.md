@@ -49,7 +49,7 @@ Preferred communication style: Simple, everyday language.
 - **NVV Import & Dashboard Integration**: Direct CSV import of NVV records with pre-calculated fields, displayed on dashboard.
 - **Goals Progress**: Sales goals measured exclusively using Ventas Totales (excluding GDV).
 - **Dashboard Enhancements**: 3-card layout (Ventas Totales, Total Acumulado del Año, Unidades Vendidas), best historical year, YTD comparison, embedded salesperson detail views.
-- **Complaints Management (Reclamos Generales)**: Comprehensive system with photo uploads, workflow states, severity levels, SLA tracking, and history logging.
+- **Complaints Management (Reclamos Generales)**: Comprehensive system with optimized photo uploads (client-side compression to max 1920px, JPEG 0.8 quality, reducing file size 70-80%), workflow states, severity levels, SLA tracking, history logging, and automatic rollback on upload failure. Creator can delete own reclamo within 5 minutes for error recovery.
 - **Marketing Module**: Budget configuration, request submission, workflow states, reference URLs/PDFs, metrics dashboard, and a customizable checklist system for tasks within requests.
 - **Inventory Module**: Real-time stock levels, warehouse filtering, low stock alerts, and summary metrics.
 - **Expense Management (Gastos Empresariales)**: Expense creation, approval workflow, status tracking, and analytics dashboard.
