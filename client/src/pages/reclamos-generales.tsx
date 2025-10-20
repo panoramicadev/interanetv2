@@ -1800,9 +1800,29 @@ export default function ReclamosGeneralesPage() {
                     </Badge>
                   </div>
                 </div>
+                {reclamoDetails.motivo && (
+                  <div>
+                    <Label className="text-muted-foreground">Motivo del Reclamo</Label>
+                    <div className="mt-1">
+                      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                        {MOTIVO_OPTIONS.find(m => m.value === reclamoDetails.motivo)?.label || reclamoDetails.motivo}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+                {reclamoDetails.areaAsignadaInicial && (
+                  <div>
+                    <Label className="text-muted-foreground">Área Asignada Inicial</Label>
+                    <div className="mt-1">
+                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {AREA_ASIGNADA_OPTIONS.find(a => a.value === reclamoDetails.areaAsignadaInicial)?.label || reclamoDetails.areaAsignadaInicial}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
                 {reclamoDetails.categoriaResponsable && (
                   <div>
-                    <Label className="text-muted-foreground">Área Responsable</Label>
+                    <Label className="text-muted-foreground">Área Responsable Final</Label>
                     <div className="mt-1">
                       <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
                         {CATEGORIA_RESPONSABLE_OPTIONS.find(c => c.value === reclamoDetails.categoriaResponsable)?.label || reclamoDetails.categoriaResponsable}
