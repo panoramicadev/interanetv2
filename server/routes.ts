@@ -8535,6 +8535,41 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Cancel a running ETL process (admin/supervisor only)
+  app.post('/api/etl/cancel', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { etlName = 'ventas_incremental' } = req.query;
+      console.log(`🚫 ETL cancellation requested by: ${req.user.email} for ETL: ${etlName}`);
+      
+      // Find the currently running ETL execution
+      const runningExecution = await storage.getRunningETLExecution(etlName as string);
+      
+      if (!runningExecution) {
+        return res.status(404).json({ 
+          success: false,
+          message: 'No hay ningún proceso ETL en ejecución para cancelar' 
+        });
+      }
+      
+      // Mark the execution as cancelled
+      await storage.cancelETLExecution(runningExecution.id, req.user.email);
+      
+      console.log(`✅ ETL ${etlName} cancelled successfully by ${req.user.email}`);
+      
+      res.json({ 
+        success: true,
+        message: 'Proceso ETL cancelado exitosamente',
+        executionId: runningExecution.id
+      });
+    } catch (error: any) {
+      console.error('ETL cancellation error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
