@@ -192,6 +192,10 @@ export default function ReclamosGeneralesPage() {
   const [resolucionPreviewUrls, setResolucionPreviewUrls] = useState<string[]>([]);
   const [resolucionUploadProgress, setResolucionUploadProgress] = useState({ current: 0, total: 0 });
   const resolucionFileInputRef = useRef<HTMLInputElement>(null);
+  const [cerrarPhotos, setCerrarPhotos] = useState<File[]>([]);
+  const [cerrarPreviewUrls, setCerrarPreviewUrls] = useState<string[]>([]);
+  const [cerrarUploadProgress, setCerrarUploadProgress] = useState({ current: 0, total: 0 });
+  const cerrarFileInputRef = useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [filterGravedad, setFilterGravedad] = useState<string>("all");
@@ -485,10 +489,10 @@ export default function ReclamosGeneralesPage() {
 
   // Cerrar reclamo mutation
   const cerrarReclamoMutation = useMutation({
-    mutationFn: async ({ reclamoId, notas }: { reclamoId: string; notas: string }) => {
+    mutationFn: async ({ reclamoId, notas, photos }: { reclamoId: string; notas: string; photos: Array<{ photoUrl: string; description?: string }> }) => {
       const response = await apiRequest(`/api/reclamos-generales/${reclamoId}/cerrar`, {
         method: 'POST',
-        data: { notas },
+        data: { notas, photos },
       });
       return await response.json();
     },
@@ -500,9 +504,13 @@ export default function ReclamosGeneralesPage() {
       });
       setShowCerrarModal(false);
       setInformeResolutivo("");
+      setCerrarPhotos([]);
+      setCerrarPreviewUrls([]);
+      setCerrarUploadProgress({ current: 0, total: 0 });
       setSelectedReclamoId(null);
     },
     onError: (error) => {
+      setCerrarUploadProgress({ current: 0, total: 0 });
       toast({
         title: "Error",
         description: (error as any)?.message || "No se pudo cerrar el reclamo",
@@ -788,6 +796,62 @@ export default function ReclamosGeneralesPage() {
   const removeResolucionFile = (index: number) => {
     setResolucionPhotos(prev => prev.filter((_, i) => i !== index));
     setResolucionPreviewUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Funciones para fotos de evidencia al cerrar
+  const handleCerrarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (imageFiles.length !== files.length) {
+      toast({
+        title: "Advertencia",
+        description: "Solo se aceptan archivos de imagen",
+        variant: "destructive",
+      });
+    }
+    
+    if (imageFiles.length === 0) return;
+    
+    // Compress and create preview URLs
+    toast({
+      title: "Procesando imágenes",
+      description: `Comprimiendo ${imageFiles.length} imagen(es)...`,
+    });
+    
+    const newFiles: File[] = [];
+    const newPreviews: string[] = [];
+    
+    for (const file of imageFiles) {
+      try {
+        const compressedUrl = await compressImage(file);
+        newFiles.push(file);
+        newPreviews.push(compressedUrl);
+      } catch (error) {
+        console.error('Error comprimiendo imagen:', error);
+        toast({
+          title: "Error",
+          description: `No se pudo procesar ${file.name}. Intente con otra imagen.`,
+          variant: "destructive",
+        });
+      }
+    }
+    
+    // Only add files that were successfully compressed
+    if (newFiles.length > 0) {
+      setCerrarPhotos(prev => [...prev, ...newFiles]);
+      setCerrarPreviewUrls(prev => [...prev, ...newPreviews]);
+    }
+    
+    // Clear the file input
+    if (cerrarFileInputRef.current) {
+      cerrarFileInputRef.current.value = '';
+    }
+  };
+
+  const removeCerrarFile = (index: number) => {
+    setCerrarPhotos(prev => prev.filter((_, i) => i !== index));
+    setCerrarPreviewUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmitResolucion = async () => {
@@ -1975,15 +2039,15 @@ export default function ReclamosGeneralesPage() {
 
       {/* Cerrar Reclamo Modal */}
       <Dialog open={showCerrarModal} onOpenChange={setShowCerrarModal}>
-        <DialogContent className="max-w-lg w-[95vw] sm:w-full">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Cerrar Reclamo</DialogTitle>
             <DialogDescription>
-              Ingrese el informe resolutivo para cerrar este reclamo
+              Ingrese el informe resolutivo y adjunte evidencia fotográfica
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div>
               <Label htmlFor="informe">Informe Resolutivo <span className="text-red-500">*</span></Label>
               <Textarea
@@ -1996,6 +2060,61 @@ export default function ReclamosGeneralesPage() {
                 data-testid="textarea-informe-resolutivo"
               />
             </div>
+
+            {/* Fotos de evidencia */}
+            <div>
+              <Label>Evidencia Fotográfica <span className="text-red-500">*</span></Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Adjunte fotos que documenten la solución aplicada
+              </p>
+              <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                <input
+                  ref={cerrarFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleCerrarFileSelect}
+                  className="hidden"
+                  data-testid="input-file-cerrar-photos"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => cerrarFileInputRef.current?.click()}
+                  data-testid="button-upload-cerrar-photos"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Seleccionar Fotos
+                </Button>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Se requiere al menos una foto de evidencia
+                </p>
+              </div>
+              
+              {cerrarPreviewUrls.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                  {cerrarPreviewUrls.map((url, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={url}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-32 object-cover rounded border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => removeCerrarFile(index)}
+                        data-testid={`button-remove-cerrar-photo-${index}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
@@ -2004,6 +2123,8 @@ export default function ReclamosGeneralesPage() {
               onClick={() => {
                 setShowCerrarModal(false);
                 setInformeResolutivo("");
+                setCerrarPhotos([]);
+                setCerrarPreviewUrls([]);
                 setSelectedReclamoId(null);
               }}
               data-testid="button-cancel-cerrar"
@@ -2020,10 +2141,23 @@ export default function ReclamosGeneralesPage() {
                   });
                   return;
                 }
+                if (cerrarPreviewUrls.length === 0) {
+                  toast({
+                    title: "Error",
+                    description: "Debe adjuntar al menos una foto de evidencia",
+                    variant: "destructive",
+                  });
+                  return;
+                }
                 if (selectedReclamoId) {
+                  const photos = cerrarPreviewUrls.map(photoUrl => ({
+                    photoUrl,
+                    description: "Evidencia de cierre del reclamo"
+                  }));
                   cerrarReclamoMutation.mutate({
                     reclamoId: selectedReclamoId,
                     notas: informeResolutivo,
+                    photos
                   });
                 }
               }}
@@ -2033,7 +2167,11 @@ export default function ReclamosGeneralesPage() {
               {cerrarReclamoMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Cerrando...
+                  {cerrarUploadProgress.total > 0 ? (
+                    `Subiendo foto ${cerrarUploadProgress.current}/${cerrarUploadProgress.total}...`
+                  ) : (
+                    'Cerrando...'
+                  )}
                 </>
               ) : (
                 <>
