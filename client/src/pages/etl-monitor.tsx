@@ -211,6 +211,29 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     },
   });
 
+  // Cancel ETL mutation
+  const cancelMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest(`/api/etl/cancel?etlName=${etlName}`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "ETL Cancelado",
+        description: data.message || "El proceso ETL ha sido cancelado exitosamente",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/etl/status?etlName=${etlName}`] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al cancelar ETL",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleExecute = () => {
     if (status?.isRunning) {
       toast({
@@ -221,6 +244,18 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
       return;
     }
     executeMutation.mutate();
+  };
+
+  const handleCancel = () => {
+    if (!status?.isRunning) {
+      toast({
+        title: "No hay proceso en ejecución",
+        description: "No hay ningún proceso ETL en ejecución para cancelar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    cancelMutation.mutate();
   };
 
   if (isLoading) {
@@ -291,24 +326,48 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                 </>
               )}
             </div>
-            <Button
-              onClick={handleExecute}
-              disabled={isRunning || executeMutation.isPending}
-              size="lg"
-              data-testid="button-execute-etl"
-            >
-              {executeMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Ejecutando...
-                </>
+            <div className="flex gap-2">
+              {isRunning ? (
+                <Button
+                  onClick={handleCancel}
+                  disabled={cancelMutation.isPending}
+                  size="lg"
+                  variant="destructive"
+                  data-testid="button-cancel-etl"
+                >
+                  {cancelMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Cancelando...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Cancelar Proceso
+                    </>
+                  )}
+                </Button>
               ) : (
-                <>
-                  <PlayCircle className="h-4 w-4 mr-2" />
-                  Ejecutar ETL
-                </>
+                <Button
+                  onClick={handleExecute}
+                  disabled={executeMutation.isPending}
+                  size="lg"
+                  data-testid="button-execute-etl"
+                >
+                  {executeMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Ejecutando...
+                    </>
+                  ) : (
+                    <>
+                      <PlayCircle className="h-4 w-4 mr-2" />
+                      Ejecutar ETL
+                    </>
+                  )}
+                </Button>
               )}
-            </Button>
+            </div>
           </div>
 
           {lastExecution && (
