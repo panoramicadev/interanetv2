@@ -183,7 +183,9 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   // Fetch ETL status
   const { data: status, isLoading } = useQuery<ETLStatus>({
     queryKey: [`/api/etl/status?etlName=${etlName}`],
-    refetchInterval: autoRefresh ? 10000 : false, // Auto-refresh every 10 seconds
+    refetchInterval: autoRefresh ? 30000 : false, // Auto-refresh every 30 seconds
+    retry: 2, // Max 2 retries on failure
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
   });
 
   // Execute ETL mutation
@@ -398,7 +400,9 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
 function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefresh: boolean }) {
   const { data: status } = useQuery<ETLStatus>({
     queryKey: [`/api/etl/status?etlName=${etlName}`],
-    refetchInterval: autoRefresh ? 10000 : false,
+    refetchInterval: autoRefresh ? 30000 : false, // Auto-refresh every 30 seconds
+    retry: 2, // Max 2 retries on failure
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
   });
 
   const history = status?.history || [];

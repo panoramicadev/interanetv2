@@ -45,12 +45,8 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const resolveComparisonPeriod = (comparePeriod: string, currentPeriod: string, filterType: string): string => {
     if (!comparePeriod || comparePeriod === "none") return "";
     
-    // Debug logging
-    console.log('[DEBUG] Resolving comparison period:', { comparePeriod, currentPeriod, filterType });
-    
     // If it's already a specific period like "2025-08", "2025", "2025-08-15", or a range, return as is
     if (comparePeriod.match(/^\d{4}-\d{2}$/) || comparePeriod.match(/^\d{4}$/) || comparePeriod.match(/^\d{4}-\d{2}-\d{2}$/) || comparePeriod.includes('_')) {
-      console.log('[DEBUG] Already specific period, returning as-is:', comparePeriod);
       return comparePeriod;
     }
     
@@ -62,7 +58,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const currentDate = new Date(currentPeriod);
           currentDate.setDate(currentDate.getDate() - 1);
           const result = currentDate.toISOString().split('T')[0];
-          console.log('[DEBUG] Previous day resolved to:', result);
           return result;
         }
         break;
@@ -72,7 +67,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const currentDate = new Date(currentPeriod);
           currentDate.setDate(currentDate.getDate() - 7);
           const result = currentDate.toISOString().split('T')[0];
-          console.log('[DEBUG] Previous week resolved to:', result);
           return result;
         }
         break;
@@ -82,7 +76,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const currentDate = new Date(currentPeriod);
           currentDate.setDate(currentDate.getDate() - 7);
           const result = currentDate.toISOString().split('T')[0];
-          console.log('[DEBUG] Same day last week resolved to:', result);
           return result;
         }
         break;
@@ -92,7 +85,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const currentDate = new Date(currentPeriod);
           currentDate.setMonth(currentDate.getMonth() - 1);
           const result = currentDate.toISOString().split('T')[0];
-          console.log('[DEBUG] Same day last month resolved to:', result);
           return result;
         }
         break;
@@ -110,7 +102,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const fromDate = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), 1);
           const toDate = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth(), dayOfMonth);
           const result = `${format(fromDate, 'yyyy-MM-dd')}_${format(toDate, 'yyyy-MM-dd')}`;
-          console.log('[DEBUG] Previous month (until day', dayOfMonth, ') resolved to:', result);
           return result;
         }
         break;
@@ -125,7 +116,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const fromDate = new Date(year - 1, month - 1, 1);
           const toDate = new Date(year - 1, month - 1, dayOfMonth);
           const result = `${format(fromDate, 'yyyy-MM-dd')}_${format(toDate, 'yyyy-MM-dd')}`;
-          console.log('[DEBUG] Same month last year (until day', dayOfMonth, ') resolved to:', result);
           return result;
         }
         break;
@@ -135,7 +125,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       case "previous-year": {
         if (filterType === "year" && currentPeriod.match(/^\d{4}$/)) {
           const result = `${parseInt(currentPeriod) - 1}`;
-          console.log('[DEBUG] Previous year resolved to:', result);
           return result;
         }
         break;
@@ -151,7 +140,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const newFromDate = new Date(toDate);
           newFromDate.setDate(newFromDate.getDate() - 29); // 30 days total
           const result = `${newFromDate.toISOString().split('T')[0]}_${toDate.toISOString().split('T')[0]}`;
-          console.log('[DEBUG] Previous 30 days resolved to:', result);
           return result;
         }
         break;
@@ -165,7 +153,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const newFromDate = new Date(toDate);
           newFromDate.setDate(newFromDate.getDate() - 89); // 90 days total
           const result = `${newFromDate.toISOString().split('T')[0]}_${toDate.toISOString().split('T')[0]}`;
-          console.log('[DEBUG] Previous 90 days resolved to:', result);
           return result;
         }
         break;
@@ -178,7 +165,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           fromDate.setFullYear(fromDate.getFullYear() - 1);
           toDate.setFullYear(toDate.getFullYear() - 1);
           const result = `${fromDate.toISOString().split('T')[0]}_${toDate.toISOString().split('T')[0]}`;
-          console.log('[DEBUG] Same period last year resolved to:', result);
           return result;
         }
         break;
@@ -194,7 +180,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const newFromDate = new Date(newToDate);
           newFromDate.setDate(newFromDate.getDate() - durationDays);
           const result = `${newFromDate.toISOString().split('T')[0]}_${newToDate.toISOString().split('T')[0]}`;
-          console.log('[DEBUG] Same range previous period resolved to:', result);
           return result;
         }
         break;
@@ -209,7 +194,6 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const newToDate = new Date(toDate);
           newToDate.setMonth(newToDate.getMonth() - 1);
           const result = `${newFromDate.toISOString().split('T')[0]}_${newToDate.toISOString().split('T')[0]}`;
-          console.log('[DEBUG] Same range previous month resolved to:', result);
           return result;
         }
         break;
@@ -224,14 +208,12 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
           const newToDate = new Date(toDate);
           newToDate.setFullYear(newToDate.getFullYear() - 1);
           const result = `${newFromDate.toISOString().split('T')[0]}_${newToDate.toISOString().split('T')[0]}`;
-          console.log('[DEBUG] Same range previous year resolved to:', result);
           return result;
         }
         break;
       }
     }
     
-    console.warn('[DEBUG] No pattern matched, returning empty:', { comparePeriod, currentPeriod, filterType });
     return ""; // Return empty string if no pattern matches to prevent errors
   };
 
