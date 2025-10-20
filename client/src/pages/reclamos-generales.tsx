@@ -706,7 +706,7 @@ export default function ReclamosGeneralesPage() {
 
       {/* Create Reclamo Dialog */}
       <Dialog open={showNewReclamoModal} onOpenChange={setShowNewReclamoModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+        <DialogContent className="max-w-2xl max-h-[90vh] w-[95vw] sm:w-full overflow-hidden">
           <DialogHeader>
             <DialogTitle>Nuevo Reclamo de Cliente</DialogTitle>
             <DialogDescription>
@@ -714,6 +714,7 @@ export default function ReclamosGeneralesPage() {
             </DialogDescription>
           </DialogHeader>
           
+          <ScrollArea className="h-[calc(90vh-200px)] pr-4">
           <div className="space-y-4">
             {/* Cliente */}
             <div className="space-y-2">
@@ -731,7 +732,7 @@ export default function ReclamosGeneralesPage() {
                   data-testid="input-cliente"
                 />
                 {showClientDropdown && clients.length > 0 && (
-                  <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-auto">
+                  <Card className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto shadow-lg border-2">
                     <CardContent className="p-2">
                       {clients.map((client) => (
                         <div
@@ -877,6 +878,7 @@ export default function ReclamosGeneralesPage() {
               )}
             </div>
           </div>
+          </ScrollArea>
 
           <DialogFooter>
             <Button
