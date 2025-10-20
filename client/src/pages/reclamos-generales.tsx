@@ -75,6 +75,14 @@ const TIPO_RECLAMO_OPTIONS = [
   { value: 'otro', label: 'Otro' },
 ];
 
+const CATEGORIA_RESPONSABLE_OPTIONS = [
+  { value: 'materia_prima', label: 'Materia Prima' },
+  { value: 'colores_variacion', label: 'Colores (Variación)' },
+  { value: 'aplicacion', label: 'Aplicación' },
+  { value: 'envase', label: 'Envase' },
+  { value: 'etiqueta', label: 'Etiqueta' },
+];
+
 const ESTADO_LABELS: Record<string, { label: string; color: string; icon: any }> = {
   'registrado': { 
     label: 'Registrado', 
@@ -117,6 +125,7 @@ export default function ReclamosGeneralesPage() {
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
   const [informeResolutivo, setInformeResolutivo] = useState("");
   const [informeLaboratorio, setInformeLaboratorio] = useState("");
+  const [categoriaResponsable, setCategoriaResponsable] = useState("");
   const [resolucionPhotos, setResolucionPhotos] = useState<File[]>([]);
   const [resolucionPreviewUrls, setResolucionPreviewUrls] = useState<string[]>([]);
   const [resolucionUploadProgress, setResolucionUploadProgress] = useState({ current: 0, total: 0 });
@@ -577,6 +586,15 @@ export default function ReclamosGeneralesPage() {
       });
       return;
     }
+
+    if (!categoriaResponsable) {
+      toast({
+        title: "Error",
+        description: "Debe seleccionar el área responsable",
+        variant: "destructive",
+      });
+      return;
+    }
     
     if (resolucionPreviewUrls.length === 0) {
       toast({
@@ -598,6 +616,7 @@ export default function ReclamosGeneralesPage() {
     resolucionLaboratorioMutation.mutate({
       reclamoId: selectedReclamoId,
       informe: informeLaboratorio,
+      categoriaResponsable,
       photos
     });
   };
@@ -1440,6 +1459,27 @@ export default function ReclamosGeneralesPage() {
               />
             </div>
 
+            {/* Área Responsable */}
+            <div>
+              <Label htmlFor="categoria-responsable">Área Responsable <span className="text-red-500">*</span></Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Seleccione el área responsable del reclamo según el análisis realizado
+              </p>
+              <Select 
+                value={categoriaResponsable} 
+                onValueChange={setCategoriaResponsable}
+              >
+                <SelectTrigger data-testid="select-categoria-responsable" className="mt-2">
+                  <SelectValue placeholder="Seleccione un área..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIA_RESPONSABLE_OPTIONS.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Evidencia fotográfica */}
             <div>
               <Label>Evidencia Fotográfica <span className="text-red-500">*</span></Label>
@@ -1506,6 +1546,7 @@ export default function ReclamosGeneralesPage() {
               onClick={() => {
                 setShowResolucionLaboratorioModal(false);
                 setInformeLaboratorio("");
+                setCategoriaResponsable("");
                 setResolucionPhotos([]);
                 setResolucionPreviewUrls([]);
                 setResolucionUploadProgress({ current: 0, total: 0 });
