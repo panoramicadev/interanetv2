@@ -48,6 +48,7 @@ import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
 import Facturas from "@/pages/facturas";
 import MetricasProductos from "@/pages/metricas-productos";
+import ETLMonitor from "@/pages/etl-monitor";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -132,6 +133,7 @@ function Router() {
             <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />
             <Route path="/gastos-empresariales/dashboard" component={GastosEmpresarialesDashboard} />
             <Route path="/promesas-compra" component={PromesasCompra} />
+            <Route path="/etl-monitor" component={ETLMonitor} />
             
             {/* Rutas de Tintometría */}
             <Route path="/tintometria" component={() => {
