@@ -116,6 +116,7 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      createForm.reset();
       setIsCreateDialogOpen(false);
       toast({
         title: "Usuario creado",
@@ -138,6 +139,7 @@ export default function UsersPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users/salespeople"] });
+      editForm.reset();
       setIsEditDialogOpen(false);
       setEditingUser(null);
       toast({
@@ -501,8 +503,17 @@ export default function UsersPage() {
                     />
                   )}
                   
-                  {/* Campo de texto para Administradores, Supervisores, Técnicos de Obra, Laboratorio y Recepción */}
-                  {(createForm.watch("role") === "admin" || createForm.watch("role") === "supervisor" || createForm.watch("role") === "tecnico_obra" || createForm.watch("role") === "laboratorio" || createForm.watch("role") === "reception") && (
+                  {/* Campo de texto para roles que no requieren selección de lista */}
+                  {(createForm.watch("role") === "admin" || 
+                    createForm.watch("role") === "supervisor" || 
+                    createForm.watch("role") === "tecnico_obra" || 
+                    createForm.watch("role") === "laboratorio" || 
+                    createForm.watch("role") === "produccion" ||
+                    createForm.watch("role") === "logistica_bodega" ||
+                    createForm.watch("role") === "planificacion" ||
+                    createForm.watch("role") === "bodega_materias_primas" ||
+                    createForm.watch("role") === "prevencion_riesgos" ||
+                    createForm.watch("role") === "reception") && (
                     <FormField
                       control={createForm.control}
                       name="salespersonName"
