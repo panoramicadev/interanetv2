@@ -3099,6 +3099,17 @@ export const reclamosGeneralesPhotos = pgTable("reclamos_generales_photos", {
   reclamoIdIdx: index("IDX_reclamos_gen_photos_reclamo_id").on(table.reclamoId),
 }));
 
+// Tabla de fotos de resolución del laboratorio
+export const reclamosGeneralesResolucionPhotos = pgTable("reclamos_generales_resolucion_photos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  reclamoId: varchar("reclamo_id").notNull(), // FK to reclamosGenerales.id
+  photoUrl: text("photo_url").notNull(),
+  description: text("description"),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+}, (table) => ({
+  reclamoIdIdx: index("IDX_reclamos_gen_resolucion_photos_reclamo_id").on(table.reclamoId),
+}));
+
 // Tabla de historial de estados de reclamos generales
 export const reclamosGeneralesHistorial = pgTable("reclamos_generales_historial", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -3124,12 +3135,20 @@ export const reclamosGeneralesRelations = relations(reclamosGenerales, ({ one, m
     references: [users.id],
   }),
   photos: many(reclamosGeneralesPhotos),
+  resolucionPhotos: many(reclamosGeneralesResolucionPhotos),
   historial: many(reclamosGeneralesHistorial),
 }));
 
 export const reclamosGeneralesPhotosRelations = relations(reclamosGeneralesPhotos, ({ one }) => ({
   reclamo: one(reclamosGenerales, {
     fields: [reclamosGeneralesPhotos.reclamoId],
+    references: [reclamosGenerales.id],
+  }),
+}));
+
+export const reclamosGeneralesResolucionPhotosRelations = relations(reclamosGeneralesResolucionPhotos, ({ one }) => ({
+  reclamo: one(reclamosGenerales, {
+    fields: [reclamosGeneralesResolucionPhotos.reclamoId],
     references: [reclamosGenerales.id],
   }),
 }));
@@ -3152,6 +3171,9 @@ export type InsertReclamoGeneral = typeof reclamosGenerales.$inferInsert;
 export type ReclamoGeneralPhoto = typeof reclamosGeneralesPhotos.$inferSelect;
 export type InsertReclamoGeneralPhoto = typeof reclamosGeneralesPhotos.$inferInsert;
 
+export type ReclamoGeneralResolucionPhoto = typeof reclamosGeneralesResolucionPhotos.$inferSelect;
+export type InsertReclamoGeneralResolucionPhoto = typeof reclamosGeneralesResolucionPhotos.$inferInsert;
+
 export type ReclamoGeneralHistorial = typeof reclamosGeneralesHistorial.$inferSelect;
 export type InsertReclamoGeneralHistorial = typeof reclamosGeneralesHistorial.$inferInsert;
 
@@ -3170,6 +3192,11 @@ export const insertReclamoGeneralSchema = createInsertSchema(reclamosGenerales).
 });
 
 export const insertReclamoGeneralPhotoSchema = createInsertSchema(reclamosGeneralesPhotos).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertReclamoGeneralResolucionPhotoSchema = createInsertSchema(reclamosGeneralesResolucionPhotos).omit({
   id: true,
   uploadedAt: true,
 });

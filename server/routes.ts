@@ -7480,6 +7480,65 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Resolución del laboratorio con evidencia
+  app.post('/api/reclamos-generales/:id/resolucion-laboratorio', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Validar que solo laboratorio puede subir resolución
+      if (user.role !== 'laboratorio') {
+        return res.status(403).json({ message: 'Solo usuarios con rol laboratorio pueden subir resoluciones' });
+      }
+      
+      const { informe, photos } = req.body;
+      
+      if (!informe) {
+        return res.status(400).json({ message: 'El informe es requerido' });
+      }
+      
+      if (!photos || !Array.isArray(photos) || photos.length === 0) {
+        return res.status(400).json({ message: 'Se requiere al menos una foto de evidencia' });
+      }
+      
+      // Verificar que el reclamo existe y está en el estado correcto
+      const existingReclamo = await storage.getReclamoGeneralById(req.params.id);
+      if (!existingReclamo) {
+        return res.status(404).json({ message: 'Reclamo no encontrado' });
+      }
+      
+      if (existingReclamo.estado !== 'en_laboratorio') {
+        return res.status(400).json({ message: 'El reclamo no está en estado "En Laboratorio"' });
+      }
+      
+      if (existingReclamo.informeLaboratorio) {
+        return res.status(400).json({ message: 'Este reclamo ya tiene una resolución del laboratorio' });
+      }
+      
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      const reclamo = await storage.updateResolucionLaboratorio(req.params.id, informe, photos, user.id, userName);
+      
+      if (!reclamo) {
+        return res.status(409).json({ message: 'El reclamo ya tiene una resolución o fue modificado por otro usuario' });
+      }
+      
+      res.json(reclamo);
+    } catch (error: any) {
+      console.error('Error al subir resolución:', error);
+      res.status(500).json({ message: 'Error al subir resolución' });
+    }
+  }));
+
+  // Get resolución photos
+  app.get('/api/reclamos-generales/:id/resolucion-photos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const photos = await storage.getReclamoGeneralResolucionPhotos(req.params.id);
+      res.json(photos);
+    } catch (error: any) {
+      console.error('Error al obtener fotos de resolución:', error);
+      res.status(500).json({ message: 'Error al obtener fotos de resolución' });
+    }
+  }));
+
   // ==================================================================================
   // MARKETING MODULE routes
   // ==================================================================================

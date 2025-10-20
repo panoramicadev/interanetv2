@@ -110,8 +110,14 @@ export default function ReclamosGeneralesPage() {
   const [showNewReclamoModal, setShowNewReclamoModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCerrarModal, setShowCerrarModal] = useState(false);
+  const [showResolucionLaboratorioModal, setShowResolucionLaboratorioModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
   const [informeResolutivo, setInformeResolutivo] = useState("");
+  const [informeLaboratorio, setInformeLaboratorio] = useState("");
+  const [resolucionPhotos, setResolucionPhotos] = useState<File[]>([]);
+  const [resolucionPreviewUrls, setResolucionPreviewUrls] = useState<string[]>([]);
+  const [resolucionUploadProgress, setResolucionUploadProgress] = useState({ current: 0, total: 0 });
+  const resolucionFileInputRef = useRef<HTMLInputElement>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [filterGravedad, setFilterGravedad] = useState<string>("all");
@@ -360,6 +366,38 @@ export default function ReclamosGeneralesPage() {
     },
   });
 
+  // Subir resolución del laboratorio con evidencia
+  const resolucionLaboratorioMutation = useMutation({
+    mutationFn: async ({ reclamoId, informe, photos }: { reclamoId: string; informe: string; photos: Array<{ photoUrl: string; description?: string }> }) => {
+      const response = await apiRequest(`/api/reclamos-generales/${reclamoId}/resolucion-laboratorio`, {
+        method: 'POST',
+        data: { informe, photos },
+      });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
+      toast({
+        title: "Resolución enviada",
+        description: "La resolución del laboratorio ha sido registrada con éxito.",
+      });
+      setShowResolucionLaboratorioModal(false);
+      setInformeLaboratorio("");
+      setResolucionPhotos([]);
+      setResolucionPreviewUrls([]);
+      setResolucionUploadProgress({ current: 0, total: 0 });
+      setSelectedReclamoId(null);
+    },
+    onError: (error) => {
+      setResolucionUploadProgress({ current: 0, total: 0 });
+      toast({
+        title: "Error",
+        description: (error as any)?.message || "No se pudo subir la resolución",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Delete reclamo mutation (solo admin y tecnico_obra)
   const deleteReclamoMutation = useMutation({
     mutationFn: async (reclamoId: string) => {
@@ -455,6 +493,96 @@ export default function ReclamosGeneralesPage() {
   const removeFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Funciones para fotos de evidencia de resolución del laboratorio
+  const handleResolucionFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (imageFiles.length !== files.length) {
+      toast({
+        title: "Advertencia",
+        description: "Solo se aceptan archivos de imagen",
+        variant: "destructive",
+      });
+    }
+    
+    if (imageFiles.length === 0) return;
+    
+    // Compress and create preview URLs
+    toast({
+      title: "Procesando imágenes",
+      description: `Comprimiendo ${imageFiles.length} imagen(es)...`,
+    });
+    
+    const newFiles: File[] = [];
+    const newPreviews: string[] = [];
+    
+    for (const file of imageFiles) {
+      try {
+        const compressedUrl = await compressImage(file);
+        newFiles.push(file);
+        newPreviews.push(compressedUrl);
+      } catch (error) {
+        console.error('Error comprimiendo imagen:', error);
+        toast({
+          title: "Error",
+          description: `No se pudo procesar ${file.name}. Intente con otra imagen.`,
+          variant: "destructive",
+        });
+      }
+    }
+    
+    // Only add files that were successfully compressed
+    if (newFiles.length > 0) {
+      setResolucionPhotos(prev => [...prev, ...newFiles]);
+      setResolucionPreviewUrls(prev => [...prev, ...newPreviews]);
+    }
+    
+    // Clear the file input
+    if (resolucionFileInputRef.current) {
+      resolucionFileInputRef.current.value = '';
+    }
+  };
+
+  const removeResolucionFile = (index: number) => {
+    setResolucionPhotos(prev => prev.filter((_, i) => i !== index));
+    setResolucionPreviewUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmitResolucion = async () => {
+    if (!informeLaboratorio.trim()) {
+      toast({
+        title: "Error",
+        description: "Debe ingresar el informe de resolución",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (resolucionPreviewUrls.length === 0) {
+      toast({
+        title: "Error",
+        description: "Debe adjuntar al menos una foto de evidencia",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!selectedReclamoId) return;
+
+    // Prepare photos array
+    const photos = resolucionPreviewUrls.map(photoUrl => ({
+      photoUrl,
+      description: "Evidencia de resolución del laboratorio"
+    }));
+
+    resolucionLaboratorioMutation.mutate({
+      reclamoId: selectedReclamoId,
+      informe: informeLaboratorio,
+      photos
+    });
   };
 
   const handleSubmit = () => {
@@ -1136,6 +1264,23 @@ export default function ReclamosGeneralesPage() {
                   </div>
                 </div>
               )}
+
+              {/* Botón para laboratorio */}
+              {user?.role === 'laboratorio' && reclamoDetails.estado === 'en_laboratorio' && !reclamoDetails.informeLaboratorio && (
+                <div className="pt-4 border-t">
+                  <Button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setShowResolucionLaboratorioModal(true);
+                    }}
+                    className="w-full"
+                    data-testid="button-subir-resolucion"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Subir Resolución del Laboratorio
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-center text-muted-foreground">No se encontró el reclamo</p>
@@ -1210,6 +1355,126 @@ export default function ReclamosGeneralesPage() {
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Cerrar Reclamo
                 </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Resolución del Laboratorio */}
+      <Dialog open={showResolucionLaboratorioModal} onOpenChange={setShowResolucionLaboratorioModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Resolución del Laboratorio</DialogTitle>
+            <DialogDescription>
+              Ingrese el informe de resolución y adjunte fotos de evidencia
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Informe */}
+            <div>
+              <Label htmlFor="informe-laboratorio">Informe de Resolución <span className="text-red-500">*</span></Label>
+              <Textarea
+                id="informe-laboratorio"
+                placeholder="Describa el análisis realizado, hallazgos y conclusiones del laboratorio..."
+                value={informeLaboratorio}
+                onChange={(e) => setInformeLaboratorio(e.target.value)}
+                rows={8}
+                className="mt-2"
+                data-testid="textarea-informe-laboratorio"
+              />
+            </div>
+
+            {/* Evidencia fotográfica */}
+            <div>
+              <Label>Evidencia Fotográfica <span className="text-red-500">*</span></Label>
+              <p className="text-sm text-muted-foreground mb-2">
+                Adjunte al menos una foto de evidencia de la resolución
+              </p>
+              
+              <input
+                ref={resolucionFileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleResolucionFileSelect}
+                className="hidden"
+              />
+              
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => resolucionFileInputRef.current?.click()}
+                className="w-full mb-4"
+                data-testid="button-add-evidencia"
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                Adjuntar Fotos de Evidencia
+              </Button>
+              
+              {resolucionPreviewUrls.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {resolucionPreviewUrls.map((url, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={url}
+                        alt={`Evidencia ${index + 1}`}
+                        className="w-full h-32 object-cover rounded border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => removeResolucionFile(index)}
+                        data-testid={`button-remove-evidencia-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Indicador de progreso */}
+            {resolucionUploadProgress.total > 0 && (
+              <div className="text-sm text-muted-foreground text-center">
+                Subiendo foto {resolucionUploadProgress.current} de {resolucionUploadProgress.total}...
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowResolucionLaboratorioModal(false);
+                setInformeLaboratorio("");
+                setResolucionPhotos([]);
+                setResolucionPreviewUrls([]);
+                setResolucionUploadProgress({ current: 0, total: 0 });
+                setSelectedReclamoId(null);
+              }}
+              data-testid="button-cancel-resolucion"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSubmitResolucion}
+              disabled={resolucionLaboratorioMutation.isPending}
+              data-testid="button-submit-resolucion"
+            >
+              {resolucionLaboratorioMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              {resolucionUploadProgress.total > 0 ? (
+                `Subiendo foto ${resolucionUploadProgress.current}/${resolucionUploadProgress.total}...`
+              ) : resolucionLaboratorioMutation.isPending ? (
+                'Enviando resolución...'
+              ) : (
+                'Enviar Resolución'
               )}
             </Button>
           </DialogFooter>
