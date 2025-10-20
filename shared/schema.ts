@@ -3051,6 +3051,7 @@ export const reclamosGenerales = pgTable("reclamos_generales", {
   // Descripción del reclamo
   description: text("description").notNull(),
   gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica
+  categoria: varchar("categoria").notNull(), // materia_prima, colores_variacion, aplicacion, envase, etiqueta
   
   // Flujo de trabajo
   estado: varchar("estado").default("registrado").notNull(), // registrado, en_revision_tecnica, en_laboratorio, en_produccion, cerrado
