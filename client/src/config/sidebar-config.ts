@@ -22,7 +22,8 @@ import {
   AlertTriangle,
   Warehouse,
   Banknote,
-  HandHeart
+  HandHeart,
+  Database
 } from "lucide-react";
 
 interface SidebarItem {
@@ -117,6 +118,17 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/promesas-compra",
       label: "Promesas de Compra",
       icon: HandHeart,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
+    {
+      href: "/etl-monitor",
+      label: "Monitor ETL",
+      icon: Database,
+      separator: true,
     },
     {
       href: "/tintometria",
@@ -224,6 +236,17 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/promesas-compra",
       label: "Promesas de Compra",
       icon: HandHeart,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
+    {
+      href: "/etl-monitor",
+      label: "Monitor ETL",
+      icon: Database,
+      separator: true,
     },
     {
       href: "/tintometria",
