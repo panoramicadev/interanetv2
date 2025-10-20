@@ -409,4 +409,39 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Users,
     },
   ],
+
+  laboratorio: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+    {
+      href: "/visitas-tecnicas",
+      label: "Visitas Técnicas",
+      icon: FileCheck,
+    },
+    {
+      href: "/tintometria",
+      label: "Tintometría",
+      icon: Palette,
+      children: [
+        {
+          href: "/tintometria/admin",
+          label: "Administrar Datos",
+          icon: Settings,
+        },
+        {
+          href: "/tintometria/calculadora",
+          label: "Calcular Costos",
+          icon: DollarSign,
+        },
+        {
+          href: "/tintometria/selector",
+          label: "Selector Visual",
+          icon: PaintBucket,
+        },
+      ],
+    },
+  ],
 };
