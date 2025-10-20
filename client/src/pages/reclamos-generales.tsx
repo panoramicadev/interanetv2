@@ -113,6 +113,7 @@ export default function ReclamosGeneralesPage() {
   const [showResolucionLaboratorioModal, setShowResolucionLaboratorioModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ url: string; description?: string } | null>(null);
+  const [showResolucionViewModal, setShowResolucionViewModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
   const [informeResolutivo, setInformeResolutivo] = useState("");
   const [informeLaboratorio, setInformeLaboratorio] = useState("");
@@ -234,6 +235,19 @@ export default function ReclamosGeneralesPage() {
       return response.json();
     },
     enabled: !!selectedReclamoId && typeof selectedReclamoId === 'string',
+  });
+
+  // Get resolución photos
+  const { data: resolucionPhotosData = [], isLoading: resolucionPhotosLoading } = useQuery<any[]>({
+    queryKey: ['/api/reclamos-generales', selectedReclamoId, 'resolucion-photos'],
+    queryFn: async () => {
+      const response = await fetch(`/api/reclamos-generales/${selectedReclamoId}/resolucion-photos`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Error al obtener fotos de resolución');
+      return response.json();
+    },
+    enabled: !!selectedReclamoId && typeof selectedReclamoId === 'string' && showResolucionViewModal,
   });
 
   // Get clients for dropdown (same structure as tomador-pedidos)
@@ -1258,35 +1272,50 @@ export default function ReclamosGeneralesPage() {
                 <div>
                   <Label className="text-muted-foreground">Historial de Cambios</Label>
                   <div className="mt-2 space-y-2">
-                    {reclamoDetails.historial.map((entry) => (
-                      <Card key={entry.id}>
-                        <CardContent className="p-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                {entry.estadoAnterior && (
-                                  <>
-                                    <Badge variant="outline" className="text-xs">
-                                      {ESTADO_LABELS[entry.estadoAnterior]?.label}
-                                    </Badge>
-                                    <span className="text-xs text-muted-foreground">→</span>
-                                  </>
+                    {reclamoDetails.historial.map((entry) => {
+                      const isResolucionEntry = entry.notas?.includes('Resolución de laboratorio agregada');
+                      return (
+                        <Card 
+                          key={entry.id}
+                          className={isResolucionEntry ? 'cursor-pointer hover:bg-accent transition-colors' : ''}
+                          onClick={() => {
+                            if (isResolucionEntry && reclamoDetails.informeLaboratorio) {
+                              setShowResolucionViewModal(true);
+                            }
+                          }}
+                          data-testid={isResolucionEntry ? 'card-resolucion-clickeable' : undefined}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  {entry.estadoAnterior && (
+                                    <>
+                                      <Badge variant="outline" className="text-xs">
+                                        {ESTADO_LABELS[entry.estadoAnterior]?.label}
+                                      </Badge>
+                                      <span className="text-xs text-muted-foreground">→</span>
+                                    </>
+                                  )}
+                                  <Badge className={ESTADO_LABELS[entry.estadoNuevo]?.color + " text-xs"}>
+                                    {ESTADO_LABELS[entry.estadoNuevo]?.label}
+                                  </Badge>
+                                </div>
+                                {entry.notas && (
+                                  <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                                    {entry.notas}
+                                    {isResolucionEntry && <Eye className="h-3 w-3 ml-1" />}
+                                  </p>
                                 )}
-                                <Badge className={ESTADO_LABELS[entry.estadoNuevo]?.color + " text-xs"}>
-                                  {ESTADO_LABELS[entry.estadoNuevo]?.label}
-                                </Badge>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {entry.userName} - {format(new Date(entry.createdAt), "dd MMM yyyy HH:mm", { locale: es })}
+                                </p>
                               </div>
-                              {entry.notas && (
-                                <p className="text-sm text-muted-foreground mt-1">{entry.notas}</p>
-                              )}
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {entry.userName} - {format(new Date(entry.createdAt), "dd MMM yyyy HH:mm", { locale: es })}
-                              </p>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1522,6 +1551,77 @@ export default function ReclamosGeneralesPage() {
                 setSelectedImage(null);
               }}
               data-testid="button-close-image"
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Visualización de Resolución del Laboratorio */}
+      <Dialog open={showResolucionViewModal} onOpenChange={setShowResolucionViewModal}>
+        <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resolución del Laboratorio</DialogTitle>
+            {reclamoDetails?.fechaRespuestaLaboratorio && (
+              <DialogDescription>
+                Fecha: {format(new Date(reclamoDetails.fechaRespuestaLaboratorio), "dd MMMM yyyy HH:mm", { locale: es })}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          
+          {resolucionPhotosLoading ? (
+            <div className="flex justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Informe del laboratorio */}
+              {reclamoDetails?.informeLaboratorio && (
+                <div>
+                  <Label className="text-muted-foreground font-semibold">Informe</Label>
+                  <div className="mt-2 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                    <p className="whitespace-pre-wrap text-sm">{reclamoDetails.informeLaboratorio}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Evidencia fotográfica */}
+              {resolucionPhotosData && resolucionPhotosData.length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground font-semibold">
+                    Evidencia Fotográfica ({resolucionPhotosData.length} foto{resolucionPhotosData.length !== 1 ? 's' : ''})
+                  </Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                    {resolucionPhotosData.map((photo) => (
+                      <div key={photo.id} className="relative group">
+                        <img
+                          src={photo.photoUrl}
+                          alt={photo.description || 'Evidencia de resolución'}
+                          className="w-full h-40 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => {
+                            setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
+                            setShowImageModal(true);
+                          }}
+                          data-testid={`img-resolucion-${photo.id}`}
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
+                          <Eye className="h-3 w-3 inline mr-1" />
+                          Ver imagen
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowResolucionViewModal(false)}
+              data-testid="button-close-resolucion-view"
             >
               Cerrar
             </Button>
