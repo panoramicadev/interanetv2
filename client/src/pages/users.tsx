@@ -221,6 +221,9 @@ export default function UsersPage() {
     if (watchedRole !== "supervisor") {
       createForm.setValue("assignedSegment", null);
     }
+    if (watchedRole === "laboratorio") {
+      createForm.setValue("assignedSegment", null);
+    }
   }, [watchedRole, createForm]);
 
   // Form para editar usuario
@@ -345,6 +348,7 @@ export default function UsersPage() {
                             <SelectItem value="supervisor">Supervisor</SelectItem>
                             <SelectItem value="salesperson">Vendedor</SelectItem>
                             <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
+                            <SelectItem value="laboratorio">Laboratorio</SelectItem>
                             <SelectItem value="client">Cliente</SelectItem>
                             <SelectItem value="reception">Recepción</SelectItem>
                           </SelectContent>
@@ -486,8 +490,8 @@ export default function UsersPage() {
                     />
                   )}
                   
-                  {/* Campo de texto para Administradores, Supervisores, Técnicos de Obra y Recepción */}
-                  {(createForm.watch("role") === "admin" || createForm.watch("role") === "supervisor" || createForm.watch("role") === "tecnico_obra" || createForm.watch("role") === "reception") && (
+                  {/* Campo de texto para Administradores, Supervisores, Técnicos de Obra, Laboratorio y Recepción */}
+                  {(createForm.watch("role") === "admin" || createForm.watch("role") === "supervisor" || createForm.watch("role") === "tecnico_obra" || createForm.watch("role") === "laboratorio" || createForm.watch("role") === "reception") && (
                     <FormField
                       control={createForm.control}
                       name="salespersonName"
@@ -507,31 +511,33 @@ export default function UsersPage() {
                     />
                   )}
 
-                  <FormField
-                    control={createForm.control}
-                    name="assignedSegment"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Segmento Asignado</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value ?? "none"}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-assigned-segment">
-                              <SelectValue placeholder="Selecciona un segmento" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="none">Sin segmento</SelectItem>
-                            {availableSegments.map((segment) => (
-                              <SelectItem key={segment} value={segment}>
-                                {segment}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {watchedRole !== "laboratorio" && (
+                    <FormField
+                      control={createForm.control}
+                      name="assignedSegment"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Segmento Asignado</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value ?? "none"}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-assigned-segment">
+                                <SelectValue placeholder="Selecciona un segmento" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">Sin segmento</SelectItem>
+                              {availableSegments.map((segment) => (
+                                <SelectItem key={segment} value={segment}>
+                                  {segment}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <FormField
                     control={createForm.control}
                     name="username"
@@ -685,6 +691,7 @@ export default function UsersPage() {
                         <SelectItem value="supervisor">Supervisor</SelectItem>
                         <SelectItem value="salesperson">Vendedor</SelectItem>
                         <SelectItem value="tecnico_obra">Técnico de Obra</SelectItem>
+                        <SelectItem value="laboratorio">Laboratorio</SelectItem>
                         <SelectItem value="client">Cliente</SelectItem>
                         <SelectItem value="reception">Recepción</SelectItem>
                       </SelectContent>
@@ -721,31 +728,33 @@ export default function UsersPage() {
                 />
               )}
 
-              <FormField
-                control={editForm.control}
-                name="assignedSegment"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Segmento Asignado</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? "none"}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-edit-assigned-segment">
-                          <SelectValue placeholder="Selecciona un segmento" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">Sin segmento</SelectItem>
-                        {availableSegments.map((segment) => (
-                          <SelectItem key={segment} value={segment}>
-                            {segment}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {watchedEditRole !== "laboratorio" && (
+                <FormField
+                  control={editForm.control}
+                  name="assignedSegment"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Segmento Asignado</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? "none"}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-assigned-segment">
+                            <SelectValue placeholder="Selecciona un segmento" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Sin segmento</SelectItem>
+                          {availableSegments.map((segment) => (
+                            <SelectItem key={segment} value={segment}>
+                              {segment}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={editForm.control}
                 name="isActive"
@@ -890,7 +899,8 @@ export default function UsersPage() {
                              user.role === 'supervisor' ? 'Supervisor' :
                              user.role === 'tecnico_obra' ? 'Técnico de Obra' :
                              user.role === 'client' ? 'Cliente' : 
-                             user.role === 'reception' ? 'Recepción' : 'Vendedor'}
+                             user.role === 'reception' ? 'Recepción' :
+                             user.role === 'laboratorio' ? 'Laboratorio' : 'Vendedor'}
                           </Badge>
                         </TableCell>
                         <TableCell>{getSupervisorName(user.supervisorId)}</TableCell>
@@ -968,7 +978,8 @@ export default function UsersPage() {
                                  user.role === 'supervisor' ? 'Supervisor' :
                                  user.role === 'tecnico_obra' ? 'Técnico' :
                                  user.role === 'client' ? 'Cliente' : 
-                                 user.role === 'reception' ? 'Recepción' : 'Vendedor'}
+                                 user.role === 'reception' ? 'Recepción' :
+                                 user.role === 'laboratorio' ? 'Laboratorio' : 'Vendedor'}
                               </Badge>
                             </div>
                           </div>
