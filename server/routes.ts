@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import path from "path";
 import { storage } from "./storage";
-import { setupAuth, requireAuth, requireAdminOrSupervisor } from "./auth";
+import { setupAuth, requireAuth, requireAdminOrSupervisor, requireRoles } from "./auth";
 // import { setupAuth as setupReplitAuth } from "./replitAuth"; // Disabled - conflicts with email/password auth
 import multer from "multer";
 import Papa from "papaparse";
@@ -7254,8 +7254,8 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Delete reclamo
-  app.delete('/api/reclamos-generales/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // Delete reclamo (solo admin y tecnico_obra)
+  app.delete('/api/reclamos-generales/:id', requireAuth, requireRoles(['admin', 'tecnico_obra']), asyncHandler(async (req: any, res: any) => {
     try {
       await storage.deleteReclamoGeneral(req.params.id);
       res.status(204).send();
