@@ -1153,23 +1153,21 @@ export default function ReclamosGeneralesPage() {
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>Detalle del Reclamo</DialogTitle>
-              {/* Botón para laboratorio en header */}
-              {user?.role === 'laboratorio' && reclamoDetails && reclamoDetails.estado === 'en_laboratorio' && !reclamoDetails.informeLaboratorio && (
-                <Button
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    setShowResolucionLaboratorioModal(true);
-                  }}
-                  size="sm"
-                  data-testid="button-subir-resolucion"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Subir Resolución
-                </Button>
-              )}
-            </div>
+            <DialogTitle>Detalle del Reclamo</DialogTitle>
+            {/* Botón para laboratorio debajo del título */}
+            {user?.role === 'laboratorio' && reclamoDetails && reclamoDetails.estado === 'en_laboratorio' && !reclamoDetails.informeLaboratorio && (
+              <Button
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setShowResolucionLaboratorioModal(true);
+                }}
+                className="mt-2 w-full"
+                data-testid="button-subir-resolucion"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Subir Resolución del Laboratorio
+              </Button>
+            )}
           </DialogHeader>
           
           {detailsLoading ? (
