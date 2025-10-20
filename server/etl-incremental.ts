@@ -1,6 +1,6 @@
 import mssql from 'mssql';
 import { db } from './db';
-import { sql, desc } from 'drizzle-orm';
+import { sql, desc, eq } from 'drizzle-orm';
 import { 
   stgMaeedo, 
   stgMaeddo, 
@@ -44,11 +44,11 @@ function cleanNumeric(value: any): number {
   return isNaN(num) ? 0 : num;
 }
 
-async function getLastWatermark(): Promise<Date> {
+async function getLastWatermark(etlName: string = 'ventas_incremental'): Promise<Date> {
   const lastExecution = await db
     .select()
     .from(etlExecutionLog)
-    .where(sql`status = 'success'`)
+    .where(sql`status = 'success' AND etl_name = ${etlName}`)
     .orderBy(desc(etlExecutionLog.watermarkDate))
     .limit(1);
 
@@ -60,7 +60,7 @@ async function getLastWatermark(): Promise<Date> {
   return new Date('2022-01-01');
 }
 
-export async function executeIncrementalETL(): Promise<ETLResult> {
+export async function executeIncrementalETL(etlName: string = 'ventas_incremental'): Promise<ETLResult> {
   const startTime = Date.now();
   let pool: mssql.ConnectionPool | null = null;
   const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV', 'BLV', 'FDV'];
@@ -71,10 +71,11 @@ export async function executeIncrementalETL(): Promise<ETLResult> {
     console.log('═══════════════════════════════════════════════════');
 
     // Obtener el último watermark
-    const lastWatermark = await getLastWatermark();
+    const lastWatermark = await getLastWatermark(etlName);
     const currentWatermark = new Date();
     
     console.log(`📅 Período incremental:`);
+    console.log(`   ETL: ${etlName}`);
     console.log(`   Desde: ${lastWatermark.toISOString()}`);
     console.log(`   Hasta: ${currentWatermark.toISOString()}`);
     console.log(`   Tipos documento: ${tiposDoc.join(', ')}`);
@@ -88,6 +89,7 @@ export async function executeIncrementalETL(): Promise<ETLResult> {
     // Registrar inicio de ejecución
     const periodLabel = `${lastWatermark.toISOString().split('T')[0]} to ${currentWatermark.toISOString().split('T')[0]}`;
     const [executionLog] = await db.insert(etlExecutionLog).values({
+      etlName,
       status: 'running',
       period: periodLabel,
       documentTypes: tiposDoc.join(','),
@@ -445,6 +447,7 @@ export async function executeIncrementalETL(): Promise<ETLResult> {
     // Registrar error en el log
     try {
       await db.insert(etlExecutionLog).values({
+        etlName,
         status: 'error',
         period: 'incremental',
         documentTypes: tiposDoc.join(','),
@@ -471,23 +474,38 @@ export async function executeIncrementalETL(): Promise<ETLResult> {
   }
 }
 
-export async function getETLStatus() {
+export async function getETLStatus(etlName: string = 'ventas_incremental') {
   const lastExecutions = await db
     .select()
     .from(etlExecutionLog)
+    .where(eq(etlExecutionLog.etlName, etlName))
     .orderBy(desc(etlExecutionLog.executionDate))
     .limit(10);
 
-  const lastSuccessful = await db
-    .select()
+  const totalExecutionsResult = await db
+    .select({ count: sql<number>`count(*)::int` })
     .from(etlExecutionLog)
-    .where(sql`status = 'success'`)
-    .orderBy(desc(etlExecutionLog.watermarkDate))
-    .limit(1);
+    .where(eq(etlExecutionLog.etlName, etlName));
+
+  const successfulExecutionsResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(etlExecutionLog)
+    .where(sql`etl_name = ${etlName} AND status = 'success'`);
+
+  const failedExecutionsResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(etlExecutionLog)
+    .where(sql`etl_name = ${etlName} AND (status = 'failed' OR status = 'error')`);
+
+  const lastExecution = lastExecutions[0] || null;
+  const isRunning = lastExecution?.status === 'running';
 
   return {
-    lastExecutions,
-    lastWatermark: lastSuccessful[0]?.watermarkDate || new Date('2022-01-01'),
-    totalRecords: await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`),
+    lastExecution,
+    isRunning,
+    history: lastExecutions,
+    totalExecutions: totalExecutionsResult[0]?.count || 0,
+    successfulExecutions: successfulExecutionsResult[0]?.count || 0,
+    failedExecutions: failedExecutionsResult[0]?.count || 0,
   };
 }
