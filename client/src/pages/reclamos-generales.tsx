@@ -270,8 +270,22 @@ export default function ReclamosGeneralesPage() {
     queryKey: ['/api/reclamos-generales', 'vendedorId', user?.id, 'role', user?.role],
     queryFn: async () => {
       const params = new URLSearchParams();
-      // Laboratorio debe ver todos los reclamos sin filtrar
-      if (user?.id && user.role !== 'laboratorio') {
+      // Técnico de obra, laboratorio, admin, supervisor y roles organizacionales ven todos los reclamos
+      // Roles de área también ven todos para poder filtrar por su área
+      const rolesQueVenTodos = [
+        'tecnico_obra', 
+        'laboratorio', 
+        'admin', 
+        'supervisor',
+        'produccion',
+        'logistica_bodega',
+        'planificacion',
+        'bodega_materias_primas',
+        'prevencion_riesgos'
+      ];
+      const esRolDeArea = user?.role?.startsWith('area_');
+      
+      if (user?.id && !rolesQueVenTodos.includes(user.role!) && !esRolDeArea) {
         params.append('vendedorId', user.id);
       }
       const url = `/api/reclamos-generales?${params.toString()}`;
@@ -281,7 +295,19 @@ export default function ReclamosGeneralesPage() {
       if (!response.ok) throw new Error('Error al obtener reclamos');
       return response.json();
     },
-    enabled: !!user && (user.role === 'salesperson' || user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra' || user.role === 'laboratorio'),
+    enabled: !!user && (
+      user.role === 'salesperson' || 
+      user.role === 'admin' || 
+      user.role === 'supervisor' || 
+      user.role === 'tecnico_obra' || 
+      user.role === 'laboratorio' || 
+      user.role === 'produccion' ||
+      user.role === 'logistica_bodega' ||
+      user.role === 'planificacion' ||
+      user.role === 'bodega_materias_primas' ||
+      user.role === 'prevencion_riesgos' ||
+      user.role?.startsWith('area_')
+    ),
   });
 
   // Get reclamo details
