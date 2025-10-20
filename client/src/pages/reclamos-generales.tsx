@@ -1251,6 +1251,16 @@ export default function ReclamosGeneralesPage() {
                     </Badge>
                   </div>
                 </div>
+                {reclamoDetails.categoriaResponsable && (
+                  <div>
+                    <Label className="text-muted-foreground">Área Responsable</Label>
+                    <div className="mt-1">
+                      <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                        {CATEGORIA_RESPONSABLE_OPTIONS.find(c => c.value === reclamoDetails.categoriaResponsable)?.label || reclamoDetails.categoriaResponsable}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Description */}
@@ -1633,6 +1643,18 @@ export default function ReclamosGeneralesPage() {
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Área Responsable */}
+              {reclamoDetails?.categoriaResponsable && (
+                <div>
+                  <Label className="text-muted-foreground font-semibold">Área Responsable</Label>
+                  <div className="mt-2">
+                    <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                      {CATEGORIA_RESPONSABLE_OPTIONS.find(c => c.value === reclamoDetails.categoriaResponsable)?.label || reclamoDetails.categoriaResponsable}
+                    </Badge>
+                  </div>
+                </div>
+              )}
+
               {/* Informe del laboratorio */}
               {reclamoDetails?.informeLaboratorio && (
                 <div>
