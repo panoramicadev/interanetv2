@@ -1867,55 +1867,31 @@ export default function ReclamosGeneralesPage() {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : reclamoDetails ? (
-            <div className="space-y-6">
+            <div className="space-y-6 pt-4">
               {/* Resumen de Resolución - Cuando está resuelto o cerrado */}
               {(reclamoDetails.estado === 'resuelto' || reclamoDetails.estado === 'cerrado') && reclamoDetails.informeLaboratorio && (
-                <Card className={`border-2 ${
-                  reclamoDetails.estado === 'cerrado' 
-                    ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950' 
-                    : 'border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950'
-                }`}>
+                <Card className="border-2 border-green-500 dark:border-green-600 bg-green-50 dark:bg-green-950 shadow-lg">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <CheckCircle2 className={`h-5 w-5 ${
-                          reclamoDetails.estado === 'cerrado'
-                            ? 'text-green-600 dark:text-green-400'
-                            : 'text-teal-600 dark:text-teal-400'
-                        }`} />
-                        <CardTitle className={`text-base ${
-                          reclamoDetails.estado === 'cerrado'
-                            ? 'text-green-900 dark:text-green-100'
-                            : 'text-teal-900 dark:text-teal-100'
-                        }`}>
+                        <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        <CardTitle className="text-base text-green-900 dark:text-green-100">
                           Resolución del Reclamo
                         </CardTitle>
                       </div>
-                      <Badge className={
-                        reclamoDetails.estado === 'cerrado'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-teal-600 text-white'
-                      }>
+                      <Badge className="bg-green-600 text-white">
                         {reclamoDetails.estado === 'cerrado' ? 'Cerrado' : 'Resuelto'}
                       </Badge>
                     </div>
                     {reclamoDetails.categoriaResponsable && (
-                      <p className={`text-sm mt-1 ${
-                        reclamoDetails.estado === 'cerrado'
-                          ? 'text-green-700 dark:text-green-300'
-                          : 'text-teal-700 dark:text-teal-300'
-                      }`}>
+                      <p className="text-sm mt-1 text-green-700 dark:text-green-300">
                         Área responsable: {CATEGORIA_RESPONSABLE_OPTIONS.find(c => c.value === reclamoDetails.categoriaResponsable)?.label || reclamoDetails.categoriaResponsable}
                       </p>
                     )}
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <p className={`text-sm whitespace-pre-wrap ${!resumenExpanded && 'line-clamp-3'} ${
-                        reclamoDetails.estado === 'cerrado'
-                          ? 'text-green-900 dark:text-green-100'
-                          : 'text-teal-900 dark:text-teal-100'
-                      }`}>
+                      <p className={`text-sm whitespace-pre-wrap text-green-900 dark:text-green-100 ${!resumenExpanded && 'line-clamp-3'}`}>
                         {reclamoDetails.informeLaboratorio}
                       </p>
                       {reclamoDetails.informeLaboratorio.length > 150 && (
@@ -1923,11 +1899,7 @@ export default function ReclamosGeneralesPage() {
                           variant="link"
                           size="sm"
                           onClick={() => setResumenExpanded(!resumenExpanded)}
-                          className={`p-0 h-auto mt-1 ${
-                            reclamoDetails.estado === 'cerrado'
-                              ? 'text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100'
-                              : 'text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100'
-                          }`}
+                          className="p-0 h-auto mt-1 text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100"
                           data-testid="button-toggle-resumen"
                         >
                           {resumenExpanded ? (
@@ -1947,11 +1919,7 @@ export default function ReclamosGeneralesPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => setShowResolucionViewModal(true)}
-                      className={`w-full ${
-                        reclamoDetails.estado === 'cerrado'
-                          ? 'border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900'
-                          : 'border-teal-300 dark:border-teal-700 hover:bg-teal-100 dark:hover:bg-teal-900'
-                      }`}
+                      className="w-full border-green-400 dark:border-green-600 hover:bg-green-100 dark:hover:bg-green-900 text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-green-100"
                       data-testid="button-ver-evidencia-resolucion"
                     >
                       <Eye className="h-4 w-4 mr-2" />
