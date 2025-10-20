@@ -111,6 +111,8 @@ export default function ReclamosGeneralesPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCerrarModal, setShowCerrarModal] = useState(false);
   const [showResolucionLaboratorioModal, setShowResolucionLaboratorioModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ url: string; description?: string } | null>(null);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
   const [informeResolutivo, setInformeResolutivo] = useState("");
   const [informeLaboratorio, setInformeLaboratorio] = useState("");
@@ -1220,8 +1222,17 @@ export default function ReclamosGeneralesPage() {
                         <img
                           src={photo.photoUrl}
                           alt={photo.description || 'Foto del reclamo'}
-                          className="w-full h-32 object-cover rounded border"
+                          className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => {
+                            setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
+                            setShowImageModal(true);
+                          }}
+                          data-testid={`img-reclamo-${photo.id}`}
                         />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
+                          <Eye className="h-3 w-3 inline mr-1" />
+                          Ver imagen
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1477,6 +1488,45 @@ export default function ReclamosGeneralesPage() {
               ) : (
                 'Enviar Resolución'
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Vista Ampliada de Imagen */}
+      <Dialog open={showImageModal} onOpenChange={(open) => {
+        setShowImageModal(open);
+        if (!open) setSelectedImage(null);
+      }}>
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Vista de Imagen</DialogTitle>
+            {selectedImage?.description && (
+              <DialogDescription>{selectedImage.description}</DialogDescription>
+            )}
+          </DialogHeader>
+          
+          {selectedImage && (
+            <div className="flex items-center justify-center bg-slate-100 dark:bg-slate-900 rounded-lg p-4">
+              <img
+                src={selectedImage.url}
+                alt={selectedImage.description || 'Imagen ampliada'}
+                className="max-w-full max-h-[70vh] object-contain rounded"
+                data-testid="img-enlarged"
+              />
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowImageModal(false);
+                setSelectedImage(null);
+              }}
+              data-testid="button-close-image"
+            >
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>
