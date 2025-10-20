@@ -121,11 +121,14 @@ import {
   // Reclamos Generales tables
   reclamosGenerales,
   reclamosGeneralesPhotos,
+  reclamosGeneralesResolucionPhotos,
   reclamosGeneralesHistorial,
   type ReclamoGeneral,
   type InsertReclamoGeneral,
   type ReclamoGeneralPhoto,
   type InsertReclamoGeneralPhoto,
+  type ReclamoGeneralResolucionPhoto,
+  type InsertReclamoGeneralResolucionPhoto,
   type ReclamoGeneralHistorial,
   type InsertReclamoGeneralHistorial,
   // Marketing module tables
@@ -989,6 +992,10 @@ export interface IStorage {
   updateInformeLaboratorio(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   updateInformeProduccion(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   updateInformeTecnico(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
+  
+  // Resolución laboratorio con evidencia
+  updateResolucionLaboratorio(id: string, informe: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string): Promise<ReclamoGeneral | null>;
+  getReclamoGeneralResolucionPhotos(reclamoId: string): Promise<any[]>;
   
   // Cerrar reclamo
   cerrarReclamoGeneral(id: string, userId: string, userName: string, notas?: string): Promise<ReclamoGeneral>;
@@ -10227,6 +10234,63 @@ export class DatabaseStorage implements IStorage {
     });
     
     return updated;
+  }
+
+  // Update resolución laboratorio con evidencia
+  async updateResolucionLaboratorio(
+    id: string,
+    informe: string,
+    photos: Array<{ photoUrl: string; description?: string }>,
+    userId: string,
+    userName: string
+  ): Promise<ReclamoGeneral | null> {
+    // Actualización condicional para prevenir race conditions
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        informeLaboratorio: informe,
+        fechaRespuestaLaboratorio: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(reclamosGenerales.id, id),
+        isNull(reclamosGenerales.informeLaboratorio) // Solo actualizar si no tiene informe previo
+      ))
+      .returning();
+    
+    // Si no se actualizó ninguna fila, retornar null
+    if (!updated) {
+      return null;
+    }
+    
+    // Crear las fotos de evidencia
+    for (const photo of photos) {
+      await db.insert(reclamosGeneralesResolucionPhotos).values({
+        reclamoId: id,
+        photoUrl: photo.photoUrl,
+        description: photo.description,
+      });
+    }
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: null,
+      estadoNuevo: updated.estado,
+      userId,
+      userName,
+      notas: `Resolución de laboratorio agregada con ${photos.length} foto(s) de evidencia`,
+    });
+    
+    return updated;
+  }
+
+  async getReclamoGeneralResolucionPhotos(reclamoId: string): Promise<any[]> {
+    return db
+      .select()
+      .from(reclamosGeneralesResolucionPhotos)
+      .where(eq(reclamosGeneralesResolucionPhotos.reclamoId, reclamoId))
+      .orderBy(desc(reclamosGeneralesResolucionPhotos.uploadedAt));
   }
 
   // Cerrar reclamo
