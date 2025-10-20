@@ -10384,8 +10384,18 @@ export class DatabaseStorage implements IStorage {
     // Extraer área del rol (ej: area_materia_prima -> materia_prima, laboratorio -> laboratorio)
     const areaUsuario = userRole.startsWith('area_') ? userRole.replace('area_', '') : userRole;
     
+    // Normalizar área para comparación (manejar variaciones como colores_variacion)
+    const normalizeArea = (area: string) => {
+      // Para colores: tanto "colores" como "colores_variacion" se normalizan a "colores"
+      if (area === 'colores_variacion' || area === 'colores') return 'colores';
+      return area;
+    };
+    
+    const areaUsuarioNormalizada = normalizeArea(areaUsuario);
+    const areaResponsableNormalizada = normalizeArea(reclamo.areaResponsableActual || '');
+    
     // Verificar que el área del usuario coincide con el área responsable del reclamo
-    if (reclamo.areaResponsableActual !== areaUsuario) {
+    if (areaResponsableNormalizada !== areaUsuarioNormalizada) {
       throw new Error('No tiene permisos para resolver este reclamo');
     }
     
