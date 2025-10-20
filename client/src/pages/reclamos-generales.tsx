@@ -162,7 +162,14 @@ export default function ReclamosGeneralesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("mis-reclamos");
-  const [filterTab, setFilterTab] = useState("todos");
+  const [filterTab, setFilterTab] = useState(() => {
+    // Initialize with "asignados-area" for area, laboratorio, and organizational roles
+    const orgRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+    if (user?.role === 'laboratorio' || user?.role?.startsWith('area_') || (user?.role && orgRoles.includes(user.role))) {
+      return 'asignados-area';
+    }
+    return 'todos';
+  });
   const [showNewReclamoModal, setShowNewReclamoModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCerrarModal, setShowCerrarModal] = useState(false);
@@ -895,29 +902,50 @@ export default function ReclamosGeneralesPage() {
     }
   };
 
-  // Get user's area from role (e.g., area_materia_prima -> materia_prima)
+  // Get user's area from role (e.g., area_materia_prima -> materia_prima, produccion -> produccion)
   const getUserArea = () => {
     if (user?.role?.startsWith('area_')) {
       return user.role.replace('area_', '');
+    }
+    // For organizational roles without area_ prefix
+    const organizationalRoleMapping: Record<string, string> = {
+      'produccion': 'produccion',
+      'logistica_bodega': 'logistica',
+      'planificacion': 'produccion', // Planificación maps to producción
+      'bodega_materias_primas': 'logistica',
+      'prevencion_riesgos': 'produccion',
+    };
+    if (user?.role && organizationalRoleMapping[user.role]) {
+      return organizationalRoleMapping[user.role];
     }
     return null;
   };
 
   // Get available tabs based on user role
   const getAvailableTabs = () => {
-    const tabs = [
-      { value: 'todos', label: 'Todos', icon: List },
-      { value: 'mis-reclamos', label: 'Mis Reclamos', icon: User },
-    ];
+    const tabs = [];
+
+    // Tabs for area, laboratorio, and organizational roles
+    const isAreaRole = user?.role === 'laboratorio' || 
+                       user?.role?.startsWith('area_') || 
+                       organizationalRoles.includes(user?.role || '');
+    
+    if (isAreaRole) {
+      tabs.push(
+        { value: 'asignados-area', label: 'Asignados a Mi Área', icon: Building2 },
+        { value: 'todos', label: 'Todos', icon: List }
+      );
+    } else {
+      // For vendedores, admin, supervisor, tecnico_obra
+      tabs.push(
+        { value: 'todos', label: 'Todos', icon: List },
+        { value: 'mis-reclamos', label: 'Mis Reclamos', icon: User }
+      );
+    }
 
     // Add "Pendientes Validación" only for tecnico_obra
     if (user?.role === 'tecnico_obra') {
       tabs.push({ value: 'pendientes-validacion', label: 'Pendientes Validación', icon: Clock });
-    }
-
-    // Add "Asignados a Mi Área" for area_* and laboratorio roles
-    if (user?.role === 'laboratorio' || user?.role?.startsWith('area_')) {
-      tabs.push({ value: 'asignados-area', label: 'Asignados a Mi Área', icon: Building2 });
     }
 
     tabs.push(
@@ -1045,7 +1073,19 @@ export default function ReclamosGeneralesPage() {
     return null;
   };
 
-  if (!user || (user.role !== 'salesperson' && user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'tecnico_obra' && user.role !== 'laboratorio')) {
+  const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+  
+  const hasAccess = user && (
+    user.role === 'salesperson' || 
+    user.role === 'admin' || 
+    user.role === 'supervisor' || 
+    user.role === 'tecnico_obra' || 
+    user.role === 'laboratorio' ||
+    user.role?.startsWith('area_') ||
+    (user.role && organizationalRoles.includes(user.role))
+  );
+
+  if (!hasAccess) {
     return (
       <div className="container mx-auto p-6">
         <Card>
@@ -1066,14 +1106,16 @@ export default function ReclamosGeneralesPage() {
           <h1 className="text-2xl sm:text-3xl font-bold">Reclamos de Clientes</h1>
           <p className="text-muted-foreground">Gestión de reclamos y seguimiento</p>
         </div>
-        <Button 
-          onClick={() => setShowNewReclamoModal(true)}
-          data-testid="button-create-reclamo"
-          className="w-full sm:w-auto"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Reclamo
-        </Button>
+        {(user?.role === 'salesperson' || user?.role === 'admin' || user?.role === 'supervisor') && (
+          <Button 
+            onClick={() => setShowNewReclamoModal(true)}
+            data-testid="button-create-reclamo"
+            className="w-full sm:w-auto"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Reclamo
+          </Button>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
