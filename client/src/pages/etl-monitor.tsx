@@ -182,7 +182,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
 
   // Fetch ETL status
   const { data: status, isLoading } = useQuery<ETLStatus>({
-    queryKey: ['/api/etl/status', etlName],
+    queryKey: [`/api/etl/status?etlName=${etlName}`],
     refetchInterval: autoRefresh ? 10000 : false, // Auto-refresh every 10 seconds
   });
 
@@ -198,7 +198,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
         title: "ETL Ejecutado",
         description: `Se procesaron ${data.recordsProcessed || 0} registros en ${Math.round(data.executionTimeMs / 1000)}s`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/etl/status', etlName] });
+      queryClient.invalidateQueries({ queryKey: [`/api/etl/status?etlName=${etlName}`] });
     },
     onError: (error: any) => {
       toast({
@@ -397,7 +397,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
 // ETL History Section Component
 function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefresh: boolean }) {
   const { data: status } = useQuery<ETLStatus>({
-    queryKey: ['/api/etl/status', etlName],
+    queryKey: [`/api/etl/status?etlName=${etlName}`],
     refetchInterval: autoRefresh ? 10000 : false,
   });
 
