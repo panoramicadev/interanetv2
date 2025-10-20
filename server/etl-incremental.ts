@@ -56,8 +56,8 @@ async function getLastWatermark(etlName: string = 'ventas_incremental'): Promise
     return new Date(lastExecution[0].watermarkDate);
   }
 
-  // Si no hay ejecuciones previas, comenzar desde 2022-01-01
-  return new Date('2022-01-01');
+  // Si no hay ejecuciones previas, comenzar desde 2025-01-01
+  return new Date('2025-01-01');
 }
 
 export async function executeIncrementalETL(etlName: string = 'ventas_incremental'): Promise<ETLResult> {
@@ -115,7 +115,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       FROM dbo.MAEEDO
       WHERE TIDO IN (${tiposDoc.map(t => `'${t}'`).join(',')})
         AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-        AND YEAR(FEEMDO) >= 2022
+        AND YEAR(FEEMDO) >= 2024
         AND FEER >= '${lastWatermark.toISOString().split('T')[0]}'
       ORDER BY FEEMDO
     `);
@@ -475,49 +475,71 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
 }
 
 export async function getETLStatus(etlName: string = 'ventas_incremental') {
-  const lastExecutions = await db
-    .select()
-    .from(etlExecutionLog)
-    .where(eq(etlExecutionLog.etlName, etlName))
-    .orderBy(desc(etlExecutionLog.executionDate))
-    .limit(10);
+  try {
+    const lastExecutions = await db
+      .select()
+      .from(etlExecutionLog)
+      .where(eq(etlExecutionLog.etlName, etlName))
+      .orderBy(desc(etlExecutionLog.executionDate))
+      .limit(10);
 
-  const totalExecutionsResult = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(etlExecutionLog)
-    .where(eq(etlExecutionLog.etlName, etlName));
+    const totalExecutionsResult = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(etlExecutionLog)
+      .where(eq(etlExecutionLog.etlName, etlName));
 
-  const successfulExecutionsResult = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(etlExecutionLog)
-    .where(sql`etl_name = ${etlName} AND status = 'success'`);
+    const successfulExecutionsResult = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(etlExecutionLog)
+      .where(sql`etl_name = ${etlName} AND status = 'success'`);
 
-  const failedExecutionsResult = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(etlExecutionLog)
-    .where(sql`etl_name = ${etlName} AND (status = 'failed' OR status = 'error')`);
+    const failedExecutionsResult = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(etlExecutionLog)
+      .where(sql`etl_name = ${etlName} AND (status = 'failed' OR status = 'error')`);
 
-  // Get total records in fact_ventas table
-  const totalFactVentasResult = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(factVentas);
+    // Get total records in fact_ventas table - wrap in try-catch for safety
+    let totalFactVentasCount = 0;
+    try {
+      const totalFactVentasResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(factVentas);
+      totalFactVentasCount = totalFactVentasResult[0]?.count || 0;
+    } catch (factVentasError) {
+      console.warn('⚠️  Could not query fact_ventas table:', factVentasError);
+      // Continue without failing - this table might not exist yet
+    }
 
-  const lastExecution = lastExecutions[0] || null;
-  const isRunning = lastExecution?.status === 'running';
+    const lastExecution = lastExecutions[0] || null;
+    const isRunning = lastExecution?.status === 'running';
 
-  // Add totalFactVentasRecords to lastExecution if it exists
-  const enrichedLastExecution = lastExecution ? {
-    ...lastExecution,
-    totalFactVentasRecords: totalFactVentasResult[0]?.count || 0
-  } : null;
+    // Add totalFactVentasRecords to lastExecution if it exists
+    const enrichedLastExecution = lastExecution ? {
+      ...lastExecution,
+      totalFactVentasRecords: totalFactVentasCount
+    } : null;
 
-  return {
-    lastExecution: enrichedLastExecution,
-    isRunning,
-    history: lastExecutions,
-    totalExecutions: totalExecutionsResult[0]?.count || 0,
-    successfulExecutions: successfulExecutionsResult[0]?.count || 0,
-    failedExecutions: failedExecutionsResult[0]?.count || 0,
-    totalFactVentasRecords: totalFactVentasResult[0]?.count || 0,
-  };
+    return {
+      lastExecution: enrichedLastExecution,
+      isRunning,
+      history: lastExecutions,
+      totalExecutions: totalExecutionsResult[0]?.count || 0,
+      successfulExecutions: successfulExecutionsResult[0]?.count || 0,
+      failedExecutions: failedExecutionsResult[0]?.count || 0,
+      totalFactVentasRecords: totalFactVentasCount,
+    };
+  } catch (error: any) {
+    console.error('❌ Error in getETLStatus:', error);
+    // Return safe default values instead of throwing
+    return {
+      lastExecution: null,
+      isRunning: false,
+      history: [],
+      totalExecutions: 0,
+      successfulExecutions: 0,
+      failedExecutions: 0,
+      totalFactVentasRecords: 0,
+      error: error.message,
+    };
+  }
 }
