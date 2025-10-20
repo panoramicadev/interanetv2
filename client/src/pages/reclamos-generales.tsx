@@ -158,14 +158,16 @@ const ESTADO_LABELS: Record<string, { label: string; color: string; icon: any }>
   },
 };
 
+// Organizational roles constant
+const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+
 export default function ReclamosGeneralesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("mis-reclamos");
   const [filterTab, setFilterTab] = useState(() => {
     // Initialize with "asignados-area" for area, laboratorio, and organizational roles
-    const orgRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
-    if (user?.role === 'laboratorio' || user?.role?.startsWith('area_') || (user?.role && orgRoles.includes(user.role))) {
+    if (user?.role === 'laboratorio' || user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) {
       return 'asignados-area';
     }
     return 'todos';
@@ -1073,8 +1075,6 @@ export default function ReclamosGeneralesPage() {
     return null;
   };
 
-  const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
-  
   const hasAccess = user && (
     user.role === 'salesperson' || 
     user.role === 'admin' || 
