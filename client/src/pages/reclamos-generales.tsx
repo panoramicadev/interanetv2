@@ -138,6 +138,7 @@ export default function ReclamosGeneralesPage() {
   // Photo upload states
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Debounce client search term (same as tomador-pedidos)
@@ -148,6 +149,52 @@ export default function ReclamosGeneralesPage() {
     
     return () => clearTimeout(timer);
   }, [clientSearchTerm]);
+
+  // Compress image function
+  const compressImage = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Resize if larger than 1920px
+          const maxDimension = 1920;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = (height / width) * maxDimension;
+              width = maxDimension;
+            } else {
+              width = (width / height) * maxDimension;
+              height = maxDimension;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('No se pudo obtener contexto del canvas'));
+            return;
+          }
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Compress to JPEG with 0.8 quality
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          resolve(compressedDataUrl);
+        };
+        img.onerror = () => reject(new Error('Error al cargar imagen'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Error al leer archivo'));
+      reader.readAsDataURL(file);
+    });
+  };
 
   // Get user's reclamos
   const { data: reclamos = [], isLoading: reclamosLoading } = useQuery<ReclamoGeneral[]>({
@@ -217,43 +264,66 @@ export default function ReclamosGeneralesPage() {
     },
     onSuccess: async (reclamo: ReclamoGeneral) => {
       console.log('Reclamo creado con ID:', reclamo.id);
-      // Upload photos if any
-      if (selectedFiles.length > 0) {
-        const uploadPromises = selectedFiles.map(file => {
-          return new Promise<void>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-              try {
-                const photoUrl = reader.result as string;
-                await apiRequest(`/api/reclamos-generales/${reclamo.id}/photos`, {
-                  method: 'POST',
-                  data: {
-                    photoUrl: photoUrl,
-                    description: file.name,
-                  },
-                });
-                resolve();
-              } catch (error) {
-                reject(error);
-              }
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-        });
-        
-        await Promise.all(uploadPromises);
-      }
       
-      queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
-      toast({
-        title: "Reclamo creado",
-        description: "El reclamo ha sido registrado exitosamente.",
-      });
-      resetForm();
-      setShowNewReclamoModal(false);
+      // Upload photos if any (using compressed previews)
+      if (previewUrls.length > 0) {
+        setUploadProgress({ current: 0, total: previewUrls.length });
+        
+        try {
+          // Upload all photos - abort on first failure
+          for (let i = 0; i < previewUrls.length; i++) {
+            await apiRequest(`/api/reclamos-generales/${reclamo.id}/photos`, {
+              method: 'POST',
+              data: {
+                photoUrl: previewUrls[i],
+                description: selectedFiles[i]?.name || `Foto ${i + 1}`,
+              },
+            });
+            setUploadProgress({ current: i + 1, total: previewUrls.length });
+          }
+          
+          // All photos uploaded successfully
+          queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
+          toast({
+            title: "Reclamo creado",
+            description: `El reclamo ha sido registrado exitosamente con ${previewUrls.length} foto(s).`,
+          });
+          resetForm();
+          setShowNewReclamoModal(false);
+          setUploadProgress({ current: 0, total: 0 });
+          
+        } catch (error) {
+          // Photo upload failed - rollback by deleting the reclamo
+          setUploadProgress({ current: 0, total: 0 });
+          console.error('Error uploading photos, rolling back reclamo:', error);
+          
+          try {
+            // Delete the reclamo that was just created
+            await apiRequest(`/api/reclamos-generales/${reclamo.id}`, {
+              method: 'DELETE',
+            });
+            
+            toast({
+              title: "Error al crear reclamo",
+              description: "No se pudieron subir las fotos. Por favor, intente nuevamente.",
+              variant: "destructive",
+            });
+          } catch (deleteError) {
+            console.error('Error deleting reclamo during rollback:', deleteError);
+            toast({
+              title: "Error crítico",
+              description: "Hubo un problema al crear el reclamo. Por favor, contacte al administrador.",
+              variant: "destructive",
+            });
+          }
+          
+          // Invalidate queries to refresh the list
+          queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
+        }
+      }
     },
     onError: (error: any) => {
+      setUploadProgress({ current: 0, total: 0 });
       toast({
         title: "Error",
         description: error.message || "No se pudo crear el reclamo",
@@ -329,9 +399,10 @@ export default function ReclamosGeneralesPage() {
     setSelectedFiles([]);
     setPreviewUrls([]);
     setClientSearchTerm("");
+    setUploadProgress({ current: 0, total: 0 });
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
@@ -343,16 +414,42 @@ export default function ReclamosGeneralesPage() {
       });
     }
     
-    setSelectedFiles(prev => [...prev, ...imageFiles]);
+    if (imageFiles.length === 0) return;
     
-    // Create preview URLs
-    imageFiles.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrls(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
+    // Compress and create preview URLs
+    toast({
+      title: "Procesando imágenes",
+      description: `Comprimiendo ${imageFiles.length} imagen(es)...`,
     });
+    
+    const newFiles: File[] = [];
+    const newPreviews: string[] = [];
+    
+    for (const file of imageFiles) {
+      try {
+        const compressedUrl = await compressImage(file);
+        newFiles.push(file);
+        newPreviews.push(compressedUrl);
+      } catch (error) {
+        console.error('Error comprimiendo imagen:', error);
+        toast({
+          title: "Error",
+          description: `No se pudo procesar ${file.name}. Intente con otra imagen.`,
+          variant: "destructive",
+        });
+      }
+    }
+    
+    // Only add files that were successfully compressed
+    if (newFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...newFiles]);
+      setPreviewUrls(prev => [...prev, ...newPreviews]);
+    }
+    
+    // Clear the file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const removeFile = (index: number) => {
@@ -370,10 +467,20 @@ export default function ReclamosGeneralesPage() {
       return;
     }
     
-    if (selectedFiles.length === 0) {
+    if (previewUrls.length === 0) {
       toast({
         title: "Error",
         description: "Debe adjuntar al menos una foto del reclamo",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Verify all files were compressed successfully
+    if (previewUrls.length !== selectedFiles.length) {
+      toast({
+        title: "Error",
+        description: "Algunas fotos no se procesaron correctamente. Por favor, elimínelas y vuelva a intentar.",
         variant: "destructive",
       });
       return;
@@ -899,7 +1006,13 @@ export default function ReclamosGeneralesPage() {
               {createReclamoMutation.isPending && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
-              Crear Reclamo
+              {uploadProgress.total > 0 ? (
+                `Subiendo foto ${uploadProgress.current}/${uploadProgress.total}...`
+              ) : createReclamoMutation.isPending ? (
+                'Creando reclamo...'
+              ) : (
+                'Crear Reclamo'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

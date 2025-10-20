@@ -7254,10 +7254,39 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Delete reclamo (solo admin y tecnico_obra)
-  app.delete('/api/reclamos-generales/:id', requireAuth, requireRoles(['admin', 'tecnico_obra']), asyncHandler(async (req: any, res: any) => {
+  // Delete reclamo (admin, tecnico_obra, or creator within 5 minutes for rollback)
+  app.delete('/api/reclamos-generales/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      await storage.deleteReclamoGeneral(req.params.id);
+      const user = req.user;
+      const reclamoId = req.params.id;
+      
+      // Admin and tecnico_obra can always delete
+      if (user.role === 'admin' || user.role === 'tecnico_obra') {
+        await storage.deleteReclamoGeneral(reclamoId);
+        return res.status(204).send();
+      }
+      
+      // Creator can delete their own reclamo if it's recent (for rollback purposes)
+      const reclamo = await storage.getReclamoGeneralById(reclamoId);
+      if (!reclamo) {
+        return res.status(404).json({ message: 'Reclamo no encontrado' });
+      }
+      
+      // Check if user is the creator
+      if (reclamo.vendedorId !== user.id) {
+        return res.status(403).json({ message: 'No tiene permiso para eliminar este reclamo' });
+      }
+      
+      // Check if reclamo is recent (within 5 minutes)
+      const createdAt = new Date(reclamo.fechaRegistro || '');
+      const now = new Date();
+      const minutesDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+      
+      if (minutesDiff > 5) {
+        return res.status(403).json({ message: 'Solo puede eliminar reclamos recientes (< 5 minutos)' });
+      }
+      
+      await storage.deleteReclamoGeneral(reclamoId);
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ message: 'Error al eliminar reclamo', error: error.message });
