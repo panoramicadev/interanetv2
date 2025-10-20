@@ -3468,7 +3468,7 @@ export const etlExecutionLog = ventasSchema.table("etl_execution_log", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   executionDate: timestamp("execution_date").notNull().defaultNow(),
   status: varchar("status", { length: 20 }).notNull(), // success, failed, running
-  period: varchar("period", { length: 7 }).notNull(), // Formato: YYYY-MM
+  period: varchar("period", { length: 100 }).notNull(), // Formato: Descripción del período (ej: "2025-10-01 to 2025-10-20")
   documentTypes: text("document_types").notNull(), // FCV,GDV,FVL,NCV
   branches: text("branches").notNull(), // 004,006,007
   recordsProcessed: integer("records_processed"),
