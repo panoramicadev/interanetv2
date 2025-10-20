@@ -860,6 +860,22 @@ export default function ReclamosGeneralesPage() {
                                 <Eye className="h-4 w-4 mr-1" />
                                 Ver Detalle
                               </Button>
+
+                              {user?.role === 'laboratorio' && reclamo.estado === 'en_laboratorio' && !reclamo.informeLaboratorio && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedReclamoId(reclamo.id);
+                                    setShowResolucionLaboratorioModal(true);
+                                  }}
+                                  data-testid={`button-resolucion-laboratorio-${reclamo.id}`}
+                                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
+                                >
+                                  <Upload className="h-4 w-4 mr-1" />
+                                  Resolución Laboratorio
+                                </Button>
+                              )}
                               
                               {reclamo.estado !== 'cerrado' && user?.role === 'tecnico_obra' && (
                                 <Button
