@@ -134,6 +134,26 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                 </Button>
               </Link>
             </>
+          ) : (user?.role === 'produccion' || 
+                user?.role === 'logistica_bodega' || 
+                user?.role === 'planificacion' || 
+                user?.role === 'bodega_materias_primas' || 
+                user?.role === 'prevencion_riesgos') ? (
+            // Roles organizacionales solo ven Reclamos Generales
+            <>
+              <Link href="/reclamos-generales">
+                <Button
+                  variant="ghost"
+                  className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                    location === "/reclamos-generales" ? "bg-slate-800 text-white" : ""
+                  }`}
+                  data-testid="nav-reclamos-generales"
+                >
+                  <AlertTriangle className="w-5 h-5 mr-3" />
+                  Reclamos Generales
+                </Button>
+              </Link>
+            </>
           ) : (
             // Otros roles ven el menú completo
             <>
@@ -326,7 +346,15 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                   {user?.role === 'admin' ? 'Administrador' : 
                    user?.role === 'supervisor' ? 'Supervisor' : 
                    user?.role === 'salesperson' ? 'Vendedor' : 
-                   user?.role === 'tecnico_obra' ? 'Técnico de Obra' : 'Usuario'}
+                   user?.role === 'tecnico_obra' ? 'Técnico de Obra' :
+                   user?.role === 'laboratorio' ? 'Laboratorio' :
+                   user?.role === 'produccion' ? 'Producción' :
+                   user?.role === 'logistica_bodega' ? 'Logística y Bodega' :
+                   user?.role === 'planificacion' ? 'Planificación' :
+                   user?.role === 'bodega_materias_primas' ? 'Bodega Materias Primas' :
+                   user?.role === 'prevencion_riesgos' ? 'Prevención de Riesgos' :
+                   user?.role === 'client' ? 'Cliente' :
+                   user?.role === 'reception' ? 'Recepción' : 'Usuario'}
                 </p>
               </div>
               <Button

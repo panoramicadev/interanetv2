@@ -98,6 +98,13 @@ function Router() {
                   // Los clientes van directamente al ecommerce
                   window.location.replace('/tienda');
                   return null;
+                case 'produccion':
+                case 'logistica_bodega':
+                case 'planificacion':
+                case 'bodega_materias_primas':
+                case 'prevencion_riesgos':
+                  // Roles organizacionales van a Reclamos Generales
+                  return <ReclamosGeneralesPage />;
                 default:
                   return <Dashboard />;
               }
