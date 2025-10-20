@@ -444,4 +444,102 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       ],
     },
   ],
+
+  // Roles organizacionales - Solo acceso a Reclamos Generales
+  produccion: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  logistica_bodega: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  planificacion: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  bodega_materias_primas: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  prevencion_riesgos: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  // Roles de área - Solo acceso a Reclamos Generales
+  area_produccion: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  area_logistica: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  area_aplicacion: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  area_materia_prima: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  area_colores: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  area_envase: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
+
+  area_etiqueta: [
+    {
+      href: "/reclamos-generales",
+      label: "Reclamos",
+      icon: AlertTriangle,
+    },
+  ],
 };
