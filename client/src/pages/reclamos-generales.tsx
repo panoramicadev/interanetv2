@@ -204,10 +204,11 @@ export default function ReclamosGeneralesPage() {
 
   // Get user's reclamos
   const { data: reclamos = [], isLoading: reclamosLoading } = useQuery<ReclamoGeneral[]>({
-    queryKey: ['/api/reclamos-generales', 'vendedorId', user?.id],
+    queryKey: ['/api/reclamos-generales', 'vendedorId', user?.id, 'role', user?.role],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (user?.id) {
+      // Laboratorio debe ver todos los reclamos sin filtrar
+      if (user?.id && user.role !== 'laboratorio') {
         params.append('vendedorId', user.id);
       }
       const url = `/api/reclamos-generales?${params.toString()}`;
@@ -217,7 +218,7 @@ export default function ReclamosGeneralesPage() {
       if (!response.ok) throw new Error('Error al obtener reclamos');
       return response.json();
     },
-    enabled: !!user && (user.role === 'salesperson' || user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra'),
+    enabled: !!user && (user.role === 'salesperson' || user.role === 'admin' || user.role === 'supervisor' || user.role === 'tecnico_obra' || user.role === 'laboratorio'),
   });
 
   // Get reclamo details
