@@ -1169,6 +1169,13 @@ export interface IStorage {
     cumplimiento: number;
     estado: 'cumplido' | 'superado' | 'no_cumplido';
   }>>;
+
+  // ==================================================================================
+  // ETL operations
+  // ==================================================================================
+  
+  getRunningETLExecution(etlName: string): Promise<any | undefined>;
+  cancelETLExecution(executionId: string, cancelledBy: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -11383,6 +11390,37 @@ export class DatabaseStorage implements IStorage {
     );
 
     return resultados;
+  }
+
+  // ==================================================================================
+  // ETL operations implementation
+  // ==================================================================================
+
+  async getRunningETLExecution(etlName: string): Promise<any | undefined> {
+    const result = await db.execute(sql`
+      SELECT id, etl_name, execution_date, status, period, watermark_date
+      FROM ventas.etl_execution_log
+      WHERE etl_name = ${etlName}
+        AND status = 'running'
+      ORDER BY execution_date DESC
+      LIMIT 1
+    `);
+    
+    return result.rows[0];
+  }
+
+  async cancelETLExecution(executionId: string, cancelledBy: string): Promise<void> {
+    const now = new Date();
+    const errorMessage = `Proceso cancelado manualmente por ${cancelledBy} el ${now.toLocaleString('es-CL')}`;
+    
+    await db.execute(sql`
+      UPDATE ventas.etl_execution_log
+      SET 
+        status = 'cancelled',
+        error_message = ${errorMessage},
+        execution_time_ms = EXTRACT(EPOCH FROM (${now.toISOString()}::timestamp - execution_date)) * 1000
+      WHERE id = ${executionId}
+    `);
   }
 
 }
