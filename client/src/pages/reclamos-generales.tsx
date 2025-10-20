@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -83,6 +84,14 @@ const CATEGORIA_RESPONSABLE_OPTIONS = [
   { value: 'etiqueta', label: 'Etiqueta' },
 ];
 
+const VALIDACION_AREA_OPTIONS = [
+  { value: 'materia_prima', label: 'Materia Prima' },
+  { value: 'colores', label: 'Colores' },
+  { value: 'aplicacion', label: 'Aplicación' },
+  { value: 'envase', label: 'Envase' },
+  { value: 'etiqueta', label: 'Etiqueta' },
+];
+
 const ESTADO_LABELS: Record<string, { label: string; color: string; icon: any }> = {
   'registrado': { 
     label: 'Registrado', 
@@ -98,6 +107,16 @@ const ESTADO_LABELS: Record<string, { label: string; color: string; icon: any }>
     label: 'En Laboratorio', 
     color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
     icon: BarChart3
+  },
+  'en_area_responsable': { 
+    label: 'En Área Responsable', 
+    color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+    icon: Building2
+  },
+  'resuelto': { 
+    label: 'Resuelto', 
+    color: 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200',
+    icon: CheckCircle2
   },
   'en_produccion': { 
     label: 'En Producción', 
@@ -122,7 +141,11 @@ export default function ReclamosGeneralesPage() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ url: string; description?: string } | null>(null);
   const [showResolucionViewModal, setShowResolucionViewModal] = useState(false);
+  const [showValidacionTecnicaModal, setShowValidacionTecnicaModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
+  const [validacionProcede, setValidacionProcede] = useState<boolean | null>(null);
+  const [validacionAreaResponsable, setValidacionAreaResponsable] = useState("");
+  const [validacionNotas, setValidacionNotas] = useState("");
   const [informeResolutivo, setInformeResolutivo] = useState("");
   const [informeLaboratorio, setInformeLaboratorio] = useState("");
   const [categoriaResponsable, setCategoriaResponsable] = useState("");
@@ -394,10 +417,10 @@ export default function ReclamosGeneralesPage() {
 
   // Subir resolución del laboratorio con evidencia
   const resolucionLaboratorioMutation = useMutation({
-    mutationFn: async ({ reclamoId, informe, photos }: { reclamoId: string; informe: string; photos: Array<{ photoUrl: string; description?: string }> }) => {
+    mutationFn: async ({ reclamoId, informe, categoriaResponsable, photos }: { reclamoId: string; informe: string; categoriaResponsable?: string; photos: Array<{ photoUrl: string; description?: string }> }) => {
       const response = await apiRequest(`/api/reclamos-generales/${reclamoId}/resolucion-laboratorio`, {
         method: 'POST',
-        data: { informe, photos },
+        data: { informe, categoriaResponsable, photos },
       });
       return await response.json();
     },
@@ -406,6 +429,39 @@ export default function ReclamosGeneralesPage() {
       toast({
         title: "Resolución enviada",
         description: "La resolución del laboratorio ha sido registrada con éxito.",
+      });
+      setShowResolucionLaboratorioModal(false);
+      setInformeLaboratorio("");
+      setCategoriaResponsable("");
+      setResolucionPhotos([]);
+      setResolucionPreviewUrls([]);
+      setResolucionUploadProgress({ current: 0, total: 0 });
+      setSelectedReclamoId(null);
+    },
+    onError: (error) => {
+      setResolucionUploadProgress({ current: 0, total: 0 });
+      toast({
+        title: "Error",
+        description: (error as any)?.message || "No se pudo subir la resolución",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Subir resolución del área responsable con evidencia
+  const resolucionAreaMutation = useMutation({
+    mutationFn: async ({ reclamoId, resolucionDescripcion, photos }: { reclamoId: string; resolucionDescripcion: string; photos: Array<{ photoUrl: string; description?: string }> }) => {
+      const response = await apiRequest(`/api/reclamos-generales/${reclamoId}/resolucion-area`, {
+        method: 'POST',
+        data: { resolucionDescripcion, photos },
+      });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
+      toast({
+        title: "Resolución enviada",
+        description: "La resolución del área responsable ha sido registrada con éxito.",
       });
       setShowResolucionLaboratorioModal(false);
       setInformeLaboratorio("");
@@ -466,6 +522,41 @@ export default function ReclamosGeneralesPage() {
       toast({
         title: "Error",
         description: error.message || "No se pudo eliminar el reclamo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Validar reclamo mutation (solo tecnico_obra)
+  const validarReclamoMutation = useMutation({
+    mutationFn: async ({ reclamoId, procede, areaResponsable, notas }: { 
+      reclamoId: string; 
+      procede: boolean; 
+      areaResponsable?: string; 
+      notas: string;
+    }) => {
+      const response = await apiRequest(`/api/reclamos-generales/${reclamoId}/validacion-tecnica`, {
+        method: 'POST',
+        data: { procede, areaResponsable, notas },
+      });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/reclamos-generales'] });
+      toast({
+        title: "Validación registrada",
+        description: "La validación técnica ha sido registrada exitosamente.",
+      });
+      setShowValidacionTecnicaModal(false);
+      setValidacionProcede(null);
+      setValidacionAreaResponsable("");
+      setValidacionNotas("");
+      setSelectedReclamoId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo registrar la validación",
         variant: "destructive",
       });
     },
@@ -611,7 +702,10 @@ export default function ReclamosGeneralesPage() {
       return;
     }
 
-    if (!categoriaResponsable) {
+    const isAreaRole = user?.role?.startsWith('area_');
+    
+    // Solo validar categoriaResponsable para laboratorio
+    if (user?.role === 'laboratorio' && !categoriaResponsable) {
       toast({
         title: "Error",
         description: "Debe seleccionar el área responsable",
@@ -634,15 +728,25 @@ export default function ReclamosGeneralesPage() {
     // Prepare photos array
     const photos = resolucionPreviewUrls.map(photoUrl => ({
       photoUrl,
-      description: "Evidencia de resolución del laboratorio"
+      description: isAreaRole ? "Evidencia de resolución del área responsable" : "Evidencia de resolución del laboratorio"
     }));
 
-    resolucionLaboratorioMutation.mutate({
-      reclamoId: selectedReclamoId,
-      informe: informeLaboratorio,
-      categoriaResponsable,
-      photos
-    });
+    if (isAreaRole) {
+      // Usar el endpoint de área responsable
+      resolucionAreaMutation.mutate({
+        reclamoId: selectedReclamoId,
+        resolucionDescripcion: informeLaboratorio,
+        photos
+      });
+    } else {
+      // Usar el endpoint de laboratorio
+      resolucionLaboratorioMutation.mutate({
+        reclamoId: selectedReclamoId,
+        informe: informeLaboratorio,
+        categoriaResponsable,
+        photos
+      });
+    }
   };
 
   const handleSubmit = () => {
@@ -904,8 +1008,26 @@ export default function ReclamosGeneralesPage() {
                                 Ver Detalle
                               </Button>
 
-                              {/* Botón de Resolución para Laboratorio */}
-                              {user?.role === 'laboratorio' && reclamo.estado === 'en_laboratorio' && (
+                              {/* Botón de Validación Técnica para Técnico */}
+                              {user?.role === 'tecnico_obra' && reclamo.estado === 'registrado' && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedReclamoId(reclamo.id);
+                                    setShowValidacionTecnicaModal(true);
+                                  }}
+                                  data-testid={`button-validar-reclamo-${reclamo.id}`}
+                                  className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700"
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  Validar Reclamo
+                                </Button>
+                              )}
+
+                              {/* Botón de Resolución para Laboratorio y Áreas Responsables */}
+                              {((user?.role === 'laboratorio' && reclamo.estado === 'en_laboratorio') || 
+                                (user?.role?.startsWith('area_') && reclamo.estado === 'en_area_responsable')) && (
                                 <Button
                                   variant="default"
                                   size="sm"
@@ -1261,8 +1383,9 @@ export default function ReclamosGeneralesPage() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Detalle del Reclamo</DialogTitle>
-            {/* Botón para laboratorio debajo del título */}
-            {user?.role === 'laboratorio' && reclamoDetails && reclamoDetails.estado === 'en_laboratorio' && (
+            {/* Botón para laboratorio y áreas responsables debajo del título */}
+            {((user?.role === 'laboratorio' && reclamoDetails && reclamoDetails.estado === 'en_laboratorio') ||
+              (user?.role?.startsWith('area_') && reclamoDetails && reclamoDetails.estado === 'en_area_responsable')) && (
               <Button
                 onClick={() => {
                   if (reclamoDetails.informeLaboratorio) {
@@ -1280,12 +1403,12 @@ export default function ReclamosGeneralesPage() {
                 {reclamoDetails.informeLaboratorio ? (
                   <>
                     <Eye className="h-4 w-4 mr-2" />
-                    Ver Resolución del Laboratorio
+                    Ver Resolución {user?.role === 'laboratorio' ? 'del Laboratorio' : 'del Área Responsable'}
                   </>
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Subir Resolución del Laboratorio
+                    Subir Resolución {user?.role === 'laboratorio' ? 'del Laboratorio' : 'del Área Responsable'}
                   </>
                 )}
               </Button>
@@ -1521,7 +1644,9 @@ export default function ReclamosGeneralesPage() {
       <Dialog open={showResolucionLaboratorioModal} onOpenChange={setShowResolucionLaboratorioModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
-            <DialogTitle>Resolución del Laboratorio</DialogTitle>
+            <DialogTitle>
+              {user?.role === 'laboratorio' ? 'Resolución del Laboratorio' : 'Resolución del Área Responsable'}
+            </DialogTitle>
             <DialogDescription>
               Ingrese el informe de resolución y adjunte fotos de evidencia
             </DialogDescription>
@@ -1542,26 +1667,28 @@ export default function ReclamosGeneralesPage() {
               />
             </div>
 
-            {/* Área Responsable */}
-            <div>
-              <Label htmlFor="categoria-responsable">Área Responsable <span className="text-red-500">*</span></Label>
-              <p className="text-sm text-muted-foreground mb-2">
-                Seleccione el área responsable del reclamo según el análisis realizado
-              </p>
-              <Select 
-                value={categoriaResponsable} 
-                onValueChange={setCategoriaResponsable}
-              >
-                <SelectTrigger data-testid="select-categoria-responsable" className="mt-2">
-                  <SelectValue placeholder="Seleccione un área..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIA_RESPONSABLE_OPTIONS.map(({ value, label }) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Área Responsable - Solo para laboratorio */}
+            {user?.role === 'laboratorio' && (
+              <div>
+                <Label htmlFor="categoria-responsable">Área Responsable <span className="text-red-500">*</span></Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Seleccione el área responsable del reclamo según el análisis realizado
+                </p>
+                <Select 
+                  value={categoriaResponsable} 
+                  onValueChange={setCategoriaResponsable}
+                >
+                  <SelectTrigger data-testid="select-categoria-responsable" className="mt-2">
+                    <SelectValue placeholder="Seleccione un área..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIA_RESPONSABLE_OPTIONS.map(({ value, label }) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Evidencia fotográfica */}
             <div>
@@ -1641,15 +1768,15 @@ export default function ReclamosGeneralesPage() {
             </Button>
             <Button
               onClick={handleSubmitResolucion}
-              disabled={resolucionLaboratorioMutation.isPending}
+              disabled={resolucionLaboratorioMutation.isPending || resolucionAreaMutation.isPending}
               data-testid="button-submit-resolucion"
             >
-              {resolucionLaboratorioMutation.isPending && (
+              {(resolucionLaboratorioMutation.isPending || resolucionAreaMutation.isPending) && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               {resolucionUploadProgress.total > 0 ? (
                 `Subiendo foto ${resolucionUploadProgress.current}/${resolucionUploadProgress.total}...`
-              ) : resolucionLaboratorioMutation.isPending ? (
+              ) : (resolucionLaboratorioMutation.isPending || resolucionAreaMutation.isPending) ? (
                 'Enviando resolución...'
               ) : (
                 'Enviar Resolución'
@@ -1776,6 +1903,148 @@ export default function ReclamosGeneralesPage() {
               data-testid="button-close-resolucion-view"
             >
               Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Validación Técnica */}
+      <Dialog open={showValidacionTecnicaModal} onOpenChange={setShowValidacionTecnicaModal}>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Validación Técnica</DialogTitle>
+            <DialogDescription>
+              Indique si el reclamo procede y proporcione detalles
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Radio buttons para ¿Procede? */}
+            <div className="space-y-3">
+              <Label>¿Procede? <span className="text-red-500">*</span></Label>
+              <RadioGroup 
+                value={validacionProcede === null ? undefined : validacionProcede ? "si" : "no"}
+                onValueChange={(value) => {
+                  setValidacionProcede(value === "si");
+                  if (value === "no") {
+                    setValidacionAreaResponsable("");
+                  }
+                }}
+                data-testid="radio-group-procede"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="si" id="procede-si" data-testid="radio-procede-si" />
+                  <Label htmlFor="procede-si" className="cursor-pointer">Sí</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="no" id="procede-no" data-testid="radio-procede-no" />
+                  <Label htmlFor="procede-no" className="cursor-pointer">No</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Select para área responsable (solo si procede=true) */}
+            {validacionProcede === true && (
+              <div className="space-y-2">
+                <Label htmlFor="area-responsable">Área Responsable <span className="text-red-500">*</span></Label>
+                <Select 
+                  value={validacionAreaResponsable} 
+                  onValueChange={setValidacionAreaResponsable}
+                >
+                  <SelectTrigger data-testid="select-area-responsable">
+                    <SelectValue placeholder="Seleccione el área responsable" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VALIDACION_AREA_OPTIONS.map(({ value, label }) => (
+                      <SelectItem key={value} value={value} data-testid={`option-area-${value}`}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Textarea para notas */}
+            <div className="space-y-2">
+              <Label htmlFor="validacion-notas">Notas <span className="text-red-500">*</span></Label>
+              <Textarea
+                id="validacion-notas"
+                placeholder="Ingrese observaciones sobre la validación..."
+                value={validacionNotas}
+                onChange={(e) => setValidacionNotas(e.target.value)}
+                rows={4}
+                data-testid="textarea-validacion-notas"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowValidacionTecnicaModal(false);
+                setValidacionProcede(null);
+                setValidacionAreaResponsable("");
+                setValidacionNotas("");
+                setSelectedReclamoId(null);
+              }}
+              data-testid="button-cancel-validacion"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (validacionProcede === null) {
+                  toast({
+                    title: "Error",
+                    description: "Debe indicar si el reclamo procede o no",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                if (validacionProcede && !validacionAreaResponsable) {
+                  toast({
+                    title: "Error",
+                    description: "Debe seleccionar el área responsable cuando el reclamo procede",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                if (!validacionNotas.trim()) {
+                  toast({
+                    title: "Error",
+                    description: "Debe ingresar notas sobre la validación",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                if (selectedReclamoId) {
+                  validarReclamoMutation.mutate({
+                    reclamoId: selectedReclamoId,
+                    procede: validacionProcede,
+                    areaResponsable: validacionProcede ? validacionAreaResponsable : undefined,
+                    notas: validacionNotas,
+                  });
+                }
+              }}
+              disabled={validarReclamoMutation.isPending}
+              data-testid="button-submit-validacion"
+            >
+              {validarReclamoMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Validando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Validar
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

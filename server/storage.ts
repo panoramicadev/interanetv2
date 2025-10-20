@@ -1004,9 +1004,12 @@ export interface IStorage {
   updateInformeProduccion(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   updateInformeTecnico(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   
-  // Resolución laboratorio con evidencia
+  // Resolución laboratorio con evidencia (DEPRECATED - usar updateResolucionArea)
   updateResolucionLaboratorio(id: string, informe: string, categoriaResponsable: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string): Promise<ReclamoGeneral | null>;
   getReclamoGeneralResolucionPhotos(reclamoId: string): Promise<any[]>;
+  
+  // Resolución genérica para cualquier área responsable
+  updateResolucionArea(id: string, resolucionDescripcion: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string, userRole: string): Promise<ReclamoGeneral | null>;
   
   // Cerrar reclamo
   cerrarReclamoGeneral(id: string, userId: string, userName: string, notas?: string): Promise<ReclamoGeneral>;
@@ -10356,6 +10359,78 @@ export class DatabaseStorage implements IStorage {
       .from(reclamosGeneralesResolucionPhotos)
       .where(eq(reclamosGeneralesResolucionPhotos.reclamoId, reclamoId))
       .orderBy(desc(reclamosGeneralesResolucionPhotos.uploadedAt));
+  }
+
+  // Update resolución genérica para cualquier área responsable
+  async updateResolucionArea(
+    id: string,
+    resolucionDescripcion: string,
+    photos: Array<{ photoUrl: string; description?: string }>,
+    userId: string,
+    userName: string,
+    userRole: string
+  ): Promise<ReclamoGeneral | null> {
+    const reclamo = await this.getReclamoGeneralById(id);
+    
+    if (!reclamo) {
+      throw new Error('Reclamo not found');
+    }
+    
+    // Verificar que el reclamo está en estado "en_area_responsable"
+    if (reclamo.estado !== 'en_area_responsable') {
+      throw new Error('El reclamo no está en estado "En Área Responsable"');
+    }
+    
+    // Extraer área del rol (ej: area_materia_prima -> materia_prima, laboratorio -> laboratorio)
+    const areaUsuario = userRole.startsWith('area_') ? userRole.replace('area_', '') : userRole;
+    
+    // Verificar que el área del usuario coincide con el área responsable del reclamo
+    if (reclamo.areaResponsableActual !== areaUsuario) {
+      throw new Error('No tiene permisos para resolver este reclamo');
+    }
+    
+    // Actualización condicional para prevenir race conditions
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        resolucionDescripcion,
+        resolucionUsuarioId: userId,
+        resolucionUsuarioName: userName,
+        fechaResolucion: new Date(),
+        estado: 'resuelto',
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(reclamosGenerales.id, id),
+        isNull(reclamosGenerales.resolucionDescripcion) // Solo actualizar si no tiene resolución previa
+      ))
+      .returning();
+    
+    // Si no se actualizó ninguna fila, retornar null
+    if (!updated) {
+      return null;
+    }
+    
+    // Crear las fotos de evidencia
+    for (const photo of photos) {
+      await db.insert(reclamosGeneralesResolucionPhotos).values({
+        reclamoId: id,
+        photoUrl: photo.photoUrl,
+        description: photo.description,
+      });
+    }
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: reclamo.estado,
+      estadoNuevo: 'resuelto',
+      userId,
+      userName,
+      notas: `Resolución agregada por ${areaUsuario} con ${photos.length} foto(s) de evidencia`,
+    });
+    
+    return updated;
   }
 
   // Cerrar reclamo
