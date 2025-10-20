@@ -60,6 +60,26 @@ interface ReclamoWithDetails extends ReclamoGeneral {
   }>;
 }
 
+const MOTIVO_OPTIONS = [
+  { value: 'defecto_materia_prima', label: 'Defecto en materia prima', area: 'materia_prima' },
+  { value: 'variacion_color', label: 'Variación de color', area: 'colores_variacion' },
+  { value: 'problema_aplicacion', label: 'Problema de aplicación', area: 'aplicacion' },
+  { value: 'rendimiento_bajo', label: 'Rendimiento bajo', area: 'aplicacion' },
+  { value: 'envase_defectuoso', label: 'Envase defectuoso', area: 'envase' },
+  { value: 'tapa_rota', label: 'Tapa rota o mal sellada', area: 'envase' },
+  { value: 'etiqueta_incorrecta', label: 'Etiqueta incorrecta', area: 'etiqueta' },
+  { value: 'etiqueta_despegada', label: 'Etiqueta despegada', area: 'etiqueta' },
+  { value: 'otro', label: 'Otro motivo', area: null },
+];
+
+const AREA_ASIGNADA_OPTIONS = [
+  { value: 'materia_prima', label: 'Materia Prima' },
+  { value: 'colores_variacion', label: 'Colores/Variación' },
+  { value: 'aplicacion', label: 'Aplicación' },
+  { value: 'envase', label: 'Envase' },
+  { value: 'etiqueta', label: 'Etiqueta' },
+];
+
 const GRAVEDAD_OPTIONS = [
   { value: 'baja', label: 'Baja', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
   { value: 'media', label: 'Media', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
@@ -170,6 +190,8 @@ export default function ReclamosGeneralesPage() {
     productName: '',
     productSku: '',
     lote: '',
+    motivo: '',
+    areaAsignadaInicial: '',
     description: '',
     gravedad: 'media',
   });
@@ -575,6 +597,8 @@ export default function ReclamosGeneralesPage() {
       productName: '',
       productSku: '',
       lote: '',
+      motivo: '',
+      areaAsignadaInicial: '',
       description: '',
       gravedad: 'media',
     });
@@ -753,7 +777,7 @@ export default function ReclamosGeneralesPage() {
   };
 
   const handleSubmit = () => {
-    if (!formData.clientName || !formData.productName || !formData.description) {
+    if (!formData.clientName || !formData.productName || !formData.motivo || !formData.areaAsignadaInicial || !formData.description) {
       toast({
         title: "Error",
         description: "Por favor complete todos los campos requeridos",
@@ -790,6 +814,8 @@ export default function ReclamosGeneralesPage() {
       productName: formData.productName,
       productSku: formData.productSku || null,
       lote: formData.lote || null,
+      motivo: formData.motivo,
+      areaAsignadaInicial: formData.areaAsignadaInicial,
       description: formData.description,
       gravedad: formData.gravedad,
       estado: 'registrado',
@@ -1394,6 +1420,50 @@ export default function ReclamosGeneralesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {GRAVEDAD_OPTIONS.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Motivo */}
+            <div className="space-y-2">
+              <Label htmlFor="motivo">Motivo del Reclamo <span className="text-red-500">*</span></Label>
+              <Select 
+                value={formData.motivo} 
+                onValueChange={(value) => {
+                  setFormData(prev => ({ ...prev, motivo: value }));
+                  const selectedMotivo = MOTIVO_OPTIONS.find(m => m.value === value);
+                  if (selectedMotivo?.area) {
+                    setFormData(prev => ({ ...prev, areaAsignadaInicial: selectedMotivo.area || '' }));
+                  } else {
+                    setFormData(prev => ({ ...prev, areaAsignadaInicial: '' }));
+                  }
+                }}
+              >
+                <SelectTrigger data-testid="select-motivo">
+                  <SelectValue placeholder="Seleccione el motivo del reclamo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MOTIVO_OPTIONS.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Área Asignada Inicial */}
+            <div className="space-y-2">
+              <Label htmlFor="areaAsignadaInicial">Área Responsable Inicial <span className="text-red-500">*</span></Label>
+              <Select 
+                value={formData.areaAsignadaInicial} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, areaAsignadaInicial: value }))}
+              >
+                <SelectTrigger data-testid="select-area-asignada-inicial">
+                  <SelectValue placeholder="Seleccione el área responsable" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AREA_ASIGNADA_OPTIONS.map(({ value, label }) => (
                     <SelectItem key={value} value={value}>{label}</SelectItem>
                   ))}
                 </SelectContent>
