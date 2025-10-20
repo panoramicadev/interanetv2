@@ -1131,7 +1131,7 @@ export const insertSalespersonUserSchema = createInsertSchema(salespeopleUsers, 
   username: z.string().min(2, "Usuario debe tener al menos 2 caracteres").optional().or(z.literal("")),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().or(z.literal("")),
-  role: z.enum(["admin", "supervisor", "salesperson", "tecnico_obra", "client", "reception"]).default("salesperson"),
+  role: z.enum(["admin", "supervisor", "salesperson", "tecnico_obra", "client", "reception", "laboratorio"]).default("salesperson"),
   supervisorId: z.string().optional().nullable(),
   assignedSegment: z.string().optional().nullable(),
 }).omit({
