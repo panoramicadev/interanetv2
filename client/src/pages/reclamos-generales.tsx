@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -131,6 +131,7 @@ export default function ReclamosGeneralesPage() {
   });
   
   const [clientSearchTerm, setClientSearchTerm] = useState("");
+  const [debouncedClientSearchTerm, setDebouncedClientSearchTerm] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
   
@@ -138,6 +139,15 @@ export default function ReclamosGeneralesPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Debounce client search term (same as tomador-pedidos)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedClientSearchTerm(clientSearchTerm);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [clientSearchTerm]);
 
   // Get user's reclamos
   const { data: reclamos = [], isLoading: reclamosLoading } = useQuery<ReclamoGeneral[]>({
@@ -170,12 +180,30 @@ export default function ReclamosGeneralesPage() {
     enabled: !!selectedReclamoId && typeof selectedReclamoId === 'string',
   });
 
-  // Get clients for dropdown
-  const { data: clientsData, isLoading: clientsLoading } = useQuery<{clients: Client[]}>({
-    queryKey: ['/api/clients'],
-    enabled: showNewReclamoModal,
+  // Get clients for dropdown (same structure as tomador-pedidos)
+  const { data: clientsData, isLoading: clientsLoading } = useQuery({
+    queryKey: ['/api/clients', { search: debouncedClientSearchTerm }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (debouncedClientSearchTerm) params.set('search', debouncedClientSearchTerm);
+      params.set('limit', '50'); // Limit results for performance
+      params.set('offset', '0'); // Always start from first page
+      
+      const response = await fetch(`/api/clients?${params}`, { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error('Failed to fetch clients');
+      }
+      return response.json() as Promise<{
+        clients: Client[];
+        totalCount: number;
+        currentPage: number;
+        totalPages: number;
+      }>;
+    },
+    enabled: debouncedClientSearchTerm.length >= 2, // Only search when user has typed at least 2 characters
   });
   
+  // Extract clients array from response (same as tomador-pedidos)
   const clients = clientsData?.clients || [];
 
   // Create reclamo mutation
@@ -342,11 +370,6 @@ export default function ReclamosGeneralesPage() {
       estado: 'registrado',
     });
   };
-
-  const filteredClients = clients.filter(client => 
-    client.koen.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-    client.nokoen.toLowerCase().includes(clientSearchTerm.toLowerCase())
-  );
 
   const filteredReclamos = reclamos.filter(reclamo => {
     const matchesSearch = reclamo.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -666,10 +689,10 @@ export default function ReclamosGeneralesPage() {
                   onFocus={() => setShowClientDropdown(true)}
                   data-testid="input-cliente"
                 />
-                {showClientDropdown && filteredClients.length > 0 && (
+                {showClientDropdown && clients.length > 0 && (
                   <Card className="absolute z-10 w-full mt-1 max-h-60 overflow-auto">
                     <CardContent className="p-2">
-                      {filteredClients.map((client) => (
+                      {clients.map((client) => (
                         <div
                           key={client.id}
                           className="p-2 hover:bg-accent cursor-pointer rounded"
