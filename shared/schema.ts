@@ -2947,6 +2947,7 @@ export const notifications = pgTable("notifications", {
   relatedOrderId: varchar("related_order_id"), // FK to ecommerce_orders.id
   relatedQuoteId: varchar("related_quote_id"), // FK to quotes.id
   relatedTaskId: varchar("related_task_id"), // FK to tasks.id
+  relatedReclamoId: varchar("related_reclamo_id"), // FK to reclamos_generales.id
   
   // Notification state
   read: boolean("read").default(false),

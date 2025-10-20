@@ -800,7 +800,8 @@ export default function ReclamosGeneralesPage() {
       return;
     }
 
-    const isAreaRole = user?.role?.startsWith('area_');
+    // Verificar si es un rol de área o rol organizacional
+    const isAreaRole = user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role));
     
     // Solo validar categoriaResponsable para laboratorio
     if (user?.role === 'laboratorio' && !categoriaResponsable) {
