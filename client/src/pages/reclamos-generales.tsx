@@ -1262,17 +1262,32 @@ export default function ReclamosGeneralesPage() {
           <DialogHeader>
             <DialogTitle>Detalle del Reclamo</DialogTitle>
             {/* Botón para laboratorio debajo del título */}
-            {user?.role === 'laboratorio' && reclamoDetails && reclamoDetails.estado === 'en_laboratorio' && !reclamoDetails.informeLaboratorio && (
+            {user?.role === 'laboratorio' && reclamoDetails && reclamoDetails.estado === 'en_laboratorio' && (
               <Button
                 onClick={() => {
-                  setShowDetailModal(false);
-                  setShowResolucionLaboratorioModal(true);
+                  if (reclamoDetails.informeLaboratorio) {
+                    // Si ya tiene resolución, abrir el modal de visualización
+                    setShowResolucionViewModal(true);
+                  } else {
+                    // Si no tiene resolución, abrir el modal de carga
+                    setShowDetailModal(false);
+                    setShowResolucionLaboratorioModal(true);
+                  }
                 }}
-                className="mt-2 w-full"
-                data-testid="button-subir-resolucion"
+                className={`mt-2 w-full ${reclamoDetails.informeLaboratorio ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                data-testid="button-resolucion-laboratorio-modal"
               >
-                <Upload className="h-4 w-4 mr-2" />
-                Subir Resolución del Laboratorio
+                {reclamoDetails.informeLaboratorio ? (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Ver Resolución del Laboratorio
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Subir Resolución del Laboratorio
+                  </>
+                )}
               </Button>
             )}
           </DialogHeader>
