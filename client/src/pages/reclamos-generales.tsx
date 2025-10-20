@@ -34,7 +34,9 @@ import {
   Trash2,
   Eye,
   AlertCircle,
-  Building2
+  Building2,
+  List,
+  XCircle
 } from "lucide-react";
 import type { ReclamoGeneral, ReclamoGeneralPhoto } from "@shared/schema";
 import { format } from "date-fns";
@@ -134,6 +136,7 @@ export default function ReclamosGeneralesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("mis-reclamos");
+  const [filterTab, setFilterTab] = useState("todos");
   const [showNewReclamoModal, setShowNewReclamoModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCerrarModal, setShowCerrarModal] = useState(false);
@@ -793,12 +796,131 @@ export default function ReclamosGeneralesPage() {
     });
   };
 
+  // Get user's area from role (e.g., area_materia_prima -> materia_prima)
+  const getUserArea = () => {
+    if (user?.role?.startsWith('area_')) {
+      return user.role.replace('area_', '');
+    }
+    return null;
+  };
+
+  // Get available tabs based on user role
+  const getAvailableTabs = () => {
+    const tabs = [
+      { value: 'todos', label: 'Todos', icon: List },
+      { value: 'mis-reclamos', label: 'Mis Reclamos', icon: User },
+    ];
+
+    // Add "Pendientes Validación" only for tecnico_obra
+    if (user?.role === 'tecnico_obra') {
+      tabs.push({ value: 'pendientes-validacion', label: 'Pendientes Validación', icon: Clock });
+    }
+
+    // Add "Asignados a Mi Área" for area_* and laboratorio roles
+    if (user?.role === 'laboratorio' || user?.role?.startsWith('area_')) {
+      tabs.push({ value: 'asignados-area', label: 'Asignados a Mi Área', icon: Building2 });
+    }
+
+    tabs.push(
+      { value: 'resueltos', label: 'Resueltos', icon: CheckCircle2 },
+      { value: 'cerrados', label: 'Cerrados', icon: XCircle }
+    );
+
+    return tabs;
+  };
+
+  // Filter reclamos based on selected tab
+  const filterByTab = (reclamos: ReclamoGeneral[]) => {
+    switch (filterTab) {
+      case 'todos':
+        return reclamos;
+      
+      case 'mis-reclamos':
+        return reclamos.filter(r => r.creadorId === user?.id);
+      
+      case 'pendientes-validacion':
+        // Only for tecnico_obra: reclamos in "registrado" state
+        return reclamos.filter(r => r.estado === 'registrado');
+      
+      case 'asignados-area':
+        if (user?.role === 'laboratorio') {
+          // Laboratorio: reclamos in "en_laboratorio" state
+          return reclamos.filter(r => r.estado === 'en_laboratorio');
+        } else if (user?.role?.startsWith('area_')) {
+          // Area roles: reclamos where areaResponsableActual matches and estado === "en_area_responsable"
+          const userArea = getUserArea();
+          return reclamos.filter(r => 
+            r.areaResponsableActual === userArea && r.estado === 'en_area_responsable'
+          );
+        }
+        return [];
+      
+      case 'resueltos':
+        return reclamos.filter(r => r.estado === 'resuelto');
+      
+      case 'cerrados':
+        return reclamos.filter(r => r.estado === 'cerrado');
+      
+      default:
+        return reclamos;
+    }
+  };
+
+  // Get count for a specific tab
+  const getTabCount = (tabValue: string) => {
+    const filterBySpecificTab = (reclamos: ReclamoGeneral[], tab: string) => {
+      switch (tab) {
+        case 'todos':
+          return reclamos;
+        
+        case 'mis-reclamos':
+          return reclamos.filter(r => r.creadorId === user?.id);
+        
+        case 'pendientes-validacion':
+          return reclamos.filter(r => r.estado === 'registrado');
+        
+        case 'asignados-area':
+          if (user?.role === 'laboratorio') {
+            return reclamos.filter(r => r.estado === 'en_laboratorio');
+          } else if (user?.role?.startsWith('area_')) {
+            const userArea = getUserArea();
+            return reclamos.filter(r => 
+              r.areaResponsableActual === userArea && r.estado === 'en_area_responsable'
+            );
+          }
+          return [];
+        
+        case 'resueltos':
+          return reclamos.filter(r => r.estado === 'resuelto');
+        
+        case 'cerrados':
+          return reclamos.filter(r => r.estado === 'cerrado');
+        
+        default:
+          return reclamos;
+      }
+    };
+
+    return filterBySpecificTab(reclamos.filter(reclamo => {
+      const matchesSearch = reclamo.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        reclamo.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesEstado = filterEstado === 'all' || reclamo.estado === filterEstado;
+      const matchesGravedad = filterGravedad === 'all' || reclamo.gravedad === filterGravedad;
+      return matchesSearch && matchesEstado && matchesGravedad;
+    }), tabValue).length;
+  };
+
   const filteredReclamos = reclamos.filter(reclamo => {
+    // Apply tab-based filtering first
+    const tabFiltered = filterByTab([reclamo]).length > 0;
+    
+    // Apply search and other filters
     const matchesSearch = reclamo.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       reclamo.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesEstado = filterEstado === 'all' || reclamo.estado === filterEstado;
     const matchesGravedad = filterGravedad === 'all' || reclamo.gravedad === filterGravedad;
-    return matchesSearch && matchesEstado && matchesGravedad;
+    
+    return tabFiltered && matchesSearch && matchesEstado && matchesGravedad;
   });
 
   const getDaysSinceRegistro = (fecha: string) => {
@@ -917,6 +1039,40 @@ export default function ReclamosGeneralesPage() {
                   </Select>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Filter Tabs */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Vista</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Tabs value={filterTab} onValueChange={setFilterTab} className="w-full">
+                <TabsList className="w-full flex-wrap h-auto gap-2 bg-muted/50 p-2">
+                  {getAvailableTabs().map((tab) => {
+                    const Icon = tab.icon;
+                    const count = getTabCount(tab.value);
+                    return (
+                      <TabsTrigger
+                        key={tab.value}
+                        value={tab.value}
+                        data-testid={`tab-filter-${tab.value}`}
+                        className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{tab.label}</span>
+                        <Badge 
+                          variant="secondary" 
+                          className="ml-1 bg-background/80 text-foreground data-[state=active]:bg-primary-foreground/20"
+                        >
+                          {count}
+                        </Badge>
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </Tabs>
             </CardContent>
           </Card>
 
