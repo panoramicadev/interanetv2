@@ -113,9 +113,9 @@ export async function executeIncrementalETL(): Promise<ETLResult> {
       FROM dbo.MAEEDO
       WHERE TIDO IN (${tiposDoc.map(t => `'${t}'`).join(',')})
         AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-        AND YEAR(FEEMLI) >= 2022
+        AND YEAR(FEEMDO) >= 2022
         AND FEER >= '${lastWatermark.toISOString().split('T')[0]}'
-      ORDER BY FEEMLI
+      ORDER BY FEEMDO
     `);
     
     if (maeedo.recordset.length === 0) {
@@ -146,14 +146,22 @@ export async function executeIncrementalETL(): Promise<ETLResult> {
     for (const row of maeedo.recordset) {
       await db.insert(stgMaeedo).values({
         idmaeedo: cleanNumeric(row.IDMAEEDO),
+        empresa: row.EMPRESA?.trim() || null,
         tido: row.TIDO?.trim() || null,
         nudo: row.NUDO?.trim() || null,
-        feemli: row.FEEMLI || null,
         endo: row.ENDO?.trim() || null,
         suendo: row.SUENDO?.trim() || null,
+        endofi: row.ENDOFI?.trim() || null,
+        tigedo: row.TIGEDO?.trim() || null,
+        sudo: row.SUDO?.trim() || null,
+        luvtdo: row.LUVTDO?.trim() || null,
+        feemdo: row.FEEMDO || null,
+        kofudo: row.KOFUDO?.trim() || null,
+        esdo: row.ESDO?.trim() || null,
+        espgdo: row.ESPGDO?.trim() || null,
         suli: row.SULI?.trim() || null,
         bosulido: row.BOSULIDO?.trim() || null,
-        kofudo: row.KOFUDO?.trim() || null,
+        feer: row.FEER || null,
         vanedo: cleanNumeric(row.VANEDO),
         vaivdo: cleanNumeric(row.VAIVDO),
         vabrdo: cleanNumeric(row.VABRDO),
