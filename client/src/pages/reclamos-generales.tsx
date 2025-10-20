@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -36,7 +37,10 @@ import {
   AlertCircle,
   Building2,
   List,
-  XCircle
+  XCircle,
+  MoreVertical,
+  Edit,
+  CheckCheck
 } from "lucide-react";
 import type { ReclamoGeneral, ReclamoGeneralPhoto } from "@shared/schema";
 import { format } from "date-fns";
@@ -1265,137 +1269,123 @@ export default function ReclamosGeneralesPage() {
                                 Ver Detalle
                               </Button>
 
-                              {/* Botones de Edición y Validación Técnica para Técnico */}
-                              {user?.role === 'tecnico_obra' && reclamo.estado === 'registrado' && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSelectedReclamoId(reclamo.id);
-                                      setIsEditMode(true);
-                                      setFormData({
-                                        clientName: reclamo.clientName,
-                                        clientRut: reclamo.clientRut || '',
-                                        clientEmail: reclamo.clientEmail || '',
-                                        clientPhone: reclamo.clientPhone || '',
-                                        clientAddress: reclamo.clientAddress || '',
-                                        productName: reclamo.productName,
-                                        productSku: reclamo.productSku || '',
-                                        lote: reclamo.lote || '',
-                                        motivo: reclamo.motivo || '',
-                                        areaAsignadaInicial: reclamo.areaAsignadaInicial || '',
-                                        description: reclamo.description,
-                                        gravedad: reclamo.gravedad,
-                                      });
-                                      setShowNewReclamoModal(true);
-                                    }}
-                                    data-testid={`button-edit-reclamo-${reclamo.id}`}
-                                    className="w-full sm:w-auto"
-                                  >
-                                    <FileText className="h-4 w-4 mr-1" />
-                                    Editar
+                              {/* Menú desplegable de acciones */}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" data-testid={`button-actions-${reclamo.id}`}>
+                                    <MoreVertical className="h-4 w-4" />
                                   </Button>
-                                  <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={() => {
-                                      setSelectedReclamoId(reclamo.id);
-                                      setShowValidacionTecnicaModal(true);
-                                    }}
-                                    data-testid={`button-validar-reclamo-${reclamo.id}`}
-                                    className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700"
-                                  >
-                                    <CheckCircle2 className="h-4 w-4 mr-1" />
-                                    Validar
-                                  </Button>
-                                </>
-                              )}
-
-                              {/* Botón de Resolución para Laboratorio y Áreas Responsables */}
-                              {((user?.role === 'laboratorio' && reclamo.estado === 'en_laboratorio') || 
-                                (user?.role?.startsWith('area_') && reclamo.estado === 'en_area_responsable')) && (
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedReclamoId(reclamo.id);
-                                    if (reclamo.informeLaboratorio) {
-                                      setShowDetailModal(true);
-                                      setTimeout(() => setShowResolucionViewModal(true), 300);
-                                    } else {
-                                      setShowResolucionLaboratorioModal(true);
-                                    }
-                                  }}
-                                  data-testid={`button-resolucion-laboratorio-${reclamo.id}`}
-                                  className={`w-full sm:w-auto ${reclamo.informeLaboratorio ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                                >
-                                  {reclamo.informeLaboratorio ? (
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  {/* Opciones para Técnico de Obra */}
+                                  {user?.role === 'tecnico_obra' && reclamo.estado === 'registrado' && (
                                     <>
-                                      <Eye className="h-4 w-4 mr-1" />
-                                      Ver Resolución
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Upload className="h-4 w-4 mr-1" />
-                                      Subir Resolución
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setSelectedReclamoId(reclamo.id);
+                                          setIsEditMode(true);
+                                          setFormData({
+                                            clientName: reclamo.clientName,
+                                            clientRut: reclamo.clientRut || '',
+                                            clientEmail: reclamo.clientEmail || '',
+                                            clientPhone: reclamo.clientPhone || '',
+                                            clientAddress: reclamo.clientAddress || '',
+                                            productName: reclamo.productName,
+                                            productSku: reclamo.productSku || '',
+                                            lote: reclamo.lote || '',
+                                            motivo: reclamo.motivo || '',
+                                            areaAsignadaInicial: reclamo.areaAsignadaInicial || '',
+                                            description: reclamo.description,
+                                            gravedad: reclamo.gravedad,
+                                          });
+                                          setShowNewReclamoModal(true);
+                                        }}
+                                        data-testid={`menu-edit-reclamo-${reclamo.id}`}
+                                      >
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Editar
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setSelectedReclamoId(reclamo.id);
+                                          setShowValidacionTecnicaModal(true);
+                                        }}
+                                        data-testid={`menu-validar-reclamo-${reclamo.id}`}
+                                      >
+                                        <CheckCheck className="h-4 w-4 mr-2" />
+                                        Validar
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
                                     </>
                                   )}
-                                </Button>
-                              )}
 
-                              {/* Botón para técnico: Derivar a Laboratorio */}
-                              {user?.role === 'tecnico_obra' && reclamo.estado !== 'cerrado' && reclamo.estado !== 'en_laboratorio' && (
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (window.confirm('¿Está seguro que desea derivar este reclamo a laboratorio?')) {
-                                      derivarLaboratorioMutation.mutate(reclamo.id);
-                                    }
-                                  }}
-                                  disabled={derivarLaboratorioMutation.isPending}
-                                  data-testid={`button-derivar-laboratorio-${reclamo.id}`}
-                                  className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700"
-                                >
-                                  <BarChart3 className="h-4 w-4 mr-1" />
-                                  Enviar a Laboratorio
-                                </Button>
-                              )}
-                              
-                              {reclamo.estado !== 'cerrado' && user?.role === 'tecnico_obra' && (
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedReclamoId(reclamo.id);
-                                    setShowCerrarModal(true);
-                                  }}
-                                  data-testid={`button-cerrar-reclamo-${reclamo.id}`}
-                                  className="w-full sm:w-auto"
-                                >
-                                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                                  Cerrar
-                                </Button>
-                              )}
+                                  {/* Opciones para Laboratorio y Áreas Responsables */}
+                                  {((user?.role === 'laboratorio' && reclamo.estado === 'en_laboratorio') || 
+                                    (user?.role?.startsWith('area_') && reclamo.estado === 'en_area_responsable')) && (
+                                    <>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setSelectedReclamoId(reclamo.id);
+                                          if (reclamo.informeLaboratorio) {
+                                            setShowDetailModal(true);
+                                            setTimeout(() => setShowResolucionViewModal(true), 300);
+                                          } else {
+                                            setShowResolucionLaboratorioModal(true);
+                                          }
+                                        }}
+                                        data-testid={`menu-resolucion-laboratorio-${reclamo.id}`}
+                                      >
+                                        {reclamo.informeLaboratorio ? (
+                                          <>
+                                            <Eye className="h-4 w-4 mr-2" />
+                                            Ver Resolución
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Upload className="h-4 w-4 mr-2" />
+                                            Subir Resolución
+                                          </>
+                                        )}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                    </>
+                                  )}
+                                  
+                                  {/* Opción de Cerrar para Técnico de Obra */}
+                                  {reclamo.estado !== 'cerrado' && user?.role === 'tecnico_obra' && (
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setSelectedReclamoId(reclamo.id);
+                                        setShowCerrarModal(true);
+                                      }}
+                                      data-testid={`menu-cerrar-reclamo-${reclamo.id}`}
+                                    >
+                                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                                      Cerrar
+                                    </DropdownMenuItem>
+                                  )}
 
-                              {(user?.role === 'admin' || user?.role === 'tecnico_obra') && (
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (window.confirm('¿Está seguro que desea eliminar este reclamo? Esta acción no se puede deshacer.')) {
-                                      deleteReclamoMutation.mutate(reclamo.id);
-                                    }
-                                  }}
-                                  disabled={deleteReclamoMutation.isPending}
-                                  data-testid={`button-delete-reclamo-${reclamo.id}`}
-                                  className="w-full sm:w-auto"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-1" />
-                                  Eliminar
-                                </Button>
-                              )}
+                                  {/* Opción de Eliminar para Admin y Técnico */}
+                                  {(user?.role === 'admin' || user?.role === 'tecnico_obra') && (
+                                    <>
+                                      {(reclamo.estado !== 'cerrado' && user?.role === 'tecnico_obra') && <DropdownMenuSeparator />}
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          if (window.confirm('¿Está seguro que desea eliminar este reclamo? Esta acción no se puede deshacer.')) {
+                                            deleteReclamoMutation.mutate(reclamo.id);
+                                          }
+                                        }}
+                                        disabled={deleteReclamoMutation.isPending}
+                                        data-testid={`menu-delete-reclamo-${reclamo.id}`}
+                                        className="text-red-600 focus:text-red-600"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Eliminar
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
                         </CardContent>
