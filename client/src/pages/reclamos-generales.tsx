@@ -40,7 +40,9 @@ import {
   XCircle,
   MoreVertical,
   Edit,
-  CheckCheck
+  CheckCheck,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import type { ReclamoGeneral, ReclamoGeneralPhoto } from "@shared/schema";
 import { format } from "date-fns";
@@ -181,6 +183,7 @@ export default function ReclamosGeneralesPage() {
   const [showResolucionViewModal, setShowResolucionViewModal] = useState(false);
   const [showValidacionTecnicaModal, setShowValidacionTecnicaModal] = useState(false);
   const [selectedReclamoId, setSelectedReclamoId] = useState<string | null>(null);
+  const [resumenExpanded, setResumenExpanded] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [validacionProcede, setValidacionProcede] = useState<boolean | null>(null);
   const [validacionAreaResponsable, setValidacionAreaResponsable] = useState("");
@@ -1865,6 +1868,67 @@ export default function ReclamosGeneralesPage() {
             </div>
           ) : reclamoDetails ? (
             <div className="space-y-6">
+              {/* Resumen de Resolución - Solo cuando está resuelto */}
+              {reclamoDetails.estado === 'resuelto' && reclamoDetails.informeLaboratorio && (
+                <Card className="border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                        <CardTitle className="text-base text-teal-900 dark:text-teal-100">
+                          Resolución del Reclamo
+                        </CardTitle>
+                      </div>
+                      <Badge className="bg-teal-600 text-white">
+                        Resuelto
+                      </Badge>
+                    </div>
+                    {reclamoDetails.categoriaResponsable && (
+                      <p className="text-sm text-teal-700 dark:text-teal-300 mt-1">
+                        Área responsable: {CATEGORIA_RESPONSABLE_OPTIONS.find(c => c.value === reclamoDetails.categoriaResponsable)?.label || reclamoDetails.categoriaResponsable}
+                      </p>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <p className={`text-sm text-teal-900 dark:text-teal-100 whitespace-pre-wrap ${!resumenExpanded && 'line-clamp-3'}`}>
+                        {reclamoDetails.informeLaboratorio}
+                      </p>
+                      {reclamoDetails.informeLaboratorio.length > 150 && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() => setResumenExpanded(!resumenExpanded)}
+                          className="text-teal-700 dark:text-teal-300 hover:text-teal-900 dark:hover:text-teal-100 p-0 h-auto mt-1"
+                          data-testid="button-toggle-resumen"
+                        >
+                          {resumenExpanded ? (
+                            <>
+                              Ver menos <ChevronUp className="h-3 w-3 ml-1" />
+                            </>
+                          ) : (
+                            <>
+                              Ver más <ChevronDown className="h-3 w-3 ml-1" />
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowResolucionViewModal(true)}
+                      className="w-full border-teal-300 dark:border-teal-700 hover:bg-teal-100 dark:hover:bg-teal-900"
+                      data-testid="button-ver-evidencia-resolucion"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Ver Evidencia Fotográfica Completa
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Header info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
