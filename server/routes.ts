@@ -7577,8 +7577,15 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
-      // Validar que el usuario tiene rol de área o laboratorio
-      const isAreaRole = user.role && (user.role.startsWith('area_') || user.role === 'laboratorio');
+      // Definir roles organizacionales permitidos
+      const organizationalRoles = ['produccion', 'logistica_bodega', 'planificacion', 'bodega_materias_primas', 'prevencion_riesgos'];
+      
+      // Validar que el usuario tiene rol de área, laboratorio, o rol organizacional
+      const isAreaRole = user.role && (
+        user.role.startsWith('area_') || 
+        user.role === 'laboratorio' ||
+        organizationalRoles.includes(user.role)
+      );
       if (!isAreaRole) {
         return res.status(403).json({ message: 'No tiene permisos para subir resoluciones' });
       }

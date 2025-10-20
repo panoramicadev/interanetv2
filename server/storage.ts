@@ -10311,6 +10311,12 @@ export class DatabaseStorage implements IStorage {
     userId: string,
     userName: string
   ): Promise<ReclamoGeneral | null> {
+    // Obtener el reclamo antes de actualizarlo para guardar el estado anterior
+    const reclamoAnterior = await this.getReclamoGeneralById(id);
+    if (!reclamoAnterior) {
+      return null;
+    }
+
     // Actualización condicional para prevenir race conditions
     const [updated] = await db
       .update(reclamosGenerales)
@@ -10318,6 +10324,7 @@ export class DatabaseStorage implements IStorage {
         informeLaboratorio: informe,
         categoriaResponsable,
         fechaRespuestaLaboratorio: new Date(),
+        estado: 'resuelto', // Cambiar estado a resuelto
         updatedAt: new Date(),
       })
       .where(and(
@@ -10343,12 +10350,46 @@ export class DatabaseStorage implements IStorage {
     // Create historial entry
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
-      estadoAnterior: null,
-      estadoNuevo: updated.estado,
+      estadoAnterior: reclamoAnterior.estado,
+      estadoNuevo: 'resuelto',
       userId,
       userName,
-      notas: `Resolución de laboratorio agregada con ${photos.length} foto(s) de evidencia`,
+      notas: `Resolución de laboratorio agregada con ${photos.length} foto(s) de evidencia. Reclamo finalizado.`,
     });
+
+    // Crear notificaciones para el técnico de obra y el vendedor
+    const notificaciones = [];
+
+    // Notificar al técnico de obra si existe
+    if (updated.tecnicoId) {
+      notificaciones.push(
+        this.createNotification({
+          userId: updated.tecnicoId,
+          type: 'reclamo_resuelto',
+          title: 'Reclamo Resuelto',
+          message: `El reclamo #${updated.numeroReclamo} del cliente "${updated.clientName}" ha sido resuelto por el laboratorio.`,
+          relatedReclamoId: updated.id,
+          read: false,
+        })
+      );
+    }
+
+    // Notificar al vendedor que creó el reclamo
+    if (updated.vendedorId) {
+      notificaciones.push(
+        this.createNotification({
+          userId: updated.vendedorId,
+          type: 'reclamo_resuelto',
+          title: 'Reclamo Resuelto',
+          message: `El reclamo #${updated.numeroReclamo} del cliente "${updated.clientName}" ha sido resuelto por el laboratorio.`,
+          relatedReclamoId: updated.id,
+          read: false,
+        })
+      );
+    }
+
+    // Ejecutar las notificaciones en paralelo
+    await Promise.all(notificaciones);
     
     return updated;
   }
@@ -10437,8 +10478,42 @@ export class DatabaseStorage implements IStorage {
       estadoNuevo: 'resuelto',
       userId,
       userName,
-      notas: `Resolución agregada por ${areaUsuario} con ${photos.length} foto(s) de evidencia`,
+      notas: `Resolución agregada por ${areaUsuario} con ${photos.length} foto(s) de evidencia. Reclamo finalizado.`,
     });
+
+    // Crear notificaciones para el técnico de obra y el vendedor
+    const notificaciones = [];
+
+    // Notificar al técnico de obra si existe
+    if (updated.tecnicoId) {
+      notificaciones.push(
+        this.createNotification({
+          userId: updated.tecnicoId,
+          type: 'reclamo_resuelto',
+          title: 'Reclamo Resuelto',
+          message: `El reclamo #${updated.numeroReclamo} del cliente "${updated.clientName}" ha sido resuelto por el área ${areaUsuario}.`,
+          relatedReclamoId: updated.id,
+          read: false,
+        })
+      );
+    }
+
+    // Notificar al vendedor que creó el reclamo
+    if (updated.vendedorId) {
+      notificaciones.push(
+        this.createNotification({
+          userId: updated.vendedorId,
+          type: 'reclamo_resuelto',
+          title: 'Reclamo Resuelto',
+          message: `El reclamo #${updated.numeroReclamo} del cliente "${updated.clientName}" ha sido resuelto por el área ${areaUsuario}.`,
+          relatedReclamoId: updated.id,
+          read: false,
+        })
+      );
+    }
+
+    // Ejecutar las notificaciones en paralelo
+    await Promise.all(notificaciones);
     
     return updated;
   }
