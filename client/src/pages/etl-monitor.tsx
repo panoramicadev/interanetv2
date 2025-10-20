@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Database, 
@@ -24,13 +25,15 @@ import {
   RefreshCw,
   TrendingUp,
   Calendar,
-  FileText
+  FileText,
+  Server
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
 interface ETLExecution {
   id: string;
+  etlName: string;
   executionDate: string;
   status: string;
   period: string;
@@ -51,9 +54,28 @@ interface ETLStatus {
   failedExecutions: number;
 }
 
+// Configuración de ETLs disponibles
+const ETL_CONFIGS = [
+  {
+    id: 'ventas_incremental',
+    name: 'Ventas Incremental',
+    description: 'ETL incremental de ventas desde SQL Server (ejecuta cada 15 min)',
+    icon: TrendingUp,
+    color: 'blue',
+  },
+  // Aquí se pueden agregar más ETLs en el futuro
+  // {
+  //   id: 'compras_incremental',
+  //   name: 'Compras Incremental',
+  //   description: 'ETL incremental de compras desde SQL Server',
+  //   icon: ShoppingCart,
+  //   color: 'green',
+  // },
+];
+
 export default function ETLMonitor() {
   const { user } = useAuth();
-  const { toast } = useToast();
+  const [selectedETL, setSelectedETL] = useState(ETL_CONFIGS[0].id);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   if (!user) {
@@ -78,6 +100,9 @@ export default function ETLMonitor() {
     );
   }
 
+  const currentETL = ETL_CONFIGS.find(etl => etl.id === selectedETL) || ETL_CONFIGS[0];
+  const ETLIcon = currentETL.icon;
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Header */}
@@ -87,8 +112,8 @@ export default function ETLMonitor() {
             <Database className="h-8 w-8" />
             Monitor ETL
           </h1>
-          <p className="text-muted-foreground">
-            Monitoreo y control del proceso de extracción, transformación y carga de datos
+          <p className="text-muted-foreground mt-1">
+            Monitoreo y control de procesos de extracción, transformación y carga de datos
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -104,29 +129,67 @@ export default function ETLMonitor() {
         </div>
       </div>
 
-      {/* Status Section */}
-      <ETLStatusSection autoRefresh={autoRefresh} />
+      {/* ETL Selector Tabs */}
+      <Tabs value={selectedETL} onValueChange={setSelectedETL} className="w-full">
+        <TabsList className="grid w-full grid-cols-1 md:w-auto md:inline-grid" style={{ gridTemplateColumns: `repeat(${ETL_CONFIGS.length}, minmax(0, 1fr))` }}>
+          {ETL_CONFIGS.map((etl) => {
+            const Icon = etl.icon;
+            return (
+              <TabsTrigger 
+                key={etl.id} 
+                value={etl.id}
+                className="flex items-center gap-2"
+                data-testid={`tab-${etl.id}`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden sm:inline">{etl.name}</span>
+                <span className="sm:hidden">{etl.name.split(' ')[0]}</span>
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
 
-      {/* History Section */}
-      <ETLHistorySection autoRefresh={autoRefresh} />
+        {ETL_CONFIGS.map((etl) => (
+          <TabsContent key={etl.id} value={etl.id} className="space-y-6 mt-6">
+            {/* ETL Description Card */}
+            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
+                  <Server className="h-5 w-5" />
+                  {etl.name}
+                </CardTitle>
+                <CardDescription className="text-blue-700 dark:text-blue-300">
+                  {etl.description}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+
+            {/* Status Section */}
+            <ETLStatusSection etlName={etl.id} autoRefresh={autoRefresh} />
+
+            {/* History Section */}
+            <ETLHistorySection etlName={etl.id} autoRefresh={autoRefresh} />
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   );
 }
 
 // ETL Status Section Component
-function ETLStatusSection({ autoRefresh }: { autoRefresh: boolean }) {
+function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefresh: boolean }) {
   const { toast } = useToast();
 
   // Fetch ETL status
-  const { data: status, isLoading, refetch } = useQuery<ETLStatus>({
-    queryKey: ['/api/etl/status'],
+  const { data: status, isLoading } = useQuery<ETLStatus>({
+    queryKey: ['/api/etl/status', etlName],
     refetchInterval: autoRefresh ? 10000 : false, // Auto-refresh every 10 seconds
   });
 
   // Execute ETL mutation
   const executeMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest('/api/etl/execute', {
+      return await apiRequest(`/api/etl/execute?etlName=${etlName}`, {
         method: 'POST',
       });
     },
@@ -135,7 +198,7 @@ function ETLStatusSection({ autoRefresh }: { autoRefresh: boolean }) {
         title: "ETL Ejecutado",
         description: `Se procesaron ${data.recordsProcessed || 0} registros en ${Math.round(data.executionTimeMs / 1000)}s`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/etl/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/status', etlName] });
     },
     onError: (error: any) => {
       toast({
@@ -332,23 +395,42 @@ function ETLStatusSection({ autoRefresh }: { autoRefresh: boolean }) {
 }
 
 // ETL History Section Component
-function ETLHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
-  const { data: status, isLoading } = useQuery<ETLStatus>({
-    queryKey: ['/api/etl/status'],
+function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefresh: boolean }) {
+  const { data: status } = useQuery<ETLStatus>({
+    queryKey: ['/api/etl/status', etlName],
     refetchInterval: autoRefresh ? 10000 : false,
   });
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </CardContent>
-      </Card>
-    );
-  }
-
   const history = status?.history || [];
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'success':
+        return (
+          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Exitoso
+          </Badge>
+        );
+      case 'failed':
+      case 'error':
+        return (
+          <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">
+            <XCircle className="h-3 w-3 mr-1" />
+            Fallido
+          </Badge>
+        );
+      case 'running':
+        return (
+          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+            En Ejecución
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
 
   return (
     <Card>
@@ -357,70 +439,52 @@ function ETLHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
           <FileText className="h-5 w-5" />
           Historial de Ejecuciones
         </CardTitle>
-        <CardDescription>Últimas 10 ejecuciones del proceso ETL</CardDescription>
+        <CardDescription>
+          Últimas {history.length} ejecuciones del ETL
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {history.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            No hay historial de ejecuciones disponible
+            <Database className="h-12 w-12 mx-auto mb-2 opacity-50" />
+            <p>No hay historial de ejecuciones disponible</p>
           </div>
         ) : (
-          <div className="rounded-md border">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead>Período</TableHead>
-                  <TableHead>Documentos</TableHead>
                   <TableHead className="text-right">Registros</TableHead>
                   <TableHead className="text-right">Tiempo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {history.map((execution) => (
-                  <TableRow key={execution.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm">
-                            {new Date(execution.executionDate).toLocaleDateString('es-CL')}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(execution.executionDate).toLocaleTimeString('es-CL')}
-                          </p>
-                        </div>
+                  <TableRow key={execution.id} data-testid={`row-execution-${execution.id}`}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {formatDistanceToNow(new Date(execution.executionDate), {
+                            addSuffix: true,
+                            locale: es,
+                          })}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(execution.executionDate).toLocaleString('es-CL')}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      {execution.status === 'success' ? (
-                        <Badge className="bg-green-600">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Exitoso
-                        </Badge>
-                      ) : execution.status === 'running' ? (
-                        <Badge className="bg-blue-600">
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Ejecutando
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive">
-                          <XCircle className="h-3 w-3 mr-1" />
-                          Error
-                        </Badge>
-                      )}
-                    </TableCell>
+                    <TableCell>{getStatusBadge(execution.status)}</TableCell>
                     <TableCell className="text-sm">{execution.period}</TableCell>
-                    <TableCell className="text-sm">
-                      {execution.documentTypes.split(',').join(', ')}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
+                    <TableCell className="text-right font-mono">
                       {execution.recordsProcessed?.toLocaleString('es-CL') || '-'}
                     </TableCell>
-                    <TableCell className="text-right text-sm">
-                      {execution.executionTimeMs
-                        ? `${(execution.executionTimeMs / 1000).toFixed(1)}s`
+                    <TableCell className="text-right">
+                      {execution.executionTimeMs 
+                        ? `${(execution.executionTimeMs / 1000).toFixed(2)}s`
                         : '-'}
                     </TableCell>
                   </TableRow>

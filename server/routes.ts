@@ -8319,8 +8319,9 @@ export function registerRoutes(app: Express): Server {
   // Execute ETL manually (admin/supervisor only)
   app.post('/api/etl/execute', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
-      console.log('📊 ETL manual execution requested by:', req.user.email);
-      const result = await executeIncrementalETL();
+      const { etlName = 'ventas_incremental' } = req.query;
+      console.log(`📊 ETL manual execution requested by: ${req.user.email} for ETL: ${etlName}`);
+      const result = await executeIncrementalETL(etlName as string);
       res.json(result);
     } catch (error: any) {
       console.error('ETL execution error:', error);
@@ -8334,7 +8335,8 @@ export function registerRoutes(app: Express): Server {
   // Get ETL status and history
   app.get('/api/etl/status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
-      const status = await getETLStatus();
+      const { etlName = 'ventas_incremental' } = req.query;
+      const status = await getETLStatus(etlName as string);
       res.json(status);
     } catch (error: any) {
       res.status(500).json({ 
