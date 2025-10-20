@@ -956,6 +956,7 @@ export interface IStorage {
     tecnicoId?: string;
     estado?: string;
     gravedad?: string;
+    areaResponsable?: string;
     limit?: number;
     offset?: number;
   }): Promise<ReclamoGeneral[]>;
@@ -987,6 +988,16 @@ export interface IStorage {
   // Derivar a laboratorio o producción
   derivarReclamoGeneralLaboratorio(id: string, userId: string, userName: string): Promise<ReclamoGeneral>;
   derivarReclamoGeneralProduccion(id: string, userId: string, userName: string): Promise<ReclamoGeneral>;
+  
+  // Validación técnica
+  validarReclamoTecnico(
+    id: string, 
+    procede: boolean, 
+    areaResponsable: string, 
+    notas: string | undefined,
+    userId: string, 
+    userName: string
+  ): Promise<ReclamoGeneral>;
   
   // Informes
   updateInformeLaboratorio(id: string, informe: string, userId: string, userName: string): Promise<ReclamoGeneral>;
@@ -9879,6 +9890,7 @@ export class DatabaseStorage implements IStorage {
     tecnicoId?: string;
     estado?: string;
     gravedad?: string;
+    areaResponsable?: string;
     limit?: number;
     offset?: number;
   }): Promise<ReclamoGeneral[]> {
@@ -9898,6 +9910,10 @@ export class DatabaseStorage implements IStorage {
     
     if (filters?.gravedad) {
       conditions.push(eq(reclamosGenerales.gravedad, filters.gravedad));
+    }
+    
+    if (filters?.areaResponsable) {
+      conditions.push(eq(reclamosGenerales.areaResponsableActual, filters.areaResponsable));
     }
     
     let query = db
@@ -10145,6 +10161,53 @@ export class DatabaseStorage implements IStorage {
       userId,
       userName,
       notas: 'Reclamo derivado a producción',
+    });
+    
+    return updated;
+  }
+
+  // Validación técnica
+  async validarReclamoTecnico(
+    id: string,
+    procede: boolean,
+    areaResponsable: string,
+    notas: string | undefined,
+    userId: string,
+    userName: string
+  ): Promise<ReclamoGeneral> {
+    const reclamo = await this.getReclamoGeneralById(id);
+    
+    if (!reclamo) {
+      throw new Error('Reclamo not found');
+    }
+    
+    // Determinar nuevo estado según si procede o no
+    // Si procede: pasa a en_area_responsable
+    // Si no procede: se mantiene en en_revision_tecnica para revisión posterior
+    const nuevoEstado = procede ? 'en_area_responsable' : 'en_revision_tecnica';
+    
+    const [updated] = await db
+      .update(reclamosGenerales)
+      .set({
+        procede,
+        areaResponsableActual: procede ? areaResponsable : reclamo.areaResponsableActual,
+        estado: nuevoEstado,
+        updatedAt: new Date(),
+        informeTecnico: notas || null,
+      })
+      .where(eq(reclamosGenerales.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createReclamoGeneralHistorial({
+      reclamoId: id,
+      estadoAnterior: reclamo.estado,
+      estadoNuevo: nuevoEstado,
+      userId,
+      userName,
+      notas: notas || (procede 
+        ? `Reclamo validado y derivado a ${areaResponsable}` 
+        : 'Reclamo marcado como no procedente - pendiente revisión'),
     });
     
     return updated;

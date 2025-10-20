@@ -3051,10 +3051,16 @@ export const reclamosGenerales = pgTable("reclamos_generales", {
   // Descripción del reclamo
   description: text("description").notNull(),
   gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica
+  motivo: varchar("motivo"), // Motivo del reclamo que sugiere área responsable
   
   // Flujo de trabajo
-  estado: varchar("estado").default("registrado").notNull(), // registrado, en_revision_tecnica, en_laboratorio, en_produccion, cerrado
-  categoriaResponsable: varchar("categoria_responsable"), // materia_prima, colores_variacion, aplicacion, envase, etiqueta - Asignado por laboratorio
+  estado: varchar("estado").default("registrado").notNull(), // registrado, en_revision_tecnica, en_area_responsable, en_laboratorio, en_produccion, resuelto, cerrado
+  procede: boolean("procede"), // NULL = sin revisar, true = procede, false = no procede (decidido por técnico)
+  
+  // Áreas responsables
+  areaAsignadaInicial: varchar("area_asignada_inicial"), // materia_prima, colores, aplicacion, envase, etiqueta - Sugerida al crear
+  areaResponsableActual: varchar("area_responsable_actual"), // Área responsable actual (editable por técnico)
+  categoriaResponsable: varchar("categoria_responsable"), // DEPRECATED: usar areaResponsableActual (mantener por compatibilidad)
   
   // Asignaciones
   vendedorId: varchar("vendedor_id").notNull(), // FK to users.id (quien registra)
@@ -3067,10 +3073,16 @@ export const reclamosGenerales = pgTable("reclamos_generales", {
   derivadoProduccion: boolean("derivado_produccion").default(false),
   
   // Informes y notas
-  informeLaboratorio: text("informe_laboratorio"),
+  informeLaboratorio: text("informe_laboratorio"), // DEPRECATED: usar resolucionDescripcion
   informeProduccion: text("informe_produccion"),
   informeTecnico: text("informe_tecnico"),
   notasInternas: text("notas_internas"),
+  
+  // Resolución del área responsable
+  resolucionDescripcion: text("resolucion_descripcion"), // Descripción de la resolución (cualquier área)
+  resolucionUsuarioId: varchar("resolucion_usuario_id"), // Usuario que subió la resolución
+  resolucionUsuarioName: varchar("resolucion_usuario_name"), // Nombre del usuario que resolvió
+  fechaResolucion: timestamp("fecha_resolucion"), // Fecha de la resolución
   
   // Fechas de seguimiento
   fechaRegistro: timestamp("fecha_registro").defaultNow(),
@@ -3189,7 +3201,9 @@ export const insertReclamoGeneralSchema = createInsertSchema(reclamosGenerales).
   productName: z.string().min(1, "El nombre del producto es requerido"),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
   gravedad: z.enum(["baja", "media", "alta", "critica"]),
-  estado: z.enum(["registrado", "en_revision_tecnica", "en_laboratorio", "en_produccion", "cerrado"]).optional(),
+  estado: z.enum(["registrado", "en_revision_tecnica", "en_area_responsable", "en_laboratorio", "en_produccion", "resuelto", "cerrado"]).optional(),
+  motivo: z.string().optional(),
+  areaAsignadaInicial: z.enum(["materia_prima", "colores", "aplicacion", "envase", "etiqueta"]).optional(),
 });
 
 export const insertReclamoGeneralPhotoSchema = createInsertSchema(reclamosGeneralesPhotos).omit({

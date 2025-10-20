@@ -7179,6 +7179,7 @@ export function registerRoutes(app: Express): Server {
   // Get all reclamos with optional filters
   app.get('/api/reclamos-generales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
+      const user = req.user;
       const filters: any = {};
       
       if (req.query.vendedorId) filters.vendedorId = req.query.vendedorId;
@@ -7187,6 +7188,14 @@ export function registerRoutes(app: Express): Server {
       if (req.query.gravedad) filters.gravedad = req.query.gravedad;
       if (req.query.limit) filters.limit = parseInt(req.query.limit);
       if (req.query.offset) filters.offset = parseInt(req.query.offset);
+      
+      // Filtrar automáticamente por área responsable si el usuario tiene rol de área
+      if (user.role && user.role.startsWith('area_')) {
+        // Extraer el área del rol (ej: area_materia_prima -> materia_prima)
+        const area = user.role.replace('area_', '');
+        filters.areaResponsable = area;
+        // Mostrar solo reclamos asignados a su área (todos los estados)
+      }
       
       const reclamos = await storage.getReclamosGenerales(filters);
       res.json(reclamos);
@@ -7366,6 +7375,37 @@ export function registerRoutes(app: Express): Server {
       res.json(reclamo);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al derivar a producción', error: error.message });
+    }
+  }));
+
+  // Validación técnica
+  app.post('/api/reclamos-generales/:id/validacion-tecnica', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { procede, areaResponsable, notas } = req.body;
+      
+      // Validaciones
+      if (typeof procede !== 'boolean') {
+        return res.status(400).json({ message: 'El campo procede es requerido y debe ser booleano' });
+      }
+      
+      if (procede && !areaResponsable) {
+        return res.status(400).json({ message: 'El área responsable es requerida cuando el reclamo procede' });
+      }
+      
+      const userName = user.salespersonName || `${user.firstName} ${user.lastName}`;
+      const reclamo = await storage.validarReclamoTecnico(
+        req.params.id, 
+        procede, 
+        areaResponsable,
+        notas,
+        user.id, 
+        userName
+      );
+      
+      res.json(reclamo);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al validar reclamo', error: error.message });
     }
   }));
 
