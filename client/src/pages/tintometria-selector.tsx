@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Calculator, Palette, Package, Droplets } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { apiRequest } from '@/lib/queryClient';
 import type { Color, Envase, Base } from '@shared/schema';
 
@@ -49,7 +50,22 @@ const colorPalette = [
 ];
 
 export default function TintometriaSelector() {
+  const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Verificar permisos de acceso
+  if (!user || (user.role !== 'admin' && user.role !== 'laboratorio')) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <p className="text-center text-muted-foreground">
+            No tiene permisos para acceder a esta página.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
   const [selectedColor, setSelectedColor] = useState<Color | null>(null);
   const [selectedBase, setSelectedBase] = useState<Base | null>(null);
   const [selectedEnvase, setSelectedEnvase] = useState<Envase | null>(null);

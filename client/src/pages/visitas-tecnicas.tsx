@@ -85,6 +85,20 @@ interface ObraWithClient extends Obra {
 export default function VisitasTecnicasPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Verificar permisos de acceso
+  if (!user || (user.role !== 'admin' && user.role !== 'tecnico_obra' && user.role !== 'supervisor' && user.role !== 'laboratorio')) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <p className="text-center text-muted-foreground">
+            No tiene permisos para acceder a esta página.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
   const [activeTab, setActiveTab] = useState("dashboard");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("all");

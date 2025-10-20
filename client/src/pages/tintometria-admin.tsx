@@ -57,9 +57,25 @@ import type {
   InsertReceta,
   InsertParametro
 } from '@shared/schema';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function TintometriaAdmin() {
+  const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Verificar permisos de acceso
+  if (!user || (user.role !== 'admin' && user.role !== 'laboratorio')) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <p className="text-center text-muted-foreground">
+            No tiene permisos para acceder a esta página.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
   const [editingItem, setEditingItem] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('pigments');
