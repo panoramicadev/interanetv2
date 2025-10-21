@@ -1455,11 +1455,13 @@ function EditSolicitudDialog({
   solicitud: SolicitudMarketing | null;
 }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [urgencia, setUrgencia] = useState("baja");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [urlReferencia, setUrlReferencia] = useState("");
+  const [monto, setMonto] = useState("");
   const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
   const [nuevoPaso, setNuevoPaso] = useState("");
 
@@ -1471,6 +1473,7 @@ function EditSolicitudDialog({
       setUrgencia(solicitud.urgencia || "baja");
       setFechaEntrega(solicitud.fechaEntrega || "");
       setUrlReferencia(solicitud.urlReferencia || "");
+      setMonto(solicitud.monto?.toString() || "");
       setPasos(solicitud.pasos || []);
       setNuevoPaso("");
     }
@@ -1514,6 +1517,7 @@ function EditSolicitudDialog({
       urgencia,
       fechaEntrega: fechaEntrega || null,
       urlReferencia: urlReferencia || null,
+      monto: monto ? parseFloat(monto) : null,
       pasos,
     });
   };
@@ -1596,6 +1600,22 @@ function EditSolicitudDialog({
               Adjunte un enlace con información de referencia
             </p>
           </div>
+          {user?.role === 'admin' && (
+            <div>
+              <Label htmlFor="edit-monto">Precio / Monto Estimado (CLP)</Label>
+              <Input
+                id="edit-monto"
+                type="number"
+                placeholder="Ej: 500000"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                data-testid="input-edit-monto"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Solo el administrador puede modificar este campo
+              </p>
+            </div>
+          )}
           <div>
             <Label>Pasos / Checklist</Label>
             <div className="space-y-2 mt-2">
