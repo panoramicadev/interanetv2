@@ -222,6 +222,7 @@ export default function ReclamosGeneralesPage() {
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [debouncedClientSearchTerm, setDebouncedClientSearchTerm] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [manualClientEntry, setManualClientEntry] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
   
   // Photo upload states
@@ -691,9 +692,10 @@ export default function ReclamosGeneralesPage() {
       description: '',
       gravedad: 'media',
     });
+    setClientSearchTerm('');
+    setManualClientEntry(false);
     setSelectedFiles([]);
     setPreviewUrls([]);
-    setClientSearchTerm("");
     setUploadProgress({ current: 0, total: 0 });
   };
 
@@ -1592,44 +1594,112 @@ export default function ReclamosGeneralesPage() {
             {/* Cliente */}
             <div className="space-y-2">
               <Label htmlFor="cliente">Cliente <span className="text-red-500">*</span></Label>
-              <div className="relative" ref={clientDropdownRef}>
-                <Input
-                  id="cliente"
-                  placeholder="Buscar cliente..."
-                  value={clientSearchTerm}
-                  onChange={(e) => {
-                    setClientSearchTerm(e.target.value);
-                    setShowClientDropdown(true);
-                  }}
-                  onFocus={() => setShowClientDropdown(true)}
-                  data-testid="input-cliente"
-                />
-                {showClientDropdown && clients.length > 0 && (
-                  <Card className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto shadow-lg border-2">
-                    <CardContent className="p-2">
-                      {clients.map((client) => (
-                        <div
-                          key={client.id}
-                          className="p-2 hover:bg-accent cursor-pointer rounded"
+              {!manualClientEntry ? (
+                <div className="relative" ref={clientDropdownRef}>
+                  <Input
+                    id="cliente"
+                    placeholder="Buscar cliente..."
+                    value={clientSearchTerm}
+                    onChange={(e) => {
+                      setClientSearchTerm(e.target.value);
+                      setShowClientDropdown(true);
+                      setFormData(prev => ({ ...prev, clientName: '', clientRut: '' }));
+                    }}
+                    onFocus={() => setShowClientDropdown(true)}
+                    data-testid="input-cliente"
+                  />
+                  {showClientDropdown && clients.length > 0 && (
+                    <Card className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto shadow-lg border-2">
+                      <CardContent className="p-2">
+                        {clients.map((client) => (
+                          <div
+                            key={client.id}
+                            className="p-2 hover:bg-accent cursor-pointer rounded"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                clientName: client.koen,
+                                clientRut: client.nokoen,
+                              }));
+                              setClientSearchTerm(client.koen);
+                              setShowClientDropdown(false);
+                            }}
+                            data-testid={`option-cliente-${client.id}`}
+                          >
+                            <div className="font-medium">{client.koen}</div>
+                            <div className="text-xs text-muted-foreground">{client.nokoen}</div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+                  {showClientDropdown && clients.length === 0 && debouncedClientSearchTerm.length > 0 && (
+                    <Card className="absolute z-50 w-full mt-1 shadow-lg border-2">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-sm text-muted-foreground mb-3">
+                          No se encontraron clientes con ese nombre
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              clientName: client.koen,
-                              clientRut: client.nokoen,
-                            }));
-                            setClientSearchTerm(client.koen);
+                            setManualClientEntry(true);
+                            setFormData(prev => ({ ...prev, clientName: clientSearchTerm }));
                             setShowClientDropdown(false);
                           }}
-                          data-testid={`option-cliente-${client.id}`}
+                          data-testid="button-add-manual-client"
                         >
-                          <div className="font-medium">{client.koen}</div>
-                          <div className="text-xs text-muted-foreground">{client.nokoen}</div>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Agregar Cliente Manualmente
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+                    <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      Ingresando cliente manualmente
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setManualClientEntry(false);
+                        setClientSearchTerm('');
+                        setFormData(prev => ({ ...prev, clientName: '', clientRut: '' }));
+                      }}
+                      data-testid="button-cancel-manual-client"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Buscar en base de datos
+                    </Button>
+                  </div>
+                  <div>
+                    <Label htmlFor="manual-client-name">Nombre del Cliente <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="manual-client-name"
+                      placeholder="Ingrese nombre del cliente"
+                      value={formData.clientName}
+                      onChange={(e) => setFormData(prev => ({ ...prev, clientName: e.target.value }))}
+                      data-testid="input-manual-client-name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="manual-client-rut">RUT del Cliente</Label>
+                    <Input
+                      id="manual-client-rut"
+                      placeholder="Ingrese RUT (opcional)"
+                      value={formData.clientRut}
+                      onChange={(e) => setFormData(prev => ({ ...prev, clientRut: e.target.value }))}
+                      data-testid="input-manual-client-rut"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Gravedad */}
