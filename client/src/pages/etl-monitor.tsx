@@ -4,6 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -26,9 +28,10 @@ import {
   TrendingUp,
   Calendar,
   FileText,
-  Server
+  Server,
+  Filter
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 
 interface ETLExecution {
@@ -457,14 +460,34 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
 
 // ETL History Section Component
 function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefresh: boolean }) {
+  // Date filter state - default to last 30 days
+  const [startDate, setStartDate] = useState(() => format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const [filterEnabled, setFilterEnabled] = useState(false);
+
+  // Build query URL with optional date filters
+  const queryUrl = filterEnabled 
+    ? `/api/etl/status?etlName=${etlName}&startDate=${startDate}&endDate=${endDate}`
+    : `/api/etl/status?etlName=${etlName}`;
+
   const { data: status } = useQuery<ETLStatus>({
-    queryKey: [`/api/etl/status?etlName=${etlName}`],
+    queryKey: [queryUrl],
     refetchInterval: autoRefresh ? 30000 : false, // Auto-refresh every 30 seconds
     retry: 2, // Max 2 retries on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
   });
 
   const history = status?.history || [];
+
+  const handleApplyFilter = () => {
+    setFilterEnabled(true);
+  };
+
+  const handleClearFilter = () => {
+    setFilterEnabled(false);
+    setStartDate(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+    setEndDate(format(new Date(), 'yyyy-MM-dd'));
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -503,10 +526,68 @@ function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefr
           Historial de Ejecuciones
         </CardTitle>
         <CardDescription>
-          Últimas {history.length} ejecuciones del ETL
+          {filterEnabled 
+            ? `Mostrando ${history.length} ejecuciones entre ${format(new Date(startDate), 'dd/MM/yyyy', { locale: es })} y ${format(new Date(endDate), 'dd/MM/yyyy', { locale: es })}`
+            : `Últimas ${history.length} ejecuciones del ETL`
+          }
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Date Filter Controls */}
+        <div className="mb-6 p-4 bg-muted/50 rounded-lg border">
+          <div className="flex items-center gap-2 mb-3">
+            <Filter className="h-4 w-4" />
+            <h3 className="font-semibold text-sm">Filtrar por Fecha</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="start-date" className="text-xs">Fecha Inicio</Label>
+              <Input
+                id="start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-sm"
+                data-testid="input-start-date"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="end-date" className="text-xs">Fecha Fin</Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-sm"
+                data-testid="input-end-date"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <Button
+                onClick={handleApplyFilter}
+                size="sm"
+                className="flex-1"
+                data-testid="button-apply-filter"
+              >
+                <Filter className="h-3 w-3 mr-1" />
+                Aplicar
+              </Button>
+              {filterEnabled && (
+                <Button
+                  onClick={handleClearFilter}
+                  size="sm"
+                  variant="outline"
+                  data-testid="button-clear-filter"
+                >
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Limpiar
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* History Table */}
         {history.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Database className="h-12 w-12 mx-auto mb-2 opacity-50" />
