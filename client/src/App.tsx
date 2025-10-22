@@ -103,7 +103,15 @@ function Router() {
                 case 'planificacion':
                 case 'bodega_materias_primas':
                 case 'prevencion_riesgos':
-                  // Roles organizacionales van a Reclamos Generales
+                case 'laboratorio':
+                case 'area_produccion':
+                case 'area_logistica':
+                case 'area_aplicacion':
+                case 'area_materia_prima':
+                case 'area_colores':
+                case 'area_envase':
+                case 'area_etiqueta':
+                  // Roles de laboratorio y áreas responsables van a Reclamos Generales
                   return <ReclamosGeneralesPage />;
                 default:
                   return <Dashboard />;
