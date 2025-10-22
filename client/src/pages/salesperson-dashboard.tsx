@@ -298,44 +298,49 @@ export default function SalespersonDashboard() {
       <main className="px-4 lg:px-6 pb-6 space-y-6">
         {/* Progreso de Meta Principal - Solo si hay metas */}
         {primaryGoal && (
-          <Card className="rounded-2xl shadow-sm border-green-100 bg-gradient-to-r from-green-50 to-blue-50">
-            <CardContent className="pt-6">
-              <div className="space-y-3">
+          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+            <CardContent className="pt-6 pb-6">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-green-600" />
-                    <span className="text-sm font-semibold text-gray-700">Meta de Ventas</span>
+                  <div className="flex items-center gap-3">
+                    <div className="bg-emerald-500 rounded-full p-3">
+                      <Target className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Meta de Ventas</h3>
+                      <p className="text-sm text-gray-600">{primaryGoal.description || getCurrentMonthLabel()}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {(primaryGoal.progress || 0) >= 100 ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : (primaryGoal.progress || 0) >= 70 ? (
-                      <TrendingUp className="h-4 w-4 text-yellow-600" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-red-600" />
-                    )}
-                    <span className={`text-xs font-medium ${
-                      (primaryGoal.progress || 0) >= 100 ? 'text-green-600' : 
-                      (primaryGoal.progress || 0) >= 70 ? 'text-yellow-600' : 'text-red-600'
+                  <div className="text-right">
+                    <div className={`text-3xl font-bold ${
+                      (primaryGoal.progress || 0) >= 100 ? 'text-emerald-600' : 
+                      (primaryGoal.progress || 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
                     }`}>
                       {(primaryGoal.progress || 0).toFixed(1)}%
-                    </span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">Logrado</p>
                   </div>
                 </div>
                 
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
                   <div
-                    className={`h-3 rounded-full transition-all duration-500 ${
-                      (primaryGoal.progress || 0) >= 100 ? 'bg-green-500' : 
-                      (primaryGoal.progress || 0) >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                    className={`h-4 rounded-full transition-all duration-500 ${
+                      (primaryGoal.progress || 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                      (primaryGoal.progress || 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
                     }`}
                     style={{ width: `${Math.min(primaryGoal.progress || 0, 100)}%` }}
                   ></div>
                 </div>
                 
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>Actual: <strong>${(primaryGoal.currentSales || 0).toLocaleString()}</strong></span>
-                  <span>Meta: <strong>${(primaryGoal.targetAmount || 0).toLocaleString()}</strong></span>
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="bg-white/60 rounded-xl p-3">
+                    <p className="text-xs text-gray-600 mb-1">Ventas Actuales</p>
+                    <p className="text-xl font-bold text-gray-900">${(primaryGoal.currentSales || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white/60 rounded-xl p-3">
+                    <p className="text-xs text-gray-600 mb-1">Meta</p>
+                    <p className="text-xl font-bold text-gray-900">${(primaryGoal.targetAmount || 0).toLocaleString()}</p>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -344,97 +349,133 @@ export default function SalespersonDashboard() {
 
         {/* KPIs del Vendedor */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="rounded-2xl shadow-sm border-blue-100 bg-gradient-to-br from-blue-50 to-white" data-testid="card-ventas-totales">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-blue-900">Ventas Totales</CardTitle>
-              <DollarSign className="h-5 w-5 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-blue-900" data-testid="text-ventas-totales">
-                ${salesData.totalSales.toLocaleString()}
+          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-emerald-50/80 to-emerald-100/50" data-testid="card-ventas-totales">
+            <CardContent className="pt-6 pb-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-emerald-700 mb-2">
+                    Ventas Totales
+                  </p>
+                  <div className="text-3xl font-bold text-emerald-900 mb-1" data-testid="text-ventas-totales">
+                    ${salesData.totalSales.toLocaleString()}
+                  </div>
+                  <p className="text-xs text-emerald-600">
+                    Este período
+                  </p>
+                </div>
+                <div className="bg-emerald-500 rounded-2xl p-3 shadow-sm">
+                  <DollarSign className="h-6 w-6 text-white" />
+                </div>
               </div>
-              <p className="text-xs text-blue-600 mt-1">
-                Este período
-              </p>
             </CardContent>
           </Card>
 
           <Card 
-            className="rounded-2xl shadow-sm border-green-100 bg-gradient-to-br from-green-50 to-white cursor-pointer hover:shadow-md transition-shadow" 
+            className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-blue-50/80 to-blue-100/50 cursor-pointer hover:shadow-md transition-all" 
             data-testid="card-clientes"
             onClick={() => setShowClientsDialog(true)}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-900">Clientes</CardTitle>
-              <Users className="h-5 w-5 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-900" data-testid="text-clientes">
-                {salesData.clientCount}
+            <CardContent className="pt-6 pb-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-700 mb-2">
+                    Clientes
+                  </p>
+                  <div className="text-3xl font-bold text-blue-900 mb-1" data-testid="text-clientes">
+                    {salesData.clientCount}
+                  </div>
+                  <p className="text-xs text-blue-600">
+                    Atendidos
+                  </p>
+                </div>
+                <div className="bg-blue-500 rounded-2xl p-3 shadow-sm">
+                  <Users className="h-6 w-6 text-white" />
+                </div>
               </div>
-              <p className="text-xs text-green-600 mt-1">
-                Atendidos · Click para ver
-              </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-purple-100 bg-gradient-to-br from-purple-50 to-white" data-testid="card-transacciones">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-purple-900">Transacciones</CardTitle>
-              <TrendingUp className="h-5 w-5 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-purple-900" data-testid="text-transacciones">
-                {salesData.transactions}
+          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-violet-50/80 to-violet-100/50" data-testid="card-transacciones">
+            <CardContent className="pt-6 pb-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-violet-700 mb-2">
+                    Transacciones
+                  </p>
+                  <div className="text-3xl font-bold text-violet-900 mb-1" data-testid="text-transacciones">
+                    {salesData.transactions}
+                  </div>
+                  <p className="text-xs text-violet-600">
+                    Realizadas
+                  </p>
+                </div>
+                <div className="bg-violet-500 rounded-2xl p-3 shadow-sm">
+                  <Package className="h-6 w-6 text-white" />
+                </div>
               </div>
-              <p className="text-xs text-purple-600 mt-1">
-                Realizadas
-              </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-orange-100 bg-gradient-to-br from-orange-50 to-white" data-testid="card-dias-ultima-venta">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-orange-900">Días desde última venta</CardTitle>
-              <Clock className="h-5 w-5 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-orange-900" data-testid="text-dias-ultima-venta">
-                {salesData.daysSinceLastSale}
+          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-amber-50/80 to-amber-100/50" data-testid="card-dias-ultima-venta">
+            <CardContent className="pt-6 pb-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-700 mb-2">
+                    Días desde última venta
+                  </p>
+                  <div className="text-3xl font-bold text-amber-900 mb-1" data-testid="text-dias-ultima-venta">
+                    {salesData.daysSinceLastSale} días
+                  </div>
+                  <p className="text-xs text-amber-600">
+                    Promedio
+                  </p>
+                </div>
+                <div className="bg-amber-500 rounded-2xl p-3 shadow-sm">
+                  <Clock className="h-6 w-6 text-white" />
+                </div>
               </div>
-              <p className="text-xs text-orange-600 mt-1">
-                días
-              </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-indigo-100 bg-gradient-to-br from-indigo-50 to-white" data-testid="card-ticket-promedio">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-indigo-900">Ticket Promedio</CardTitle>
-              <BarChart3 className="h-5 w-5 text-indigo-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-indigo-900" data-testid="text-ticket-promedio">
-                ${salesData.avgTicket.toLocaleString()}
+          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-indigo-50/80 to-indigo-100/50" data-testid="card-ticket-promedio">
+            <CardContent className="pt-6 pb-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-indigo-700 mb-2">
+                    Ticket Promedio
+                  </p>
+                  <div className="text-3xl font-bold text-indigo-900 mb-1" data-testid="text-ticket-promedio">
+                    ${salesData.avgTicket.toLocaleString()}
+                  </div>
+                  <p className="text-xs text-indigo-600">
+                    Por transacción
+                  </p>
+                </div>
+                <div className="bg-indigo-500 rounded-2xl p-3 shadow-sm">
+                  <TrendingUp className="h-6 w-6 text-white" />
+                </div>
               </div>
-              <p className="text-xs text-indigo-600 mt-1">
-                Por transacción
-              </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl shadow-sm border-pink-100 bg-gradient-to-br from-pink-50 to-white" data-testid="card-productividad">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-pink-900">Productividad</CardTitle>
-              <Star className="h-5 w-5 text-pink-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-pink-900" data-testid="text-productividad">
-                {(salesData.productivity || 0).toFixed(1)}
+          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-teal-50/80 to-teal-100/50" data-testid="card-productividad">
+            <CardContent className="pt-6 pb-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-teal-700 mb-2">
+                    Productividad
+                  </p>
+                  <div className="text-3xl font-bold text-teal-900 mb-1" data-testid="text-productividad">
+                    {(salesData.productivity || 0).toFixed(1)}
+                  </div>
+                  <p className="text-xs text-teal-600">
+                    trans/cliente
+                  </p>
+                </div>
+                <div className="bg-teal-500 rounded-2xl p-3 shadow-sm">
+                  <TrendingUp className="h-6 w-6 text-white" />
+                </div>
               </div>
-              <p className="text-xs text-pink-600 mt-1">
-                trans/cliente
-              </p>
             </CardContent>
           </Card>
         </div>
