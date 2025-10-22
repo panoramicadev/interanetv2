@@ -273,6 +273,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         caprco: cleanNumeric(row.CAPRCO),
         preuni: cleanNumeric(row.PREUNI),
         vaneli: cleanNumeric(row.VANELI),
+        feemli: row.FEEMLI || null,
+        feerli: row.FEERLI || null,
         devol1: cleanNumeric(row.DEVOL1),
         devol2: cleanNumeric(row.DEVOL2),
         stockfis: cleanNumeric(row.STOCKFIS),
