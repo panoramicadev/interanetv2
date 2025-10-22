@@ -156,10 +156,46 @@ export default function SalespersonDetail({
     queryKey: ['/api/sales/available-periods'],
   });
 
+  // Sync local state with dashboard props when they change
+  useEffect(() => {
+    if (embedded && dashboardFilterType) {
+      setFilterType(dashboardFilterType);
+    }
+  }, [embedded, dashboardFilterType]);
+
+  useEffect(() => {
+    if (embedded && dashboardSelectedPeriod) {
+      setSelectedPeriod(dashboardSelectedPeriod);
+    }
+  }, [embedded, dashboardSelectedPeriod]);
+
+  useEffect(() => {
+    if (embedded && dashboardSelectedDate) {
+      setSelectedDate(dashboardSelectedDate);
+    }
+  }, [embedded, dashboardSelectedDate]);
+
+  useEffect(() => {
+    if (embedded && dashboardSelectedYear) {
+      setSelectedYear(dashboardSelectedYear);
+    }
+  }, [embedded, dashboardSelectedYear]);
+
+  useEffect(() => {
+    if (embedded && dashboardDateRange) {
+      if (dashboardDateRange.from) {
+        setStartDate(dashboardDateRange.from);
+      }
+      if (dashboardDateRange.to) {
+        setEndDate(dashboardDateRange.to);
+      }
+    }
+  }, [embedded, dashboardDateRange]);
+
   // Update selected period when filter type or dates change (but not on initial mount with dashboard values)
   useEffect(() => {
-    // Skip if we just initialized from dashboard props
-    if (dashboardSelectedPeriod && selectedPeriod === dashboardSelectedPeriod) {
+    // Skip if we're embedded and using dashboard values
+    if (embedded && dashboardSelectedPeriod) {
       return;
     }
     
