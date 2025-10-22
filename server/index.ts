@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import path from "path";
-import { executeIncrementalETL } from "./etl-incremental";
+import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -70,32 +70,50 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
     
-    // Start ETL automatic scheduler (every 15 minutes)
-    const ETL_INTERVAL = 15 * 60 * 1000; // 15 minutes in milliseconds
-    
-    log('🔄 ETL automatic scheduler initialized (runs every 15 minutes)');
-    
-    // Run ETL on startup after 30 seconds (give the app time to fully initialize)
-    setTimeout(async () => {
-      try {
-        log('📊 Running initial ETL on startup...');
-        await executeIncrementalETL();
-      } catch (error: any) {
-        console.error('Initial ETL execution failed:', error.message);
-      }
-    }, 30000);
-    
-    // Schedule ETL to run every 15 minutes
-    setInterval(async () => {
-      try {
-        log('📊 Running scheduled ETL update...');
-        await executeIncrementalETL();
-      } catch (error: any) {
-        console.error('Scheduled ETL execution failed:', error.message);
-      }
-    }, ETL_INTERVAL);
+    // Start ETL automatic scheduler with configurable interval
+    try {
+      const config = await getETLConfig('ventas_incremental');
+      const intervalMinutes = config.intervalMinutes || 15;
+      const ETL_INTERVAL = intervalMinutes * 60 * 1000; // Convert minutes to milliseconds
+      
+      log(`🔄 ETL automatic scheduler initialized (runs every ${intervalMinutes} minutes)`);
+      
+      // Run ETL on startup after 30 seconds (give the app time to fully initialize)
+      setTimeout(async () => {
+        try {
+          log('📊 Running initial ETL on startup...');
+          await executeIncrementalETL();
+        } catch (error: any) {
+          console.error('Initial ETL execution failed:', error.message);
+        }
+      }, 30000);
+      
+      // Schedule ETL to run at configured interval
+      setInterval(async () => {
+        try {
+          log('📊 Running scheduled ETL update...');
+          await executeIncrementalETL();
+        } catch (error: any) {
+          console.error('Scheduled ETL execution failed:', error.message);
+        }
+      }, ETL_INTERVAL);
+    } catch (error: any) {
+      console.error('Failed to initialize ETL scheduler:', error.message);
+      log('⚠️  ETL scheduler failed to initialize - using default 15 minute interval');
+      
+      // Fallback to default interval
+      const ETL_INTERVAL = 15 * 60 * 1000;
+      setInterval(async () => {
+        try {
+          log('📊 Running scheduled ETL update...');
+          await executeIncrementalETL();
+        } catch (error: any) {
+          console.error('Scheduled ETL execution failed:', error.message);
+        }
+      }, ETL_INTERVAL);
+    }
   });
 })();
