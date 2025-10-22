@@ -428,7 +428,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         CAST(NULL AS NUMERIC(20,0)),
         CAST(NULL AS NUMERIC(20,0)),
         CAST(NULL AS NUMERIC(18,6)),
-        ed.bosulido,
+        CAST(ed.bosulido AS NUMERIC(20,0)),
         ed.kofudo,
         false,
         CAST(NULL AS NUMERIC(18,6)),
