@@ -587,6 +587,7 @@ export async function updateETLConfig(
   etlName: string,
   customWatermark?: Date | null,
   useCustomWatermark?: boolean,
+  keepCustomWatermark?: boolean,
   timeoutMinutes?: number,
   intervalMinutes?: number
 ) {
@@ -603,6 +604,7 @@ export async function updateETLConfig(
       const updateData: any = { updatedAt: new Date() };
       if (customWatermark !== undefined) updateData.customWatermark = customWatermark;
       if (useCustomWatermark !== undefined) updateData.useCustomWatermark = useCustomWatermark;
+      if (keepCustomWatermark !== undefined) updateData.keepCustomWatermark = keepCustomWatermark;
       if (timeoutMinutes !== undefined) updateData.timeoutMinutes = timeoutMinutes;
       if (intervalMinutes !== undefined) updateData.intervalMinutes = intervalMinutes;
 
