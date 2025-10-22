@@ -99,16 +99,6 @@ export default function SalespersonDetail({
   const { salespersonName: paramSalespersonName } = useParams();
   const salespersonName = propSalespersonName || paramSalespersonName;
   
-  // Debug log para verificar props recibidos
-  console.log('[SalespersonDetail] Props recibidos:', {
-    salespersonName,
-    embedded,
-    dashboardFilterType,
-    dashboardSelectedPeriod,
-    dashboardSelectedDate,
-    dashboardSelectedYear
-  });
-  
   // Date filter states - Initialize from dashboard props if embedded
   const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">(() => {
     return dashboardFilterType || "month";
@@ -169,14 +159,12 @@ export default function SalespersonDetail({
   // Sync local state with dashboard props when they change
   useEffect(() => {
     if (embedded && dashboardFilterType) {
-      console.log('[SalespersonDetail] Sincronizando filterType:', dashboardFilterType);
       setFilterType(dashboardFilterType);
     }
   }, [embedded, dashboardFilterType]);
 
   useEffect(() => {
     if (embedded && dashboardSelectedPeriod) {
-      console.log('[SalespersonDetail] Sincronizando selectedPeriod:', dashboardSelectedPeriod);
       setSelectedPeriod(dashboardSelectedPeriod);
     }
   }, [embedded, dashboardSelectedPeriod]);
@@ -427,11 +415,11 @@ export default function SalespersonDetail({
                     <button className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200 hover:bg-green-100 transition-colors cursor-pointer">
                       <CalendarIcon className="h-3.5 w-3.5" />
                       <span>
-                        {dashboardFilterType === "day" && (dashboardSelectedPeriod ? `Día: ${format(new Date(dashboardSelectedPeriod), "dd/MM/yyyy")}` : "Día")}
-                        {dashboardFilterType === "month" && (dashboardSelectedPeriod ? `Mes: ${format(new Date(dashboardSelectedPeriod + "-01"), "MMM yyyy")}` : "Mes")}
-                        {dashboardFilterType === "year" && (dashboardSelectedPeriod ? `Año: ${dashboardSelectedPeriod}` : "Año")}
-                        {dashboardFilterType === "range" && (dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_") ? 
-                          `Rango: ${format(new Date(dashboardSelectedPeriod.split("_")[0]), "dd/MM")} - ${format(new Date(dashboardSelectedPeriod.split("_")[1]), "dd/MM")}` : "Rango")}
+                        {filterType === "day" && (selectedDate ? `Día: ${format(selectedDate, "dd/MM/yyyy")}` : "Día")}
+                        {filterType === "month" && (selectedPeriod ? `Mes: ${format(new Date(selectedPeriod + "-01"), "MMM yyyy")}` : "Mes")}
+                        {filterType === "year" && (selectedYear ? `Año: ${selectedYear}` : "Año")}
+                        {filterType === "range" && (startDate && endDate ? 
+                          `Rango: ${format(startDate, "dd/MM")} - ${format(endDate, "dd/MM")}` : "Rango")}
                       </span>
                     </button>
                   </PopoverTrigger>
