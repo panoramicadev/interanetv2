@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -62,6 +63,7 @@ interface ETLConfig {
   etlName: string;
   customWatermark: string | null;
   useCustomWatermark: boolean;
+  keepCustomWatermark: boolean;
   timeoutMinutes: number;
   intervalMinutes: number;
   createdAt: string;
@@ -207,6 +209,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   const [customWatermark, setCustomWatermark] = useState('');
   const [timeoutMinutes, setTimeoutMinutes] = useState(10);
   const [intervalMinutes, setIntervalMinutes] = useState(15);
+  const [keepCustomWatermark, setKeepCustomWatermark] = useState(false);
 
   // Fetch ETL status
   const { data: status, isLoading } = useQuery<ETLStatus>({
@@ -264,7 +267,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
 
   // Update ETL configuration mutation
   const updateConfigMutation = useMutation({
-    mutationFn: async (data: { customWatermark?: string; timeoutMinutes?: number; intervalMinutes?: number }) => {
+    mutationFn: async (data: { customWatermark?: string; timeoutMinutes?: number; intervalMinutes?: number; keepCustomWatermark?: boolean }) => {
       return await apiRequest(`/api/etl/config?etlName=${etlName}`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -293,6 +296,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     if (showConfigDialog && status?.config) {
       setTimeoutMinutes(status.config.timeoutMinutes);
       setIntervalMinutes(status.config.intervalMinutes || 15);
+      setKeepCustomWatermark(status.config.keepCustomWatermark || false);
       setCustomWatermark('');
     }
   }, [showConfigDialog, status?.config]);
@@ -572,6 +576,25 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                 Si se configura, el ETL procesará datos desde esta fecha solo en la próxima ejecución.
                 Luego volverá automáticamente a modo incremental.
               </p>
+              
+              {/* Keep Custom Watermark Checkbox */}
+              <div className="flex items-center space-x-2 pt-2">
+                <Checkbox
+                  id="keepCustomWatermark"
+                  checked={keepCustomWatermark}
+                  onCheckedChange={(checked) => setKeepCustomWatermark(checked as boolean)}
+                  data-testid="checkbox-keep-watermark"
+                />
+                <Label
+                  htmlFor="keepCustomWatermark"
+                  className="text-sm font-normal cursor-pointer"
+                >
+                  Mantener watermark personalizado permanente
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground pl-6">
+                Si está activado, el watermark personalizado se mantendrá en todas las ejecuciones hasta que lo desactives.
+              </p>
             </div>
 
             {/* Timeout Configuration */}
@@ -627,6 +650,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                   customWatermark: customWatermark || undefined,
                   timeoutMinutes,
                   intervalMinutes,
+                  keepCustomWatermark,
                 });
               }}
               disabled={updateConfigMutation.isPending}
