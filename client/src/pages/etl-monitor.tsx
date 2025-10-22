@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -16,6 +16,14 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Database, 
@@ -29,7 +37,8 @@ import {
   Calendar,
   FileText,
   Server,
-  Filter
+  Filter,
+  Settings
 } from "lucide-react";
 import { formatDistanceToNow, format, subDays } from "date-fns";
 import { es } from "date-fns/locale";
@@ -251,6 +260,40 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     },
   });
 
+  // Update ETL configuration mutation
+  const updateConfigMutation = useMutation({
+    mutationFn: async (data: { customWatermark?: string; timeoutMinutes?: number }) => {
+      return await apiRequest(`/api/etl/config?etlName=${etlName}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Configuración Actualizada",
+        description: data.message || "La configuración del ETL se actualizó exitosamente",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/etl/status?etlName=${etlName}`] });
+      setShowConfigDialog(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al actualizar configuración",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Initialize config form values when dialog opens
+  useEffect(() => {
+    if (showConfigDialog && status?.config) {
+      setTimeoutMinutes(status.config.timeoutMinutes);
+      setCustomWatermark('');
+    }
+  }, [showConfigDialog, status?.config]);
+
   const handleExecute = () => {
     if (status?.isRunning) {
       toast({
@@ -344,6 +387,16 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
               )}
             </div>
             <div className="flex gap-2">
+              <Button
+                onClick={() => setShowConfigDialog(true)}
+                disabled={isRunning}
+                size="lg"
+                variant="outline"
+                data-testid="button-config-etl"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Configurar
+              </Button>
               {isRunning ? (
                 <Button
                   onClick={handleCancel}
@@ -468,6 +521,105 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
           )}
         </CardContent>
       </Card>
+
+      {/* Configuration Dialog */}
+      <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configurar ETL</DialogTitle>
+            <DialogDescription>
+              Ajusta la configuración del proceso ETL. El watermark personalizado se usará solo una vez,
+              luego el proceso volverá a modo incremental.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Current Config Display */}
+            {status?.config && (
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                  Configuración Actual:
+                </p>
+                <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                  <p>• Timeout: {status.config.timeoutMinutes} minutos</p>
+                  {status.config.useCustomWatermark && status.config.customWatermark && (
+                    <p>• Watermark personalizado activo: {new Date(status.config.customWatermark).toLocaleDateString('es-CL')}</p>
+                  )}
+                  {!status.config.useCustomWatermark && (
+                    <p>• Modo: Incremental (desde última ejecución)</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Watermark Configuration */}
+            <div className="space-y-2">
+              <Label htmlFor="customWatermark">
+                Fecha de Inicio Personalizada (opcional)
+              </Label>
+              <Input
+                id="customWatermark"
+                type="date"
+                value={customWatermark}
+                onChange={(e) => setCustomWatermark(e.target.value)}
+                data-testid="input-custom-watermark"
+              />
+              <p className="text-xs text-muted-foreground">
+                Si se configura, el ETL procesará datos desde esta fecha solo en la próxima ejecución.
+                Luego volverá automáticamente a modo incremental.
+              </p>
+            </div>
+
+            {/* Timeout Configuration */}
+            <div className="space-y-2">
+              <Label htmlFor="timeout">
+                Timeout (minutos)
+              </Label>
+              <Input
+                id="timeout"
+                type="number"
+                min="1"
+                max="60"
+                value={timeoutMinutes}
+                onChange={(e) => setTimeoutMinutes(parseInt(e.target.value) || 10)}
+                data-testid="input-timeout"
+              />
+              <p className="text-xs text-muted-foreground">
+                Tiempo máximo de ejecución antes de cancelar automáticamente el proceso.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowConfigDialog(false)}
+              data-testid="button-cancel-config"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                updateConfigMutation.mutate({
+                  customWatermark: customWatermark || undefined,
+                  timeoutMinutes,
+                });
+              }}
+              disabled={updateConfigMutation.isPending}
+              data-testid="button-save-config"
+            >
+              {updateConfigMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar Configuración'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
