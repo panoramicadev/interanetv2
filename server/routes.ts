@@ -18,7 +18,7 @@ import { db } from "./db";
 import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema } from "../shared/schema";
 import { eq, and, isNotNull, ne } from "drizzle-orm";
 import { emailService } from "./services/email";
-import { executeIncrementalETL, getETLStatus } from "./etl-incremental";
+import { executeIncrementalETL, getETLStatus, updateETLConfig } from "./etl-incremental";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -8567,6 +8567,37 @@ export function registerRoutes(app: Express): Server {
       });
     } catch (error: any) {
       console.error('ETL cancellation error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  }));
+
+  // Update ETL configuration (watermark, timeout) - admin/supervisor only
+  app.post('/api/etl/config', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { etlName = 'ventas_incremental' } = req.query;
+      const { customWatermark, timeoutMinutes } = req.body;
+      
+      console.log(`⚙️  ETL config update requested by: ${req.user.email} for ETL: ${etlName}`);
+      console.log(`   Watermark: ${customWatermark || 'no change'}`);
+      console.log(`   Timeout: ${timeoutMinutes || 'no change'} minutes`);
+      
+      const config = await updateETLConfig(
+        etlName as string,
+        customWatermark ? new Date(customWatermark) : undefined,
+        customWatermark ? true : false, // Activar watermark personalizado si se proporciona
+        timeoutMinutes ? parseInt(timeoutMinutes) : undefined
+      );
+      
+      res.json({ 
+        success: true,
+        message: 'Configuración ETL actualizada exitosamente',
+        config
+      });
+    } catch (error: any) {
+      console.error('ETL config update error:', error);
       res.status(500).json({ 
         success: false,
         error: error.message 
