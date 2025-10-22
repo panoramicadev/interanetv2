@@ -8574,21 +8574,23 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Update ETL configuration (watermark, timeout) - admin/supervisor only
+  // Update ETL configuration (watermark, timeout, interval) - admin/supervisor only
   app.post('/api/etl/config', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const { etlName = 'ventas_incremental' } = req.query;
-      const { customWatermark, timeoutMinutes } = req.body;
+      const { customWatermark, timeoutMinutes, intervalMinutes } = req.body;
       
       console.log(`⚙️  ETL config update requested by: ${req.user.email} for ETL: ${etlName}`);
       console.log(`   Watermark: ${customWatermark || 'no change'}`);
       console.log(`   Timeout: ${timeoutMinutes || 'no change'} minutes`);
+      console.log(`   Interval: ${intervalMinutes || 'no change'} minutes`);
       
       const config = await updateETLConfig(
         etlName as string,
         customWatermark ? new Date(customWatermark) : undefined,
         customWatermark ? true : false, // Activar watermark personalizado si se proporciona
-        timeoutMinutes ? parseInt(timeoutMinutes) : undefined
+        timeoutMinutes ? parseInt(timeoutMinutes) : undefined,
+        intervalMinutes ? parseInt(intervalMinutes) : undefined
       );
       
       res.json({ 
