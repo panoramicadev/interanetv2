@@ -29,7 +29,7 @@ Preferred communication style: Simple, everyday language.
 ### Database
 - **Database**: PostgreSQL (Neon serverless)
 - **ORM**: Drizzle ORM
-- **Key Schemas**: Users, sales_transactions, ecommerceOrders, notifications, reclamosGenerales, presupuestoMarketing, solicitudesMarketing, gastosEmpresariales, stgMaeedo, factVentas.
+- **Key Schemas**: Users, sales_transactions, ecommerceOrders, notifications, reclamosGenerales, presupuestoMarketing, solicitudesMarketing, gastosEmpresariales, stgMaeedo, factVentas, etlConfig, etlExecutionLog.
 - **Migrations**: Drizzle Kit
 
 ### UI/UX
@@ -54,7 +54,7 @@ Preferred communication style: Simple, everyday language.
 - **Inventory Module**: Real-time stock levels, warehouse filtering, low stock alerts, and summary metrics.
 - **Expense Management (Gastos Empresariales)**: Expense creation, approval workflow, status tracking, and analytics dashboard.
 - **Promesas de Compra Semanales**: Weekly purchase promise tracking, compliance comparison with actual sales, and visual indicators.
-- **ETL Data Warehouse**: PostgreSQL schema "ventas" with staging tables and a denormalized `fact_ventas` table. Supports Full Annual ETL and Automatic Incremental ETL (every 15 minutes) with watermark tracking. An "ETL Monitor Panel" provides a visual interface for status, history, and manual triggers.
+- **ETL Data Warehouse**: PostgreSQL schema "ventas" with staging tables and a denormalized `fact_ventas` table. Supports Full Annual ETL and Automatic Incremental ETL (every 15 minutes) with watermark tracking. An "ETL Monitor Panel" provides a visual interface for status, history, manual triggers, and configuration. Features include: configurable watermark (custom starting date for data extraction that auto-deactivates after one use), automatic timeout protection (10-minute default, configurable), and date-filtered execution history. ETL processes include automatic cancellation for stuck processes and proper cleanup on completion or error.
 
 ### Production Deployment
 - **Platform**: Replit Autoscale Deployment
