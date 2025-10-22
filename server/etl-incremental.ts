@@ -340,18 +340,18 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     const bosulis = [...new Set(maeedo.recordset.map(r => r.BOSULIDO))];
     
     const tabbo = await pool.request().query(`
-      SELECT SULI, BOSULI, NOBOSULI
+      SELECT EMPRESA, KOBO, NOKOBO
       FROM dbo.TABBO
-      WHERE SULI IN (${sulis.map(s => `'${s}'`).join(',')})
-        AND BOSULI IN (${bosulis.map(b => `'${b}'`).join(',')})
+      WHERE EMPRESA IN (${sulis.map(s => `'${s}'`).join(',')})
+        AND KOBO IN (${bosulis.map(b => `'${b}'`).join(',')})
     `);
     console.log(`   ✅ ${tabbo.recordset.length} registros encontrados`);
 
     for (const row of tabbo.recordset) {
       await db.insert(stgTabbo).values({
-        suli: row.SULI?.trim() || '',
-        bosuli: row.BOSULI?.trim() || '',
-        nobosuli: row.NOBOSULI?.trim() || null,
+        suli: row.EMPRESA?.trim() || '',
+        bosuli: row.KOBO?.trim() || '',
+        nobosuli: row.NOKOBO?.trim() || null,
       });
     }
 
