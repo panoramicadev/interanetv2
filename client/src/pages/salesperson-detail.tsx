@@ -99,6 +99,16 @@ export default function SalespersonDetail({
   const { salespersonName: paramSalespersonName } = useParams();
   const salespersonName = propSalespersonName || paramSalespersonName;
   
+  // Debug log para verificar props recibidos
+  console.log('[SalespersonDetail] Props recibidos:', {
+    salespersonName,
+    embedded,
+    dashboardFilterType,
+    dashboardSelectedPeriod,
+    dashboardSelectedDate,
+    dashboardSelectedYear
+  });
+  
   // Date filter states - Initialize from dashboard props if embedded
   const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">(() => {
     return dashboardFilterType || "month";
@@ -159,12 +169,14 @@ export default function SalespersonDetail({
   // Sync local state with dashboard props when they change
   useEffect(() => {
     if (embedded && dashboardFilterType) {
+      console.log('[SalespersonDetail] Sincronizando filterType:', dashboardFilterType);
       setFilterType(dashboardFilterType);
     }
   }, [embedded, dashboardFilterType]);
 
   useEffect(() => {
     if (embedded && dashboardSelectedPeriod) {
+      console.log('[SalespersonDetail] Sincronizando selectedPeriod:', dashboardSelectedPeriod);
       setSelectedPeriod(dashboardSelectedPeriod);
     }
   }, [embedded, dashboardSelectedPeriod]);
