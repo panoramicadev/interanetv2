@@ -75,7 +75,7 @@ async function getLastWatermark(etlName: string = 'ventas_incremental'): Promise
   return new Date('2025-01-01');
 }
 
-async function getETLConfig(etlName: string = 'ventas_incremental') {
+export async function getETLConfig(etlName: string = 'ventas_incremental') {
   const config = await db
     .select()
     .from(etlConfig)
@@ -91,6 +91,7 @@ async function getETLConfig(etlName: string = 'ventas_incremental') {
     etlName,
     useCustomWatermark: false,
     timeoutMinutes: 10,
+    intervalMinutes: 15,
   }).returning();
 
   return newConfig;
