@@ -510,13 +510,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       })
       .where(sql`id = ${executionLog.id}`);
 
-    // Desactivar watermark personalizado después de usarlo (para que próxima ejecución sea incremental)
-    await db.update(etlConfig)
-      .set({
-        useCustomWatermark: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(etlConfig.etlName, etlName));
+    // Desactivar watermark personalizado solo si keepCustomWatermark es false
+    if (!config.keepCustomWatermark) {
+      await db.update(etlConfig)
+        .set({
+          useCustomWatermark: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(etlConfig.etlName, etlName));
+    }
 
     // Limpiar timeout
     if (timeoutHandle) {
