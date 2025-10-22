@@ -3514,6 +3514,21 @@ export const stgTabpp = ventasSchema.table("stg_tabpp", {
   liscosmod: numeric("liscosmod", { precision: 18, scale: 4 }),
 });
 
+// ===== TABLA DE CONFIGURACIÓN ETL =====
+export const etlConfig = ventasSchema.table("etl_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  etlName: varchar("etl_name", { length: 100 }).notNull().unique(), // Identificador del ETL
+  customWatermark: timestamp("custom_watermark"), // Watermark personalizado (si se configura)
+  useCustomWatermark: boolean("use_custom_watermark").default(false).notNull(), // Si usar watermark personalizado
+  timeoutMinutes: integer("timeout_minutes").default(10).notNull(), // Timeout en minutos
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Types para etlConfig
+export type EtlConfig = typeof etlConfig.$inferSelect;
+export type InsertEtlConfig = typeof etlConfig.$inferInsert;
+
 // ===== TABLA DE CONTROL ETL (Watermark) =====
 export const etlExecutionLog = ventasSchema.table("etl_execution_log", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

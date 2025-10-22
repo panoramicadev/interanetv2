@@ -10,7 +10,8 @@ import {
   stgTabbo, 
   stgTabpp,
   factVentas,
-  etlExecutionLog
+  etlExecutionLog,
+  etlConfig
 } from '../shared/schema';
 
 const sqlServerConfig: mssql.config = {
@@ -45,6 +46,20 @@ function cleanNumeric(value: any): number {
 }
 
 async function getLastWatermark(etlName: string = 'ventas_incremental'): Promise<Date> {
+  // Verificar si hay configuración personalizada
+  const config = await db
+    .select()
+    .from(etlConfig)
+    .where(eq(etlConfig.etlName, etlName))
+    .limit(1);
+
+  // Si hay configuración personalizada activa, usarla
+  if (config.length > 0 && config[0].useCustomWatermark && config[0].customWatermark) {
+    console.log(`📍 Usando watermark personalizado: ${new Date(config[0].customWatermark).toISOString()}`);
+    return new Date(config[0].customWatermark);
+  }
+
+  // Obtener el último watermark de ejecución exitosa
   const lastExecution = await db
     .select()
     .from(etlExecutionLog)
@@ -60,19 +75,85 @@ async function getLastWatermark(etlName: string = 'ventas_incremental'): Promise
   return new Date('2025-01-01');
 }
 
+async function getETLConfig(etlName: string = 'ventas_incremental') {
+  const config = await db
+    .select()
+    .from(etlConfig)
+    .where(eq(etlConfig.etlName, etlName))
+    .limit(1);
+
+  if (config.length > 0) {
+    return config[0];
+  }
+
+  // Crear configuración por defecto si no existe
+  const [newConfig] = await db.insert(etlConfig).values({
+    etlName,
+    useCustomWatermark: false,
+    timeoutMinutes: 10,
+  }).returning();
+
+  return newConfig;
+}
+
 export async function executeIncrementalETL(etlName: string = 'ventas_incremental'): Promise<ETLResult> {
   const startTime = Date.now();
   let pool: mssql.ConnectionPool | null = null;
   const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV', 'BLV', 'FDV'];
   const sucursales = ['004', '006', '007'];
+  let timeoutHandle: NodeJS.Timeout | null = null;
+  let timedOut = false;
 
   try {
     console.log('\n🔄 INICIANDO ETL INCREMENTAL');
     console.log('═══════════════════════════════════════════════════');
 
+    // Obtener configuración ETL (incluye timeout)
+    const config = await getETLConfig(etlName);
+    const timeoutMs = config.timeoutMinutes * 60 * 1000;
+
     // Obtener el último watermark
     const lastWatermark = await getLastWatermark(etlName);
     const currentWatermark = new Date();
+    
+    // Configurar timeout automático
+    timeoutHandle = setTimeout(async () => {
+      timedOut = true;
+      console.log(`\n⏱️  TIMEOUT: ETL excedió el límite de ${config.timeoutMinutes} minutos`);
+      
+      // Marcar ejecución como cancelada por timeout
+      try {
+        const runningExecution = await db
+          .select()
+          .from(etlExecutionLog)
+          .where(sql`status = 'running' AND etl_name = ${etlName}`)
+          .orderBy(desc(etlExecutionLog.executionDate))
+          .limit(1);
+
+        if (runningExecution.length > 0) {
+          await db.update(etlExecutionLog)
+            .set({
+              status: 'error',
+              errorMessage: `Cancelado automáticamente por timeout (${config.timeoutMinutes} minutos)`,
+              executionTimeMs: Date.now() - startTime,
+            })
+            .where(sql`id = ${runningExecution[0].id}`);
+        }
+      } catch (timeoutError) {
+        console.error('Error al marcar timeout:', timeoutError);
+      }
+      
+      // Cerrar conexión SQL Server si está abierta
+      if (pool) {
+        try {
+          await pool.close();
+        } catch (closeError) {
+          console.error('Error cerrando pool por timeout:', closeError);
+        }
+      }
+    }, timeoutMs);
+
+    console.log(`⏱️  Timeout configurado: ${config.timeoutMinutes} minutos`);
     
     console.log(`📅 Período incremental:`);
     console.log(`   ETL: ${etlName}`);
@@ -423,6 +504,19 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       })
       .where(sql`id = ${executionLog.id}`);
 
+    // Desactivar watermark personalizado después de usarlo (para que próxima ejecución sea incremental)
+    await db.update(etlConfig)
+      .set({
+        useCustomWatermark: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(etlConfig.etlName, etlName));
+
+    // Limpiar timeout
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+
     await pool.close();
 
     console.log('╔═══════════════════════════════════════════════════╗');
@@ -444,19 +538,26 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     
     const executionTimeMs = Date.now() - startTime;
     
-    // Registrar error en el log
-    try {
-      await db.insert(etlExecutionLog).values({
-        etlName,
-        status: 'error',
-        period: 'incremental',
-        documentTypes: tiposDoc.join(','),
-        branches: sucursales.join(','),
-        executionTimeMs,
-        errorMessage: error.message,
-      });
-    } catch (logError) {
-      console.error('Error registrando fallo:', logError);
+    // Limpiar timeout si hubo error
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+    
+    // Registrar error en el log (solo si no fue timeout)
+    if (!timedOut) {
+      try {
+        await db.insert(etlExecutionLog).values({
+          etlName,
+          status: 'error',
+          period: 'incremental',
+          documentTypes: tiposDoc.join(','),
+          branches: sucursales.join(','),
+          executionTimeMs,
+          errorMessage: error.message,
+        });
+      } catch (logError) {
+        console.error('Error registrando fallo:', logError);
+      }
     }
 
     if (pool) {
@@ -469,8 +570,52 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       executionTimeMs,
       period: 'incremental',
       watermarkDate: new Date(),
-      error: error.message,
+      error: timedOut ? `Timeout: Proceso cancelado automáticamente` : error.message,
     };
+  }
+}
+
+export async function updateETLConfig(
+  etlName: string,
+  customWatermark?: Date | null,
+  useCustomWatermark?: boolean,
+  timeoutMinutes?: number
+) {
+  try {
+    // Verificar si existe configuración
+    const existing = await db
+      .select()
+      .from(etlConfig)
+      .where(eq(etlConfig.etlName, etlName))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Actualizar configuración existente
+      const updateData: any = { updatedAt: new Date() };
+      if (customWatermark !== undefined) updateData.customWatermark = customWatermark;
+      if (useCustomWatermark !== undefined) updateData.useCustomWatermark = useCustomWatermark;
+      if (timeoutMinutes !== undefined) updateData.timeoutMinutes = timeoutMinutes;
+
+      const [updated] = await db.update(etlConfig)
+        .set(updateData)
+        .where(eq(etlConfig.etlName, etlName))
+        .returning();
+
+      return updated;
+    } else {
+      // Crear nueva configuración
+      const [newConfig] = await db.insert(etlConfig).values({
+        etlName,
+        customWatermark: customWatermark || null,
+        useCustomWatermark: useCustomWatermark || false,
+        timeoutMinutes: timeoutMinutes || 10,
+      }).returning();
+
+      return newConfig;
+    }
+  } catch (error: any) {
+    console.error('Error updating ETL config:', error);
+    throw error;
   }
 }
 
@@ -538,6 +683,9 @@ export async function getETLStatus(
       totalFactVentasRecords: totalFactVentasCount
     } : null;
 
+    // Get ETL configuration
+    const config = await getETLConfig(etlName);
+
     return {
       lastExecution: enrichedLastExecution,
       isRunning,
@@ -546,6 +694,7 @@ export async function getETLStatus(
       successfulExecutions: successfulExecutionsResult[0]?.count || 0,
       failedExecutions: failedExecutionsResult[0]?.count || 0,
       totalFactVentasRecords: totalFactVentasCount,
+      config, // Include configuration
     };
   } catch (error: any) {
     console.error('❌ Error in getETLStatus:', error);

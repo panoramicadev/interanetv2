@@ -48,6 +48,16 @@ interface ETLExecution {
   watermarkDate: string | null;
 }
 
+interface ETLConfig {
+  id: string;
+  etlName: string;
+  customWatermark: string | null;
+  useCustomWatermark: boolean;
+  timeoutMinutes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface ETLStatus {
   lastExecution: ETLExecution | null;
   isRunning: boolean;
@@ -55,6 +65,7 @@ interface ETLStatus {
   totalExecutions: number;
   successfulExecutions: number;
   failedExecutions: number;
+  config: ETLConfig;
 }
 
 // Configuración de ETLs disponibles
@@ -182,6 +193,9 @@ export default function ETLMonitor() {
 // ETL Status Section Component
 function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefresh: boolean }) {
   const { toast } = useToast();
+  const [showConfigDialog, setShowConfigDialog] = useState(false);
+  const [customWatermark, setCustomWatermark] = useState('');
+  const [timeoutMinutes, setTimeoutMinutes] = useState(10);
 
   // Fetch ETL status
   const { data: status, isLoading } = useQuery<ETLStatus>({
