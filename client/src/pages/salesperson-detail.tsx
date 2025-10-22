@@ -20,7 +20,7 @@ interface GoalProgress {
   description?: string;
   currentSales: number;
   targetAmount: number;
-  progress: number;
+  percentage: number;
   remaining: number;
   isCompleted: boolean;
 }
@@ -565,10 +565,10 @@ export default function SalespersonDetail({
                     </div>
                     <div className="text-right">
                       <div className={`text-3xl font-bold ${
-                        (primaryGoal.progress || 0) >= 100 ? 'text-emerald-600' : 
-                        (primaryGoal.progress || 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
+                        (primaryGoal.percentage || 0) >= 100 ? 'text-emerald-600' : 
+                        (primaryGoal.percentage || 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
                       }`}>
-                        {(primaryGoal.progress || 0).toFixed(1)}%
+                        {(primaryGoal.percentage || 0).toFixed(1)}%
                       </div>
                       <p className="text-xs text-gray-600 mt-1">Logrado</p>
                     </div>
@@ -577,10 +577,10 @@ export default function SalespersonDetail({
                   <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
                     <div
                       className={`h-4 rounded-full transition-all duration-500 ${
-                        (primaryGoal.progress || 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
-                        (primaryGoal.progress || 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                        (primaryGoal.percentage || 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                        (primaryGoal.percentage || 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
                       }`}
-                      style={{ width: `${Math.min(primaryGoal.progress || 0, 100)}%` }}
+                      style={{ width: `${Math.min(primaryGoal.percentage || 0, 100)}%` }}
                     ></div>
                   </div>
                   
