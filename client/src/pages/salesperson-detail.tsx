@@ -412,21 +412,15 @@ export default function SalespersonDetail({
               {dashboardFilterType && onDateFilterChange && (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button 
-                      className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200 hover:bg-green-100 transition-colors cursor-pointer"
-                      onClick={() => {
-                        console.log('[Badge] Debug values:', {
-                          filterType,
-                          selectedPeriod,
-                          dashboardSelectedPeriod,
-                          formattedDate: selectedPeriod ? format(new Date(selectedPeriod + "-01"), "MMM yyyy") : 'N/A'
-                        });
-                      }}
-                    >
+                    <button className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200 hover:bg-green-100 transition-colors cursor-pointer">
                       <CalendarIcon className="h-3.5 w-3.5" />
                       <span>
                         {filterType === "day" && (selectedDate ? `Día: ${format(selectedDate, "dd/MM/yyyy")}` : "Día")}
-                        {filterType === "month" && (selectedPeriod ? `Mes: ${format(new Date(selectedPeriod + "-01"), "MMM yyyy")}` : "Mes")}
+                        {filterType === "month" && selectedPeriod && (() => {
+                          const [year, month] = selectedPeriod.split("-").map(Number);
+                          const date = new Date(year, month - 1, 1);
+                          return `Mes: ${format(date, "MMM yyyy")}`;
+                        })()}
                         {filterType === "year" && (selectedYear ? `Año: ${selectedYear}` : "Año")}
                         {filterType === "range" && (startDate && endDate ? 
                           `Rango: ${format(startDate, "dd/MM")} - ${format(endDate, "dd/MM")}` : "Rango")}
