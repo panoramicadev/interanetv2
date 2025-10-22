@@ -412,7 +412,17 @@ export default function SalespersonDetail({
               {dashboardFilterType && onDateFilterChange && (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200 hover:bg-green-100 transition-colors cursor-pointer">
+                    <button 
+                      className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200 hover:bg-green-100 transition-colors cursor-pointer"
+                      onClick={() => {
+                        console.log('[Badge] Debug values:', {
+                          filterType,
+                          selectedPeriod,
+                          dashboardSelectedPeriod,
+                          formattedDate: selectedPeriod ? format(new Date(selectedPeriod + "-01"), "MMM yyyy") : 'N/A'
+                        });
+                      }}
+                    >
                       <CalendarIcon className="h-3.5 w-3.5" />
                       <span>
                         {filterType === "day" && (selectedDate ? `Día: ${format(selectedDate, "dd/MM/yyyy")}` : "Día")}
