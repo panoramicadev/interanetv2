@@ -560,7 +560,7 @@ export default function SalespersonDetail({
           )}
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Sales Total Card */}
             <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-emerald-50/80 to-emerald-100/50" data-testid="card-ventas-totales">
               <CardContent className="pt-6 pb-6">
@@ -605,6 +605,28 @@ export default function SalespersonDetail({
               </CardContent>
             </Card>
 
+            {/* Ticket Promedio Card */}
+            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-indigo-50/80 to-indigo-100/50" data-testid="card-ticket-promedio">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-indigo-700 mb-2">
+                      Ticket Promedio
+                    </p>
+                    <div className="text-3xl font-bold text-indigo-900 mb-1" data-testid="text-average-ticket">
+                      {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
+                    </div>
+                    <p className="text-xs text-indigo-600">
+                      Por transacción
+                    </p>
+                  </div>
+                  <div className="bg-indigo-500 rounded-2xl p-3 shadow-sm">
+                    <TrendingUp className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Frequency Card */}
             <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-amber-50/80 to-amber-100/50" data-testid="card-dias-ultima-venta">
               <CardContent className="pt-6 pb-6">
@@ -627,28 +649,6 @@ export default function SalespersonDetail({
               </CardContent>
             </Card>
           </div>
-
-          {/* Ticket Promedio */}
-          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-indigo-50/80 to-indigo-100/50" data-testid="card-ticket-promedio">
-            <CardContent className="pt-6 pb-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-indigo-700 mb-2">
-                    Ticket Promedio
-                  </p>
-                  <div className="text-3xl font-bold text-indigo-900 mb-1" data-testid="text-average-ticket">
-                    {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
-                  </div>
-                  <p className="text-xs text-indigo-600">
-                    Por transacción
-                  </p>
-                </div>
-                <div className="bg-indigo-500 rounded-2xl p-3 shadow-sm">
-                  <TrendingUp className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Segments Chart */}
           <div className="modern-card p-5 lg:p-6 hover-lift">
