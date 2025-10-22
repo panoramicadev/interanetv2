@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2 } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -10,6 +10,20 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+interface GoalProgress {
+  id: string;
+  type: string;
+  target?: string;
+  amount: number;
+  period: string;
+  description?: string;
+  currentSales: number;
+  targetAmount: number;
+  progress: number;
+  remaining: number;
+  isCompleted: boolean;
+}
 
 interface SalespersonDetails {
   totalSales: number;
@@ -191,6 +205,12 @@ export default function SalespersonDetail({
     enabled: !!salespersonName,
   });
 
+  // Fetch goals for the salesperson
+  const { data: goalsData, isLoading: isLoadingGoals } = useQuery<GoalProgress[]>({
+    queryKey: [`/api/goals/progress?selectedPeriod=${selectedPeriod}&type=salesperson&target=${encodeURIComponent(salespersonName || '')}`],
+    enabled: !!salespersonName,
+  });
+
   // Fetch all salespeople for the selector (only when embedded)
   const { data: allSalespeopleResponse } = useQuery<TopSalespeopleResponse>({
     queryKey: [`/api/sales/top-salespeople?limit=5000&period=${selectedPeriod}&filterType=${filterType}`],
@@ -198,6 +218,8 @@ export default function SalespersonDetail({
   });
   
   const allSalespeople = allSalespeopleResponse?.items || [];
+  const goals = Array.isArray(goalsData) ? goalsData : [];
+  const primaryGoal = goals.length > 0 ? goals[0] : null;
 
   if (!salespersonName) {
     return (
