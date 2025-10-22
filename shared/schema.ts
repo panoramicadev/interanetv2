@@ -3521,6 +3521,7 @@ export const etlConfig = ventasSchema.table("etl_config", {
   customWatermark: timestamp("custom_watermark"), // Watermark personalizado (si se configura)
   useCustomWatermark: boolean("use_custom_watermark").default(false).notNull(), // Si usar watermark personalizado
   timeoutMinutes: integer("timeout_minutes").default(10).notNull(), // Timeout en minutos
+  intervalMinutes: integer("interval_minutes").default(15).notNull(), // Intervalo de ejecución automática en minutos
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
