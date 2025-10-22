@@ -8525,8 +8525,12 @@ export function registerRoutes(app: Express): Server {
   // Get ETL status and history
   app.get('/api/etl/status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
-      const { etlName = 'ventas_incremental' } = req.query;
-      const status = await getETLStatus(etlName as string);
+      const { etlName = 'ventas_incremental', startDate, endDate } = req.query;
+      const status = await getETLStatus(
+        etlName as string, 
+        startDate as string | undefined, 
+        endDate as string | undefined
+      );
       res.json(status);
     } catch (error: any) {
       res.status(500).json({ 

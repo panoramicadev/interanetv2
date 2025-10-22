@@ -187,7 +187,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         idmaeedo: cleanNumeric(row.IDMAEEDO),
         koprct: row.KOPRCT?.trim() || null,
         nokopr: row.NOKOPR?.trim() || null,
-        udtrpr: row.UDTRPR?.trim() || null,
+        udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
         caprco: cleanNumeric(row.CAPRCO),
         preuni: cleanNumeric(row.PREUNI),
         vaneli: cleanNumeric(row.VANELI),
@@ -474,14 +474,33 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
   }
 }
 
-export async function getETLStatus(etlName: string = 'ventas_incremental') {
+export async function getETLStatus(
+  etlName: string = 'ventas_incremental',
+  startDate?: string,
+  endDate?: string
+) {
   try {
+    // Build where conditions
+    let whereConditions = eq(etlExecutionLog.etlName, etlName);
+    
+    // Add date filters if provided
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      
+      whereConditions = sql`${etlExecutionLog.etlName} = ${etlName} 
+        AND ${etlExecutionLog.executionDate} >= ${start.toISOString()} 
+        AND ${etlExecutionLog.executionDate} <= ${end.toISOString()}`;
+    }
+
     const lastExecutions = await db
       .select()
       .from(etlExecutionLog)
-      .where(eq(etlExecutionLog.etlName, etlName))
+      .where(whereConditions)
       .orderBy(desc(etlExecutionLog.executionDate))
-      .limit(10);
+      .limit(100);
 
     const totalExecutionsResult = await db
       .select({ count: sql<number>`count(*)::int` })
