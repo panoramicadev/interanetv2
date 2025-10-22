@@ -3522,6 +3522,7 @@ export const etlConfig = ventasSchema.table("etl_config", {
   etlName: varchar("etl_name", { length: 100 }).notNull().unique(), // Identificador del ETL
   customWatermark: timestamp("custom_watermark"), // Watermark personalizado (si se configura)
   useCustomWatermark: boolean("use_custom_watermark").default(false).notNull(), // Si usar watermark personalizado
+  keepCustomWatermark: boolean("keep_custom_watermark").default(false).notNull(), // Si mantener watermark personalizado permanente
   timeoutMinutes: integer("timeout_minutes").default(10).notNull(), // Timeout en minutos
   intervalMinutes: integer("interval_minutes").default(15).notNull(), // Intervalo de ejecución automática en minutos
   createdAt: timestamp("created_at").defaultNow(),
