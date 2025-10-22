@@ -63,6 +63,7 @@ interface ETLConfig {
   customWatermark: string | null;
   useCustomWatermark: boolean;
   timeoutMinutes: number;
+  intervalMinutes: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -205,6 +206,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [customWatermark, setCustomWatermark] = useState('');
   const [timeoutMinutes, setTimeoutMinutes] = useState(10);
+  const [intervalMinutes, setIntervalMinutes] = useState(15);
 
   // Fetch ETL status
   const { data: status, isLoading } = useQuery<ETLStatus>({
@@ -262,7 +264,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
 
   // Update ETL configuration mutation
   const updateConfigMutation = useMutation({
-    mutationFn: async (data: { customWatermark?: string; timeoutMinutes?: number }) => {
+    mutationFn: async (data: { customWatermark?: string; timeoutMinutes?: number; intervalMinutes?: number }) => {
       return await apiRequest(`/api/etl/config?etlName=${etlName}`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -290,6 +292,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   useEffect(() => {
     if (showConfigDialog && status?.config) {
       setTimeoutMinutes(status.config.timeoutMinutes);
+      setIntervalMinutes(status.config.intervalMinutes || 15);
       setCustomWatermark('');
     }
   }, [showConfigDialog, status?.config]);
@@ -542,6 +545,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                 </p>
                 <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
                   <p>• Timeout: {status.config.timeoutMinutes} minutos</p>
+                  <p>• Intervalo automático: {status.config.intervalMinutes} minutos</p>
                   {status.config.useCustomWatermark && status.config.customWatermark && (
                     <p>• Watermark personalizado activo: {new Date(status.config.customWatermark).toLocaleDateString('es-CL')}</p>
                   )}
@@ -588,6 +592,25 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                 Tiempo máximo de ejecución antes de cancelar automáticamente el proceso.
               </p>
             </div>
+
+            {/* Interval Configuration */}
+            <div className="space-y-2">
+              <Label htmlFor="interval">
+                Intervalo Automático (minutos)
+              </Label>
+              <Input
+                id="interval"
+                type="number"
+                min="1"
+                max="1440"
+                value={intervalMinutes}
+                onChange={(e) => setIntervalMinutes(parseInt(e.target.value) || 15)}
+                data-testid="input-interval"
+              />
+              <p className="text-xs text-muted-foreground">
+                Frecuencia de ejecución automática del ETL. Requiere reiniciar el servidor para aplicar cambios.
+              </p>
+            </div>
           </div>
 
           <DialogFooter>
@@ -603,6 +626,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                 updateConfigMutation.mutate({
                   customWatermark: customWatermark || undefined,
                   timeoutMinutes,
+                  intervalMinutes,
                 });
               }}
               disabled={updateConfigMutation.isPending}
