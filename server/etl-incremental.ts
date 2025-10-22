@@ -355,20 +355,23 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       });
     }
 
-    // 7. EXTRAER propiedades de productos
-    console.log('7️⃣  Extrayendo TABPP (Propiedades Productos)...');
+    // 7. EXTRAER propiedades de productos desde MAEPR
+    console.log('7️⃣  Extrayendo TABPP (Propiedades Productos desde MAEPR)...');
     const tabpp = await pool.request().query(`
-      SELECT KOPR, LISTACOST, LISCOSMOD
-      FROM dbo.TABPP
-      WHERE KOPR IN (${koprcts.map(k => `'${k}'`).join(',')})
+      SELECT DISTINCT
+        pr.KOPR,
+        pr.PM as listacost,
+        pr.PM as liscosmod
+      FROM dbo.MAEPR pr
+      WHERE pr.KOPR IN (${koprcts.map(k => `'${k}'`).join(',')})
     `);
     console.log(`   ✅ ${tabpp.recordset.length} registros encontrados`);
 
     for (const row of tabpp.recordset) {
       await db.insert(stgTabpp).values({
         kopr: row.KOPR?.trim() || '',
-        listacost: cleanNumeric(row.LISTACOST),
-        liscosmod: cleanNumeric(row.LISCOSMOD),
+        listacost: cleanNumeric(row.listacost),
+        liscosmod: cleanNumeric(row.liscosmod),
       });
     }
 
