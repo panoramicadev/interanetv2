@@ -3470,6 +3470,8 @@ export const stgMaeddo = ventasSchema.table("stg_maeddo", {
   caprco: numeric("caprco", { precision: 18, scale: 4 }),
   preuni: numeric("preuni", { precision: 18, scale: 6 }),
   vaneli: numeric("vaneli", { precision: 18, scale: 4 }),
+  feemli: timestamp("feemli"),
+  feerli: timestamp("feerli"),
   devol1: numeric("devol1", { precision: 18, scale: 4 }),
   devol2: numeric("devol2", { precision: 18, scale: 4 }),
   stockfis: numeric("stockfis", { precision: 18, scale: 4 }),
