@@ -1168,6 +1168,8 @@ export interface IStorage {
     vendedorId?: string;
     semana?: string;
     anio?: number;
+    startDate?: string;
+    endDate?: string;
   }): Promise<Array<{
     promesa: PromesaCompra;
     ventasReales: number;
@@ -11406,6 +11408,8 @@ export class DatabaseStorage implements IStorage {
     vendedorId?: string;
     semana?: string;
     anio?: number;
+    startDate?: string;
+    endDate?: string;
   }): Promise<Array<{
     promesa: PromesaCompra;
     ventasReales: number;
@@ -11418,12 +11422,23 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(promesasCompra.vendedorId, filters.vendedorId));
     }
 
-    if (filters?.semana) {
-      conditions.push(eq(promesasCompra.semana, filters.semana));
-    }
+    // Use date range if provided, otherwise use semana/anio
+    if (filters?.startDate && filters?.endDate) {
+      // Filter promesas where the week overlaps with the provided date range
+      conditions.push(
+        and(
+          lte(promesasCompra.fechaInicio, filters.endDate),
+          gte(promesasCompra.fechaFin, filters.startDate)
+        )
+      );
+    } else {
+      if (filters?.semana) {
+        conditions.push(eq(promesasCompra.semana, filters.semana));
+      }
 
-    if (filters?.anio) {
-      conditions.push(eq(promesasCompra.anio, filters.anio));
+      if (filters?.anio) {
+        conditions.push(eq(promesasCompra.anio, filters.anio));
+      }
     }
 
     let query = db.select().from(promesasCompra).orderBy(desc(promesasCompra.semana));
