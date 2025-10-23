@@ -111,7 +111,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/gastos-empresariales",
-      label: "Gastos Empresariales",
+      label: "Rendición de Gastos",
       icon: Banknote,
     },
     {
@@ -229,7 +229,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/gastos-empresariales",
-      label: "Gastos Empresariales",
+      label: "Rendición de Gastos",
       icon: Banknote,
     },
     {
@@ -317,7 +317,7 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
     {
       href: "/gastos-empresariales",
-      label: "Gastos Empresariales",
+      label: "Rendición de Gastos",
       icon: Banknote,
     },
     {

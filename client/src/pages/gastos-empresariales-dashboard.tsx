@@ -176,7 +176,7 @@ export default function GastosEmpresarialesDashboard() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Volver
             </Button>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard de Gastos</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard de Rendición de Gastos</h1>
             <p className="text-sm text-gray-500 mt-1">Análisis y métricas de gastos empresariales</p>
           </div>
         </div>
