@@ -106,6 +106,12 @@ export default function OrdenesPage() {
     enabled: !!user, // Only run query when user is loaded
   });
 
+  // Fetch available periods (months with data)
+  const { data: availablePeriods } = useQuery<{ months: { value: string; label: string }[] }>({
+    queryKey: ['/api/sales/available-periods'],
+    enabled: !!user,
+  });
+
   const handleTransactionClick = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
     setIsModalOpen(true);
@@ -385,11 +391,11 @@ export default function OrdenesPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-gray-200">
-                    <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                    <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                    <SelectItem value="2025-07">Julio 2025</SelectItem>
-                    <SelectItem value="2025-06">Junio 2025</SelectItem>
-                    <SelectItem value="2025-05">Mayo 2025</SelectItem>
+                    {availablePeriods?.months.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               )}
