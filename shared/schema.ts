@@ -3496,6 +3496,11 @@ export const stgMaeedo = ventasSchema.table("stg_maeedo", {
   vanedo: numeric("vanedo", { precision: 18, scale: 4 }),
   vaivdo: numeric("vaivdo", { precision: 18, scale: 4 }),
   vabrdo: numeric("vabrdo", { precision: 18, scale: 4 }),
+  lilg: text("lilg"),
+  modo: text("modo"),
+  timodo: text("timodo"),
+  tamodo: numeric("tamodo", { precision: 18, scale: 4 }),
+  ocdo: text("ocdo"),
 });
 
 // Staging: MAEDDO (Detalle de documentos)
