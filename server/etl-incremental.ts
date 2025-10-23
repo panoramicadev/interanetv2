@@ -249,6 +249,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         vanedo: cleanNumeric(row.VANEDO),
         vaivdo: cleanNumeric(row.VAIVDO),
         vabrdo: cleanNumeric(row.VABRDO),
+        lilg: row.LILG?.trim() || null,
+        modo: row.MODO?.trim() || null,
+        timodo: row.TIMODO?.trim() || null,
+        tamodo: cleanNumeric(row.TAMODO),
+        ocdo: row.OCDO?.trim() || null,
       });
     }
 
