@@ -131,6 +131,8 @@ export default function TareasPage() {
   const [searchClient, setSearchClient] = useState("");
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [createPromesaDialogOpen, setCreatePromesaDialogOpen] = useState(false);
+  const [editPromesaDialogOpen, setEditPromesaDialogOpen] = useState(false);
+  const [selectedPromesa, setSelectedPromesa] = useState<PromesaCumplimiento | null>(null);
 
   const toggleTaskExpanded = (taskId: string) => {
     const newExpanded = new Set(expandedTasks);
@@ -1140,25 +1142,33 @@ function EstimacionSemanalTab({
               {/* Desktop view */}
               <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4 font-medium">Cliente</th>
-                      <th className="text-right py-3 px-4 font-medium">Prometido</th>
-                      <th className="text-right py-3 px-4 font-medium">Vendido</th>
-                      <th className="text-right py-3 px-4 font-medium">Cumplimiento</th>
-                      <th className="text-center py-3 px-4 font-medium">Estado</th>
-                      <th className="text-left py-3 px-4 font-medium">Observaciones</th>
+                  <thead className="bg-muted/50">
+                    <tr className="border-b-2 border-border">
+                      <th className="text-left py-4 px-4 font-bold text-base">Cliente</th>
+                      <th className="text-right py-4 px-4 font-bold text-base">Prometido</th>
+                      <th className="text-right py-4 px-4 font-bold text-base">Vendido</th>
+                      <th className="text-right py-4 px-4 font-bold text-base">Cumplimiento</th>
+                      <th className="text-center py-4 px-4 font-bold text-base">Estado</th>
+                      <th className="text-left py-4 px-4 font-bold text-base">Observaciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {promesasCumplimiento.map((item) => (
-                      <tr key={item.promesa.id} className="border-b hover:bg-muted/50" data-testid={`row-promesa-${item.promesa.id}`}>
+                      <tr 
+                        key={item.promesa.id} 
+                        className="border-b hover:bg-muted/50 cursor-pointer transition-colors" 
+                        data-testid={`row-promesa-${item.promesa.id}`}
+                        onClick={() => {
+                          setSelectedPromesa(item);
+                          setEditPromesaDialogOpen(true);
+                        }}
+                      >
                         <td className="py-3 px-4 font-medium">{item.promesa.clienteNombre}</td>
                         <td className="text-right py-3 px-4">${parseFloat(item.promesa.montoPrometido).toLocaleString('es-CL')}</td>
                         <td className="text-right py-3 px-4">${item.ventasReales.toLocaleString('es-CL')}</td>
                         <td className="text-right py-3 px-4">
                           <div className="flex items-center justify-end gap-2">
-                            <span className={item.cumplimiento >= 100 ? 'text-green-600 font-semibold' : item.cumplimiento >= 70 ? 'text-yellow-600' : 'text-red-600'}>
+                            <span className={item.cumplimiento >= 100 ? 'text-green-600 font-semibold' : item.cumplimiento >= 70 ? 'text-yellow-600 font-semibold' : 'text-red-600 font-semibold'}>
                               {item.cumplimiento.toFixed(1)}%
                             </span>
                             {item.cumplimiento >= 100 ? (
@@ -1175,10 +1185,16 @@ function EstimacionSemanalTab({
                               Superado
                             </Badge>
                           )}
-                          {item.estado === 'cumplido' && (
+                          {item.estado === 'cumplido' && item.cumplimiento >= 100 && (
                             <Badge className="bg-blue-500 text-white">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Cumplido
+                            </Badge>
+                          )}
+                          {item.estado === 'cumplido' && item.cumplimiento >= 70 && item.cumplimiento < 100 && (
+                            <Badge className="bg-yellow-500 text-white">
+                              <CheckCircle className="mr-1 h-3 w-3" />
+                              Medianamente Cumplido
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
@@ -1198,7 +1214,15 @@ function EstimacionSemanalTab({
               {/* Mobile view */}
               <div className="lg:hidden space-y-4">
                 {promesasCumplimiento.map((item) => (
-                  <Card key={item.promesa.id} data-testid={`card-promesa-${item.promesa.id}`}>
+                  <Card 
+                    key={item.promesa.id} 
+                    className="cursor-pointer hover:shadow-md transition-shadow" 
+                    data-testid={`card-promesa-${item.promesa.id}`}
+                    onClick={() => {
+                      setSelectedPromesa(item);
+                      setEditPromesaDialogOpen(true);
+                    }}
+                  >
                     <CardContent className="pt-6">
                       <div className="space-y-3">
                         <div className="flex items-start justify-between">
@@ -1214,10 +1238,16 @@ function EstimacionSemanalTab({
                               Superado
                             </Badge>
                           )}
-                          {item.estado === 'cumplido' && (
+                          {item.estado === 'cumplido' && item.cumplimiento >= 100 && (
                             <Badge className="bg-blue-500 text-white">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Cumplido
+                            </Badge>
+                          )}
+                          {item.estado === 'cumplido' && item.cumplimiento >= 70 && item.cumplimiento < 100 && (
+                            <Badge className="bg-yellow-500 text-white">
+                              <CheckCircle className="mr-1 h-3 w-3" />
+                              Medianamente Cumplido
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
@@ -1270,6 +1300,16 @@ function EstimacionSemanalTab({
         setSearchClient={setSearchClient}
         user={user}
       />
+
+      {/* Dialog para editar promesa */}
+      {selectedPromesa && (
+        <EditPromesaDialog
+          open={editPromesaDialogOpen}
+          onOpenChange={setEditPromesaDialogOpen}
+          promesa={selectedPromesa}
+          user={user}
+        />
+      )}
     </div>
   );
 }
@@ -1688,6 +1728,266 @@ function CreatePromesaDialog({
                 'Guardar Promesa'
               )}
             </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Dialog para editar promesa (ver detalles y actualizar ventas reales)
+function EditPromesaDialog({
+  open,
+  onOpenChange,
+  promesa,
+  user,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  promesa: PromesaCumplimiento;
+  user: any;
+}) {
+  const { toast } = useToast();
+  const [ventasRealesManual, setVentasRealesManual] = useState(
+    promesa.promesa.ventasRealesManual ? parseFloat(promesa.promesa.ventasRealesManual as any).toString() : ""
+  );
+  const [observaciones, setObservaciones] = useState(promesa.promesa.observaciones || "");
+
+  // Reset form when promesa changes
+  useEffect(() => {
+    setVentasRealesManual(promesa.promesa.ventasRealesManual ? parseFloat(promesa.promesa.ventasRealesManual as any).toString() : "");
+    setObservaciones(promesa.promesa.observaciones || "");
+  }, [promesa]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('PATCH', `/api/promesas-compra/${promesa.promesa.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/promesas-compra/cumplimiento/reporte'],
+        refetchType: 'all'
+      });
+      toast({
+        title: "Promesa actualizada",
+        description: "Los datos se han actualizado correctamente",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar la promesa",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = () => {
+    // Solo admin y supervisor pueden editar
+    if (!['admin', 'supervisor'].includes(user?.role || '')) {
+      toast({
+        title: "No autorizado",
+        description: "Solo administradores y supervisores pueden editar promesas",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateMutation.mutate({
+      ventasRealesManual: ventasRealesManual ? parseFloat(ventasRealesManual) : null,
+      observaciones: observaciones || null,
+    });
+  };
+
+  const canEdit = ['admin', 'supervisor'].includes(user?.role || '');
+
+  // Calcular cumplimiento y estado con los datos actuales del formulario
+  const montoPrometido = parseFloat(promesa.promesa.montoPrometido);
+  const ventasActuales = ventasRealesManual ? parseFloat(ventasRealesManual) : promesa.ventasReales;
+  const cumplimientoActual = montoPrometido > 0 ? (ventasActuales / montoPrometido) * 100 : 0;
+  
+  let estadoActual: 'cumplido' | 'superado' | 'no_cumplido' | 'medianamente_cumplido';
+  if (cumplimientoActual >= 100) {
+    estadoActual = cumplimientoActual > 100 ? 'superado' : 'cumplido';
+  } else if (cumplimientoActual >= 70) {
+    estadoActual = 'medianamente_cumplido';
+  } else {
+    estadoActual = 'no_cumplido';
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl" data-testid="dialog-editar-promesa">
+        <DialogHeader>
+          <DialogTitle className="text-xl">Detalle de Promesa de Compra</DialogTitle>
+          <DialogDescription className="text-sm">
+            {canEdit ? 'Puede actualizar las ventas reales y observaciones' : 'Vista de solo lectura'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* Información del Cliente */}
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">Información del Cliente</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm text-blue-700 dark:text-blue-300">Cliente</Label>
+                <p className="font-medium text-blue-900 dark:text-blue-100">{promesa.promesa.clienteNombre}</p>
+              </div>
+              <div>
+                <Label className="text-sm text-blue-700 dark:text-blue-300">Tipo</Label>
+                <p className="font-medium text-blue-900 dark:text-blue-100 capitalize">{promesa.promesa.clienteTipo || 'activo'}</p>
+              </div>
+              <div>
+                <Label className="text-sm text-blue-700 dark:text-blue-300">Semana</Label>
+                <p className="font-medium text-blue-900 dark:text-blue-100">Semana {promesa.promesa.numeroSemana} del {promesa.promesa.anio}</p>
+              </div>
+              <div>
+                <Label className="text-sm text-blue-700 dark:text-blue-300">Periodo</Label>
+                <p className="font-medium text-blue-900 dark:text-blue-100">
+                  {format(new Date(promesa.promesa.fechaInicio), 'dd MMM', { locale: es })} - {format(new Date(promesa.promesa.fechaFin), 'dd MMM', { locale: es })}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Monto Prometido */}
+          <div>
+            <Label className="text-sm font-semibold mb-2 block">Monto Prometido</Label>
+            <div className="p-3 border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-lg">
+              <p className="text-2xl font-bold">${montoPrometido.toLocaleString('es-CL')}</p>
+            </div>
+          </div>
+
+          {/* Ventas Reales */}
+          <div>
+            <Label htmlFor="ventasReales" className="text-sm font-semibold mb-2 block">
+              Ventas Reales {canEdit && '*'}
+            </Label>
+            {canEdit ? (
+              <>
+                <Input
+                  id="ventasReales"
+                  type="number"
+                  placeholder="Ingrese el monto real vendido"
+                  value={ventasRealesManual}
+                  onChange={(e) => setVentasRealesManual(e.target.value)}
+                  className="h-11 text-base"
+                  data-testid="input-ventas-reales"
+                />
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  {ventasRealesManual 
+                    ? `Monto manual ingresado` 
+                    : `Ventas automáticas detectadas: $${promesa.ventasReales.toLocaleString('es-CL')}`
+                  }
+                </p>
+              </>
+            ) : (
+              <div className="p-3 border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="text-2xl font-bold">${ventasActuales.toLocaleString('es-CL')}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {promesa.promesa.ventasRealesManual ? 'Monto manual ingresado' : 'Ventas automáticas detectadas'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Cumplimiento y Estado */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-sm font-semibold mb-2 block">Cumplimiento</Label>
+              <div className="flex items-center gap-3 p-3 border-2 rounded-lg bg-gray-50 dark:bg-gray-900">
+                <span className={`text-3xl font-bold ${cumplimientoActual >= 100 ? 'text-green-600' : cumplimientoActual >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+                  {cumplimientoActual.toFixed(1)}%
+                </span>
+                {cumplimientoActual >= 100 ? (
+                  <TrendingUp className="h-6 w-6 text-green-600" />
+                ) : (
+                  <TrendingDown className="h-6 w-6 text-red-600" />
+                )}
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-semibold mb-2 block">Estado</Label>
+              <div className="p-3 border-2 rounded-lg bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                {estadoActual === 'superado' && (
+                  <Badge className="bg-green-500 text-white text-base px-4 py-2">
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Superado
+                  </Badge>
+                )}
+                {estadoActual === 'cumplido' && (
+                  <Badge className="bg-blue-500 text-white text-base px-4 py-2">
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Cumplido
+                  </Badge>
+                )}
+                {estadoActual === 'medianamente_cumplido' && (
+                  <Badge className="bg-yellow-500 text-white text-base px-4 py-2">
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Medianamente Cumplido
+                  </Badge>
+                )}
+                {estadoActual === 'no_cumplido' && (
+                  <Badge variant="destructive" className="text-base px-4 py-2">
+                    <XCircle className="mr-2 h-4 w-4" />
+                    No Cumplido
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Observaciones */}
+          <div>
+            <Label htmlFor="observaciones-edit" className="text-sm font-semibold mb-2 block">
+              Observaciones
+            </Label>
+            {canEdit ? (
+              <Textarea
+                id="observaciones-edit"
+                placeholder="Notas adicionales (opcional)"
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+                className="min-h-20 resize-none"
+                data-testid="textarea-observaciones-edit"
+              />
+            ) : (
+              <div className="p-3 border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-lg min-h-20">
+                <p className="text-sm">{observaciones || 'Sin observaciones'}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="flex-col gap-3">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end w-full">
+            <Button 
+              variant="outline" 
+              onClick={() => onOpenChange(false)} 
+              className="sm:w-auto"
+              data-testid="button-cerrar"
+            >
+              {canEdit ? 'Cancelar' : 'Cerrar'}
+            </Button>
+            {canEdit && (
+              <Button 
+                onClick={handleSubmit} 
+                disabled={updateMutation.isPending}
+                className="sm:w-auto"
+                data-testid="button-actualizar-promesa"
+              >
+                {updateMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Actualizando...
+                  </>
+                ) : (
+                  'Actualizar Promesa'
+                )}
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>

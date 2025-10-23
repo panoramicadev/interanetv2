@@ -8608,6 +8608,31 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Update promesa de compra (solo admin/supervisor)
+  app.patch('/api/promesas-compra/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Solo admin y supervisor pueden editar
+      if (!['admin', 'supervisor'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para editar promesas' });
+      }
+      
+      const { id } = req.params;
+      const { ventasRealesManual, observaciones } = req.body;
+      
+      const promesa = await storage.updatePromesaCompra(id, {
+        ventasRealesManual: ventasRealesManual ? parseFloat(ventasRealesManual) : null,
+        observaciones
+      });
+      
+      res.json(promesa);
+    } catch (error: any) {
+      console.error('[ERROR] /api/promesas-compra/:id:', error);
+      res.status(500).json({ message: 'Error al actualizar promesa', error: error.message });
+    }
+  }));
+
   // Get promesas con cumplimiento (comparación con ventas reales)
   app.get('/api/promesas-compra/cumplimiento/reporte', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
