@@ -628,6 +628,97 @@ export default function SalespersonDetail({
             </Card>
           )}
 
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* Sales Total Card */}
+            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-emerald-50/80 to-emerald-100/50" data-testid="card-ventas-totales">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-emerald-700 mb-2">
+                      Ventas Totales
+                    </p>
+                    <div className="text-3xl font-bold text-emerald-900 mb-1" data-testid="text-total-sales">
+                      {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalSales || 0)}
+                    </div>
+                    <p className="text-xs text-emerald-600">
+                      Este período
+                    </p>
+                  </div>
+                  <div className="bg-emerald-500 rounded-2xl p-3 shadow-sm">
+                    <DollarSign className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Clients Card */}
+            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-blue-50/80 to-blue-100/50" data-testid="card-clientes">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-700 mb-2">
+                      Clientes
+                    </p>
+                    <div className="text-3xl font-bold text-blue-900 mb-1" data-testid="text-total-clients">
+                      {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalClients || 0)}
+                    </div>
+                    <p className="text-xs text-blue-600">
+                      Atendidos
+                    </p>
+                  </div>
+                  <div className="bg-blue-500 rounded-2xl p-3 shadow-sm">
+                    <Users className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Ticket Promedio Card */}
+            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-indigo-50/80 to-indigo-100/50" data-testid="card-ticket-promedio">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-indigo-700 mb-2">
+                      Ticket Promedio
+                    </p>
+                    <div className="text-3xl font-bold text-indigo-900 mb-1" data-testid="text-average-ticket">
+                      {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
+                    </div>
+                    <p className="text-xs text-indigo-600">
+                      Por transacción
+                    </p>
+                  </div>
+                  <div className="bg-indigo-500 rounded-2xl p-3 shadow-sm">
+                    <TrendingUp className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Frequency Card */}
+            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-amber-50/80 to-amber-100/50" data-testid="card-dias-ultima-venta">
+              <CardContent className="pt-6 pb-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-700 mb-2">
+                      Días desde última venta
+                    </p>
+                    <div className="text-3xl font-bold text-amber-900 mb-1" data-testid="text-sales-frequency">
+                      {isLoadingDetails ? 'Cargando...' : `${details?.daysSinceLastSale || 0} día${details?.daysSinceLastSale !== 1 ? 's' : ''}`}
+                    </div>
+                    <p className="text-xs text-amber-600">
+                      {details?.lastSaleDate ? `Última venta: ${new Date(details.lastSaleDate).toLocaleDateString('es-CL')}` : 'Sin ventas'}
+                    </p>
+                  </div>
+                  <div className="bg-amber-500 rounded-2xl p-3 shadow-sm">
+                    <Clock className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Promesas de Compra */}
           {promesasVendedor.length > 0 && (
             <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50">
@@ -733,97 +824,6 @@ export default function SalespersonDetail({
               </CardContent>
             </Card>
           )}
-
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {/* Sales Total Card */}
-            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-emerald-50/80 to-emerald-100/50" data-testid="card-ventas-totales">
-              <CardContent className="pt-6 pb-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-emerald-700 mb-2">
-                      Ventas Totales
-                    </p>
-                    <div className="text-3xl font-bold text-emerald-900 mb-1" data-testid="text-total-sales">
-                      {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.totalSales || 0)}
-                    </div>
-                    <p className="text-xs text-emerald-600">
-                      Este período
-                    </p>
-                  </div>
-                  <div className="bg-emerald-500 rounded-2xl p-3 shadow-sm">
-                    <DollarSign className="h-6 w-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Clients Card */}
-            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-blue-50/80 to-blue-100/50" data-testid="card-clientes">
-              <CardContent className="pt-6 pb-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-blue-700 mb-2">
-                      Clientes
-                    </p>
-                    <div className="text-3xl font-bold text-blue-900 mb-1" data-testid="text-total-clients">
-                      {isLoadingDetails ? 'Cargando...' : formatNumber(details?.totalClients || 0)}
-                    </div>
-                    <p className="text-xs text-blue-600">
-                      Atendidos
-                    </p>
-                  </div>
-                  <div className="bg-blue-500 rounded-2xl p-3 shadow-sm">
-                    <Users className="h-6 w-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Ticket Promedio Card */}
-            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-indigo-50/80 to-indigo-100/50" data-testid="card-ticket-promedio">
-              <CardContent className="pt-6 pb-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-indigo-700 mb-2">
-                      Ticket Promedio
-                    </p>
-                    <div className="text-3xl font-bold text-indigo-900 mb-1" data-testid="text-average-ticket">
-                      {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
-                    </div>
-                    <p className="text-xs text-indigo-600">
-                      Por transacción
-                    </p>
-                  </div>
-                  <div className="bg-indigo-500 rounded-2xl p-3 shadow-sm">
-                    <TrendingUp className="h-6 w-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Frequency Card */}
-            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-amber-50/80 to-amber-100/50" data-testid="card-dias-ultima-venta">
-              <CardContent className="pt-6 pb-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-amber-700 mb-2">
-                      Días desde última venta
-                    </p>
-                    <div className="text-3xl font-bold text-amber-900 mb-1" data-testid="text-sales-frequency">
-                      {isLoadingDetails ? 'Cargando...' : `${details?.daysSinceLastSale || 0} día${details?.daysSinceLastSale !== 1 ? 's' : ''}`}
-                    </div>
-                    <p className="text-xs text-amber-600">
-                      {details?.lastSaleDate ? `Última venta: ${new Date(details.lastSaleDate).toLocaleDateString('es-CL')}` : 'Sin ventas'}
-                    </p>
-                  </div>
-                  <div className="bg-amber-500 rounded-2xl p-3 shadow-sm">
-                    <Clock className="h-6 w-6 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
 
           {/* Segments Chart */}
           <div className="modern-card p-5 lg:p-6 hover-lift">
