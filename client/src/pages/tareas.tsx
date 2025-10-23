@@ -428,10 +428,10 @@ export default function TareasPage() {
       </div>
 
       {/* Tabs para Tareas y Estimación Semanal */}
-      <Tabs defaultValue="tareas" className="space-y-6">
+      <Tabs defaultValue="estimacion" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="tareas" data-testid="tab-tareas">Tareas</TabsTrigger>
           <TabsTrigger value="estimacion" data-testid="tab-estimacion">Estimación Semanal</TabsTrigger>
+          <TabsTrigger value="tareas" data-testid="tab-tareas">Tareas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tareas" className="space-y-6">
