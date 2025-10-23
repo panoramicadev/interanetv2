@@ -3391,6 +3391,7 @@ export const promesasCompra = pgTable("promesas_compra", {
   vendedorId: varchar("vendedor_id").notNull(), // FK to users.id
   clienteId: varchar("cliente_id").notNull(), // Código del cliente (koen)
   clienteNombre: varchar("cliente_nombre", { length: 255 }).notNull(),
+  clienteTipo: varchar("cliente_tipo", { length: 20 }).default("activo"), // "activo" o "potencial"
   montoPrometido: numeric("monto_prometido", { precision: 15, scale: 2 }).notNull(),
   semana: varchar("semana", { length: 10 }).notNull(), // Formato: YYYY-WW (ej: 2025-42)
   anio: integer("anio").notNull(),

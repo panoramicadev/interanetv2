@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1281,6 +1282,7 @@ function CreatePromesaDialog({
   const [isManualEntry, setIsManualEntry] = useState(false);
   const [manualClienteNombre, setManualClienteNombre] = useState("");
   const [manualClienteId, setManualClienteId] = useState("");
+  const [clienteTipo, setClienteTipo] = useState<"activo" | "potencial">("activo");
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -1319,6 +1321,7 @@ function CreatePromesaDialog({
     setIsManualEntry(false);
     setManualClienteNombre("");
     setManualClienteId("");
+    setClienteTipo("activo");
   };
 
   const handleSubmit = () => {
@@ -1350,6 +1353,7 @@ function CreatePromesaDialog({
     createMutation.mutate({
       clienteId: isManualEntry ? (manualClienteId.trim() || 'MANUAL') : selectedClient!.koen,
       clienteNombre: isManualEntry ? manualClienteNombre.trim() : selectedClient!.nokoen,
+      clienteTipo: isManualEntry ? clienteTipo : 'activo', // Solo para ingresos manuales se puede marcar como potencial
       montoPrometido: parseFloat(montoPrometido),
       semana: `${year}-${String(weekNumber).padStart(2, '0')}`,
       anio: year,
@@ -1393,6 +1397,29 @@ function CreatePromesaDialog({
             
             {isManualEntry ? (
               <div className="space-y-3 mt-2">
+                {/* Tipo de Cliente */}
+                <div>
+                  <Label className="mb-2 block">Tipo de Cliente *</Label>
+                  <RadioGroup 
+                    value={clienteTipo} 
+                    onValueChange={(value: "activo" | "potencial") => setClienteTipo(value)}
+                    className="flex gap-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="activo" id="activo" data-testid="radio-cliente-activo" />
+                      <Label htmlFor="activo" className="font-normal cursor-pointer">
+                        Cliente Activo
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="potencial" id="potencial" data-testid="radio-cliente-potencial" />
+                      <Label htmlFor="potencial" className="font-normal cursor-pointer">
+                        Cliente Potencial
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+                
                 <div>
                   <Label htmlFor="manualNombre">Nombre del Cliente *</Label>
                   <Input
