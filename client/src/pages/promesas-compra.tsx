@@ -368,8 +368,15 @@ function CreatePromesaDialog({
       return await apiRequest('POST', '/api/promesas-compra', data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/promesas-compra'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/promesas-compra/cumplimiento/reporte'] });
+      // Invalidate all promesas queries with a prefix match
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/promesas-compra'],
+        refetchType: 'all'
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/promesas-compra/cumplimiento/reporte'],
+        refetchType: 'all'
+      });
       toast({
         title: "Promesa creada",
         description: "La promesa de compra se ha registrado correctamente",
