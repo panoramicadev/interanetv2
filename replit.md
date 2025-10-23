@@ -24,7 +24,7 @@ Preferred communication style: Simple, everyday language.
 - **API Design**: RESTful API
 - **Session Management**: Express sessions with PostgreSQL storage
 - **File Processing**: CSV import
-- **Authentication**: Passport.js Local Strategy with bcrypt for hashing, HTTP-only cookies, and CSRF protection. Role-based access control (Admin, Supervisor, Salesperson, Técnico de Obra, Client, Reception, Laboratorio, Area Producción, Area Logística, Area Aplicación, Area Materia Prima, Area Colores, Area Envase, Area Etiqueta).
+- **Authentication**: Passport.js Local Strategy with bcrypt for hashing, HTTP-only cookies, and CSRF protection. Role-based access control (Admin, Supervisor, Logística y Bodega, Salesperson, Técnico de Obra, Client, Reception, Laboratorio, Area Producción, Area Logística, Area Aplicación, Area Materia Prima, Area Colores, Area Envase, Area Etiqueta). Dashboard access: Admin, Supervisor, Logística y Bodega (full analytics); Salesperson (personal metrics).
 
 ### Database
 - **Database**: PostgreSQL (Neon serverless)
