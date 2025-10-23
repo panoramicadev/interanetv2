@@ -97,7 +97,7 @@ interface PromesaCumplimiento {
   promesa: PromesaCompra;
   ventasReales: number;
   cumplimiento: number;
-  estado: 'cumplido' | 'superado' | 'medianamente_cumplido' | 'cumplido_parcialmente' | 'no_cumplido';
+  estado: 'cumplido' | 'superado' | 'cumplido_parcialmente' | 'insuficiente' | 'no_cumplido';
 }
 
 interface Cliente {
@@ -1051,8 +1051,8 @@ function EstimacionSemanalTab({
     totalVendido: promesasFiltradas.reduce((sum, p) => sum + p.ventasReales, 0),
     cumplidas: promesasFiltradas.filter(p => p.estado === 'cumplido').length,
     superadas: promesasFiltradas.filter(p => p.estado === 'superado').length,
-    medianamenteCumplidas: promesasFiltradas.filter(p => p.estado === 'medianamente_cumplido').length,
     cumplidasParcialmente: promesasFiltradas.filter(p => p.estado === 'cumplido_parcialmente').length,
+    insuficientes: promesasFiltradas.filter(p => p.estado === 'insuficiente').length,
     noCumplidas: promesasFiltradas.filter(p => p.estado === 'no_cumplido').length,
   };
 
@@ -1129,9 +1129,9 @@ function EstimacionSemanalTab({
             <CardTitle className="text-xs sm:text-sm font-medium">Cumplidas</CardTitle>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-lg sm:text-2xl font-bold text-green-600">{resumen.cumplidas + resumen.superadas + resumen.medianamenteCumplidas}</div>
+            <div className="text-lg sm:text-2xl font-bold text-green-600">{resumen.cumplidas + resumen.superadas + resumen.cumplidasParcialmente}</div>
             <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
-              {resumen.superadas} superadas, {resumen.medianamenteCumplidas} parcial
+              {resumen.superadas} superadas, {resumen.cumplidasParcialmente} parcial
             </p>
           </CardContent>
         </Card>
@@ -1141,9 +1141,9 @@ function EstimacionSemanalTab({
             <CardTitle className="text-xs sm:text-sm font-medium">Incumplidas</CardTitle>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-            <div className="text-lg sm:text-2xl font-bold text-orange-600">{resumen.cumplidasParcialmente + resumen.noCumplidas}</div>
+            <div className="text-lg sm:text-2xl font-bold text-orange-600">{resumen.insuficientes + resumen.noCumplidas}</div>
             <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
-              {resumen.cumplidasParcialmente} con ventas, {resumen.noCumplidas} sin ventas
+              {resumen.insuficientes} insuficientes, {resumen.noCumplidas} sin ventas
             </p>
           </CardContent>
         </Card>
@@ -1230,7 +1230,7 @@ function EstimacionSemanalTab({
                         <td className="text-right py-3 px-4">${item.ventasReales.toLocaleString('es-CL')}</td>
                         <td className="text-right py-3 px-4">
                           <div className="flex items-center justify-end gap-2">
-                            <span className={item.cumplimiento >= 100 ? 'text-green-600 font-semibold' : item.cumplimiento >= 70 ? 'text-yellow-600 font-semibold' : 'text-red-600 font-semibold'}>
+                            <span className={item.cumplimiento >= 100 ? 'text-green-600 font-semibold' : item.cumplimiento >= 80 ? 'text-yellow-600 font-semibold' : 'text-red-600 font-semibold'}>
                               {item.cumplimiento.toFixed(1)}%
                             </span>
                             {item.cumplimiento >= 100 ? (
@@ -1253,16 +1253,16 @@ function EstimacionSemanalTab({
                               Cumplido
                             </Badge>
                           )}
-                          {item.estado === 'medianamente_cumplido' && (
+                          {item.estado === 'cumplido_parcialmente' && (
                             <Badge className="bg-yellow-500 text-white">
                               <CheckCircle className="mr-1 h-3 w-3" />
-                              Medianamente Cumplido
+                              Cumplido Parcialmente
                             </Badge>
                           )}
-                          {item.estado === 'cumplido_parcialmente' && (
+                          {item.estado === 'insuficiente' && (
                             <Badge className="bg-orange-500 text-white">
                               <AlertCircle className="mr-1 h-3 w-3" />
-                              Cumplido Parcialmente
+                              Insuficiente
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
@@ -1315,14 +1315,14 @@ function EstimacionSemanalTab({
                               Cumplido
                             </Badge>
                           )}
-                          {item.estado === 'medianamente_cumplido' && (
+                          {item.estado === 'cumplido_parcialmente' && (
                             <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
-                              Med. Cump.
+                              Parcial
                             </Badge>
                           )}
-                          {item.estado === 'cumplido_parcialmente' && (
+                          {item.estado === 'insuficiente' && (
                             <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
-                              Parcial
+                              Insufic.
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
@@ -1343,7 +1343,7 @@ function EstimacionSemanalTab({
                           <div>
                             <p className="text-[10px] text-muted-foreground">Cumplim.</p>
                             <div className="flex items-center gap-1">
-                              <span className={`text-sm font-semibold ${item.cumplimiento >= 100 ? 'text-green-600' : item.cumplimiento >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+                              <span className={`text-sm font-semibold ${item.cumplimiento >= 100 ? 'text-green-600' : item.cumplimiento >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
                                 {item.cumplimiento.toFixed(0)}%
                               </span>
                               {item.cumplimiento >= 100 ? (
@@ -1881,13 +1881,13 @@ function EditPromesaDialog({
   const ventasActuales = ventasRealesManual ? parseFloat(ventasRealesManual) : promesa.ventasReales;
   const cumplimientoActual = montoPrometido > 0 ? (ventasActuales / montoPrometido) * 100 : 0;
   
-  let estadoActual: 'cumplido' | 'superado' | 'medianamente_cumplido' | 'cumplido_parcialmente' | 'no_cumplido';
+  let estadoActual: 'cumplido' | 'superado' | 'cumplido_parcialmente' | 'insuficiente' | 'no_cumplido';
   if (cumplimientoActual >= 100) {
     estadoActual = cumplimientoActual > 100 ? 'superado' : 'cumplido';
-  } else if (cumplimientoActual >= 70) {
-    estadoActual = 'medianamente_cumplido';
-  } else if (cumplimientoActual > 0) {
+  } else if (cumplimientoActual >= 80) {
     estadoActual = 'cumplido_parcialmente';
+  } else if (cumplimientoActual > 0) {
+    estadoActual = 'insuficiente';
   } else {
     estadoActual = 'no_cumplido';
   }
@@ -1974,7 +1974,7 @@ function EditPromesaDialog({
             <div>
               <Label className="text-sm font-semibold mb-2 block">Cumplimiento</Label>
               <div className="flex items-center gap-3 p-3 border-2 rounded-lg bg-gray-50 dark:bg-gray-900">
-                <span className={`text-3xl font-bold ${cumplimientoActual >= 100 ? 'text-green-600' : cumplimientoActual >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+                <span className={`text-3xl font-bold ${cumplimientoActual >= 100 ? 'text-green-600' : cumplimientoActual >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
                   {cumplimientoActual.toFixed(1)}%
                 </span>
                 {cumplimientoActual >= 100 ? (
@@ -1999,16 +1999,16 @@ function EditPromesaDialog({
                     Cumplido
                   </Badge>
                 )}
-                {estadoActual === 'medianamente_cumplido' && (
+                {estadoActual === 'cumplido_parcialmente' && (
                   <Badge className="bg-yellow-500 text-white text-base px-4 py-2">
                     <CheckCircle className="mr-2 h-4 w-4" />
-                    Medianamente Cumplido
+                    Cumplido Parcialmente
                   </Badge>
                 )}
-                {estadoActual === 'cumplido_parcialmente' && (
+                {estadoActual === 'insuficiente' && (
                   <Badge className="bg-orange-500 text-white text-base px-4 py-2">
                     <AlertCircle className="mr-2 h-4 w-4" />
-                    Cumplido Parcialmente
+                    Insuficiente
                   </Badge>
                 )}
                 {estadoActual === 'no_cumplido' && (
