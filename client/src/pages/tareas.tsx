@@ -1276,13 +1276,18 @@ function CreatePromesaDialog({
   setSearchClient: (value: string) => void;
 }) {
   const { toast } = useToast();
+  const [clienteTipo, setClienteTipo] = useState<"activo" | "potencial">("activo");
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
-  const [montoPrometido, setMontoPrometido] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-  const [isManualEntry, setIsManualEntry] = useState(false);
   const [manualClienteNombre, setManualClienteNombre] = useState("");
   const [manualClienteId, setManualClienteId] = useState("");
-  const [clienteTipo, setClienteTipo] = useState<"activo" | "potencial">("activo");
+  const [montoPrometido, setMontoPrometido] = useState("");
+  const [observaciones, setObservaciones] = useState("");
+  const [dialogWeek, setDialogWeek] = useState(selectedWeek);
+
+  // Actualizar dialogWeek cuando cambia selectedWeek externamente
+  useEffect(() => {
+    setDialogWeek(selectedWeek);
+  }, [selectedWeek]);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -1314,22 +1319,23 @@ function CreatePromesaDialog({
   });
 
   const resetForm = () => {
+    setClienteTipo("activo");
     setSelectedClient(null);
+    setManualClienteNombre("");
+    setManualClienteId("");
     setMontoPrometido("");
     setObservaciones("");
     setSearchClient("");
-    setIsManualEntry(false);
-    setManualClienteNombre("");
-    setManualClienteId("");
-    setClienteTipo("activo");
+    setDialogWeek(selectedWeek);
   };
 
   const handleSubmit = () => {
-    if (isManualEntry) {
+    // Validación según tipo de cliente
+    if (clienteTipo === "potencial") {
       if (!manualClienteNombre.trim() || !montoPrometido) {
         toast({
           title: "Error",
-          description: "Por favor complete todos los campos requeridos (nombre del cliente y monto)",
+          description: "Por favor complete todos los campos requeridos",
           variant: "destructive",
         });
         return;
@@ -1345,15 +1351,15 @@ function CreatePromesaDialog({
       }
     }
 
-    const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 });
-    const weekNumber = getISOWeek(selectedWeek);
-    const year = getYear(selectedWeek);
+    const weekStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
+    const weekNumber = getISOWeek(dialogWeek);
+    const year = getYear(dialogWeek);
 
     createMutation.mutate({
-      clienteId: isManualEntry ? (manualClienteId.trim() || 'MANUAL') : selectedClient!.koen,
-      clienteNombre: isManualEntry ? manualClienteNombre.trim() : selectedClient!.nokoen,
-      clienteTipo: isManualEntry ? clienteTipo : 'activo', // Solo para ingresos manuales se puede marcar como potencial
+      clienteId: clienteTipo === "potencial" ? (manualClienteId.trim() || 'PROSPECTO') : selectedClient!.koen,
+      clienteNombre: clienteTipo === "potencial" ? manualClienteNombre.trim() : selectedClient!.nokoen,
+      clienteTipo: clienteTipo,
       montoPrometido: parseFloat(montoPrometido),
       semana: `${year}-${String(weekNumber).padStart(2, '0')}`,
       anio: year,
@@ -1364,150 +1370,216 @@ function CreatePromesaDialog({
     });
   };
 
+  const weekNumber = getISOWeek(dialogWeek);
+  const year = getYear(dialogWeek);
+  const weekStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
+
+  // Handler para limpiar campos al cambiar tipo de cliente
+  const handleClienteTipoChange = (tipo: "activo" | "potencial") => {
+    setClienteTipo(tipo);
+    setSelectedClient(null);
+    setManualClienteNombre("");
+    setManualClienteId("");
+    setSearchClient("");
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" data-testid="dialog-crear-promesa">
+      <DialogContent className="max-w-lg" data-testid="dialog-crear-promesa">
         <DialogHeader>
-          <DialogTitle>Nueva Promesa de Compra</DialogTitle>
-          <DialogDescription>
-            Registra un compromiso de compra para la semana {getISOWeek(selectedWeek)} del {getYear(selectedWeek)}
+          <DialogTitle className="text-xl">Nueva Promesa de Compra</DialogTitle>
+          <DialogDescription className="text-sm">
+            Complete la información del compromiso de compra
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          {/* Selector de cliente */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>Cliente *</Label>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => {
-                  setIsManualEntry(!isManualEntry);
-                  setSelectedClient(null);
-                  setSearchClient("");
-                  setManualClienteNombre("");
-                  setManualClienteId("");
-                }}
-                data-testid="button-toggle-manual"
+        <div className="space-y-5 py-4">
+          {/* Periodo de la Promesa */}
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <Label className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2 block">
+              Periodo de la Promesa
+            </Label>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDialogWeek(prev => subWeeks(prev, 1))}
+                className="h-8"
+                data-testid="button-prev-week"
               >
-                {isManualEntry ? 'Buscar en lista' : 'Ingreso manual'}
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex-1 text-center">
+                <p className="font-semibold text-blue-900 dark:text-blue-100">
+                  Semana {weekNumber} del {year}
+                </p>
+                <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+                  {format(weekStart, 'dd MMM', { locale: es })} - {format(weekEnd, 'dd MMM', { locale: es })}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDialogWeek(prev => addWeeks(prev, 1))}
+                className="h-8"
+                data-testid="button-next-week"
+              >
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
+          </div>
+
+          {/* Tipo de Cliente */}
+          <div>
+            <Label className="text-sm font-semibold mb-3 block">Tipo de Cliente *</Label>
+            <RadioGroup 
+              value={clienteTipo} 
+              onValueChange={handleClienteTipoChange}
+              className="grid grid-cols-2 gap-3"
+            >
+              <div className={`flex items-center space-x-3 border-2 rounded-lg p-3 cursor-pointer transition-all ${
+                clienteTipo === "activo" 
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-950" 
+                  : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+              }`}>
+                <RadioGroupItem value="activo" id="activo" data-testid="radio-cliente-activo" />
+                <Label htmlFor="activo" className="font-medium cursor-pointer flex-1">
+                  Cliente Activo
+                </Label>
+              </div>
+              <div className={`flex items-center space-x-3 border-2 rounded-lg p-3 cursor-pointer transition-all ${
+                clienteTipo === "potencial" 
+                  ? "border-purple-500 bg-purple-50 dark:bg-purple-950" 
+                  : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+              }`}>
+                <RadioGroupItem value="potencial" id="potencial" data-testid="radio-cliente-potencial" />
+                <Label htmlFor="potencial" className="font-medium cursor-pointer flex-1">
+                  Cliente Potencial
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Información del Cliente */}
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold block">
+              {clienteTipo === "activo" ? "Seleccionar Cliente *" : "Datos del Cliente Potencial *"}
+            </Label>
             
-            {isManualEntry ? (
-              <div className="space-y-3 mt-2">
-                {/* Tipo de Cliente */}
-                <div>
-                  <Label className="mb-2 block">Tipo de Cliente *</Label>
-                  <RadioGroup 
-                    value={clienteTipo} 
-                    onValueChange={(value: "activo" | "potencial") => setClienteTipo(value)}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="activo" id="activo" data-testid="radio-cliente-activo" />
-                      <Label htmlFor="activo" className="font-normal cursor-pointer">
-                        Cliente Activo
-                      </Label>
+            {clienteTipo === "activo" ? (
+              // Cliente Activo - Buscador
+              <>
+                {selectedClient ? (
+                  <div className="flex items-center gap-3 p-3 border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950 rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-semibold text-green-900 dark:text-green-100">{selectedClient.nokoen}</p>
+                      <p className="text-sm text-green-700 dark:text-green-300">Código: {selectedClient.koen}</p>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="potencial" id="potencial" data-testid="radio-cliente-potencial" />
-                      <Label htmlFor="potencial" className="font-normal cursor-pointer">
-                        Cliente Potencial
-                      </Label>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setSelectedClient(null)}
+                      className="hover:bg-green-100 dark:hover:bg-green-900"
+                    >
+                      Cambiar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar cliente por nombre o código..."
+                        value={searchClient}
+                        onChange={(e) => setSearchClient(e.target.value)}
+                        className="pl-9 h-11"
+                        data-testid="input-buscar-cliente"
+                      />
                     </div>
-                  </RadioGroup>
-                </div>
-                
+                    {searchClient && clientes.length > 0 && (
+                      <div className="max-h-52 overflow-y-auto border rounded-lg shadow-sm">
+                        {clientes.map((cliente) => (
+                          <button
+                            key={cliente.id}
+                            onClick={() => setSelectedClient(cliente)}
+                            className="w-full text-left p-3 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors border-b last:border-b-0"
+                            data-testid={`button-seleccionar-cliente-${cliente.koen}`}
+                          >
+                            <p className="font-medium text-sm">{cliente.nokoen}</p>
+                            <p className="text-xs text-muted-foreground">Código: {cliente.koen}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              // Cliente Potencial - Entrada Manual
+              <div className="space-y-3 bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
                 <div>
-                  <Label htmlFor="manualNombre">Nombre del Cliente *</Label>
+                  <Label htmlFor="manualNombre" className="text-sm font-medium mb-1.5 block">
+                    Nombre del Cliente *
+                  </Label>
                   <Input
                     id="manualNombre"
-                    placeholder="Ingrese el nombre del cliente"
+                    placeholder="Ingrese el nombre completo del cliente"
                     value={manualClienteNombre}
                     onChange={(e) => setManualClienteNombre(e.target.value)}
-                    className="mt-1"
+                    className="h-10"
                     data-testid="input-manual-nombre"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="manualCodigo">Código del Cliente (Opcional)</Label>
+                  <Label htmlFor="manualCodigo" className="text-sm font-medium mb-1.5 block">
+                    Código del Cliente (Opcional)
+                  </Label>
                   <Input
                     id="manualCodigo"
-                    placeholder="Ej: CLI001"
+                    placeholder="Ej: PROSP001"
                     value={manualClienteId}
                     onChange={(e) => setManualClienteId(e.target.value)}
-                    className="mt-1"
+                    className="h-10"
                     data-testid="input-manual-codigo"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Si no tiene código, se asignará automáticamente</p>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Si no se especifica, se generará automáticamente
+                  </p>
                 </div>
               </div>
-            ) : selectedClient ? (
-              <div className="flex items-center gap-2 mt-2">
-                <div className="flex-1 p-2 border rounded bg-muted">
-                  <p className="font-medium">{selectedClient.nokoen}</p>
-                  <p className="text-sm text-muted-foreground">Código: {selectedClient.koen}</p>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>
-                  Cambiar
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="relative mt-2">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar cliente..."
-                    value={searchClient}
-                    onChange={(e) => setSearchClient(e.target.value)}
-                    className="pl-8"
-                    data-testid="input-buscar-cliente"
-                  />
-                </div>
-                {clientes.length > 0 && (
-                  <div className="mt-2 max-h-48 overflow-y-auto border rounded">
-                    {clientes.map((cliente) => (
-                      <button
-                        key={cliente.id}
-                        onClick={() => setSelectedClient(cliente)}
-                        className="w-full text-left p-2 hover:bg-muted transition-colors"
-                        data-testid={`button-seleccionar-cliente-${cliente.koen}`}
-                      >
-                        <p className="font-medium">{cliente.nokoen}</p>
-                        <p className="text-sm text-muted-foreground">Código: {cliente.koen}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
             )}
           </div>
 
-          {/* Monto prometido */}
+          {/* Monto Prometido */}
           <div>
-            <Label htmlFor="monto">Monto Prometido *</Label>
+            <Label htmlFor="monto" className="text-sm font-semibold mb-2 block">
+              Monto Prometido *
+            </Label>
             <Input
               id="monto"
               type="number"
               placeholder="Ej: 1500000"
               value={montoPrometido}
               onChange={(e) => setMontoPrometido(e.target.value)}
-              className="mt-2"
+              className="h-11 text-base"
               data-testid="input-monto-prometido"
             />
           </div>
 
           {/* Observaciones */}
           <div>
-            <Label htmlFor="observaciones">Observaciones</Label>
+            <Label htmlFor="observaciones" className="text-sm font-semibold mb-2 block">
+              Observaciones
+            </Label>
             <Textarea
               id="observaciones"
               placeholder="Notas adicionales (opcional)"
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
-              className="mt-2"
+              className="min-h-20 resize-none"
               data-testid="textarea-observaciones"
             />
           </div>
@@ -1515,22 +1587,22 @@ function CreatePromesaDialog({
 
         <DialogFooter className="flex-col gap-3">
           {/* Indicadores de campos faltantes */}
-          {((!isManualEntry && !selectedClient) || (isManualEntry && !manualClienteNombre.trim()) || !montoPrometido) && (
-            <div className="flex flex-col gap-1.5 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              {!isManualEntry && !selectedClient && (
-                <p className="text-sm text-amber-700 flex items-center gap-2">
+          {((clienteTipo === "activo" && !selectedClient) || (clienteTipo === "potencial" && !manualClienteNombre.trim()) || !montoPrometido) && (
+            <div className="flex flex-col gap-1.5 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+              {clienteTipo === "activo" && !selectedClient && (
+                <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                   Selecciona un cliente de la lista
                 </p>
               )}
-              {isManualEntry && !manualClienteNombre.trim() && (
-                <p className="text-sm text-amber-700 flex items-center gap-2">
+              {clienteTipo === "potencial" && !manualClienteNombre.trim() && (
+                <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                   Ingresa el nombre del cliente
                 </p>
               )}
               {!montoPrometido && (
-                <p className="text-sm text-amber-700 flex items-center gap-2">
+                <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                   Ingresa el monto prometido
                 </p>
@@ -1538,18 +1610,24 @@ function CreatePromesaDialog({
             </div>
           )}
           
-          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancelar">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end w-full">
+            <Button 
+              variant="outline" 
+              onClick={() => onOpenChange(false)} 
+              className="sm:w-auto"
+              data-testid="button-cancelar"
+            >
               Cancelar
             </Button>
             <Button 
               onClick={handleSubmit} 
               disabled={
                 createMutation.isPending || 
-                (!isManualEntry && !selectedClient) || 
-                (isManualEntry && !manualClienteNombre.trim()) ||
+                (clienteTipo === "activo" && !selectedClient) || 
+                (clienteTipo === "potencial" && !manualClienteNombre.trim()) ||
                 !montoPrometido
               }
+              className="sm:w-auto"
               data-testid="button-guardar-promesa"
             >
               {createMutation.isPending ? (
