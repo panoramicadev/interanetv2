@@ -22,7 +22,6 @@ import {
   AlertTriangle,
   Warehouse,
   Banknote,
-  HandHeart,
   Database
 } from "lucide-react";
 
@@ -113,11 +112,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
-    },
-    {
-      href: "/tareas",
-      label: "Estimación Semanal",
-      icon: HandHeart,
     },
     {
       href: "/inventario",
@@ -233,11 +227,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
-      href: "/tareas",
-      label: "Estimación Semanal",
-      icon: HandHeart,
-    },
-    {
       href: "/inventario",
       label: "Inventario",
       icon: Warehouse,
@@ -319,11 +308,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
-    },
-    {
-      href: "/tareas",
-      label: "Estimación Semanal",
-      icon: HandHeart,
     },
     {
       href: "/tintometria",
