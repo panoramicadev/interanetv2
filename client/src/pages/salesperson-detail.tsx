@@ -30,7 +30,9 @@ interface SalespersonDetails {
   totalClients: number;
   transactionCount: number;
   averageTicket: number;
-  salesFrequency: number; // days between sales
+  salesFrequency: number; // average days between sales
+  daysSinceLastSale: number; // actual days since last sale
+  lastSaleDate: string | null; // date of last sale
 }
 
 interface SalespersonClient {
@@ -676,10 +678,10 @@ export default function SalespersonDetail({
                       Días desde última venta
                     </p>
                     <div className="text-3xl font-bold text-amber-900 mb-1" data-testid="text-sales-frequency">
-                      {isLoadingDetails ? 'Cargando...' : getFrequencyDescription(details?.salesFrequency || 0)}
+                      {isLoadingDetails ? 'Cargando...' : `${details?.daysSinceLastSale || 0} día${details?.daysSinceLastSale !== 1 ? 's' : ''}`}
                     </div>
                     <p className="text-xs text-amber-600">
-                      Promedio
+                      {details?.lastSaleDate ? `Última venta: ${new Date(details.lastSaleDate).toLocaleDateString('es-CL')}` : 'Sin ventas'}
                     </p>
                   </div>
                   <div className="bg-amber-500 rounded-2xl p-3 shadow-sm">
