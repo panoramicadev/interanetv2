@@ -405,18 +405,27 @@ export default function TareasPage() {
   return (
     <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 m-3 sm:m-4 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900" data-testid="page-title">
-            Panel de Tareas
-          </h1>
-          <p className="text-gray-600 text-sm md:text-base">
-            Gestiona tareas del equipo y estimaciones semanales
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900" data-testid="page-title">
+          Panel de Tareas
+        </h1>
+        <p className="text-gray-600 text-sm md:text-base">
+          Gestiona tareas del equipo y estimaciones semanales
+        </p>
+      </div>
 
-        {canCreateTasks && (
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      {/* Tabs para Tareas y Estimación Semanal */}
+      <Tabs defaultValue="tareas" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="tareas" data-testid="tab-tareas">Tareas</TabsTrigger>
+          <TabsTrigger value="estimacion" data-testid="tab-estimacion">Estimación Semanal</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="tareas" className="space-y-6">
+          {/* Botón Nueva Tarea */}
+          {canCreateTasks && (
+            <div className="flex justify-end">
+              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
               <Button className="w-full sm:w-auto" data-testid="button-create-task">
                 <Plus className="h-4 w-4 mr-2" />
@@ -951,16 +960,9 @@ export default function TareasPage() {
           ))
         )}
       </div>
-
-      <Tabs defaultValue="tareas" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="tareas">Tareas</TabsTrigger>
-          <TabsTrigger value="estimacion">Estimación Semanal</TabsTrigger>
-        </TabsList>
-        <TabsContent value="tareas" className="mt-6">
-          {/* TODO: Contenido de tareas aquí */}
         </TabsContent>
-        <TabsContent value="estimacion" className="mt-6">
+
+        <TabsContent value="estimacion" className="space-y-6">
           <EstimacionSemanalTab
             selectedWeek={selectedWeek}
             promesasCumplimiento={promesasCumplimiento}
