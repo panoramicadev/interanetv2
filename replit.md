@@ -29,7 +29,7 @@ Preferred communication style: Simple, everyday language.
 ### Database
 - **Database**: PostgreSQL (Neon serverless)
 - **ORM**: Drizzle ORM
-- **Key Schemas**: Users, sales_transactions, ecommerceOrders, notifications, reclamosGenerales, presupuestoMarketing, solicitudesMarketing, gastosEmpresariales, stgMaeedo, factVentas, etlConfig, etlExecutionLog.
+- **Key Schemas**: Users, sales_transactions, ecommerceOrders, notifications, reclamosGenerales, presupuestoMarketing, solicitudesMarketing, gastosEmpresariales, hitosMarketing, stgMaeedo, factVentas, etlConfig, etlExecutionLog.
 - **Migrations**: Drizzle Kit
 
 ### UI/UX
@@ -50,7 +50,7 @@ Preferred communication style: Simple, everyday language.
 - **Goals Progress**: Sales goals measured exclusively using Ventas Totales (excluding GDV).
 - **Dashboard Enhancements**: 3-card layout (Ventas Totales, Total Acumulado del Año, Unidades Vendidas), best historical year, YTD comparison, embedded salesperson detail views with modern design (rounded-3xl cards, border-0, pastel gradient backgrounds, circular colored icon backgrounds), goal metrics display showing percentage achieved and current sales vs target in separate boxes.
 - **Complaints Management (Reclamos Generales)**: Multi-area complaint resolution system with complete workflow automation. Vendors/admins/supervisors create complaints selecting from 12 predefined motivos (Etiquetado, Sellado, Llenado del envase, Formato de envase, Calidad de producto, Diferencia de color, Pedido incompleto, Producto expirado, Estado del envase no adecuado, Producto cambiado, Mal aplicación, Otro) that automatically suggest responsible areas (Producción, Laboratorio, Logística, Aplicación/Cliente). Technical validation by tecnico_obra role determines if claim proceeds and assigns final area. Area-specific teams (area_produccion, area_logistica, area_aplicacion, laboratorio, area_materia_prima, area_colores, area_envase, area_etiqueta) resolve claims with photographic evidence. Features: optimized photo uploads (client-side compression to max 1920px, JPEG 0.8 quality, reducing file size 70-80%), role-based filtering, severity levels, state machine (registrado → en_revision_tecnica → en_area_responsable → resuelto → cerrado), tabbed views (Todos, Mis Reclamos, Pendientes Validación, Asignados a Mi Área, Resueltos, Cerrados), history logging, atomic database updates to prevent race conditions, and automatic rollback on upload failure. Creator can delete own reclamo within 5 minutes for error recovery.
-- **Marketing Module**: Budget configuration, request submission, workflow states, reference URLs/PDFs, metrics dashboard, and a customizable checklist system for tasks within requests.
+- **Marketing Module**: Budget configuration, request submission, workflow states, reference URLs/PDFs, metrics dashboard, customizable checklist system for tasks within requests, and interactive calendar system for managing project milestones and deadlines. Calendar features: monthly view with date navigation, color-coded milestone types (general, campaña, evento, deadline), click-to-create milestones, completion tracking, and role-based access (admin/supervisor only).
 - **Inventory Module**: Real-time stock levels, warehouse filtering, low stock alerts, and summary metrics.
 - **Expense Management (Gastos Empresariales)**: Expense creation, approval workflow, status tracking, and analytics dashboard.
 - **Promesas de Compra Semanales**: Weekly purchase promise tracking, compliance comparison with actual sales, and visual indicators.
