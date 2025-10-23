@@ -11448,9 +11448,9 @@ export class DatabaseStorage implements IStorage {
         const ventasNvv = await db.execute(sql`
           SELECT COALESCE(SUM(total_pendiente), 0) as total
           FROM nvv_pending_sales
-          WHERE nokoen = ${promesa.clienteNombre}
-            AND feemli >= ${promesa.fechaInicio}
-            AND feemli <= ${promesa.fechaFin}
+          WHERE "NOKOEN" = ${promesa.clienteNombre}
+            AND "FEEMLI" >= ${promesa.fechaInicio}
+            AND "FEEMLI" <= ${promesa.fechaFin}
         `);
 
         const totalFacturas = parseFloat((ventasFacturas.rows[0] as any)?.total || '0');
