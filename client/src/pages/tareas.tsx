@@ -1899,7 +1899,7 @@ function EditPromesaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl" data-testid="dialog-editar-promesa">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-editar-promesa">
         <DialogHeader>
           <DialogTitle className="text-xl">Detalle de Promesa de Compra</DialogTitle>
           <DialogDescription className="text-sm">
@@ -1907,7 +1907,7 @@ function EditPromesaDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-6 py-4 px-1">
           {/* Información del Cliente */}
           <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
             <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-3">Información del Cliente</h3>
