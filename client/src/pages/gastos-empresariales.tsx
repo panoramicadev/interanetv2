@@ -27,12 +27,13 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3 } from "lucide-react";
+import { Plus, Search, Download, Check, X, Trash2, Eye, BarChart3, FileText, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "wouter";
+import { Separator } from "@/components/ui/separator";
 
 interface GastoEmpresarial {
   id: string;
@@ -63,6 +64,7 @@ export default function GastosEmpresariales() {
   const [estadoFilter, setEstadoFilter] = useState<string>("all");
   const [categoriaFilter, setCategoriaFilter] = useState<string>("all");
   const [selectedGasto, setSelectedGasto] = useState<GastoEmpresarial | null>(null);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [showRejectionDialog, setShowRejectionDialog] = useState(false);
   const [comentarioRechazo, setComentarioRechazo] = useState("");
@@ -288,7 +290,15 @@ export default function GastosEmpresariales() {
                   </TableRow>
                 ) : (
                   filteredGastos.map((gasto) => (
-                    <TableRow key={gasto.id} data-testid={`row-gasto-${gasto.id}`}>
+                    <TableRow 
+                      key={gasto.id} 
+                      data-testid={`row-gasto-${gasto.id}`}
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => {
+                        setSelectedGasto(gasto);
+                        setShowDetailDialog(true);
+                      }}
+                    >
                       <TableCell className="text-sm">
                         {format(new Date(gasto.createdAt), 'dd/MM/yyyy', { locale: es })}
                       </TableCell>
@@ -308,37 +318,12 @@ export default function GastosEmpresariales() {
                       <TableCell>{getEstadoBadge(gasto.estado)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          {canApproveReject && gasto.estado === 'pendiente' && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setSelectedGasto(gasto);
-                                  setShowApprovalDialog(true);
-                                }}
-                                data-testid={`button-approve-${gasto.id}`}
-                              >
-                                <Check className="h-4 w-4 text-green-600" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setSelectedGasto(gasto);
-                                  setShowRejectionDialog(true);
-                                }}
-                                data-testid={`button-reject-${gasto.id}`}
-                              >
-                                <X className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </>
-                          )}
                           {canDelete(gasto) && (
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 if (confirm('¿Estás seguro de eliminar este gasto?')) {
                                   deleteMutation.mutate(gasto.id);
                                 }
@@ -348,6 +333,18 @@ export default function GastosEmpresariales() {
                               <Trash2 className="h-4 w-4 text-gray-600" />
                             </Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedGasto(gasto);
+                              setShowDetailDialog(true);
+                            }}
+                            data-testid={`button-view-${gasto.id}`}
+                          >
+                            <Eye className="h-4 w-4 text-gray-600" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -358,6 +355,191 @@ export default function GastosEmpresariales() {
           </div>
         </div>
       </div>
+
+      {/* Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalle del Gasto</DialogTitle>
+            <DialogDescription>
+              Información completa del gasto empresarial
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedGasto && (
+            <div className="space-y-6">
+              {/* Estado y Fecha */}
+              <div className="flex items-center justify-between">
+                {getEstadoBadge(selectedGasto.estado)}
+                <span className="text-sm text-gray-500">
+                  Creado: {format(new Date(selectedGasto.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}
+                </span>
+              </div>
+
+              {/* Evidencia */}
+              {selectedGasto.archivoUrl && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-sm">Evidencia Adjunta</h3>
+                  {selectedGasto.archivoUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                    <div className="border rounded-lg p-2 bg-gray-50">
+                      <img 
+                        src={selectedGasto.archivoUrl} 
+                        alt="Evidencia" 
+                        className="w-full max-h-80 object-contain rounded"
+                      />
+                    </div>
+                  ) : (
+                    <div className="border rounded-lg p-4 bg-gray-50 flex items-center gap-3">
+                      <FileText className="h-8 w-8 text-blue-600" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Documento adjunto</p>
+                        <p className="text-xs text-gray-500">Haz clic para abrir el archivo</p>
+                      </div>
+                      <a 
+                        href={selectedGasto.archivoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                      >
+                        <ExternalLink className="h-5 w-5 text-gray-600" />
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Separator />
+
+              {/* Información Principal */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-sm">Información del Gasto</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Monto</p>
+                    <p className="font-bold text-lg">{formatCurrency(selectedGasto.monto)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Categoría</p>
+                    <p className="font-medium">{selectedGasto.categoria}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Tipo de Gasto</p>
+                    <p className="font-medium">{selectedGasto.tipoGasto}</p>
+                  </div>
+                  {selectedGasto.centroCostos && (
+                    <div>
+                      <p className="text-xs text-gray-500">Centro de Costos</p>
+                      <p className="font-medium">{selectedGasto.centroCostos}</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div>
+                  <p className="text-xs text-gray-500">Descripción</p>
+                  <p className="font-medium mt-1">{selectedGasto.descripcion}</p>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Información del Documento */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-sm">Información del Documento</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {selectedGasto.tipoDocumento && (
+                    <div>
+                      <p className="text-xs text-gray-500">Tipo de Documento</p>
+                      <p className="font-medium">{selectedGasto.tipoDocumento}</p>
+                    </div>
+                  )}
+                  {selectedGasto.numeroDocumento && (
+                    <div>
+                      <p className="text-xs text-gray-500">Número de Documento</p>
+                      <p className="font-medium">{selectedGasto.numeroDocumento}</p>
+                    </div>
+                  )}
+                  {selectedGasto.proveedor && (
+                    <div>
+                      <p className="text-xs text-gray-500">Proveedor</p>
+                      <p className="font-medium">{selectedGasto.proveedor}</p>
+                    </div>
+                  )}
+                  {selectedGasto.rutProveedor && (
+                    <div>
+                      <p className="text-xs text-gray-500">RUT Proveedor</p>
+                      <p className="font-medium">{selectedGasto.rutProveedor}</p>
+                    </div>
+                  )}
+                  {selectedGasto.fechaEmision && (
+                    <div>
+                      <p className="text-xs text-gray-500">Fecha de Emisión</p>
+                      <p className="font-medium">
+                        {format(new Date(selectedGasto.fechaEmision), 'dd/MM/yyyy', { locale: es })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Estado y Aprobación */}
+              {(selectedGasto.estado === 'aprobado' || selectedGasto.estado === 'rechazado') && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-sm">Información de Revisión</h3>
+                    {selectedGasto.fechaAprobacion && (
+                      <div>
+                        <p className="text-xs text-gray-500">Fecha de {selectedGasto.estado === 'aprobado' ? 'Aprobación' : 'Rechazo'}</p>
+                        <p className="font-medium">
+                          {format(new Date(selectedGasto.fechaAprobacion), 'dd/MM/yyyy HH:mm', { locale: es })}
+                        </p>
+                      </div>
+                    )}
+                    {selectedGasto.comentarioRechazo && (
+                      <div>
+                        <p className="text-xs text-gray-500">Motivo del Rechazo</p>
+                        <p className="font-medium text-red-600 mt-1">{selectedGasto.comentarioRechazo}</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Actions */}
+              {canApproveReject && selectedGasto.estado === 'pendiente' && (
+                <>
+                  <Separator />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                      onClick={() => {
+                        setShowDetailDialog(false);
+                        setShowRejectionDialog(true);
+                      }}
+                      data-testid="button-reject-detail"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Rechazar
+                    </Button>
+                    <Button
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        setShowDetailDialog(false);
+                        setShowApprovalDialog(true);
+                      }}
+                      data-testid="button-approve-detail"
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      Aprobar
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Approval Dialog */}
       <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
