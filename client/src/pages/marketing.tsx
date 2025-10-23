@@ -144,18 +144,19 @@ export default function Marketing() {
 
       {/* Tabs */}
       <Tabs defaultValue="solicitudes" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="solicitudes" data-testid="tab-solicitudes">
-            <FileText className="mr-2 h-4 w-4" />
-            Presupuesto y Solicitudes
+        <TabsList className="grid w-full grid-cols-3 h-auto">
+          <TabsTrigger value="solicitudes" data-testid="tab-solicitudes" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Presupuesto y Solicitudes</span>
+            <span className="sm:hidden">Solicitudes</span>
           </TabsTrigger>
-          <TabsTrigger value="inventario" data-testid="tab-inventario">
-            <Package className="mr-2 h-4 w-4" />
-            Inventario
+          <TabsTrigger value="inventario" data-testid="tab-inventario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+            <Package className="h-4 w-4" />
+            <span>Inventario</span>
           </TabsTrigger>
-          <TabsTrigger value="calendario" data-testid="tab-calendario">
-            <Calendar className="mr-2 h-4 w-4" />
-            Calendario
+          <TabsTrigger value="calendario" data-testid="tab-calendario" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2 text-xs sm:text-sm">
+            <Calendar className="h-4 w-4" />
+            <span>Calendario</span>
           </TabsTrigger>
         </TabsList>
 
@@ -2754,18 +2755,20 @@ function CalendarioHitos({
   return (
     <>
       <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-center gap-3">
+        <CardHeader className="pb-3">
+          <div className="space-y-3">
+            {/* Navegación de mes */}
+            <div className="flex items-center justify-between">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handlePrevMonth}
                 data-testid="button-prev-month"
+                className="h-8 w-8 p-0"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <CardTitle className="min-w-[200px] text-center">
+              <CardTitle className="text-lg sm:text-xl text-center">
                 {format(currentMonth, 'MMMM yyyy', { locale: es })}
               </CardTitle>
               <Button
@@ -2773,16 +2776,20 @@ function CalendarioHitos({
                 size="sm"
                 onClick={handleNextMonth}
                 data-testid="button-next-month"
+                className="h-8 w-8 p-0"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex gap-2">
+            
+            {/* Botones de acción */}
+            <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleToday}
                 data-testid="button-hoy"
+                className="h-8 text-xs"
               >
                 Hoy
               </Button>
@@ -2795,9 +2802,10 @@ function CalendarioHitos({
                   setHitoDialogOpen(true);
                 }}
                 data-testid="button-nuevo-hito"
+                className="h-8 text-xs"
               >
-                <Plus className="mr-2 h-4 w-4" />
-                Nuevo Hito
+                <Plus className="mr-1 h-3 w-3" />
+                Nuevo
               </Button>
             </div>
           </div>
@@ -2808,39 +2816,39 @@ function CalendarioHitos({
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Legend */}
-              <div className="flex flex-wrap gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500" />
+              <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-blue-500" />
                   <span>General</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-purple-500" />
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-purple-500" />
                   <span>Campaña</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-500" />
                   <span>Evento</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500" />
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-red-500" />
                   <span>Deadline</span>
                 </div>
               </div>
 
               {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2">
                 {/* Day headers */}
                 {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day) => (
-                  <div key={day} className="text-center font-semibold text-sm py-2">
+                  <div key={day} className="text-center font-semibold text-[10px] sm:text-sm py-1 sm:py-2">
                     {day}
                   </div>
                 ))}
 
                 {/* Empty cells for days before month starts */}
                 {Array.from({ length: startPadding }).map((_, i) => (
-                  <div key={`empty-${i}`} className="min-h-[100px] bg-muted/30 rounded-lg" />
+                  <div key={`empty-${i}`} className="min-h-[60px] sm:min-h-[100px] bg-muted/30 rounded-lg" />
                 ))}
 
                 {/* Days of the month */}
@@ -2851,31 +2859,31 @@ function CalendarioHitos({
                   return (
                     <div
                       key={day.toISOString()}
-                      className={`min-h-[100px] border rounded-lg p-2 cursor-pointer hover:bg-muted/50 transition-colors ${
+                      className={`min-h-[60px] sm:min-h-[100px] border rounded-lg p-1 sm:p-2 cursor-pointer hover:bg-muted/50 transition-colors ${
                         isToday ? 'border-primary border-2' : 'border-border'
                       }`}
                       onClick={() => handleDayClick(day)}
                       data-testid={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
                     >
-                      <div className={`text-sm font-semibold mb-1 ${isToday ? 'text-primary' : ''}`}>
+                      <div className={`text-[10px] sm:text-sm font-semibold mb-0.5 sm:mb-1 ${isToday ? 'text-primary' : ''}`}>
                         {format(day, 'd')}
                       </div>
-                      <div className="space-y-1">
-                        {dayHitos.slice(0, 3).map((hito) => (
+                      <div className="space-y-0.5 sm:space-y-1">
+                        {dayHitos.slice(0, 2).map((hito) => (
                           <div
                             key={hito.id}
-                            className={`text-xs p-1 rounded truncate cursor-pointer ${tipoColors[hito.tipo]} text-white flex items-center gap-1`}
+                            className={`text-[8px] sm:text-xs p-0.5 sm:p-1 rounded truncate cursor-pointer ${tipoColors[hito.tipo]} text-white flex items-center gap-0.5 sm:gap-1`}
                             onClick={(e) => handleHitoClick(hito, e)}
                             title={hito.titulo}
                             data-testid={`hito-${hito.id}`}
                           >
-                            {hito.completado && <CheckSquare className="h-3 w-3 flex-shrink-0" />}
+                            {hito.completado && <CheckSquare className="h-2 w-2 sm:h-3 sm:w-3 flex-shrink-0" />}
                             <span className="truncate">{hito.titulo}</span>
                           </div>
                         ))}
-                        {dayHitos.length > 3 && (
-                          <div className="text-xs text-muted-foreground">
-                            +{dayHitos.length - 3} más
+                        {dayHitos.length > 2 && (
+                          <div className="text-[8px] sm:text-xs text-muted-foreground">
+                            +{dayHitos.length - 2}
                           </div>
                         )}
                       </div>
