@@ -430,6 +430,27 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
 
   logistica_bodega: [
     {
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      href: "/ordenes",
+      label: "Facturas",
+      icon: Receipt,
+    },
+    {
+      href: "/nvv",
+      label: "Notas de Venta (NVV)",
+      icon: TrendingUp,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+      separator: true,
+    },
+    {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
