@@ -988,6 +988,7 @@ export default function TareasPage() {
             clientes={clientes}
             searchClient={searchClient}
             setSearchClient={setSearchClient}
+            user={user}
           />
         </TabsContent>
       </Tabs>
@@ -1008,6 +1009,7 @@ function EstimacionSemanalTab({
   clientes,
   searchClient,
   setSearchClient,
+  user,
 }: {
   selectedWeek: Date;
   promesasCumplimiento: PromesaCumplimiento[];
@@ -1020,6 +1022,7 @@ function EstimacionSemanalTab({
   clientes: Cliente[];
   searchClient: string;
   setSearchClient: (value: string) => void;
+  user: any;
 }) {
   // Calcular resumen
   const resumen = {
