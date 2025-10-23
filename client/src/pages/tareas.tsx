@@ -1434,7 +1434,7 @@ function CreatePromesaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg" data-testid="dialog-crear-promesa">
+      <DialogContent className="max-w-lg overflow-x-auto" data-testid="dialog-crear-promesa">
         <DialogHeader>
           <DialogTitle className="text-xl">Nueva Promesa de Compra</DialogTitle>
           <DialogDescription className="text-sm">
@@ -1658,36 +1658,6 @@ function CreatePromesaDialog({
         </div>
 
         <DialogFooter className="flex-col gap-3">
-          {/* Indicadores de campos faltantes */}
-          {(!selectedSalesperson || (clienteTipo === "activo" && !selectedClient) || (clienteTipo === "potencial" && !manualClienteNombre.trim()) || !montoPrometido) && (
-            <div className="flex flex-col gap-1.5 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
-              {!selectedSalesperson && (
-                <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                  Selecciona un vendedor
-                </p>
-              )}
-              {clienteTipo === "activo" && !selectedClient && (
-                <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                  Selecciona un cliente de la lista
-                </p>
-              )}
-              {clienteTipo === "potencial" && !manualClienteNombre.trim() && (
-                <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                  Ingresa el nombre del cliente
-                </p>
-              )}
-              {!montoPrometido && (
-                <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                  Ingresa el monto prometido
-                </p>
-              )}
-            </div>
-          )}
-          
           <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end w-full">
             <Button 
               variant="outline" 
