@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
@@ -3076,29 +3077,70 @@ function HitoDialog({
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
+          {/* Marcar como completado - Card destacado */}
+          <div className={`flex items-center justify-between p-4 rounded-lg border-2 transition-all ${
+            completado 
+              ? 'bg-green-50 border-green-500' 
+              : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full ${
+                completado ? 'bg-green-500' : 'bg-gray-400'
+              }`}>
+                <CheckSquare className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <Label htmlFor="completado" className="text-sm font-semibold cursor-pointer">
+                  Marcar como completado
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {completado ? 'Este hito está completado' : 'Hito pendiente'}
+                </p>
+              </div>
+            </div>
+            <Switch
               id="completado"
               checked={completado}
-              onChange={(e) => setCompletado(e.target.checked)}
-              className="h-4 w-4"
-              data-testid="checkbox-completado-hito"
+              onCheckedChange={setCompletado}
+              data-testid="switch-completado-hito"
             />
-            <Label htmlFor="completado" className="cursor-pointer">
-              Marcar como completado
-            </Label>
           </div>
         </div>
 
-        <DialogFooter className="flex justify-between">
-          <div>
+        {/* Botón de eliminar arriba en móvil */}
+        {hito && userRole === 'admin' && (
+          <div className="pb-2 sm:hidden">
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              data-testid="button-eliminar-hito"
+              className="w-full"
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Eliminar
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          {/* Botón de eliminar en desktop */}
+          <div className="hidden sm:block sm:mr-auto">
             {hito && userRole === 'admin' && (
               <Button
                 variant="destructive"
                 onClick={handleDelete}
                 disabled={deleteMutation.isPending}
-                data-testid="button-eliminar-hito"
+                data-testid="button-eliminar-hito-desktop"
               >
                 {deleteMutation.isPending ? (
                   <>
@@ -3114,11 +3156,14 @@ function HitoDialog({
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
+          
+          {/* Botones principales */}
+          <div className="flex gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
               data-testid="button-cancelar-hito"
+              className="flex-1 sm:flex-none"
             >
               Cancelar
             </Button>
@@ -3126,6 +3171,7 @@ function HitoDialog({
               onClick={handleSubmit}
               disabled={saveMutation.isPending}
               data-testid="button-guardar-hito"
+              className="flex-1 sm:flex-none"
             >
               {saveMutation.isPending ? (
                 <>
