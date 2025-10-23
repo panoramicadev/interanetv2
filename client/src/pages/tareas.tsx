@@ -1084,7 +1084,11 @@ function EstimacionSemanalTab({
             <div>
               <CardTitle className="text-base sm:text-lg">Selección de Semana</CardTitle>
               <CardDescription className="text-xs sm:text-sm mt-0.5">
-                Semana {getISOWeek(selectedWeek)} del {getYear(selectedWeek)} ({format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })})
+                Semana {(() => {
+                  const monthStart = new Date(selectedWeek.getFullYear(), selectedWeek.getMonth(), 1);
+                  const firstMonday = startOfWeek(monthStart, { weekStartsOn: 1 });
+                  return Math.floor((selectedWeek.getTime() - firstMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+                })()} de {format(selectedWeek, 'MMMM', { locale: es })} ({format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })})
               </CardDescription>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
