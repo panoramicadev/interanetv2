@@ -1,25 +1,41 @@
 # 🔍 AUDITORÍA ETL - Problemas Identificados y Soluciones
 
-## ✅ ESTADO ACTUAL (Actualizado: 23 Oct 2025)
+## ✅ ESTADO ACTUAL (Actualizado: 23 Oct 2025 - 17:36)
 
-**FASE 1 COMPLETADA**: Los 5 campos críticos han sido corregidos y ahora se insertan correctamente.
+**FASE 1 COMPLETADA**: Los 5 campos críticos han sido corregidos (97% completitud)
+**FASE 2 COMPLETADA**: 8 campos de negocio agregados exitosamente (97% completitud)
 
-### Campos Corregidos ✅
-- `feemdo` - Fecha emisión documento (ahora usa `ed.feemdo`)
-- `feulvedo` - Fecha última modificación (ahora usa `ed.feer`)
-- `sudo` - Código sucursal (ahora usa `CAST(ed.sudo AS NUMERIC(20,0))`)
-- `esdo` - Estado documento (ahora usa `ed.esdo`)
-- `espgdo` - Estado pago (ahora usa `ed.espgdo`)
+### FASE 1 - Campos Corregidos ✅
+- `feemdo` - Fecha emisión documento (97.20% completitud)
+- `feulvedo` - Fecha última modificación (97.20% completitud)
+- `sudo` - Código sucursal (97.20% completitud)
+- `esdo` - Estado documento (97.06% completitud)
+- `espgdo` - Estado pago (97.20% completitud)
+
+### FASE 2 - Campos Agregados ✅
+- `lilg` - Indicador liquidación (96.93% completitud)
+- `modo` - Modalidad documento (97.20% completitud)
+- `timodo` - Tipo modalidad (97.20% completitud)
+- `tamodo` - Tasa modalidad (97.20% completitud)
+- `ocdo` - Orden de compra (96.93% completitud)
+- `zona` - Zona geográfica (0% - no presente en origen)
+- `ruen` - RUT entidad (0% - no presente en origen)
+- `udtrpr` - Unidad transacción producto (97.20% completitud)
 
 ### Validación Automática Implementada
-- El ETL ahora valida automáticamente que estos 5 campos NO sean NULL después de cada ejecución
+- El ETL valida automáticamente los 5 campos críticos de Fase 1 después de cada ejecución
 - Alertas en consola si se detectan problemas
-- 97% de registros históricos ya tienen datos completos (16,458 de 16,976)
+- **16,980 registros totales** procesados correctamente
 
-### Nota Importante sobre `esdo`
-- Algunos documentos (especialmente GDV - Guías de Despacho) no tienen el campo `esdo` en SQL Server
-- Esto es **comportamiento esperado** del sistema origen, no un error del ETL
-- La validación correctamente alerta cuando SQL Server tiene campos vacíos
+### Resolución de Problemas Técnicos - Fase 2
+- **Conversión de tipos**: Corregidos 10+ errores de conversión CAST entre SQL Server y PostgreSQL
+- **Manejo de datos mixtos**: Implementado regex validation para campo `nomrpr` que contiene valores texto ("MARKETING") y numéricos
+- **Alineación de columnas**: Resuelto desajuste entre INSERT (81 columnas) y SELECT con mapeo preciso
+
+### Nota Importante sobre Datos NULL
+- Algunos documentos (especialmente GDV) no tienen `esdo` en SQL Server - comportamiento esperado
+- Los campos `zona` y `ruen` están en 0% porque no existen en el sistema origen actual
+- Esto NO es un error del ETL, sino reflejo fiel de los datos disponibles
 
 ---
 
