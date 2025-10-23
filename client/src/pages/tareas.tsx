@@ -1265,6 +1265,7 @@ function EstimacionSemanalTab({
         clientes={clientes}
         searchClient={searchClient}
         setSearchClient={setSearchClient}
+        user={user}
       />
     </div>
   );
@@ -1278,6 +1279,7 @@ function CreatePromesaDialog({
   clientes,
   searchClient,
   setSearchClient,
+  user,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1285,6 +1287,7 @@ function CreatePromesaDialog({
   clientes: Cliente[];
   searchClient: string;
   setSearchClient: (value: string) => void;
+  user: any;
 }) {
   const { toast } = useToast();
   const [clienteTipo, setClienteTipo] = useState<"activo" | "potencial">("activo");
@@ -1294,11 +1297,28 @@ function CreatePromesaDialog({
   const [montoPrometido, setMontoPrometido] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [dialogWeek, setDialogWeek] = useState(selectedWeek);
+  const [selectedSalesperson, setSelectedSalesperson] = useState("");
+
+  // Query para obtener lista de vendedores (solo admin/supervisor)
+  const { data: salespeople = [] } = useQuery<Array<{ id: string; fullName: string; salespersonName: string }>>({
+    queryKey: ['/api/users/salespeople'],
+    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+  });
 
   // Actualizar dialogWeek cuando cambia selectedWeek externamente
   useEffect(() => {
     setDialogWeek(selectedWeek);
   }, [selectedWeek]);
+
+  // Establecer vendedor por defecto según rol
+  useEffect(() => {
+    if (user?.role === 'salesperson') {
+      setSelectedSalesperson(user.id);
+    } else if (salespeople.length > 0 && !selectedSalesperson) {
+      // Para admin/supervisor, no pre-seleccionar ninguno
+      setSelectedSalesperson("");
+    }
+  }, [user, salespeople]);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -1338,9 +1358,22 @@ function CreatePromesaDialog({
     setObservaciones("");
     setSearchClient("");
     setDialogWeek(selectedWeek);
+    if (user?.role !== 'salesperson') {
+      setSelectedSalesperson("");
+    }
   };
 
   const handleSubmit = () => {
+    // Validación de vendedor
+    if (!selectedSalesperson) {
+      toast({
+        title: "Error",
+        description: "Por favor seleccione un vendedor",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validación según tipo de cliente
     if (clienteTipo === "potencial") {
       if (!manualClienteNombre.trim() || !montoPrometido) {
@@ -1368,6 +1401,7 @@ function CreatePromesaDialog({
     const year = getYear(dialogWeek);
 
     createMutation.mutate({
+      vendedorId: selectedSalesperson,
       clienteId: clienteTipo === "potencial" ? (manualClienteId.trim() || 'PROSPECTO') : selectedClient!.koen,
       clienteNombre: clienteTipo === "potencial" ? manualClienteNombre.trim() : selectedClient!.nokoen,
       clienteTipo: clienteTipo,
@@ -1441,6 +1475,30 @@ function CreatePromesaDialog({
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
+          </div>
+
+          {/* Vendedor */}
+          <div>
+            <Label className="text-sm font-semibold mb-2 block">Vendedor *</Label>
+            {user?.role === 'salesperson' ? (
+              <div className="p-3 border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                <p className="font-medium text-gray-700 dark:text-gray-300">{user.fullName || user.email}</p>
+                <p className="text-sm text-muted-foreground">Este compromiso se registrará a tu nombre</p>
+              </div>
+            ) : (
+              <Select value={selectedSalesperson} onValueChange={setSelectedSalesperson}>
+                <SelectTrigger className="h-11" data-testid="select-vendedor">
+                  <SelectValue placeholder="Selecciona un vendedor..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {salespeople.map((salesperson) => (
+                    <SelectItem key={salesperson.id} value={salesperson.id}>
+                      {salesperson.fullName || salesperson.salespersonName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Tipo de Cliente */}
@@ -1598,8 +1656,14 @@ function CreatePromesaDialog({
 
         <DialogFooter className="flex-col gap-3">
           {/* Indicadores de campos faltantes */}
-          {((clienteTipo === "activo" && !selectedClient) || (clienteTipo === "potencial" && !manualClienteNombre.trim()) || !montoPrometido) && (
+          {(!selectedSalesperson || (clienteTipo === "activo" && !selectedClient) || (clienteTipo === "potencial" && !manualClienteNombre.trim()) || !montoPrometido) && (
             <div className="flex flex-col gap-1.5 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+              {!selectedSalesperson && (
+                <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  Selecciona un vendedor
+                </p>
+              )}
               {clienteTipo === "activo" && !selectedClient && (
                 <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 flex-shrink-0" />
@@ -1633,7 +1697,8 @@ function CreatePromesaDialog({
             <Button 
               onClick={handleSubmit} 
               disabled={
-                createMutation.isPending || 
+                createMutation.isPending ||
+                !selectedSalesperson || 
                 (clienteTipo === "activo" && !selectedClient) || 
                 (clienteTipo === "potencial" && !manualClienteNombre.trim()) ||
                 !montoPrometido
