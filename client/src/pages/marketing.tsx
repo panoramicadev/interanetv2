@@ -34,7 +34,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare } from "lucide-react";
+import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -276,7 +276,13 @@ export default function Marketing() {
 
         {/* Tab: Calendario */}
         <TabsContent value="calendario" className="space-y-6">
-          <CalendarioHitos mes={selectedMes} anio={selectedAnio} userRole={user.role} />
+          <CalendarioHitos 
+            mes={selectedMes} 
+            anio={selectedAnio} 
+            userRole={user.role}
+            onMesChange={setSelectedMes}
+            onAnioChange={setSelectedAnio}
+          />
         </TabsContent>
       </Tabs>
 
@@ -2655,11 +2661,47 @@ function InventarioDialog({
   );
 }
 // Calendario Component
-function CalendarioHitos({ mes, anio, userRole }: { mes: number; anio: number; userRole: string }) {
+function CalendarioHitos({ 
+  mes, 
+  anio, 
+  userRole,
+  onMesChange,
+  onAnioChange
+}: { 
+  mes: number; 
+  anio: number; 
+  userRole: string;
+  onMesChange: (mes: number) => void;
+  onAnioChange: (anio: number) => void;
+}) {
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [hitoDialogOpen, setHitoDialogOpen] = useState(false);
   const [selectedHito, setSelectedHito] = useState<HitoMarketing | null>(null);
+
+  const handlePrevMonth = () => {
+    if (mes === 1) {
+      onMesChange(12);
+      onAnioChange(anio - 1);
+    } else {
+      onMesChange(mes - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (mes === 12) {
+      onMesChange(1);
+      onAnioChange(anio + 1);
+    } else {
+      onMesChange(mes + 1);
+    }
+  };
+
+  const handleToday = () => {
+    const today = new Date();
+    onMesChange(today.getMonth() + 1);
+    onAnioChange(today.getFullYear());
+  };
 
   const { data: hitos, isLoading } = useQuery<HitoMarketing[]>({
     queryKey: ['/api/marketing/hitos', mes, anio],
@@ -2713,9 +2755,37 @@ function CalendarioHitos({ mes, anio, userRole }: { mes: number; anio: number; u
     <>
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Calendario de Hitos - {format(currentMonth, 'MMMM yyyy', { locale: es })}</CardTitle>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrevMonth}
+                data-testid="button-prev-month"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <CardTitle className="min-w-[200px] text-center">
+                {format(currentMonth, 'MMMM yyyy', { locale: es })}
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextMonth}
+                data-testid="button-next-month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleToday}
+                data-testid="button-hoy"
+              >
+                Hoy
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
