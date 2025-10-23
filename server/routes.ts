@@ -15,7 +15,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { localImageStorage } from "./localImageStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema } from "../shared/schema";
+import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema, insertHitoMarketingSchema } from "../shared/schema";
 import { eq, and, isNotNull, ne } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig } from "./etl-incremental";
@@ -8074,6 +8074,100 @@ export function registerRoutes(app: Express): Server {
       res.json({ message: 'Item eliminado correctamente' });
     } catch (error: any) {
       res.status(500).json({ message: 'Error al eliminar item', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // HITOS DE MARKETING routes
+  // ==================================================================================
+
+  // Get all hitos
+  app.get('/api/marketing/hitos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { mes, anio } = req.query;
+      
+      const filters: any = {};
+      if (mes) filters.mes = parseInt(mes);
+      if (anio) filters.anio = parseInt(anio);
+      
+      const hitos = await storage.getHitosMarketing(filters);
+      res.json(hitos);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener hitos', error: error.message });
+    }
+  }));
+
+  // Get hito by ID
+  app.get('/api/marketing/hitos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const hito = await storage.getHitoMarketingById(req.params.id);
+      
+      if (!hito) {
+        return res.status(404).json({ message: 'Hito no encontrado' });
+      }
+      
+      res.json(hito);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener hito', error: error.message });
+    }
+  }));
+
+  // Create hito
+  app.post('/api/marketing/hitos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin and supervisor can create hitos
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No tienes permisos para crear hitos' });
+      }
+      
+      const validatedData = insertHitoMarketingSchema.parse({
+        ...req.body,
+        createdBy: user.id,
+      });
+      
+      const hito = await storage.createHitoMarketing(validatedData);
+      res.status(201).json(hito);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Error al crear hito', error: error.message });
+    }
+  }));
+
+  // Update hito
+  app.patch('/api/marketing/hitos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin and supervisor can update hitos
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No tienes permisos para editar hitos' });
+      }
+      
+      const hito = await storage.updateHitoMarketing(req.params.id, req.body);
+      res.json(hito);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al actualizar hito', error: error.message });
+    }
+  }));
+
+  // Delete hito
+  app.delete('/api/marketing/hitos/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin can delete hitos
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Solo admin puede eliminar hitos' });
+      }
+      
+      await storage.deleteHitoMarketing(req.params.id);
+      res.json({ message: 'Hito eliminado correctamente' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al eliminar hito', error: error.message });
     }
   }));
 
