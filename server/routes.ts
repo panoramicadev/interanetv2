@@ -620,9 +620,20 @@ export function registerRoutes(app: Express): Server {
 
       const goals = await storage.getGoalsBySalesperson(salespersonName);
       
+      // Convert "current-month" to actual period (e.g., "2025-10")
+      let actualPeriod = period as string;
+      if (period === 'current-month') {
+        const now = new Date();
+        actualPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      } else if (period === 'last-month') {
+        const now = new Date();
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        actualPeriod = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+      }
+      
       // Filter goals by period if specified
       const filteredGoals = period 
-        ? goals.filter(goal => goal.period === period)
+        ? goals.filter(goal => goal.period === actualPeriod)
         : goals;
       
       // Process goals to include current sales and progress calculations
@@ -8641,7 +8652,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/promesas-compra/cumplimiento/reporte', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { vendedorId, semana, anio } = req.query;
+      const { vendedorId, semana, anio, startDate, endDate } = req.query;
       
       const filters: any = {};
       
@@ -8652,11 +8663,38 @@ export function registerRoutes(app: Express): Server {
         filters.vendedorId = vendedorId;
       }
       
-      if (semana) filters.semana = semana;
-      if (anio) filters.anio = parseInt(anio);
+      // Use startDate/endDate if provided, otherwise use semana/anio
+      if (startDate && endDate) {
+        filters.startDate = startDate;
+        filters.endDate = endDate;
+      } else {
+        if (semana) filters.semana = semana;
+        if (anio) filters.anio = parseInt(anio);
+      }
       
       const resultados = await storage.getPromesasConCumplimiento(filters);
-      res.json(resultados);
+      
+      // Flatten the structure for easier frontend consumption
+      const flattenedResults = resultados.map(r => ({
+        id: r.promesa.id,
+        vendedorId: r.promesa.vendedorId,
+        clienteId: r.promesa.clienteId,
+        clienteNombre: r.promesa.clienteNombre,
+        clienteTipo: r.promesa.clienteTipo,
+        montoPromesa: r.promesa.montoPrometido, // Use correct field name
+        semana: r.promesa.semana,
+        anio: r.promesa.anio,
+        fechaInicio: r.promesa.fechaInicio,
+        fechaFin: r.promesa.fechaFin,
+        ventasReales: r.ventasReales,
+        cumplimiento: r.cumplimiento,
+        estado: r.estado,
+        observaciones: r.promesa.observaciones,
+        ventasRealesManual: r.promesa.ventasRealesManual,
+        createdAt: r.promesa.createdAt,
+      }));
+      
+      res.json(flattenedResults);
     } catch (error: any) {
       console.error('[ERROR] /api/promesas-compra/cumplimiento/reporte:', error);
       res.status(500).json({ message: 'Error al obtener reporte de cumplimiento', error: error.message });
