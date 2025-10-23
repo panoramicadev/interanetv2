@@ -11462,13 +11462,13 @@ export class DatabaseStorage implements IStorage {
         const montoPrometido = parseFloat(promesa.montoPrometido as any);
         const cumplimiento = montoPrometido > 0 ? (ventasReales / montoPrometido) * 100 : 0;
 
-        let estado: 'cumplido' | 'superado' | 'medianamente_cumplido' | 'cumplido_parcialmente' | 'no_cumplido';
+        let estado: 'cumplido' | 'superado' | 'cumplido_parcialmente' | 'insuficiente' | 'no_cumplido';
         if (cumplimiento >= 100) {
           estado = cumplimiento > 100 ? 'superado' : 'cumplido';
-        } else if (cumplimiento >= 70) {
-          estado = 'medianamente_cumplido';
-        } else if (cumplimiento > 0) {
+        } else if (cumplimiento >= 80) {
           estado = 'cumplido_parcialmente';
+        } else if (cumplimiento > 0) {
+          estado = 'insuficiente';
         } else {
           estado = 'no_cumplido';
         }
