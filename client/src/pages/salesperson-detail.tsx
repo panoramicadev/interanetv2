@@ -746,33 +746,34 @@ export default function SalespersonDetail({
           {/* Promesas de Compra */}
           {(promesasVendedor.length > 0 || isLoadingPromesas) && (
             <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50">
-              <CardContent className="pt-6 pb-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-indigo-500 rounded-full p-3">
-                        <FileText className="h-6 w-6 text-white" />
+              <CardContent className="pt-4 pb-4 sm:pt-6 sm:pb-6">
+                <div className="space-y-3 sm:space-y-4">
+                  {/* Header - Responsive layout */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="bg-indigo-500 rounded-full p-2 sm:p-3">
+                        <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                       </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900">Promesas de Compra</h3>
-                        <p className="text-sm text-gray-600">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base sm:text-lg font-bold text-gray-900">Promesas de Compra</h3>
+                        <p className="text-xs sm:text-sm text-gray-600 truncate">
                           {isCurrentWeek(selectedPromesaWeek) ? 'Semana actual' : getWeekLabel(selectedPromesaWeek)} - {promesasVendedor.length} compromiso(s)
                         </p>
                       </div>
                     </div>
                     
-                    {/* Week selector */}
-                    <div className="flex items-center gap-2">
+                    {/* Week selector - Full width on mobile */}
+                    <div className="flex items-center justify-center gap-2 bg-white/50 rounded-lg p-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setSelectedPromesaWeek(subWeeks(selectedPromesaWeek, 1))}
-                        className="h-8 w-8 p-0 bg-white/70 hover:bg-white border-indigo-200"
+                        className="h-7 w-7 sm:h-8 sm:w-8 p-0 bg-white/70 hover:bg-white border-indigo-200"
                         data-testid="button-previous-week"
                       >
-                        <ArrowLeft className="h-4 w-4" />
+                        <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
-                      <div className="text-xs font-medium text-gray-700 min-w-[100px] text-center">
+                      <div className="text-xs sm:text-sm font-medium text-gray-700 flex-1 text-center">
                         {getWeekLabel(selectedPromesaWeek)}
                       </div>
                       <Button
@@ -780,10 +781,10 @@ export default function SalespersonDetail({
                         size="sm"
                         onClick={() => setSelectedPromesaWeek(addWeeks(selectedPromesaWeek, 1))}
                         disabled={isCurrentWeek(selectedPromesaWeek)}
-                        className="h-8 w-8 p-0 bg-white/70 hover:bg-white border-indigo-200 disabled:opacity-50"
+                        className="h-7 w-7 sm:h-8 sm:w-8 p-0 bg-white/70 hover:bg-white border-indigo-200 disabled:opacity-50"
                         data-testid="button-next-week"
                       >
-                        <ArrowLeft className="h-4 w-4 rotate-180" />
+                        <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 rotate-180" />
                       </Button>
                     </div>
                   </div>
@@ -801,78 +802,83 @@ export default function SalespersonDetail({
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2 sm:space-y-3">
                       {promesasVendedor.map((item: any, index: number) => {
                       const cumplimiento = item.cumplimiento || 0;
                       const estado = item.estado || 'no_cumplido';
                       
                       return (
-                        <div key={index} className="bg-white/70 rounded-xl p-4 space-y-3">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-semibold text-gray-900">{item.promesa?.clienteNombre}</p>
+                        <div key={index} className="bg-white/70 rounded-xl p-3 sm:p-4 space-y-2 sm:space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm sm:text-base font-semibold text-gray-900 truncate">{item.promesa?.clienteNombre}</p>
                               <p className="text-xs text-gray-600 mt-0.5">
                                 {item.promesa?.clienteTipo === 'potencial' ? 'Cliente Potencial' : 'Cliente Activo'}
                               </p>
                             </div>
                             {estado === 'superado' && (
-                              <Badge className="bg-green-500 text-white text-xs">
-                                <CheckCircle className="mr-1 h-3 w-3" />
-                                Superado
+                              <Badge className="bg-green-500 text-white text-xs flex-shrink-0">
+                                <CheckCircle className="mr-0.5 sm:mr-1 h-3 w-3" />
+                                <span className="hidden sm:inline">Superado</span>
+                                <span className="sm:hidden">✓</span>
                               </Badge>
                             )}
                             {estado === 'cumplido' && (
-                              <Badge className="bg-blue-500 text-white text-xs">
-                                <CheckCircle className="mr-1 h-3 w-3" />
-                                Cumplido
+                              <Badge className="bg-blue-500 text-white text-xs flex-shrink-0">
+                                <CheckCircle className="mr-0.5 sm:mr-1 h-3 w-3" />
+                                <span className="hidden sm:inline">Cumplido</span>
+                                <span className="sm:hidden">✓</span>
                               </Badge>
                             )}
                             {estado === 'cumplido_parcialmente' && (
-                              <Badge className="bg-yellow-500 text-white text-xs">
-                                <CheckCircle className="mr-1 h-3 w-3" />
-                                Parcial
+                              <Badge className="bg-yellow-500 text-white text-xs flex-shrink-0">
+                                <CheckCircle className="mr-0.5 sm:mr-1 h-3 w-3" />
+                                <span className="hidden sm:inline">Parcial</span>
+                                <span className="sm:hidden">~</span>
                               </Badge>
                             )}
                             {estado === 'insuficiente' && (
-                              <Badge className="bg-orange-500 text-white text-xs">
-                                <AlertCircle className="mr-1 h-3 w-3" />
-                                Insuficiente
+                              <Badge className="bg-orange-500 text-white text-xs flex-shrink-0">
+                                <AlertCircle className="mr-0.5 sm:mr-1 h-3 w-3" />
+                                <span className="hidden sm:inline">Insuficiente</span>
+                                <span className="sm:hidden">!</span>
                               </Badge>
                             )}
                             {estado === 'no_cumplido' && (
-                              <Badge variant="destructive" className="text-xs">
-                                <XCircle className="mr-1 h-3 w-3" />
-                                No Cumplido
+                              <Badge variant="destructive" className="text-xs flex-shrink-0">
+                                <XCircle className="mr-0.5 sm:mr-1 h-3 w-3" />
+                                <span className="hidden sm:inline">No Cumplido</span>
+                                <span className="sm:hidden">✗</span>
                               </Badge>
                             )}
                           </div>
                           
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-3 gap-2 sm:gap-3">
                             <div>
                               <p className="text-xs text-gray-600">Prometido</p>
-                              <p className="text-sm font-bold text-gray-900">
+                              <p className="text-xs sm:text-sm font-bold text-gray-900 truncate">
                                 {formatCurrency(parseFloat(item.promesa?.montoPrometido || '0'))}
                               </p>
                             </div>
                             <div>
                               <p className="text-xs text-gray-600">Vendido</p>
-                              <p className="text-sm font-bold text-gray-900">
+                              <p className="text-xs sm:text-sm font-bold text-gray-900 truncate">
                                 {formatCurrency(item.ventasReales || 0)}
                               </p>
                             </div>
                             <div>
                               <p className="text-xs text-gray-600">Cumplimiento</p>
-                              <div className="flex items-center gap-1">
-                                <span className={`text-sm font-bold ${
+                              <div className="flex items-center gap-0.5 sm:gap-1">
+                                <span className={`text-xs sm:text-sm font-bold ${
                                   cumplimiento >= 100 ? 'text-green-600' : 
                                   cumplimiento >= 80 ? 'text-yellow-600' : 'text-red-600'
                                 }`}>
                                   {cumplimiento.toFixed(0)}%
                                 </span>
                                 {cumplimiento >= 100 ? (
-                                  <TrendingUp className="h-3 w-3 text-green-600" />
+                                  <TrendingUp className="h-3 w-3 text-green-600 flex-shrink-0" />
                                 ) : (
-                                  <TrendingDown className="h-3 w-3 text-red-600" />
+                                  <TrendingDown className="h-3 w-3 text-red-600 flex-shrink-0" />
                                 )}
                               </div>
                             </div>
