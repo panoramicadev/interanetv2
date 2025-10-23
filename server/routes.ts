@@ -7244,6 +7244,14 @@ export function registerRoutes(app: Express): Server {
     try {
       const user = req.user;
       
+      // Only salesperson, admin, supervisor, and tecnico_obra can create reclamos
+      const allowedRoles = ['salesperson', 'admin', 'supervisor', 'tecnico_obra'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ 
+          message: 'No tiene permisos para crear reclamos. Solo vendedores, administradores, supervisores y técnicos pueden crear reclamos.' 
+        });
+      }
+      
       // Add vendedor info from authenticated user
       const reclamoData = {
         ...req.body,
