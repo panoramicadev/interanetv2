@@ -8500,9 +8500,19 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No autorizado' });
       }
       
+      // Determinar el vendedorId correcto según el rol
+      let vendedorId: string;
+      if (user.role === 'salesperson') {
+        // Los vendedores solo pueden crear promesas para sí mismos
+        vendedorId = user.id;
+      } else {
+        // Admin/supervisor pueden crear para cualquier vendedor
+        vendedorId = req.body.vendedorId || user.id;
+      }
+      
       const validatedData = insertPromesaCompraSchema.parse({
         ...req.body,
-        vendedorId: user.id
+        vendedorId: vendedorId
       });
       
       const promesa = await storage.createPromesaCompra(validatedData);
