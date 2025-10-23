@@ -135,12 +135,15 @@ import {
   presupuestoMarketing,
   solicitudesMarketing,
   inventarioMarketing,
+  hitosMarketing,
   type PresupuestoMarketing,
   type InsertPresupuestoMarketing,
   type SolicitudMarketing,
   type InsertSolicitudMarketing,
   type InventarioMarketing,
   type InsertInventarioMarketing,
+  type HitoMarketing,
+  type InsertHitoMarketing,
   // Gastos empresariales
   gastosEmpresariales,
   type GastoEmpresarial,
@@ -10885,6 +10888,77 @@ export class DatabaseStorage implements IStorage {
       stockBajo,
       valorTotal,
     };
+  }
+
+  // ==================== HITOS DE MARKETING ====================
+
+  async getHitosMarketing(filters?: {
+    mes?: number;
+    anio?: number;
+  }): Promise<HitoMarketing[]> {
+    const conditions = [];
+    
+    if (filters?.mes && filters?.anio) {
+      // Filter by month and year
+      const startDate = new Date(filters.anio, filters.mes - 1, 1);
+      const endDate = new Date(filters.anio, filters.mes, 0);
+      conditions.push(
+        and(
+          gte(hitosMarketing.fecha, startDate),
+          lte(hitosMarketing.fecha, endDate)
+        )
+      );
+    } else if (filters?.anio) {
+      // Filter by year only
+      const startDate = new Date(filters.anio, 0, 1);
+      const endDate = new Date(filters.anio, 11, 31);
+      conditions.push(
+        and(
+          gte(hitosMarketing.fecha, startDate),
+          lte(hitosMarketing.fecha, endDate)
+        )
+      );
+    }
+
+    return await db
+      .select()
+      .from(hitosMarketing)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(hitosMarketing.fecha));
+  }
+
+  async getHitoMarketingById(id: string): Promise<HitoMarketing | undefined> {
+    const [result] = await db
+      .select()
+      .from(hitosMarketing)
+      .where(eq(hitosMarketing.id, id));
+    return result;
+  }
+
+  async createHitoMarketing(data: InsertHitoMarketing): Promise<HitoMarketing> {
+    const [result] = await db
+      .insert(hitosMarketing)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updateHitoMarketing(id: string, updates: Partial<InsertHitoMarketing>): Promise<HitoMarketing> {
+    const [result] = await db
+      .update(hitosMarketing)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(hitosMarketing.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteHitoMarketing(id: string): Promise<void> {
+    await db
+      .delete(hitosMarketing)
+      .where(eq(hitosMarketing.id, id));
   }
 
   // ==================================================================================
