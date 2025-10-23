@@ -33,9 +33,11 @@ import {
   Clock,
   TrendingDown,
   Star,
-  Search
+  Search,
+  XCircle,
+  ArrowLeft
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfWeek, addWeeks, subWeeks, getWeek, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 
 // Helper function to get current month name
@@ -88,6 +90,9 @@ export default function SalespersonDashboard() {
   
   // Dialog state
   const [showClientsDialog, setShowClientsDialog] = useState(false);
+  
+  // Promesas week selector
+  const [selectedPromesaWeek, setSelectedPromesaWeek] = useState<Date>(() => new Date());
   
   // Reset client search when dialog closes
   useEffect(() => {
@@ -151,6 +156,26 @@ export default function SalespersonDashboard() {
     enabled: !!user?.id,
   });
 
+  // Calculate week boundaries for promesas
+  const weekStart = startOfWeek(selectedPromesaWeek, { weekStartsOn: 1 });
+  const weekEnd = addWeeks(weekStart, 1);
+  const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+  const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+
+  // Fetch promesas de compra for the vendedor and selected week
+  const { data: promesasVendedor = [], isLoading: isLoadingPromesas } = useQuery<any[]>({
+    queryKey: ['/api/promesas-compra/cumplimiento/reporte', user?.id, weekStartStr, weekEndStr],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const response = await fetch(`/api/promesas-compra/cumplimiento/reporte?vendedorId=${user.id}&startDate=${weekStartStr}&endDate=${weekEndStr}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) return [];
+      return await response.json();
+    },
+    enabled: !!user?.id,
+  });
+
   if (isLoading || loadingSalesperson || loadingClients || loadingGoals) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -181,6 +206,30 @@ export default function SalespersonDashboard() {
   const clients = Array.isArray(clientsResponse?.items) ? clientsResponse.items : [];
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
+
+  // Helper functions for promesas week selector
+  const getWeekLabel = (date: Date) => {
+    const monthStart = startOfMonth(date);
+    const weekOfMonth = Math.ceil(getWeek(date, { weekStartsOn: 1 }) - getWeek(monthStart, { weekStartsOn: 1 }) + 1);
+    const monthName = format(date, 'MMMM', { locale: es });
+    return `Semana ${weekOfMonth} de ${monthName}`;
+  };
+
+  const isCurrentWeek = (date: Date) => {
+    const now = new Date();
+    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const selectedWeekStart = startOfWeek(date, { weekStartsOn: 1 });
+    return currentWeekStart.getTime() === selectedWeekStart.getTime();
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
 
   return (
     <>
@@ -346,6 +395,163 @@ export default function SalespersonDashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Promesas de Compra Semanales */}
+        <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50/80 via-violet-50/60 to-purple-100/40" data-testid="card-promesas-compra">
+          <CardHeader className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-500 rounded-full p-2 sm:p-3">
+                  <Target className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-base sm:text-lg font-bold text-gray-900">Promesas de Compra</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm text-gray-600 mt-0.5">
+                    {getWeekLabel(selectedPromesaWeek)}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedPromesaWeek(prev => subWeeks(prev, 1))}
+                  className="rounded-lg h-7 sm:h-8 flex-1 sm:flex-none"
+                  data-testid="button-promesas-prev-week"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedPromesaWeek(new Date())}
+                  disabled={isCurrentWeek(selectedPromesaWeek)}
+                  className="rounded-lg text-xs sm:text-sm px-2 sm:px-3 h-7 sm:h-8 flex-1 sm:flex-none"
+                  data-testid="button-promesas-current-week"
+                >
+                  Hoy
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedPromesaWeek(prev => addWeeks(prev, 1))}
+                  disabled={isCurrentWeek(selectedPromesaWeek)}
+                  className="rounded-lg h-7 sm:h-8 flex-1 sm:flex-none"
+                  data-testid="button-promesas-next-week"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            {isLoadingPromesas ? (
+              <div className="text-center py-6 text-gray-500 text-sm">
+                Cargando promesas...
+              </div>
+            ) : promesasVendedor.length === 0 ? (
+              <div className="text-center py-6 text-gray-500 text-sm">
+                No hay promesas registradas para esta semana
+              </div>
+            ) : (
+              <div className="space-y-2 sm:space-y-3">
+                {promesasVendedor.map((promesa: any) => {
+                  const cumplimiento = promesa.ventasReales > 0 
+                    ? (promesa.ventasReales / promesa.montoPromesa) * 100 
+                    : 0;
+                  
+                  const estado = 
+                    cumplimiento >= 100 ? 'cumplida' :
+                    cumplimiento >= 80 ? 'cerca' :
+                    cumplimiento >= 50 ? 'parcial' : 'baja';
+                  
+                  const colorClasses = {
+                    cumplida: 'border-emerald-200 bg-emerald-50/50',
+                    cerca: 'border-amber-200 bg-amber-50/50',
+                    parcial: 'border-orange-200 bg-orange-50/50',
+                    baja: 'border-rose-200 bg-rose-50/50'
+                  };
+
+                  const badgeClasses = {
+                    cumplida: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                    cerca: 'bg-amber-100 text-amber-800 border-amber-200',
+                    parcial: 'bg-orange-100 text-orange-800 border-orange-200',
+                    baja: 'bg-rose-100 text-rose-800 border-rose-200'
+                  };
+
+                  const symbol = {
+                    cumplida: '✓',
+                    cerca: '~',
+                    parcial: '!',
+                    baja: '✗'
+                  };
+
+                  return (
+                    <div 
+                      key={promesa.id} 
+                      className={`border rounded-xl p-3 sm:p-4 ${colorClasses[estado]}`}
+                      data-testid={`promesa-${promesa.id}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                              {promesa.clienteNombre}
+                            </h4>
+                            <Badge 
+                              variant="outline" 
+                              className={`hidden sm:inline-flex text-xs ${badgeClasses[estado]}`}
+                              data-testid={`badge-estado-${promesa.id}`}
+                            >
+                              {estado === 'cumplida' ? 'Cumplida' : 
+                               estado === 'cerca' ? 'Cerca' :
+                               estado === 'parcial' ? 'Parcial' : 'Baja'}
+                            </Badge>
+                            <span className={`sm:hidden text-lg font-bold ${badgeClasses[estado].split(' ')[1]}`}>
+                              {symbol[estado]}
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+                            <div>
+                              <span className="text-gray-600">Promesa:</span>
+                              <span className="ml-1 font-semibold text-gray-900">
+                                {formatCurrency(promesa.montoPromesa)}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Ventas:</span>
+                              <span className="ml-1 font-semibold text-gray-900">
+                                {formatCurrency(promesa.ventasReales)}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-2">
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="text-gray-600">Cumplimiento</span>
+                              <span className="font-semibold text-gray-900">{cumplimiento.toFixed(0)}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 sm:h-2">
+                              <div 
+                                className={`h-full rounded-full transition-all ${
+                                  estado === 'cumplida' ? 'bg-emerald-500' :
+                                  estado === 'cerca' ? 'bg-amber-500' :
+                                  estado === 'parcial' ? 'bg-orange-500' : 'bg-rose-500'
+                                }`}
+                                style={{ width: `${Math.min(cumplimiento, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* KPIs del Vendedor */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
