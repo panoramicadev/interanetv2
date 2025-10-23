@@ -510,7 +510,7 @@ export default function Dashboard() {
                 <div className="flex-1 min-w-0">
                   <Badge variant="secondary" className="w-full justify-center px-3 py-2 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg truncate">
                     {filterType === "month" 
-                      ? getMonthOptions().find(opt => opt.value === selectedPeriod)?.label || selectedPeriod
+                      ? getMonthOptions().find((opt: { value: string; label: string }) => opt.value === selectedPeriod)?.label || selectedPeriod
                       : filterType === "year"
                       ? selectedYear.toString()
                       : filterType === "day"
@@ -628,7 +628,7 @@ export default function Dashboard() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200">
-                                  {getYearOptions().map((option) => (
+                                  {getYearOptions().map((option: { value: string; label: string }) => (
                                     <SelectItem key={option.value} value={option.value}>
                                       {option.label}
                                     </SelectItem>
@@ -641,7 +641,7 @@ export default function Dashboard() {
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200">
-                                  {getMonthOptions().map((option) => (
+                                  {getMonthOptions().map((option: { value: string; label: string }) => (
                                     <SelectItem key={option.value} value={option.value}>
                                       {option.label}
                                     </SelectItem>
@@ -905,7 +905,7 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-gray-200">
-                      {getYearOptions().map((option) => (
+                      {getYearOptions().map((option: { value: string; label: string }) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
@@ -918,7 +918,7 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-gray-200">
-                      {getMonthOptions().map((option) => (
+                      {getMonthOptions().map((option: { value: string; label: string }) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
