@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -23,9 +24,10 @@ import {
 } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Upload, X, FileText } from "lucide-react";
 
 const formSchema = z.object({
+  archivoUrl: z.string().optional(),
   monto: z.string().min(1, "El monto es requerido"),
   descripcion: z.string().min(1, "La descripción es requerida"),
   centroCostos: z.string().optional(),
@@ -43,10 +45,13 @@ type FormValues = z.infer<typeof formSchema>;
 export default function GastosEmpresarialesForm() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      archivoUrl: "",
       monto: "",
       descripcion: "",
       centroCostos: "",
@@ -87,6 +92,45 @@ export default function GastosEmpresarialesForm() {
     }
   });
 
+  const handleFileUpload = async (file: File) => {
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('/api/gastos-empresariales/upload-evidencia', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al subir archivo');
+      }
+
+      const data = await response.json();
+      form.setValue('archivoUrl', data.url);
+      setUploadedFile(file);
+      toast({
+        title: "Archivo subido",
+        description: "El archivo de evidencia ha sido cargado correctamente",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo subir el archivo de evidencia",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileRemove = () => {
+    setUploadedFile(null);
+    form.setValue('archivoUrl', '');
+  };
+
   const onSubmit = (data: FormValues) => {
     createMutation.mutate(data);
   };
@@ -112,6 +156,70 @@ export default function GastosEmpresarialesForm() {
         <div className="bg-white rounded-lg shadow p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* File Upload - First Field */}
+              <div className="space-y-4 pb-4 border-b">
+                <h3 className="font-semibold text-lg">Evidencia del Gasto</h3>
+                
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600">
+                    Sube una foto o documento que respalde este gasto (boleta, factura, recibo, etc.)
+                  </p>
+                  
+                  {!uploadedFile ? (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-gray-400 transition-colors">
+                      <label
+                        htmlFor="file-upload"
+                        className="flex flex-col items-center justify-center cursor-pointer"
+                      >
+                        <Upload className="h-12 w-12 text-gray-400 mb-3" />
+                        <span className="text-sm font-medium text-gray-700">
+                          Haz clic para subir archivo
+                        </span>
+                        <span className="text-xs text-gray-500 mt-1">
+                          PDF, JPG, PNG hasta 10MB
+                        </span>
+                        <input
+                          id="file-upload"
+                          type="file"
+                          className="hidden"
+                          accept="image/*,.pdf"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              handleFileUpload(file);
+                            }
+                          }}
+                          disabled={isUploading}
+                          data-testid="input-file-evidencia"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <FileText className="h-8 w-8 text-green-600" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{uploadedFile.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {(uploadedFile.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleFileRemove}
+                        className="p-1 hover:bg-green-100 rounded-full transition-colors"
+                        data-testid="button-remove-file"
+                      >
+                        <X className="h-5 w-5 text-gray-600" />
+                      </button>
+                    </div>
+                  )}
+                  
+                  {isUploading && (
+                    <p className="text-sm text-gray-600 text-center">Subiendo archivo...</p>
+                  )}
+                </div>
+              </div>
+
               {/* Basic Info */}
               <div className="space-y-4">
                 <h3 className="font-semibold text-lg">Información Básica</h3>

@@ -8127,6 +8127,43 @@ export function registerRoutes(app: Express): Server {
   // GASTOS EMPRESARIALES routes
   // ==================================================================================
 
+  // Upload evidencia file
+  app.post('/api/gastos-empresariales/upload-evidencia', requireAuth, upload.single('file'), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only salesperson, supervisor and admin can upload evidence
+      if (!['salesperson', 'supervisor', 'admin'].includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para subir evidencia' });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ message: 'No se ha subido ningún archivo' });
+      }
+
+      const file = req.file;
+      const timestamp = Date.now();
+      const randomId = nanoid(8);
+      const fileExtension = path.extname(file.originalname);
+      const fileName = `gasto-evidencia-${timestamp}-${randomId}${fileExtension}`;
+
+      try {
+        // Try to upload to Google Cloud Storage
+        const objectStorageService = new ObjectStorageService();
+        const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+        res.json({ url: imageUrl });
+      } catch (storageError) {
+        console.error('Error uploading to GCS:', storageError);
+        // Fallback to local storage
+        const imageUrl = await localImageStorage.uploadImage(fileName, file.buffer, file.mimetype);
+        res.json({ url: imageUrl });
+      }
+    } catch (error: any) {
+      console.error('Error uploading evidencia:', error);
+      res.status(500).json({ message: 'Error al subir archivo', error: error.message });
+    }
+  }));
+
   // Create gasto
   app.post('/api/gastos-empresariales', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
