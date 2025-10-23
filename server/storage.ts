@@ -11435,10 +11435,11 @@ export class DatabaseStorage implements IStorage {
         }
 
         // Calcular ventas reales (facturas + NVV) para el cliente en la semana
+        // Usar el nombre del cliente (clienteNombre) para buscar en sales_transactions
         const ventasFacturas = await db.execute(sql`
           SELECT COALESCE(SUM(monto), 0) as total
           FROM sales_transactions
-          WHERE koen = ${promesa.clienteId}
+          WHERE nokoen = ${promesa.clienteNombre}
             AND feemdo >= ${promesa.fechaInicio}
             AND feemdo <= ${promesa.fechaFin}
             AND tido IN ('FCV', 'FVL')
@@ -11447,7 +11448,7 @@ export class DatabaseStorage implements IStorage {
         const ventasNvv = await db.execute(sql`
           SELECT COALESCE(SUM(total_pendiente), 0) as total
           FROM nvv_pending_sales
-          WHERE koen = ${promesa.clienteId}
+          WHERE nokoen = ${promesa.clienteNombre}
             AND feemli >= ${promesa.fechaInicio}
             AND feemli <= ${promesa.fechaFin}
         `);
