@@ -11424,36 +11424,36 @@ export class DatabaseStorage implements IStorage {
 
     const resultados = await Promise.all(
       promesas.map(async (promesa) => {
+        // Para clientes potenciales (PROSPECTO), no hay ventas reales
+        if (promesa.clienteTipo === 'potencial' || promesa.clienteId === 'PROSPECTO') {
+          return {
+            promesa,
+            ventasReales: 0,
+            cumplimiento: 0,
+            estado: 'no_cumplido' as const,
+          };
+        }
+
         // Calcular ventas reales (facturas + NVV) para el cliente en la semana
-        const ventasFacturas = await db
-          .select({
-            total: sql<number>`SUM(${salesTransactions.monto})`,
-          })
-          .from(salesTransactions)
-          .where(
-            and(
-              eq(salesTransactions.nokoen, promesa.clienteNombre),
-              gte(salesTransactions.feemdo, promesa.fechaInicio),
-              lte(salesTransactions.feemdo, promesa.fechaFin),
-              inArray(salesTransactions.tido, ['FCV', 'FVL']) // Solo facturas
-            )
-          );
+        const ventasFacturas = await db.execute(sql`
+          SELECT COALESCE(SUM(monto), 0) as total
+          FROM sales_transactions
+          WHERE koen = ${promesa.clienteId}
+            AND feemdo >= ${promesa.fechaInicio}
+            AND feemdo <= ${promesa.fechaFin}
+            AND tido IN ('FCV', 'FVL')
+        `);
 
-        const ventasNvv = await db
-          .select({
-            total: sql<number>`SUM(${nvvPendingSales.totalPendiente})`,
-          })
-          .from(nvvPendingSales)
-          .where(
-            and(
-              eq(nvvPendingSales.nokoen, promesa.clienteNombre),
-              gte(nvvPendingSales.feemli, promesa.fechaInicio),
-              lte(nvvPendingSales.feemli, promesa.fechaFin)
-            )
-          );
+        const ventasNvv = await db.execute(sql`
+          SELECT COALESCE(SUM(total_pendiente), 0) as total
+          FROM nvv_pending_sales
+          WHERE koen = ${promesa.clienteId}
+            AND feemli >= ${promesa.fechaInicio}
+            AND feemli <= ${promesa.fechaFin}
+        `);
 
-        const totalFacturas = parseFloat(ventasFacturas[0]?.total as any || '0');
-        const totalNvv = parseFloat(ventasNvv[0]?.total as any || '0');
+        const totalFacturas = parseFloat((ventasFacturas.rows[0] as any)?.total || '0');
+        const totalNvv = parseFloat((ventasNvv.rows[0] as any)?.total || '0');
         const ventasReales = totalFacturas + totalNvv;
 
         const montoPrometido = parseFloat(promesa.montoPrometido as any);
