@@ -3432,6 +3432,42 @@ export const insertPromesaCompraSchema = createInsertSchema(promesasCompra).omit
   ),
 });
 
+// Tabla de hitos de marketing (calendario)
+export const hitosMarketing = pgTable("hitos_marketing", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  fecha: date("fecha").notNull(),
+  tipo: varchar("tipo", { length: 50 }).notNull().default("general"), // general, campaña, evento, deadline
+  color: varchar("color", { length: 20 }).default("#3b82f6"), // Color para visualización
+  completado: boolean("completado").default(false),
+  createdBy: varchar("created_by").notNull(), // Usuario que creó el hito
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  fechaIdx: index("IDX_hitos_marketing_fecha").on(table.fecha),
+  tipoIdx: index("IDX_hitos_marketing_tipo").on(table.tipo),
+}));
+
+// Types
+export type HitoMarketing = typeof hitosMarketing.$inferSelect;
+export type InsertHitoMarketing = typeof hitosMarketing.$inferInsert;
+
+// Schema de validación
+export const insertHitoMarketingSchema = createInsertSchema(hitosMarketing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  titulo: z.string().min(1, "El título es requerido"),
+  fecha: z.string().or(z.date()).transform(val => 
+    typeof val === 'string' ? new Date(val) : val
+  ),
+  tipo: z.enum(["general", "campaña", "evento", "deadline"]).default("general"),
+  completado: z.boolean().default(false),
+  createdBy: z.string().min(1, "El creador es requerido"),
+});
+
 // ===== ESQUEMA VENTAS PARA TABLAS ETL =====
 export const ventasSchema = pgSchema("ventas");
 
