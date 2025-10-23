@@ -1537,6 +1537,12 @@ function CreatePromesaDialog({
   const weekStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
 
+  // Calcular semana del mes (1-5)
+  const monthStart = new Date(dialogWeek.getFullYear(), dialogWeek.getMonth(), 1);
+  const firstMonday = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const weekOfMonth = Math.floor((dialogWeek.getTime() - firstMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  const monthName = format(dialogWeek, 'MMMM', { locale: es });
+
   // Handler para limpiar campos al cambiar tipo de cliente
   const handleClienteTipoChange = (tipo: "activo" | "potencial") => {
     setClienteTipo(tipo);
@@ -1575,7 +1581,7 @@ function CreatePromesaDialog({
               </Button>
               <div className="flex-1 text-center">
                 <p className="font-semibold text-blue-900 dark:text-blue-100">
-                  Semana {weekNumber} del {year}
+                  Semana {weekOfMonth} de {monthName}
                 </p>
                 <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
                   {format(weekStart, 'dd MMM', { locale: es })} - {format(weekEnd, 'dd MMM', { locale: es })}
