@@ -1172,7 +1172,7 @@ export interface IStorage {
     promesa: PromesaCompra;
     ventasReales: number;
     cumplimiento: number;
-    estado: 'cumplido' | 'superado' | 'no_cumplido';
+    estado: 'cumplido' | 'superado' | 'medianamente_cumplido' | 'cumplido_parcialmente' | 'no_cumplido';
   }>>;
 
   // ==================================================================================
@@ -11462,11 +11462,13 @@ export class DatabaseStorage implements IStorage {
         const montoPrometido = parseFloat(promesa.montoPrometido as any);
         const cumplimiento = montoPrometido > 0 ? (ventasReales / montoPrometido) * 100 : 0;
 
-        let estado: 'cumplido' | 'superado' | 'no_cumplido';
+        let estado: 'cumplido' | 'superado' | 'medianamente_cumplido' | 'cumplido_parcialmente' | 'no_cumplido';
         if (cumplimiento >= 100) {
           estado = cumplimiento > 100 ? 'superado' : 'cumplido';
         } else if (cumplimiento >= 70) {
-          estado = 'cumplido'; // Medianamente cumplido
+          estado = 'medianamente_cumplido';
+        } else if (cumplimiento > 0) {
+          estado = 'cumplido_parcialmente';
         } else {
           estado = 'no_cumplido';
         }
