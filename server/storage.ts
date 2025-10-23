@@ -449,7 +449,9 @@ export interface IStorage {
     totalClients: number;
     transactionCount: number;
     averageTicket: number;
-    salesFrequency: number; // days between sales
+    salesFrequency: number; // days between sales (average)
+    daysSinceLastSale: number; // actual days since last sale
+    lastSaleDate: string | null; // date of last sale
   }>;
   getSalespersonClients(salespersonName: string, period?: string, filterType?: string, segment?: string): Promise<Array<{
     clientName: string;
@@ -2873,6 +2875,8 @@ export class DatabaseStorage implements IStorage {
     transactionCount: number;
     averageTicket: number;
     salesFrequency: number;
+    daysSinceLastSale: number;
+    lastSaleDate: string | null;
   }> {
     const conditions = [
       eq(salesTransactions.nokofu, salespersonName),
@@ -2936,18 +2940,26 @@ export class DatabaseStorage implements IStorage {
       .from(salesTransactions)
       .where(and(...conditions));
 
-    // Calculate sales frequency
+    // Calculate sales frequency (average days between sales)
     const firstSale = new Date(result.firstSale);
     const lastSale = new Date(result.lastSale);
     const daysBetween = Math.max(1, Math.floor((lastSale.getTime() - firstSale.getTime()) / (1000 * 60 * 60 * 24)));
     const salesFrequency = result.transactionCount > 1 ? daysBetween / result.transactionCount : 0;
+
+    // Calculate days since last sale
+    const now = new Date();
+    const daysSinceLastSale = result.lastSale 
+      ? Math.floor((now.getTime() - lastSale.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
 
     return {
       totalSales: Number(result.totalSales),
       totalClients: Number(result.totalClients),
       transactionCount: Number(result.transactionCount),
       averageTicket: Number(result.averageTicket),
-      salesFrequency: Number(salesFrequency.toFixed(1))
+      salesFrequency: Number(salesFrequency.toFixed(1)),
+      daysSinceLastSale: daysSinceLastSale,
+      lastSaleDate: result.lastSale || null
     };
   }
 
