@@ -63,11 +63,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: User,
     },
     {
-      href: "/productos",
-      label: "Gestión de Productos",
-      icon: Package,
-    },
-    {
       href: "/lista-precios",
       label: "Lista de Precios",
       icon: DollarSign,
@@ -174,11 +169,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/usuarios",
       label: "Gestión de Usuarios",
       icon: User,
-    },
-    {
-      href: "/productos",
-      label: "Gestión de Productos",
-      icon: Package,
     },
     {
       href: "/lista-precios",
