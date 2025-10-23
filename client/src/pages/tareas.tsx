@@ -80,7 +80,9 @@ interface PromesaCompra {
   vendedorId: string;
   clienteId: string;
   clienteNombre: string;
+  clienteTipo: string | null;
   montoPrometido: string;
+  ventasRealesManual: string | null;
   semana: string;
   anio: number;
   numeroSemana: number;
@@ -1026,14 +1028,36 @@ function EstimacionSemanalTab({
   setSearchClient: (value: string) => void;
   user: any;
 }) {
+  // Estados locales para edición de promesas
+  const [editPromesaDialogOpen, setEditPromesaDialogOpen] = useState(false);
+  const [selectedPromesa, setSelectedPromesa] = useState<PromesaCumplimiento | null>(null);
+  const [vendedorFilter, setVendedorFilter] = useState<string>("all");
+
+  // Query para obtener lista de vendedores (para filtro)
+  const { data: salespeople = [] } = useQuery<Array<{ id: string; fullName: string; salespersonName: string }>>({
+    queryKey: ['/api/users/salespeople'],
+    enabled: user?.role === 'admin' || user?.role === 'supervisor',
+  });
+
+  // Filtrar promesas por vendedor
+  const promesasFiltradas = vendedorFilter === "all" 
+    ? promesasCumplimiento 
+    : promesasCumplimiento.filter(p => p.promesa.vendedorId === vendedorFilter);
+
   // Calcular resumen
   const resumen = {
-    totalPromesas: promesasCumplimiento.length,
-    totalPrometido: promesasCumplimiento.reduce((sum, p) => sum + parseFloat(p.promesa.montoPrometido), 0),
-    totalVendido: promesasCumplimiento.reduce((sum, p) => sum + p.ventasReales, 0),
-    cumplidas: promesasCumplimiento.filter(p => p.estado === 'cumplido').length,
-    superadas: promesasCumplimiento.filter(p => p.estado === 'superado').length,
-    noCumplidas: promesasCumplimiento.filter(p => p.estado === 'no_cumplido').length,
+    totalPromesas: promesasFiltradas.length,
+    totalPrometido: promesasFiltradas.reduce((sum, p) => sum + parseFloat(p.promesa.montoPrometido), 0),
+    totalVendido: promesasFiltradas.reduce((sum, p) => sum + p.ventasReales, 0),
+    cumplidas: promesasFiltradas.filter(p => p.estado === 'cumplido').length,
+    superadas: promesasFiltradas.filter(p => p.estado === 'superado').length,
+    noCumplidas: promesasFiltradas.filter(p => p.estado === 'no_cumplido').length,
+  };
+
+  // Función para obtener nombre de vendedor
+  const getVendedorNombre = (vendedorId: string) => {
+    const vendedor = salespeople.find(v => v.id === vendedorId);
+    return vendedor?.fullName || vendedor?.salespersonName || 'Desconocido';
   };
 
   return (
@@ -1124,8 +1148,31 @@ function EstimacionSemanalTab({
       {/* Lista de promesas con cumplimiento */}
       <Card>
         <CardHeader>
-          <CardTitle>Detalle de Promesas</CardTitle>
-          <CardDescription>Comparación de compromisos vs. ventas reales</CardDescription>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <CardTitle>Detalle de Promesas</CardTitle>
+              <CardDescription>Comparación de compromisos vs. ventas reales</CardDescription>
+            </div>
+            {/* Filtro por vendedor (solo para admin/supervisor) */}
+            {(user?.role === 'admin' || user?.role === 'supervisor') && salespeople.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Label className="text-sm whitespace-nowrap">Vendedor:</Label>
+                <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
+                  <SelectTrigger className="w-[200px]" data-testid="select-filtro-vendedor">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los vendedores</SelectItem>
+                    {salespeople.map((salesperson) => (
+                      <SelectItem key={salesperson.id} value={salesperson.id}>
+                        {salesperson.fullName || salesperson.salespersonName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoadingPromesas ? (
@@ -1137,6 +1184,11 @@ function EstimacionSemanalTab({
               <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No hay promesas registradas para esta semana</p>
             </div>
+          ) : promesasFiltradas.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Filter className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No hay promesas para el vendedor seleccionado</p>
+            </div>
           ) : (
             <div className="space-y-4">
               {/* Desktop view */}
@@ -1144,6 +1196,9 @@ function EstimacionSemanalTab({
                 <table className="w-full">
                   <thead className="bg-muted/50">
                     <tr className="border-b-2 border-border">
+                      {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                        <th className="text-left py-4 px-4 font-bold text-base">Vendedor</th>
+                      )}
                       <th className="text-left py-4 px-4 font-bold text-base">Cliente</th>
                       <th className="text-right py-4 px-4 font-bold text-base">Prometido</th>
                       <th className="text-right py-4 px-4 font-bold text-base">Vendido</th>
@@ -1153,7 +1208,7 @@ function EstimacionSemanalTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {promesasCumplimiento.map((item) => (
+                    {promesasFiltradas.map((item) => (
                       <tr 
                         key={item.promesa.id} 
                         className="border-b hover:bg-muted/50 cursor-pointer transition-colors" 
@@ -1163,6 +1218,9 @@ function EstimacionSemanalTab({
                           setEditPromesaDialogOpen(true);
                         }}
                       >
+                        {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                          <td className="py-3 px-4 text-sm">{getVendedorNombre(item.promesa.vendedorId)}</td>
+                        )}
                         <td className="py-3 px-4 font-medium">{item.promesa.clienteNombre}</td>
                         <td className="text-right py-3 px-4">${parseFloat(item.promesa.montoPrometido).toLocaleString('es-CL')}</td>
                         <td className="text-right py-3 px-4">${item.ventasReales.toLocaleString('es-CL')}</td>
@@ -1213,7 +1271,7 @@ function EstimacionSemanalTab({
 
               {/* Mobile view */}
               <div className="lg:hidden space-y-4">
-                {promesasCumplimiento.map((item) => (
+                {promesasFiltradas.map((item) => (
                   <Card 
                     key={item.promesa.id} 
                     className="cursor-pointer hover:shadow-md transition-shadow" 
@@ -1228,6 +1286,11 @@ function EstimacionSemanalTab({
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="font-semibold">{item.promesa.clienteNombre}</p>
+                            {(user?.role === 'admin' || user?.role === 'supervisor') && (
+                              <p className="text-xs text-muted-foreground">
+                                Vendedor: {getVendedorNombre(item.promesa.vendedorId)}
+                              </p>
+                            )}
                             {item.promesa.observaciones && (
                               <p className="text-sm text-muted-foreground mt-1">{item.promesa.observaciones}</p>
                             )}
