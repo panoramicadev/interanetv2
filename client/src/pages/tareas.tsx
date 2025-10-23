@@ -21,7 +21,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   CheckSquare, 
   Clock, 
-  AlertCircle, 
+  AlertCircle,
+  AlertTriangle, 
   User, 
   Users, 
   Building2, 
@@ -1485,20 +1486,51 @@ function CreatePromesaDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancelar">
-            Cancelar
-          </Button>
-          <Button onClick={handleSubmit} disabled={createMutation.isPending} data-testid="button-guardar-promesa">
-            {createMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              'Guardar Promesa'
-            )}
-          </Button>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          {/* Indicador de campos faltantes */}
+          {!isManualEntry && !selectedClient && (
+            <p className="text-sm text-amber-600 flex items-center gap-1">
+              <AlertTriangle className="h-4 w-4" />
+              Selecciona un cliente de la lista
+            </p>
+          )}
+          {isManualEntry && !manualClienteNombre.trim() && (
+            <p className="text-sm text-amber-600 flex items-center gap-1">
+              <AlertTriangle className="h-4 w-4" />
+              Ingresa el nombre del cliente
+            </p>
+          )}
+          {!montoPrometido && (
+            <p className="text-sm text-amber-600 flex items-center gap-1">
+              <AlertTriangle className="h-4 w-4" />
+              Ingresa el monto prometido
+            </p>
+          )}
+          
+          <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
+            <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancelar">
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSubmit} 
+              disabled={
+                createMutation.isPending || 
+                (!isManualEntry && !selectedClient) || 
+                (isManualEntry && !manualClienteNombre.trim()) ||
+                !montoPrometido
+              }
+              data-testid="button-guardar-promesa"
+            >
+              {createMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar Promesa'
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
