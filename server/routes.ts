@@ -556,15 +556,9 @@ export function registerRoutes(app: Express): Server {
       const clientsData = await storage.getSalespersonClients(salespersonName, period as string, filterType as string);
       const clientCount = Array.isArray(clientsData) ? clientsData.length : 0;
 
-      // Calcular días desde la última venta
-      let daysSinceLastSale = 0;
-      if (transactions && transactions.length > 0) {
-        // Obtener la fecha de la transacción más reciente
-        const mostRecentDate = new Date(transactions[0].fecha);
-        const today = new Date();
-        const diffTime = Math.abs(today.getTime() - mostRecentDate.getTime());
-        daysSinceLastSale = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      }
+      // Obtener días desde la última venta REAL (sin filtros de período)
+      const allTimeDetails = await storage.getSalespersonDetails(salespersonName);
+      const daysSinceLastSale = allTimeDetails.daysSinceLastSale || 0;
 
       // Calcular productividad (transacciones por cliente)
       const productivity = clientCount > 0 ? (metrics.totalTransactions || 0) / clientCount : 0;
