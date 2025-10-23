@@ -86,6 +86,7 @@ function Router() {
               switch (user.role) {
                 case 'admin':
                 case 'supervisor':
+                case 'logistica_bodega':
                   return <Dashboard />;
                 case 'salesperson':
                   return <SalespersonDashboard />;
@@ -98,7 +99,6 @@ function Router() {
                   window.location.replace('/tienda');
                   return null;
                 case 'produccion':
-                case 'logistica_bodega':
                 case 'planificacion':
                 case 'bodega_materias_primas':
                 case 'prevencion_riesgos':
