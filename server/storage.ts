@@ -10458,8 +10458,24 @@ export class DatabaseStorage implements IStorage {
       throw new Error('El reclamo no está en estado "En Área Responsable"');
     }
     
+    // Mapeo de roles organizacionales a áreas responsables
+    const organizationalRoleMapping: Record<string, string> = {
+      'produccion': 'produccion',
+      'logistica_bodega': 'logistica',
+      'planificacion': 'produccion',
+      'bodega_materias_primas': 'logistica',
+      'prevencion_riesgos': 'produccion',
+    };
+    
     // Extraer área del rol (ej: area_materia_prima -> materia_prima, laboratorio -> laboratorio)
-    const areaUsuario = userRole.startsWith('area_') ? userRole.replace('area_', '') : userRole;
+    let areaUsuario: string;
+    if (userRole.startsWith('area_')) {
+      areaUsuario = userRole.replace('area_', '');
+    } else if (organizationalRoleMapping[userRole]) {
+      areaUsuario = organizationalRoleMapping[userRole];
+    } else {
+      areaUsuario = userRole;
+    }
     
     // Normalizar área para comparación (manejar variaciones como colores_variacion)
     const normalizeArea = (area: string) => {
