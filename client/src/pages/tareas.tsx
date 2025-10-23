@@ -201,6 +201,10 @@ export default function TareasPage() {
 
   const { data: promesasCumplimiento = [], isLoading: isLoadingPromesas } = useQuery<PromesaCumplimiento[]>({
     queryKey: ['/api/promesas-compra/cumplimiento/reporte', currentYear, currentWeek],
+    queryFn: async () => {
+      const response = await apiRequest(`/api/promesas-compra/cumplimiento/reporte?anio=${currentYear}&semana=${currentWeek}`);
+      return response.json();
+    },
     enabled: !!user,
   });
 
