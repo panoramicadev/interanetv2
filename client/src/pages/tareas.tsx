@@ -1486,28 +1486,32 @@ function CreatePromesaDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          {/* Indicador de campos faltantes */}
-          {!isManualEntry && !selectedClient && (
-            <p className="text-sm text-amber-600 flex items-center gap-1">
-              <AlertTriangle className="h-4 w-4" />
-              Selecciona un cliente de la lista
-            </p>
-          )}
-          {isManualEntry && !manualClienteNombre.trim() && (
-            <p className="text-sm text-amber-600 flex items-center gap-1">
-              <AlertTriangle className="h-4 w-4" />
-              Ingresa el nombre del cliente
-            </p>
-          )}
-          {!montoPrometido && (
-            <p className="text-sm text-amber-600 flex items-center gap-1">
-              <AlertTriangle className="h-4 w-4" />
-              Ingresa el monto prometido
-            </p>
+        <DialogFooter className="flex-col gap-3">
+          {/* Indicadores de campos faltantes */}
+          {((!isManualEntry && !selectedClient) || (isManualEntry && !manualClienteNombre.trim()) || !montoPrometido) && (
+            <div className="flex flex-col gap-1.5 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              {!isManualEntry && !selectedClient && (
+                <p className="text-sm text-amber-700 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  Selecciona un cliente de la lista
+                </p>
+              )}
+              {isManualEntry && !manualClienteNombre.trim() && (
+                <p className="text-sm text-amber-700 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  Ingresa el nombre del cliente
+                </p>
+              )}
+              {!montoPrometido && (
+                <p className="text-sm text-amber-700 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  Ingresa el monto prometido
+                </p>
+              )}
+            </div>
           )}
           
-          <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
             <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancelar">
               Cancelar
             </Button>
