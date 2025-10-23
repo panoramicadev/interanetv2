@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
+import { formatDateForAPI } from "@/lib/dateUtils";
 
 interface SolicitudMarketing {
   id: string;
@@ -3011,7 +3012,7 @@ function HitoDialog({
     const data = {
       titulo: titulo.trim(),
       descripcion: descripcion.trim() || null,
-      fecha: format(selectedDate, 'yyyy-MM-dd'),
+      fecha: formatDateForAPI(selectedDate),
       tipo,
       completado,
     };
