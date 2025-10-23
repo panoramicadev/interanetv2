@@ -2660,7 +2660,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(clients)
       .where(
-        sql`${clients.nokoen} ILIKE ${searchPattern}`
+        sql`${clients.nokoen} ILIKE ${searchPattern} OR ${clients.koen} ILIKE ${searchPattern}`
       )
       .orderBy(asc(clients.nokoen))
       .limit(50);

@@ -189,7 +189,14 @@ export default function TareasPage() {
 
   const { data: clientes = [] } = useQuery<Cliente[]>({
     queryKey: ['/api/clients/search', searchClient],
-    enabled: searchClient.length >= 2,
+    queryFn: async () => {
+      if (!searchClient || searchClient.length < 3) {
+        return [];
+      }
+      const response = await apiRequest(`/api/clients/search?q=${encodeURIComponent(searchClient)}`);
+      return response.json();
+    },
+    enabled: searchClient.length >= 3,
   });
 
   const { data: promesasCumplimiento = [], isLoading: isLoadingPromesas } = useQuery<PromesaCumplimiento[]>({
