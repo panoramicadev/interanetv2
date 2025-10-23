@@ -38,7 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, TrendingUp, DollarSign, FileText, Calendar, CheckCircle, XCircle, Clock, Loader2, Package, AlertTriangle, Edit, Trash2, X, Circle, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
-import { formatDateForAPI } from "@/lib/dateUtils";
+import { formatDateForAPI, parseDateFromAPI } from "@/lib/dateUtils";
 
 interface SolicitudMarketing {
   id: string;
@@ -1089,7 +1089,7 @@ function SolicitudDialog({
       urgencia,
       mes,
       anio,
-      fechaEntrega: fechaEntrega || null,
+      fechaEntrega: formatDateForAPI(fechaEntrega),
       urlReferencia: urlReferencia || null,
       pasos,
     };
@@ -1546,7 +1546,7 @@ function EditSolicitudDialog({
       titulo,
       descripcion,
       urgencia,
-      fechaEntrega: fechaEntrega || null,
+      fechaEntrega: formatDateForAPI(fechaEntrega),
       urlReferencia: urlReferencia || null,
       monto: monto ? parseFloat(monto) : null,
       pasos,
@@ -2738,13 +2738,17 @@ function CalendarioHitos({
   const handleHitoClick = (hito: HitoMarketing, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedHito(hito);
-    setSelectedDate(new Date(hito.fecha));
+    const parsedDate = parseDateFromAPI(hito.fecha);
+    setSelectedDate(parsedDate || new Date());
     setHitoDialogOpen(true);
   };
 
   const getHitosForDay = (day: Date) => {
     if (!hitos) return [];
-    return hitos.filter(hito => isSameDay(new Date(hito.fecha), day));
+    return hitos.filter(hito => {
+      const hitoDate = parseDateFromAPI(hito.fecha);
+      return hitoDate && isSameDay(hitoDate, day);
+    });
   };
 
   const tipoColors = {
