@@ -55,8 +55,8 @@ export default function Inventario() {
     );
   }
 
-  // Only admin, supervisor, and salesperson can access inventory
-  if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'salesperson') {
+  // Only admin, supervisor, salesperson, and logistica_bodega can access inventory
+  if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'salesperson' && user.role !== 'logistica_bodega') {
     return (
       <div className="container mx-auto px-4 py-8">
         <Card>

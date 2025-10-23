@@ -15,7 +15,7 @@ export default function NVVPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // Check if the user is authorized
-  if (!user || (user.role !== "admin" && user.role !== "supervisor")) {
+  if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega")) {
     setLocation("/dashboard");
     return null;
   }
