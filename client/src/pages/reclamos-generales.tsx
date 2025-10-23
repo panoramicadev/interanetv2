@@ -1183,7 +1183,7 @@ export default function ReclamosGeneralesPage() {
           <h1 className="text-2xl sm:text-3xl font-bold">Reclamos de Clientes</h1>
           <p className="text-muted-foreground">Gestión de reclamos y seguimiento</p>
         </div>
-        {(user?.role === 'salesperson' || user?.role === 'admin' || user?.role === 'supervisor') && (
+        {(user?.role === 'salesperson' || user?.role === 'admin' || user?.role === 'supervisor' || user?.role === 'tecnico_obra') && (
           <Button 
             onClick={() => setShowNewReclamoModal(true)}
             data-testid="button-create-reclamo"
