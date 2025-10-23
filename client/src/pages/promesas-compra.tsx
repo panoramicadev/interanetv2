@@ -359,6 +359,9 @@ function CreatePromesaDialog({
   const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
   const [montoPrometido, setMontoPrometido] = useState("");
   const [observaciones, setObservaciones] = useState("");
+  const [isManualEntry, setIsManualEntry] = useState(false);
+  const [manualClienteNombre, setManualClienteNombre] = useState("");
+  const [manualClienteId, setManualClienteId] = useState("");
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -388,16 +391,31 @@ function CreatePromesaDialog({
     setMontoPrometido("");
     setObservaciones("");
     setSearchClient("");
+    setIsManualEntry(false);
+    setManualClienteNombre("");
+    setManualClienteId("");
   };
 
   const handleSubmit = () => {
-    if (!selectedClient || !montoPrometido) {
-      toast({
-        title: "Error",
-        description: "Por favor complete todos los campos requeridos",
-        variant: "destructive",
-      });
-      return;
+    // Validar según el modo de entrada
+    if (isManualEntry) {
+      if (!manualClienteNombre.trim() || !montoPrometido) {
+        toast({
+          title: "Error",
+          description: "Por favor complete todos los campos requeridos (nombre del cliente y monto)",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      if (!selectedClient || !montoPrometido) {
+        toast({
+          title: "Error",
+          description: "Por favor seleccione un cliente y complete el monto",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 });
@@ -406,8 +424,8 @@ function CreatePromesaDialog({
     const year = getYear(selectedWeek);
 
     createMutation.mutate({
-      clienteId: selectedClient.koen,
-      clienteNombre: selectedClient.nokoen,
+      clienteId: isManualEntry ? (manualClienteId.trim() || 'MANUAL') : selectedClient!.koen,
+      clienteNombre: isManualEntry ? manualClienteNombre.trim() : selectedClient!.nokoen,
       montoPrometido: parseFloat(montoPrometido),
       semana: `${year}-${String(weekNumber).padStart(2, '0')}`,
       anio: year,
@@ -431,8 +449,51 @@ function CreatePromesaDialog({
         <div className="space-y-4 py-4">
           {/* Selector de cliente */}
           <div>
-            <Label>Cliente *</Label>
-            {selectedClient ? (
+            <div className="flex items-center justify-between mb-2">
+              <Label>Cliente *</Label>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  setIsManualEntry(!isManualEntry);
+                  setSelectedClient(null);
+                  setSearchClient("");
+                  setManualClienteNombre("");
+                  setManualClienteId("");
+                }}
+                data-testid="button-toggle-manual"
+              >
+                {isManualEntry ? 'Buscar en lista' : 'Ingreso manual'}
+              </Button>
+            </div>
+            
+            {isManualEntry ? (
+              <div className="space-y-3 mt-2">
+                <div>
+                  <Label htmlFor="manualNombre">Nombre del Cliente *</Label>
+                  <Input
+                    id="manualNombre"
+                    placeholder="Ingrese el nombre del cliente"
+                    value={manualClienteNombre}
+                    onChange={(e) => setManualClienteNombre(e.target.value)}
+                    className="mt-1"
+                    data-testid="input-manual-nombre"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="manualCodigo">Código del Cliente (Opcional)</Label>
+                  <Input
+                    id="manualCodigo"
+                    placeholder="Ej: CLI001"
+                    value={manualClienteId}
+                    onChange={(e) => setManualClienteId(e.target.value)}
+                    className="mt-1"
+                    data-testid="input-manual-codigo"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Si no tiene código, se asignará automáticamente</p>
+                </div>
+              </div>
+            ) : selectedClient ? (
               <div className="flex items-center gap-2 mt-2">
                 <div className="flex-1 p-2 border rounded bg-muted">
                   <p className="font-medium">{selectedClient.nokoen}</p>
