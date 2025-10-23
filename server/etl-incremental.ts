@@ -500,6 +500,39 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     const recordsProcessed = maeddo.recordset.length;
     console.log(`   ✅ ${recordsProcessed} registros procesados\n`);
 
+    // 9. VALIDACIÓN POST-ETL: Verificar campos críticos
+    console.log('9️⃣  Validando datos críticos...');
+    const validationResult = await db.execute(sql`
+      SELECT 
+        COUNT(*) as total_registros,
+        SUM(CASE WHEN feemdo IS NULL THEN 1 ELSE 0 END) as null_feemdo,
+        SUM(CASE WHEN feulvedo IS NULL THEN 1 ELSE 0 END) as null_feulvedo,
+        SUM(CASE WHEN sudo IS NULL THEN 1 ELSE 0 END) as null_sudo,
+        SUM(CASE WHEN esdo IS NULL THEN 1 ELSE 0 END) as null_esdo,
+        SUM(CASE WHEN espgdo IS NULL THEN 1 ELSE 0 END) as null_espgdo
+      FROM ventas.fact_ventas
+      WHERE idmaeddo IN (${sql.raw(idmaeddosToDelete.join(','))})
+    `);
+
+    const validation = validationResult.rows[0];
+    const hasNulls = 
+      Number(validation.null_feemdo) > 0 || 
+      Number(validation.null_feulvedo) > 0 || 
+      Number(validation.null_sudo) > 0 || 
+      Number(validation.null_esdo) > 0 || 
+      Number(validation.null_espgdo) > 0;
+
+    if (hasNulls) {
+      console.log('   ⚠️  ADVERTENCIA: Se encontraron campos críticos NULL:');
+      if (Number(validation.null_feemdo) > 0) console.log(`      - feemdo: ${validation.null_feemdo} registros`);
+      if (Number(validation.null_feulvedo) > 0) console.log(`      - feulvedo: ${validation.null_feulvedo} registros`);
+      if (Number(validation.null_sudo) > 0) console.log(`      - sudo: ${validation.null_sudo} registros`);
+      if (Number(validation.null_esdo) > 0) console.log(`      - esdo: ${validation.null_esdo} registros`);
+      if (Number(validation.null_espgdo) > 0) console.log(`      - espgdo: ${validation.null_espgdo} registros`);
+    } else {
+      console.log(`   ✅ Todos los campos críticos completos (${validation.total_registros} registros validados)\n`);
+    }
+
     // Actualizar log de ejecución
     await db.update(etlExecutionLog)
       .set({
