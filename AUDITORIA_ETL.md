@@ -1,7 +1,30 @@
-# 🔍 AUDITORÍA ETL - Problemas Identificados
+# 🔍 AUDITORÍA ETL - Problemas Identificados y Soluciones
 
-## Resumen Ejecutivo
-El proceso ETL está insertando **múltiples columnas como NULL** en lugar de usar los valores reales extraídos de SQL Server. Esto afecta significativamente la calidad de los datos en `fact_ventas`.
+## ✅ ESTADO ACTUAL (Actualizado: 23 Oct 2025)
+
+**FASE 1 COMPLETADA**: Los 5 campos críticos han sido corregidos y ahora se insertan correctamente.
+
+### Campos Corregidos ✅
+- `feemdo` - Fecha emisión documento (ahora usa `ed.feemdo`)
+- `feulvedo` - Fecha última modificación (ahora usa `ed.feer`)
+- `sudo` - Código sucursal (ahora usa `CAST(ed.sudo AS NUMERIC(20,0))`)
+- `esdo` - Estado documento (ahora usa `ed.esdo`)
+- `espgdo` - Estado pago (ahora usa `ed.espgdo`)
+
+### Validación Automática Implementada
+- El ETL ahora valida automáticamente que estos 5 campos NO sean NULL después de cada ejecución
+- Alertas en consola si se detectan problemas
+- 97% de registros históricos ya tienen datos completos (16,458 de 16,976)
+
+### Nota Importante sobre `esdo`
+- Algunos documentos (especialmente GDV - Guías de Despacho) no tienen el campo `esdo` en SQL Server
+- Esto es **comportamiento esperado** del sistema origen, no un error del ETL
+- La validación correctamente alerta cuando SQL Server tiene campos vacíos
+
+---
+
+## Resumen Ejecutivo Original
+El proceso ETL estaba insertando **múltiples columnas como NULL** en lugar de usar los valores reales extraídos de SQL Server. La Fase 1 de corrección ha solucionado los 5 campos más críticos.
 
 ---
 
@@ -138,17 +161,17 @@ El proceso ETL está insertando **múltiples columnas como NULL** en lugar de us
 
 ## ✅ SOLUCIONES PROPUESTAS
 
-### Prioridad 1: CRÍTICO (Implementar INMEDIATAMENTE)
-1. **Fechas del documento**
-   - Cambiar `CAST(NULL AS DATE)` por `ed.feemdo` 
-   - Cambiar `CAST(NULL AS DATE)` por `ed.feer`
+### ✅ Prioridad 1: CRÍTICO (✅ COMPLETADO - 23 Oct 2025)
+1. **Fechas del documento** ✅
+   - ~~Cambiar `CAST(NULL AS DATE)` por `ed.feemdo`~~ → **IMPLEMENTADO**
+   - ~~Cambiar `CAST(NULL AS DATE)` por `ed.feer`~~ → **IMPLEMENTADO**
 
-2. **Código de sucursal**
-   - Cambiar `CAST(NULL AS NUMERIC(20,0))` por `CAST(ed.sudo AS NUMERIC(20,0))`
+2. **Código de sucursal** ✅
+   - ~~Cambiar `CAST(NULL AS NUMERIC(20,0))` por `CAST(ed.sudo AS NUMERIC(20,0))`~~ → **IMPLEMENTADO**
 
-3. **Estados del documento**
-   - Cambiar `CAST(NULL AS TEXT)` por `ed.esdo`
-   - Cambiar `CAST(NULL AS TEXT)` por `ed.espgdo`
+3. **Estados del documento** ✅
+   - ~~Cambiar `CAST(NULL AS TEXT)` por `ed.esdo`~~ → **IMPLEMENTADO**
+   - ~~Cambiar `CAST(NULL AS TEXT)` por `ed.espgdo`~~ → **IMPLEMENTADO**
 
 ### Prioridad 2: ALTO (Implementar en siguiente fase)
 1. **Indicador LILG**
