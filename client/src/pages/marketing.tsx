@@ -654,29 +654,24 @@ function SolicitudesList({
                                 e.stopPropagation();
                                 onEditEstado(solicitud);
                               }}
-                              data-testid={`button-estado-${solicitud.id}`}
+                              data-testid={`button-cambiar-estado-${solicitud.id}`}
                               title="Cambiar estado"
                             >
-                              {solicitud.estado === 'solicitado' && <Clock className="h-4 w-4" />}
-                              {solicitud.estado === 'en_proceso' && <TrendingUp className="h-4 w-4" />}
-                              {solicitud.estado === 'completado' && <CheckCircle className="h-4 w-4" />}
-                              {solicitud.estado === 'rechazado' && <XCircle className="h-4 w-4" />}
+                              <CheckCircle className="h-4 w-4" />
                             </Button>
-                            {userRole === 'admin' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDelete(solicitud);
-                                }}
-                                data-testid={`button-eliminar-${solicitud.id}`}
-                                className="text-destructive hover:bg-destructive/10"
-                                title="Eliminar solicitud"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(solicitud);
+                              }}
+                              data-testid={`button-eliminar-${solicitud.id}`}
+                              title="Eliminar solicitud"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       )}
@@ -691,112 +686,124 @@ function SolicitudesList({
               {solicitudes.map((solicitud) => (
                 <Card 
                   key={solicitud.id} 
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => onView(solicitud)}
                   data-testid={`card-solicitud-${solicitud.id}`}
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => onView(solicitud)}
                 >
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-base">{solicitud.titulo}</CardTitle>
-                      <Badge
-                        className={
-                          solicitud.urgencia === 'alta' ? 'bg-red-500 text-white' :
-                          solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white' :
-                          'bg-green-500 text-white'
-                        }
-                      >
-                        {solicitud.urgencia === 'alta' && 'Alta'}
-                        {solicitud.urgencia === 'media' && 'Media'}
-                        {solicitud.urgencia === 'baja' && 'Normal'}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      <Badge
-                        className={
-                          solicitud.estado === 'rechazado' ? 'bg-red-500 text-white' :
-                          solicitud.estado === 'completado' ? 'bg-green-500 text-white' :
-                          'bg-yellow-500 text-white'
-                        }
-                      >
-                        {solicitud.estado === 'solicitado' && 'Solicitado'}
-                        {solicitud.estado === 'en_proceso' && 'En Proceso'}
-                        {solicitud.estado === 'completado' && 'Completado'}
-                        {solicitud.estado === 'rechazado' && 'Rechazado'}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Supervisor:</span>
-                      <span className="font-medium">{solicitud.supervisorName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Monto:</span>
-                      <span className="font-medium">
-                        {solicitud.monto 
-                          ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
-                          : <span className="italic">Pendiente</span>
-                        }
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Fecha Solicitud:</span>
-                      <span>{format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}</span>
-                    </div>
-                    {solicitud.fechaEntrega && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Fecha Entrega:</span>
-                        <span>{format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })}</span>
-                      </div>
-                    )}
-                    {solicitud.pasos && solicitud.pasos.length > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Pasos:</span>
-                        <span>
-                          {solicitud.pasos.filter(p => p.completado).length}/{solicitud.pasos.length} completados
-                        </span>
-                      </div>
-                    )}
-                    {(userRole === 'admin' || userRole === 'supervisor') && (
-                      <div className="flex gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEdit(solicitud);
-                          }}
-                          className="flex-1"
+                  <CardContent className="pt-6">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        <h3 className="font-semibold text-lg">{solicitud.titulo}</h3>
+                        <Badge
+                          className={
+                            solicitud.estado === 'rechazado' ? 'bg-red-500 text-white hover:bg-red-600' :
+                            solicitud.estado === 'completado' ? 'bg-green-500 text-white hover:bg-green-600' :
+                            'bg-yellow-500 text-white hover:bg-yellow-600'
+                          }
                         >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Editar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditEstado(solicitud);
-                          }}
-                          className="flex-1"
-                        >
-                          Estado
-                        </Button>
-                        {userRole === 'admin' && (
+                          {solicitud.estado === 'solicitado' && 'Solicitado'}
+                          {solicitud.estado === 'en_proceso' && 'En Proceso'}
+                          {solicitud.estado === 'completado' && 'Completado'}
+                          {solicitud.estado === 'rechazado' && 'Rechazado'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Supervisor:</span>
+                          <span className="font-medium">{solicitud.supervisorName}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Monto:</span>
+                          <span className="font-medium">
+                            {solicitud.monto 
+                              ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
+                              : <span className="text-muted-foreground italic">Pendiente</span>
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Urgencia:</span>
+                          <Badge
+                            className={
+                              solicitud.urgencia === 'alta' ? 'bg-red-500 text-white hover:bg-red-600' :
+                              solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                              'bg-green-500 text-white hover:bg-green-600'
+                            }
+                            data-testid={`badge-urgencia-mobile-${solicitud.id}`}
+                          >
+                            {solicitud.urgencia === 'alta' && 'Alta'}
+                            {solicitud.urgencia === 'media' && 'Media'}
+                            {solicitud.urgencia === 'baja' && 'Normal'}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Fecha Solicitud:</span>
+                          <span>{format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Fecha Entrega:</span>
+                          <span>
+                            {solicitud.fechaEntrega
+                              ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
+                              : '-'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {(solicitud.pasos && solicitud.pasos.length > 0) && (
+                        <div className="flex justify-between pt-3 border-t">
+                          <span className="text-sm font-medium text-muted-foreground">Pasos:</span>
+                          <span className="text-sm font-medium">
+                            {solicitud.pasos.filter(p => p.completado).length}/{solicitud.pasos.length}
+                          </span>
+                        </div>
+                      )}
+
+                      {(userRole === 'admin' || userRole === 'supervisor') && (
+                        <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
                           <Button
+                            className="flex-1"
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEdit(solicitud);
+                            }}
+                            data-testid={`button-editar-mobile-${solicitud.id}`}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Editar
+                          </Button>
+                          <Button
+                            className="flex-1"
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditEstado(solicitud);
+                            }}
+                            data-testid={`button-cambiar-estado-mobile-${solicitud.id}`}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Estado
+                          </Button>
+                          <Button
+                            className="flex-1"
                             size="sm"
                             variant="outline"
                             onClick={(e) => {
                               e.stopPropagation();
                               onDelete(solicitud);
                             }}
-                            className="text-destructive hover:bg-destructive/10"
+                            data-testid={`button-eliminar-mobile-${solicitud.id}`}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Eliminar
                           </Button>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -812,6 +819,1841 @@ function SolicitudesList({
   );
 }
 
+// Presupuesto Dialog Component
+function PresupuestoDialog({
+  open,
+  onOpenChange,
+  mes,
+  anio,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mes: number;
+  anio: number;
+}) {
+  const { toast } = useToast();
+  const currentDate = new Date();
+  const [presupuestoTotal, setPresupuestoTotal] = useState("");
+  const [selectedMes, setSelectedMes] = useState(currentDate.getMonth() + 1);
+  const [selectedAnio, setSelectedAnio] = useState(currentDate.getFullYear());
+
+  const mesesNombres = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+
+  const { data: presupuestoActual } = useQuery({
+    queryKey: ['/api/marketing/presupuesto', selectedMes, selectedAnio],
+    queryFn: async () => {
+      const response = await fetch(`/api/marketing/presupuesto/${selectedMes}/${selectedAnio}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Error al cargar presupuesto');
+      }
+      return response.json();
+    },
+    enabled: open,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: { mes: number; anio: number; presupuestoTotal: number }) => {
+      return await apiRequest('POST', '/api/marketing/presupuesto', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/presupuesto'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
+      toast({
+        title: "Presupuesto guardado",
+        description: "El presupuesto ha sido configurado correctamente",
+      });
+      onOpenChange(false);
+      setPresupuestoTotal("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo guardar el presupuesto",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = () => {
+    const monto = parseFloat(presupuestoTotal);
+    if (isNaN(monto) || monto <= 0) {
+      toast({
+        title: "Error",
+        description: "Ingrese un monto válido",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    saveMutation.mutate({
+      mes: selectedMes,
+      anio: selectedAnio,
+      presupuestoTotal: monto,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="dialog-presupuesto" className="w-[95vw] sm:w-full">
+        <DialogHeader>
+          <DialogTitle>Configurar Presupuesto Mensual</DialogTitle>
+          <DialogDescription>
+            Seleccione el período y configure el presupuesto total
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="mes-presupuesto">Mes</Label>
+              <Select
+                value={selectedMes.toString()}
+                onValueChange={(value) => setSelectedMes(parseInt(value))}
+              >
+                <SelectTrigger id="mes-presupuesto" data-testid="select-mes-presupuesto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {mesesNombres.map((mes, index) => (
+                    <SelectItem key={index + 1} value={(index + 1).toString()}>
+                      {mes}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="anio-presupuesto">Año</Label>
+              <Select
+                value={selectedAnio.toString()}
+                onValueChange={(value) => setSelectedAnio(parseInt(value))}
+              >
+                <SelectTrigger id="anio-presupuesto" data-testid="select-anio-presupuesto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2024, 2025, 2026].map((anio) => (
+                    <SelectItem key={anio} value={anio.toString()}>
+                      {anio}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {presupuestoActual && (
+            <div className="p-4 bg-muted rounded-md">
+              <p className="text-sm text-muted-foreground">Presupuesto actual para {mesesNombres[selectedMes - 1]} {selectedAnio}:</p>
+              <p className="text-2xl font-bold">
+                ${parseFloat(presupuestoActual.presupuestoTotal).toLocaleString('es-CL')}
+              </p>
+            </div>
+          )}
+          <div>
+            <Label htmlFor="presupuestoTotal">Presupuesto Total (CLP)</Label>
+            <Input
+              id="presupuestoTotal"
+              type="number"
+              placeholder="Ej: 5000000"
+              value={presupuestoTotal}
+              onChange={(e) => setPresupuestoTotal(e.target.value)}
+              data-testid="input-presupuesto-total"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-presupuesto"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            data-testid="button-guardar-presupuesto"
+          >
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Solicitud Dialog Component
+function SolicitudDialog({
+  open,
+  onOpenChange,
+  mes,
+  anio,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mes: number;
+  anio: number;
+}) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [titulo, setTitulo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [urgencia, setUrgencia] = useState("baja");
+  const [fechaEntrega, setFechaEntrega] = useState("");
+  const [urlReferencia, setUrlReferencia] = useState("");
+  const [selectedSupervisorId, setSelectedSupervisorId] = useState("");
+  const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
+  const [nuevoPaso, setNuevoPaso] = useState("");
+
+  // Obtener lista de supervisores (solo para admin)
+  const { data: supervisores = [] } = useQuery<any[]>({
+    queryKey: ['/api/users/salespeople/supervisors'],
+    enabled: user?.role === 'admin',
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('POST', '/api/marketing/solicitudes', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
+      toast({
+        title: "Solicitud creada",
+        description: "La solicitud ha sido enviada correctamente",
+      });
+      onOpenChange(false);
+      // Reset form
+      setTitulo("");
+      setDescripcion("");
+      setUrgencia("baja");
+      setFechaEntrega("");
+      setUrlReferencia("");
+      setSelectedSupervisorId("");
+      setPasos([]);
+      setNuevoPaso("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo crear la solicitud",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!titulo || !descripcion) {
+      toast({
+        title: "Error",
+        description: "Complete todos los campos requeridos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Si es admin, debe seleccionar un supervisor
+    if (user?.role === 'admin' && !selectedSupervisorId) {
+      toast({
+        title: "Error",
+        description: "Debe seleccionar un supervisor",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const data: any = {
+      titulo,
+      descripcion,
+      urgencia,
+      mes,
+      anio,
+      fechaEntrega: fechaEntrega || null,
+      urlReferencia: urlReferencia || null,
+      pasos,
+    };
+
+    // Si es admin, incluir supervisorId
+    if (user?.role === 'admin') {
+      data.supervisorId = selectedSupervisorId;
+    }
+
+    createMutation.mutate(data);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-nueva-solicitud">
+        <DialogHeader>
+          <DialogTitle>Nueva Solicitud de Marketing</DialogTitle>
+          <DialogDescription>
+            Complete el formulario para crear una nueva solicitud
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="space-y-4 py-4">
+          <div>
+            <Label htmlFor="titulo">Título*</Label>
+            <Input
+              id="titulo"
+              placeholder="Ej: Campaña publicitaria digital"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              data-testid="input-titulo"
+            />
+          </div>
+          <div>
+            <Label htmlFor="descripcion">Descripción*</Label>
+            <Textarea
+              id="descripcion"
+              placeholder="Describa la solicitud en detalle"
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={4}
+              data-testid="input-descripcion"
+            />
+          </div>
+          <div>
+            <Label htmlFor="urgencia">Nivel de Urgencia*</Label>
+            <Select value={urgencia} onValueChange={setUrgencia}>
+              <SelectTrigger data-testid="select-urgencia">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="baja" data-testid="option-urgencia-baja">
+                  Normal
+                </SelectItem>
+                <SelectItem value="media" data-testid="option-urgencia-media">
+                  Media
+                </SelectItem>
+                <SelectItem value="alta" data-testid="option-urgencia-alta">
+                  Alta
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Máximo 3 solicitudes con urgencia alta activas por usuario
+            </p>
+          </div>
+          {user?.role === 'admin' && (
+            <div>
+              <Label htmlFor="supervisor">Supervisor*</Label>
+              <Select value={selectedSupervisorId} onValueChange={setSelectedSupervisorId}>
+                <SelectTrigger data-testid="select-supervisor">
+                  <SelectValue placeholder="Seleccione un supervisor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {supervisores.map((supervisor: any) => (
+                    <SelectItem key={supervisor.id} value={supervisor.id} data-testid={`option-supervisor-${supervisor.id}`}>
+                      {supervisor.salespersonName || `${supervisor.firstName} ${supervisor.lastName}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Seleccione el supervisor que realiza la solicitud
+              </p>
+            </div>
+          )}
+          <div>
+            <Label htmlFor="fechaEntrega">Fecha de Entrega Esperada</Label>
+            <Input
+              id="fechaEntrega"
+              type="date"
+              value={fechaEntrega}
+              onChange={(e) => setFechaEntrega(e.target.value)}
+              data-testid="input-fecha-entrega"
+            />
+          </div>
+          <div>
+            <Label htmlFor="urlReferencia">URL de Referencia (Opcional)</Label>
+            <Input
+              id="urlReferencia"
+              placeholder="https://ejemplo.com/documento.pdf"
+              value={urlReferencia}
+              onChange={(e) => setUrlReferencia(e.target.value)}
+              data-testid="input-url-referencia"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Puede agregar un enlace de referencia con detalles de la solicitud
+            </p>
+          </div>
+          <div>
+            <Label>Pasos / Checklist (Opcional)</Label>
+            <div className="space-y-2 mt-2">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Ej: Diseño, Impresión, Cotización..."
+                  value={nuevoPaso}
+                  onChange={(e) => setNuevoPaso(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (nuevoPaso.trim()) {
+                        setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                        setNuevoPaso("");
+                      }
+                    }
+                  }}
+                  data-testid="input-nuevo-paso"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (nuevoPaso.trim()) {
+                      setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                      setNuevoPaso("");
+                    }
+                  }}
+                  data-testid="button-agregar-paso"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {pasos.length > 0 && (
+                <div className="border rounded-md p-2 space-y-1">
+                  {pasos.map((paso, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                      <span className="text-sm">{paso.nombre}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
+                        data-testid={`button-eliminar-paso-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Agregue pasos o tareas que se deben completar para esta solicitud
+              </p>
+            </div>
+          </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-solicitud"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={createMutation.isPending}
+            data-testid="button-crear-solicitud"
+          >
+            {createMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creando...
+              </>
+            ) : (
+              'Crear Solicitud'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Estado Dialog Component
+function EstadoDialog({
+  open,
+  onOpenChange,
+  solicitud,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  solicitud: SolicitudMarketing | null;
+}) {
+  const { toast } = useToast();
+  const [nuevoEstado, setNuevoEstado] = useState("");
+  const [motivoRechazo, setMotivoRechazo] = useState("");
+  const [monto, setMonto] = useState("");
+  const [pdfPresupuesto, setPdfPresupuesto] = useState("");
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { estado: string; motivoRechazo?: string; monto?: number; pdfPresupuesto?: string }) => {
+      return await apiRequest('POST', `/api/marketing/solicitudes/${solicitud?.id}/estado`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
+      toast({
+        title: "Estado actualizado",
+        description: "El estado de la solicitud ha sido actualizado",
+      });
+      onOpenChange(false);
+      setNuevoEstado("");
+      setMotivoRechazo("");
+      setMonto("");
+      setPdfPresupuesto("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el estado",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!nuevoEstado) {
+      toast({
+        title: "Error",
+        description: "Seleccione un estado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (nuevoEstado === 'rechazado' && !motivoRechazo) {
+      toast({
+        title: "Error",
+        description: "Debe ingresar un motivo de rechazo",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar monto solo si se ingresó algún valor
+    if (monto && monto.trim() !== '') {
+      const montoNum = parseFloat(monto);
+      if (isNaN(montoNum) || montoNum <= 0) {
+        toast({
+          title: "Error",
+          description: "Ingrese un monto válido",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    updateMutation.mutate({
+      estado: nuevoEstado,
+      motivoRechazo: nuevoEstado === 'rechazado' ? motivoRechazo : undefined,
+      monto: monto && monto.trim() !== '' ? parseFloat(monto) : undefined,
+      pdfPresupuesto: pdfPresupuesto || undefined,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="dialog-cambiar-estado" className="w-[95vw] sm:w-full">
+        <DialogHeader>
+          <DialogTitle>Cambiar Estado de Solicitud</DialogTitle>
+          <DialogDescription>
+            {solicitud?.titulo}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div>
+            <Label>Estado Actual</Label>
+            <div className="mt-2">
+              <Badge>
+                {solicitud?.estado === 'solicitado' && 'Solicitado'}
+                {solicitud?.estado === 'en_proceso' && 'En Proceso'}
+                {solicitud?.estado === 'completado' && 'Completado'}
+                {solicitud?.estado === 'rechazado' && 'Rechazado'}
+              </Badge>
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="nuevoEstado">Nuevo Estado*</Label>
+            <Select value={nuevoEstado} onValueChange={setNuevoEstado}>
+              <SelectTrigger data-testid="select-nuevo-estado">
+                <SelectValue placeholder="Seleccione un estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="solicitado">Solicitado</SelectItem>
+                <SelectItem value="en_proceso">En Proceso</SelectItem>
+                <SelectItem value="completado">Completado</SelectItem>
+                <SelectItem value="rechazado">Rechazado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {!solicitud?.monto && (nuevoEstado === 'en_proceso' || nuevoEstado === 'completado') && (
+            <div>
+              <Label htmlFor="monto">Monto Presupuestado (CLP) - Opcional</Label>
+              <Input
+                id="monto"
+                type="number"
+                placeholder="Ej: 500000"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                data-testid="input-monto-aprobacion"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Puede ingresar el monto ahora o más adelante
+              </p>
+            </div>
+          )}
+          {(nuevoEstado === 'en_proceso' || nuevoEstado === 'completado') && (
+            <div>
+              <Label htmlFor="pdfPresupuesto">URL del PDF Presupuestado (Opcional)</Label>
+              <Input
+                id="pdfPresupuesto"
+                placeholder="https://ejemplo.com/presupuesto.pdf"
+                value={pdfPresupuesto}
+                onChange={(e) => setPdfPresupuesto(e.target.value)}
+                data-testid="input-pdf-presupuesto"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Suba el PDF con el presupuesto detallado
+              </p>
+            </div>
+          )}
+          {nuevoEstado === 'rechazado' && (
+            <div>
+              <Label htmlFor="motivoRechazo">Motivo de Rechazo*</Label>
+              <Textarea
+                id="motivoRechazo"
+                placeholder="Explique el motivo del rechazo"
+                value={motivoRechazo}
+                onChange={(e) => setMotivoRechazo(e.target.value)}
+                rows={3}
+                data-testid="input-motivo-rechazo"
+              />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-estado"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={updateMutation.isPending}
+            data-testid="button-guardar-estado"
+          >
+            {updateMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Edit Solicitud Dialog Component
+function EditSolicitudDialog({
+  open,
+  onOpenChange,
+  solicitud,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  solicitud: SolicitudMarketing | null;
+}) {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [titulo, setTitulo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [urgencia, setUrgencia] = useState("baja");
+  const [fechaEntrega, setFechaEntrega] = useState("");
+  const [urlReferencia, setUrlReferencia] = useState("");
+  const [monto, setMonto] = useState("");
+  const [pasos, setPasos] = useState<{ nombre: string; completado: boolean; orden: number }[]>([]);
+  const [nuevoPaso, setNuevoPaso] = useState("");
+
+  // Pre-cargar datos cuando se abre el diálogo
+  useEffect(() => {
+    if (solicitud && open) {
+      setTitulo(solicitud.titulo || "");
+      setDescripcion(solicitud.descripcion || "");
+      setUrgencia(solicitud.urgencia || "baja");
+      setFechaEntrega(solicitud.fechaEntrega || "");
+      setUrlReferencia(solicitud.urlReferencia || "");
+      setMonto(solicitud.monto?.toString() || "");
+      setPasos(solicitud.pasos || []);
+      setNuevoPaso("");
+    }
+  }, [solicitud, open]);
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud?.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
+      toast({
+        title: "Solicitud actualizada",
+        description: "Los cambios han sido guardados correctamente",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar la solicitud",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!titulo || !descripcion) {
+      toast({
+        title: "Error",
+        description: "Complete todos los campos requeridos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateMutation.mutate({
+      titulo,
+      descripcion,
+      urgencia,
+      fechaEntrega: fechaEntrega || null,
+      urlReferencia: urlReferencia || null,
+      monto: monto ? parseFloat(monto) : null,
+      pasos,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-editar-solicitud">
+        <DialogHeader>
+          <DialogTitle>Editar Solicitud de Marketing</DialogTitle>
+          <DialogDescription>
+            Modifique los campos necesarios
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="space-y-4 py-4">
+          <div>
+            <Label htmlFor="edit-titulo">Título*</Label>
+            <Input
+              id="edit-titulo"
+              placeholder="Ej: Campaña publicitaria redes sociales"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              data-testid="input-edit-titulo"
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-descripcion">Descripción*</Label>
+            <Textarea
+              id="edit-descripcion"
+              placeholder="Describa los detalles de la solicitud..."
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={4}
+              data-testid="input-edit-descripcion"
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-urgencia">Nivel de Urgencia*</Label>
+            <Select value={urgencia} onValueChange={setUrgencia}>
+              <SelectTrigger data-testid="select-edit-urgencia">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="baja" data-testid="option-edit-urgencia-baja">
+                  Normal
+                </SelectItem>
+                <SelectItem value="media" data-testid="option-edit-urgencia-media">
+                  Media
+                </SelectItem>
+                <SelectItem value="alta" data-testid="option-edit-urgencia-alta">
+                  Alta
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Máximo 3 solicitudes con urgencia alta activas por usuario
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="edit-fechaEntrega">Fecha de Entrega Esperada</Label>
+            <Input
+              id="edit-fechaEntrega"
+              type="date"
+              value={fechaEntrega}
+              onChange={(e) => setFechaEntrega(e.target.value)}
+              data-testid="input-edit-fecha-entrega"
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-urlReferencia">URL de Referencia</Label>
+            <Input
+              id="edit-urlReferencia"
+              type="url"
+              placeholder="https://ejemplo.com/referencia"
+              value={urlReferencia}
+              onChange={(e) => setUrlReferencia(e.target.value)}
+              data-testid="input-edit-url-referencia"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Adjunte un enlace con información de referencia
+            </p>
+          </div>
+          {user?.role === 'admin' && (
+            <div>
+              <Label htmlFor="edit-monto">Precio / Monto Estimado (CLP)</Label>
+              <Input
+                id="edit-monto"
+                type="number"
+                placeholder="Ej: 500000"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                data-testid="input-edit-monto"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Solo el administrador puede modificar este campo
+              </p>
+            </div>
+          )}
+          <div>
+            <Label>Pasos / Checklist</Label>
+            <div className="space-y-2 mt-2">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Ej: Diseño, Impresión, Cotización..."
+                  value={nuevoPaso}
+                  onChange={(e) => setNuevoPaso(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (nuevoPaso.trim()) {
+                        setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                        setNuevoPaso("");
+                      }
+                    }
+                  }}
+                  data-testid="input-edit-nuevo-paso"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (nuevoPaso.trim()) {
+                      setPasos([...pasos, { nombre: nuevoPaso.trim(), completado: false, orden: pasos.length }]);
+                      setNuevoPaso("");
+                    }
+                  }}
+                  data-testid="button-edit-agregar-paso"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {pasos.length > 0 && (
+                <div className="border rounded-md p-2 space-y-1">
+                  {pasos.map((paso, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                      <span className="text-sm">{paso.nombre}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPasos(pasos.filter((_, i) => i !== index))}
+                        data-testid={`button-edit-eliminar-paso-${index}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Agregue o elimine pasos según sea necesario
+              </p>
+            </div>
+          </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-editar"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={updateMutation.isPending}
+            data-testid="button-guardar-editar"
+          >
+            {updateMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar Cambios'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Delete Solicitud Dialog Component
+function DeleteSolicitudDialog({
+  open,
+  onOpenChange,
+  solicitud,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  solicitud: SolicitudMarketing | null;
+}) {
+  const { toast } = useToast();
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('DELETE', `/api/marketing/solicitudes/${solicitud?.id}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/metrics'] });
+      toast({
+        title: "Solicitud eliminada",
+        description: "La solicitud ha sido eliminada correctamente",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar la solicitud",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="dialog-eliminar-solicitud">
+        <DialogHeader>
+          <DialogTitle>Confirmar Eliminación</DialogTitle>
+          <DialogDescription>
+            ¿Está seguro que desea eliminar esta solicitud?
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <p className="text-sm">
+            <strong>Título:</strong> {solicitud?.titulo}
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Esta acción no se puede deshacer.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-eliminar"
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => deleteMutation.mutate()}
+            disabled={deleteMutation.isPending}
+            data-testid="button-confirmar-eliminar"
+          >
+            {deleteMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Eliminando...
+              </>
+            ) : (
+              'Eliminar'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// View Solicitud Dialog Component
+function ViewSolicitudDialog({
+  open,
+  onOpenChange,
+  solicitud,
+  userRole,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  solicitud: SolicitudMarketing | null;
+  userRole: string;
+}) {
+  const { toast } = useToast();
+  const [notas, setNotas] = useState("");
+  const [isEditingNotas, setIsEditingNotas] = useState(false);
+
+  useEffect(() => {
+    if (solicitud) {
+      setNotas(solicitud.notas || "");
+    }
+  }, [solicitud]);
+
+  const updateNotasMutation = useMutation({
+    mutationFn: async (newNotas: string) => {
+      return await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud!.id}/notas`, { notas: newNotas });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+      toast({
+        title: "Notas actualizadas",
+        description: "Las notas se han guardado correctamente",
+      });
+      setIsEditingNotas(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudieron guardar las notas",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSaveNotas = () => {
+    updateNotasMutation.mutate(notas);
+  };
+
+  const handleCancelNotas = () => {
+    setNotas(solicitud?.notas || "");
+    setIsEditingNotas(false);
+  };
+
+  if (!solicitud) return null;
+
+  const canEditNotas = userRole === 'admin' || userRole === 'supervisor';
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-6xl w-[95vw] sm:w-full max-h-[calc(100vh-4rem)] flex flex-col" data-testid="dialog-ver-solicitud">
+        <DialogHeader>
+          <DialogTitle>Detalles de la Solicitud</DialogTitle>
+          <DialogDescription>
+            Información completa de la solicitud de marketing
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-4">
+            {/* Columna principal (2/3) */}
+            <div className="lg:col-span-2 space-y-4">
+              {/* Título */}
+              <div>
+                <Label className="text-muted-foreground text-sm">Título</Label>
+                <p className="text-lg font-semibold mt-1">{solicitud.titulo}</p>
+              </div>
+
+              {/* Descripción */}
+              <div>
+                <Label className="text-muted-foreground text-sm">Descripción</Label>
+                <p className="text-base mt-1 whitespace-pre-wrap">{solicitud.descripcion}</p>
+              </div>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Supervisor */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Supervisor</Label>
+                  <p className="text-base mt-1">{solicitud.supervisorName}</p>
+                </div>
+
+                {/* Urgencia */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Nivel de Urgencia</Label>
+                  <div className="mt-1">
+                    <Badge
+                      className={
+                        solicitud.urgencia === 'alta' ? 'bg-red-500 text-white' :
+                        solicitud.urgencia === 'media' ? 'bg-yellow-500 text-white' :
+                        'bg-green-500 text-white'
+                      }
+                    >
+                      {solicitud.urgencia === 'alta' && 'Alta'}
+                      {solicitud.urgencia === 'media' && 'Media'}
+                      {solicitud.urgencia === 'baja' && 'Normal'}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Estado */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Estado</Label>
+                  <div className="mt-1">
+                    <Badge
+                      className={
+                        solicitud.estado === 'rechazado' ? 'bg-red-500 text-white' :
+                        solicitud.estado === 'completado' ? 'bg-green-500 text-white' :
+                        'bg-yellow-500 text-white'
+                      }
+                    >
+                      {solicitud.estado === 'solicitado' && 'Solicitado'}
+                      {solicitud.estado === 'en_proceso' && 'En Proceso'}
+                      {solicitud.estado === 'completado' && 'Completado'}
+                      {solicitud.estado === 'rechazado' && 'Rechazado'}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Monto */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Monto</Label>
+                  <p className="text-base mt-1">
+                    {solicitud.monto 
+                      ? `$${parseFloat(solicitud.monto).toLocaleString('es-CL')}`
+                      : <span className="text-muted-foreground italic">Pendiente</span>
+                    }
+                  </p>
+                </div>
+
+                {/* Fecha Solicitud */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Fecha de Solicitud</Label>
+                  <p className="text-base mt-1">
+                    {format(new Date(solicitud.fechaSolicitud), 'dd/MM/yyyy', { locale: es })}
+                  </p>
+                </div>
+
+                {/* Fecha Entrega */}
+                <div>
+                  <Label className="text-muted-foreground text-sm">Fecha de Entrega Esperada</Label>
+                  <p className="text-base mt-1">
+                    {solicitud.fechaEntrega
+                      ? format(new Date(solicitud.fechaEntrega), 'dd/MM/yyyy', { locale: es })
+                      : <span className="text-muted-foreground">-</span>}
+                  </p>
+                </div>
+              </div>
+
+              {/* URL de Referencia */}
+              {solicitud.urlReferencia && (
+                <div>
+                  <Label className="text-muted-foreground text-sm">URL de Referencia</Label>
+                  <a 
+                    href={solicitud.urlReferencia} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-base text-blue-500 hover:underline mt-1 block break-all"
+                  >
+                    {solicitud.urlReferencia}
+                  </a>
+                </div>
+              )}
+
+              {/* Pasos / Checklist */}
+              {solicitud.pasos && solicitud.pasos.length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground text-sm font-semibold">Pasos / Checklist</Label>
+                  <div className="mt-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <div className="space-y-3">
+                      {solicitud.pasos.map((paso, index) => (
+                        <div key={index} className="flex items-start gap-3 group">
+                          <div className="flex-shrink-0 mt-0.5">
+                            <input
+                              type="checkbox"
+                              checked={paso.completado}
+                              onChange={() => {
+                                if (userRole === 'admin' || userRole === 'supervisor') {
+                                  const toggleMutation = async () => {
+                                    await apiRequest('PATCH', `/api/marketing/solicitudes/${solicitud.id}/pasos/${index}/toggle`, {});
+                                    queryClient.invalidateQueries({ queryKey: ['/api/marketing/solicitudes'] });
+                                  };
+                                  toggleMutation();
+                                }
+                              }}
+                              disabled={userRole !== 'admin' && userRole !== 'supervisor'}
+                              className="h-5 w-5 rounded border-2 border-blue-400 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                              data-testid={`checkbox-paso-${index}`}
+                            />
+                          </div>
+                          <span className={`flex-1 text-base transition-all ${paso.completado ? 'line-through text-muted-foreground' : 'text-foreground font-medium'}`}>
+                            {paso.nombre}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">Progreso:</span>
+                        <span className="font-semibold text-blue-600 dark:text-blue-400">
+                          {solicitud.pasos.filter(p => p.completado).length} / {solicitud.pasos.length} completados
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Motivo de Rechazo */}
+              {solicitud.estado === 'rechazado' && solicitud.motivoRechazo && (
+                <div className="border-l-4 border-red-500 bg-red-50 dark:bg-red-950 p-4 rounded">
+                  <Label className="text-red-700 dark:text-red-400 font-semibold">Motivo de Rechazo</Label>
+                  <p className="text-sm mt-1 text-red-600 dark:text-red-300">{solicitud.motivoRechazo}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Columna de Notas (1/3) */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-0 bg-muted/50 border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <Label className="text-sm font-semibold">Notas de Actividad</Label>
+                  {canEditNotas && !isEditingNotas && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setIsEditingNotas(true)}
+                      data-testid="button-editar-notas"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                {isEditingNotas ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={notas}
+                      onChange={(e) => setNotas(e.target.value)}
+                      placeholder="Escribe notas sobre la actividad de esta solicitud..."
+                      className="min-h-[200px] resize-none"
+                      data-testid="textarea-notas"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleSaveNotas}
+                        disabled={updateNotasMutation.isPending}
+                        data-testid="button-guardar-notas"
+                        className="flex-1"
+                      >
+                        {updateNotasMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                            Guardando...
+                          </>
+                        ) : (
+                          'Guardar'
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleCancelNotas}
+                        disabled={updateNotasMutation.isPending}
+                        data-testid="button-cancelar-notas"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap min-h-[100px]">
+                    {notas || <span className="italic">No hay notas registradas</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cerrar-ver-solicitud"
+          >
+            Cerrar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Inventario Marketing Component
+function InventarioMarketing({ userRole }: { userRole: string }) {
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [inventarioDialogOpen, setInventarioDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+
+  const { data: items = [], isLoading } = useQuery<any[]>({
+    queryKey: ['/api/marketing/inventario', search],
+    enabled: true,
+  });
+
+  const { data: summary } = useQuery<{
+    totalItems: number;
+    stockBajo: number;
+    valorTotal: number;
+  }>({
+    queryKey: ['/api/marketing/inventario/summary'],
+    enabled: true,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/marketing/inventario/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario/summary'] });
+      toast({
+        title: "Item eliminado",
+        description: "El item ha sido eliminado correctamente",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Error al eliminar el item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEdit = (item: any) => {
+    setSelectedItem(item);
+    setInventarioDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("¿Está seguro de eliminar este item?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const estadoConfig = {
+    disponible: { label: "Disponible", color: "bg-green-500" },
+    agotado: { label: "Agotado", color: "bg-red-500" },
+    por_llegar: { label: "Por Llegar", color: "bg-yellow-500" },
+  };
+
+  return (
+    <>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold">Inventario de Marketing</h2>
+          <p className="text-muted-foreground">Gestión de materiales y suministros de marketing</p>
+        </div>
+        {userRole === 'admin' && (
+          <Button
+            onClick={() => {
+              setSelectedItem(null);
+              setInventarioDialogOpen(true);
+            }}
+            data-testid="button-nuevo-item"
+            className="w-full sm:w-auto"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo Item
+          </Button>
+        )}
+      </div>
+
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Items</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.totalItems}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Stock Bajo</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.stockBajo}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                ${summary.valorTotal.toLocaleString('es-CL')}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Search */}
+      <Card>
+        <CardContent className="pt-6">
+          <Input
+            placeholder="Buscar por nombre, descripción o ubicación..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            data-testid="input-search-inventario"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Items Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Items de Inventario</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : items.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No hay items en el inventario
+            </div>
+          ) : (
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead>Cantidad</TableHead>
+                      <TableHead>Ubicación</TableHead>
+                      <TableHead>Costo Unitario</TableHead>
+                      <TableHead>Estado</TableHead>
+                      {userRole === 'admin' && <TableHead>Acciones</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item: any) => (
+                      <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
+                        <TableCell className="font-medium">{item.nombre}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.descripcion || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {item.cantidad} {item.unidad}
+                            {item.cantidad <= (item.stockMinimo || 0) && (
+                              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{item.ubicacion || '-'}</TableCell>
+                        <TableCell>
+                          {item.costoUnitario 
+                            ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={estadoConfig[item.estado as keyof typeof estadoConfig]?.color}>
+                            {estadoConfig[item.estado as keyof typeof estadoConfig]?.label}
+                          </Badge>
+                        </TableCell>
+                        {userRole === 'admin' && (
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(item)}
+                                data-testid={`button-edit-${item.id}`}
+                              >
+                                Editar
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDelete(item.id)}
+                                disabled={deleteMutation.isPending}
+                                data-testid={`button-delete-${item.id}`}
+                              >
+                                Eliminar
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden space-y-4">
+                {items.map((item: any) => (
+                  <Card key={item.id} data-testid={`card-item-${item.id}`}>
+                    <CardContent className="pt-6">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-start">
+                          <h3 className="font-semibold text-lg">{item.nombre}</h3>
+                          <Badge className={estadoConfig[item.estado as keyof typeof estadoConfig]?.color}>
+                            {estadoConfig[item.estado as keyof typeof estadoConfig]?.label}
+                          </Badge>
+                        </div>
+                        
+                        {item.descripcion && (
+                          <p className="text-sm text-muted-foreground">{item.descripcion}</p>
+                        )}
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Cantidad:</span>
+                            <span className="font-medium flex items-center gap-2">
+                              {item.cantidad} {item.unidad}
+                              {item.cantidad <= (item.stockMinimo || 0) && (
+                                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Ubicación:</span>
+                            <span>{item.ubicacion || '-'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Costo Unitario:</span>
+                            <span className="font-medium">
+                              {item.costoUnitario 
+                                ? `$${parseFloat(item.costoUnitario).toLocaleString('es-CL')}`
+                                : '-'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {userRole === 'admin' && (
+                          <div className="flex gap-2 mt-4">
+                            <Button
+                              className="flex-1"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(item)}
+                              data-testid={`button-edit-mobile-${item.id}`}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              className="flex-1"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDelete(item.id)}
+                              disabled={deleteMutation.isPending}
+                              data-testid={`button-delete-mobile-${item.id}`}
+                            >
+                              Eliminar
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Inventario Dialog */}
+      <InventarioDialog
+        open={inventarioDialogOpen}
+        onOpenChange={setInventarioDialogOpen}
+        item={selectedItem}
+      />
+    </>
+  );
+}
+
+// Inventario Dialog Component
+function InventarioDialog({
+  open,
+  onOpenChange,
+  item,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item: any | null;
+}) {
+  const { toast } = useToast();
+  const [nombre, setNombre] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [cantidad, setCantidad] = useState("");
+  const [unidad, setUnidad] = useState("unidades");
+  const [ubicacion, setUbicacion] = useState("");
+  const [costoUnitario, setCostoUnitario] = useState("");
+  const [proveedor, setProveedor] = useState("");
+  const [estado, setEstado] = useState("disponible");
+  const [stockMinimo, setStockMinimo] = useState("");
+
+  const saveMutation = useMutation({
+    mutationFn: async (data: any) => {
+      if (item) {
+        return await apiRequest("PATCH", `/api/marketing/inventario/${item.id}`, data);
+      } else {
+        return await apiRequest("POST", "/api/marketing/inventario", data);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing/inventario/summary'] });
+      toast({
+        title: item ? "Item actualizado" : "Item creado",
+        description: item 
+          ? "El item ha sido actualizado correctamente"
+          : "El item ha sido creado correctamente",
+      });
+      onOpenChange(false);
+      resetForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Error al guardar el item",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetForm = () => {
+    setNombre("");
+    setDescripcion("");
+    setCantidad("");
+    setUnidad("unidades");
+    setUbicacion("");
+    setCostoUnitario("");
+    setProveedor("");
+    setEstado("disponible");
+    setStockMinimo("");
+  };
+
+  const handleSubmit = () => {
+    if (!nombre || !cantidad) {
+      toast({
+        title: "Error",
+        description: "Nombre y cantidad son requeridos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const data = {
+      nombre,
+      descripcion: descripcion || null,
+      cantidad: parseInt(cantidad),
+      unidad,
+      ubicacion: ubicacion || null,
+      costoUnitario: costoUnitario ? parseFloat(costoUnitario) : null,
+      proveedor: proveedor || null,
+      estado,
+      stockMinimo: stockMinimo ? parseInt(stockMinimo) : 0,
+    };
+
+    saveMutation.mutate(data);
+  };
+
+  // Load item data when editing
+  if (item && open && nombre === "") {
+    setNombre(item.nombre || "");
+    setDescripcion(item.descripcion || "");
+    setCantidad(item.cantidad?.toString() || "");
+    setUnidad(item.unidad || "unidades");
+    setUbicacion(item.ubicacion || "");
+    setCostoUnitario(item.costoUnitario || "");
+    setProveedor(item.proveedor || "");
+    setEstado(item.estado || "disponible");
+    setStockMinimo(item.stockMinimo?.toString() || "");
+  }
+
+  // Reset form when dialog closes
+  if (!open && nombre !== "") {
+    resetForm();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl w-[95vw] sm:w-full">
+        <DialogHeader>
+          <DialogTitle>{item ? "Editar Item" : "Nuevo Item"}</DialogTitle>
+          <DialogDescription>
+            {item 
+              ? "Actualice la información del item de inventario"
+              : "Complete la información del nuevo item de inventario"}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="nombre">Nombre*</Label>
+              <Input
+                id="nombre"
+                placeholder="Ej: Volantes promocionales"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                data-testid="input-nombre"
+              />
+            </div>
+            <div>
+              <Label htmlFor="estado">Estado</Label>
+              <Select value={estado} onValueChange={setEstado}>
+                <SelectTrigger id="estado" data-testid="select-estado">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="disponible">Disponible</SelectItem>
+                  <SelectItem value="agotado">Agotado</SelectItem>
+                  <SelectItem value="por_llegar">Por Llegar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="descripcion">Descripción</Label>
+            <Textarea
+              id="descripcion"
+              placeholder="Descripción del item"
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={2}
+              data-testid="input-descripcion"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="cantidad">Cantidad*</Label>
+              <Input
+                id="cantidad"
+                type="number"
+                placeholder="100"
+                value={cantidad}
+                onChange={(e) => setCantidad(e.target.value)}
+                data-testid="input-cantidad"
+              />
+            </div>
+            <div>
+              <Label htmlFor="unidad">Unidad</Label>
+              <Input
+                id="unidad"
+                placeholder="unidades"
+                value={unidad}
+                onChange={(e) => setUnidad(e.target.value)}
+                data-testid="input-unidad"
+              />
+            </div>
+            <div>
+              <Label htmlFor="stockMinimo">Stock Mínimo</Label>
+              <Input
+                id="stockMinimo"
+                type="number"
+                placeholder="10"
+                value={stockMinimo}
+                onChange={(e) => setStockMinimo(e.target.value)}
+                data-testid="input-stock-minimo"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="ubicacion">Ubicación</Label>
+              <Input
+                id="ubicacion"
+                placeholder="Bodega A - Estante 3"
+                value={ubicacion}
+                onChange={(e) => setUbicacion(e.target.value)}
+                data-testid="input-ubicacion"
+              />
+            </div>
+            <div>
+              <Label htmlFor="proveedor">Proveedor</Label>
+              <Input
+                id="proveedor"
+                placeholder="Nombre del proveedor"
+                value={proveedor}
+                onChange={(e) => setProveedor(e.target.value)}
+                data-testid="input-proveedor"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="costoUnitario">Costo Unitario</Label>
+            <Input
+              id="costoUnitario"
+              type="number"
+              placeholder="1500"
+              value={costoUnitario}
+              onChange={(e) => setCostoUnitario(e.target.value)}
+              data-testid="input-costo-unitario"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-cancelar-inventario"
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={saveMutation.isPending}
+            data-testid="button-guardar-inventario"
+          >
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 // Calendario Component
 function CalendarioHitos({ mes, anio, userRole }: { mes: number; anio: number; userRole: string }) {
   const { toast } = useToast();
@@ -1222,6 +3064,3 @@ function HitoDialog({
     </Dialog>
   );
 }
-
-// (Rest of the components remain the same - PresupuestoDialog, SolicitudDialog, EstadoDialog, EditSolicitudDialog, DeleteSolicitudDialog, ViewSolicitudDialog, InventarioMarketing, CrearInventarioDialog, EditarInventarioDialog)
-// Due to length, I'm truncating here but the file continues with all existing components...
