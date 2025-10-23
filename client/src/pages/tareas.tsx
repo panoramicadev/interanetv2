@@ -1063,38 +1063,38 @@ function EstimacionSemanalTab({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-3 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <div>
-          <h2 className="text-2xl font-bold">Estimación Semanal</h2>
-          <p className="text-muted-foreground mt-1">
+          <h2 className="text-xl sm:text-2xl font-bold">Estimación Semanal</h2>
+          <p className="text-muted-foreground text-sm sm:text-base mt-0.5 sm:mt-1">
             Registra compromisos de compra y compara con ventas reales
           </p>
         </div>
-        <Button onClick={() => setCreatePromesaDialogOpen(true)} data-testid="button-nueva-promesa">
-          <Plus className="mr-2 h-4 w-4" />
+        <Button onClick={() => setCreatePromesaDialogOpen(true)} data-testid="button-nueva-promesa" size="sm" className="sm:h-10">
+          <Plus className="mr-1 sm:mr-2 h-4 w-4" />
           Nueva Promesa
         </Button>
       </div>
 
       {/* Selector de semana */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="py-3 sm:py-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <CardTitle>Selección de Semana</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-base sm:text-lg">Selección de Semana</CardTitle>
+              <CardDescription className="text-xs sm:text-sm mt-0.5">
                 Semana {getISOWeek(selectedWeek)} del {getYear(selectedWeek)} ({format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })})
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={goToPreviousWeek} data-testid="button-semana-anterior">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <Button variant="outline" size="sm" onClick={goToPreviousWeek} data-testid="button-semana-anterior" className="h-8 w-8 p-0 sm:h-9 sm:w-9">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={goToCurrentWeek} data-testid="button-semana-actual">
+              <Button variant="outline" size="sm" onClick={goToCurrentWeek} data-testid="button-semana-actual" className="h-8 px-2 sm:h-9 sm:px-3 text-xs sm:text-sm">
                 Hoy
               </Button>
-              <Button variant="outline" size="sm" onClick={goToNextWeek} data-testid="button-semana-siguiente">
+              <Button variant="outline" size="sm" onClick={goToNextWeek} data-testid="button-semana-siguiente" className="h-8 w-8 p-0 sm:h-9 sm:w-9">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -1103,46 +1103,46 @@ function EstimacionSemanalTab({
       </Card>
 
       {/* Resumen de cumplimiento */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Prometido</CardTitle>
+          <CardHeader className="pb-2 sm:pb-3 pt-3 sm:pt-6 px-3 sm:px-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Prometido</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${resumen.totalPrometido.toLocaleString('es-CL')}</div>
-            <p className="text-xs text-muted-foreground mt-1">{resumen.totalPromesas} promesas</p>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold">${resumen.totalPrometido.toLocaleString('es-CL')}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">{resumen.totalPromesas} promesas</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Vendido</CardTitle>
+          <CardHeader className="pb-2 sm:pb-3 pt-3 sm:pt-6 px-3 sm:px-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Vendido</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${resumen.totalVendido.toLocaleString('es-CL')}</div>
-            <p className="text-xs text-muted-foreground mt-1">Facturas + NVV</p>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold">${resumen.totalVendido.toLocaleString('es-CL')}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">Facturas + NVV</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Cumplidas</CardTitle>
+          <CardHeader className="pb-2 sm:pb-3 pt-3 sm:pt-6 px-3 sm:px-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Cumplidas</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{resumen.cumplidas + resumen.superadas + resumen.medianamenteCumplidas}</div>
-            <p className="text-xs text-muted-foreground mt-1">
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold text-green-600">{resumen.cumplidas + resumen.superadas + resumen.medianamenteCumplidas}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
               {resumen.superadas} superadas, {resumen.medianamenteCumplidas} parcial
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Incumplidas</CardTitle>
+          <CardHeader className="pb-2 sm:pb-3 pt-3 sm:pt-6 px-3 sm:px-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Incumplidas</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{resumen.cumplidasParcialmente + resumen.noCumplidas}</div>
-            <p className="text-xs text-muted-foreground mt-1">
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold text-orange-600">{resumen.cumplidasParcialmente + resumen.noCumplidas}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">
               {resumen.cumplidasParcialmente} con ventas, {resumen.noCumplidas} sin ventas
             </p>
           </CardContent>
@@ -1151,22 +1151,22 @@ function EstimacionSemanalTab({
 
       {/* Lista de promesas con cumplimiento */}
       <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <CardHeader className="py-3 sm:py-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
             <div>
-              <CardTitle>Detalle de Promesas</CardTitle>
-              <CardDescription>Comparación de compromisos vs. ventas reales</CardDescription>
+              <CardTitle className="text-base sm:text-lg">Detalle de Promesas</CardTitle>
+              <CardDescription className="text-xs sm:text-sm mt-0.5">Comparación de compromisos vs. ventas reales</CardDescription>
             </div>
             {/* Filtro por vendedor (solo para admin/supervisor) */}
             {(user?.role === 'admin' || user?.role === 'supervisor') && salespeople.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Label className="text-sm whitespace-nowrap">Vendedor:</Label>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Label className="text-xs sm:text-sm whitespace-nowrap">Vendedor:</Label>
                 <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-                  <SelectTrigger className="w-[200px]" data-testid="select-filtro-vendedor">
+                  <SelectTrigger className="w-full sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-filtro-vendedor">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos los vendedores</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
                     {salespeople.map((salesperson) => (
                       <SelectItem key={salesperson.id} value={salesperson.id}>
                         {salesperson.fullName || salesperson.salespersonName}
@@ -1280,7 +1280,7 @@ function EstimacionSemanalTab({
               </div>
 
               {/* Mobile view */}
-              <div className="lg:hidden space-y-4">
+              <div className="lg:hidden space-y-2">
                 {promesasFiltradas.map((item) => (
                   <Card 
                     key={item.promesa.id} 
@@ -1291,72 +1291,67 @@ function EstimacionSemanalTab({
                       setEditPromesaDialogOpen(true);
                     }}
                   >
-                    <CardContent className="pt-6">
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="font-semibold">{item.promesa.clienteNombre}</p>
+                    <CardContent className="p-3">
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-sm truncate">{item.promesa.clienteNombre}</p>
                             {(user?.role === 'admin' || user?.role === 'supervisor') && (
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-[10px] text-muted-foreground">
                                 Vendedor: {getVendedorNombre(item.promesa.vendedorId)}
                               </p>
                             )}
                             {item.promesa.observaciones && (
-                              <p className="text-sm text-muted-foreground mt-1">{item.promesa.observaciones}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.promesa.observaciones}</p>
                             )}
                           </div>
                           {item.estado === 'superado' && (
-                            <Badge className="bg-green-500 text-white">
-                              <CheckCircle className="mr-1 h-3 w-3" />
+                            <Badge className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
                               Superado
                             </Badge>
                           )}
                           {item.estado === 'cumplido' && (
-                            <Badge className="bg-blue-500 text-white">
-                              <CheckCircle className="mr-1 h-3 w-3" />
+                            <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
                               Cumplido
                             </Badge>
                           )}
                           {item.estado === 'medianamente_cumplido' && (
-                            <Badge className="bg-yellow-500 text-white">
-                              <CheckCircle className="mr-1 h-3 w-3" />
-                              Medianamente Cumplido
+                            <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
+                              Med. Cump.
                             </Badge>
                           )}
                           {item.estado === 'cumplido_parcialmente' && (
-                            <Badge className="bg-orange-500 text-white">
-                              <AlertCircle className="mr-1 h-3 w-3" />
-                              Cumplido Parcialmente
+                            <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5 whitespace-nowrap">
+                              Parcial
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
-                            <Badge variant="destructive">
-                              <XCircle className="mr-1 h-3 w-3" />
-                              No Cumplido
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 whitespace-nowrap">
+                              No Cump.
                             </Badge>
                           )}
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-2">
                           <div>
-                            <p className="text-xs text-muted-foreground">Prometido</p>
-                            <p className="text-lg font-semibold">${parseFloat(item.promesa.montoPrometido).toLocaleString('es-CL')}</p>
+                            <p className="text-[10px] text-muted-foreground">Prometido</p>
+                            <p className="text-sm font-semibold">${(parseFloat(item.promesa.montoPrometido) / 1000000).toFixed(1)}M</p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">Vendido</p>
-                            <p className="text-lg font-semibold">${item.ventasReales.toLocaleString('es-CL')}</p>
+                            <p className="text-[10px] text-muted-foreground">Vendido</p>
+                            <p className="text-sm font-semibold">${(item.ventasReales / 1000000).toFixed(1)}M</p>
                           </div>
-                        </div>
-                        <div className="flex items-center justify-between pt-2 border-t">
-                          <span className="text-sm text-muted-foreground">Cumplimiento</span>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-lg font-semibold ${item.cumplimiento >= 100 ? 'text-green-600' : item.cumplimiento >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
-                              {item.cumplimiento.toFixed(1)}%
-                            </span>
-                            {item.cumplimiento >= 100 ? (
-                              <TrendingUp className="h-5 w-5 text-green-600" />
-                            ) : (
-                              <TrendingDown className="h-5 w-5 text-red-600" />
-                            )}
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">Cumplim.</p>
+                            <div className="flex items-center gap-1">
+                              <span className={`text-sm font-semibold ${item.cumplimiento >= 100 ? 'text-green-600' : item.cumplimiento >= 70 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                {item.cumplimiento.toFixed(0)}%
+                              </span>
+                              {item.cumplimiento >= 100 ? (
+                                <TrendingUp className="h-3 w-3 text-green-600" />
+                              ) : (
+                                <TrendingDown className="h-3 w-3 text-red-600" />
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
