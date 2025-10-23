@@ -41,7 +41,6 @@ import Inventario from "@/pages/inventario";
 import GastosEmpresariales from "@/pages/gastos-empresariales";
 import GastosEmpresarialesForm from "@/pages/gastos-empresariales-form";
 import GastosEmpresarialesDashboard from "@/pages/gastos-empresariales-dashboard";
-import PromesasCompra from "@/pages/promesas-compra";
 import Reception from "@/pages/reception";
 import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
@@ -147,7 +146,6 @@ function Router() {
             <Route path="/gastos-empresariales" component={GastosEmpresariales} />
             <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />
             <Route path="/gastos-empresariales/dashboard" component={GastosEmpresarialesDashboard} />
-            <Route path="/promesas-compra" component={PromesasCompra} />
             <Route path="/etl-monitor" component={ETLMonitor} />
             
             {/* Rutas de Tintometría */}

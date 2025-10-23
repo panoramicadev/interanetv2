@@ -633,8 +633,8 @@ export default function TareasPage() {
               </Form>
             </DialogContent>
           </Dialog>
+            </div>
         )}
-      </div>
 
       {/* Filters and View Toggle */}
       <Card>
