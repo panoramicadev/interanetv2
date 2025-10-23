@@ -11424,45 +11424,49 @@ export class DatabaseStorage implements IStorage {
 
     const resultados = await Promise.all(
       promesas.map(async (promesa) => {
-        // Para clientes potenciales (PROSPECTO), no hay ventas reales
-        if (promesa.clienteTipo === 'potencial' || promesa.clienteId === 'PROSPECTO') {
-          return {
-            promesa,
-            ventasReales: 0,
-            cumplimiento: 0,
-            estado: 'no_cumplido' as const,
-          };
+        let ventasReales = 0;
+
+        // Si hay ventas reales ingresadas manualmente, usar ese valor
+        if (promesa.ventasRealesManual !== null && promesa.ventasRealesManual !== undefined) {
+          ventasReales = parseFloat(promesa.ventasRealesManual as any);
+        } 
+        // Para clientes potenciales (PROSPECTO), no hay ventas reales automáticas
+        else if (promesa.clienteTipo === 'potencial' || promesa.clienteId === 'PROSPECTO') {
+          ventasReales = 0;
         }
-
         // Calcular ventas reales (facturas + NVV) para el cliente en la semana
-        // Usar el nombre del cliente (clienteNombre) para buscar en sales_transactions
-        const ventasFacturas = await db.execute(sql`
-          SELECT COALESCE(SUM(monto), 0) as total
-          FROM sales_transactions
-          WHERE nokoen = ${promesa.clienteNombre}
-            AND feemdo >= ${promesa.fechaInicio}
-            AND feemdo <= ${promesa.fechaFin}
-            AND tido IN ('FCV', 'FVL')
-        `);
+        else {
+          // Usar el nombre del cliente (clienteNombre) para buscar en sales_transactions
+          const ventasFacturas = await db.execute(sql`
+            SELECT COALESCE(SUM(monto), 0) as total
+            FROM sales_transactions
+            WHERE nokoen = ${promesa.clienteNombre}
+              AND feemdo >= ${promesa.fechaInicio}
+              AND feemdo <= ${promesa.fechaFin}
+              AND tido IN ('FCV', 'FVL')
+          `);
 
-        const ventasNvv = await db.execute(sql`
-          SELECT COALESCE(SUM(total_pendiente), 0) as total
-          FROM nvv_pending_sales
-          WHERE "NOKOEN" = ${promesa.clienteNombre}
-            AND "FEEMLI" >= ${promesa.fechaInicio}
-            AND "FEEMLI" <= ${promesa.fechaFin}
-        `);
+          const ventasNvv = await db.execute(sql`
+            SELECT COALESCE(SUM(total_pendiente), 0) as total
+            FROM nvv_pending_sales
+            WHERE "NOKOEN" = ${promesa.clienteNombre}
+              AND "FEEMLI" >= ${promesa.fechaInicio}
+              AND "FEEMLI" <= ${promesa.fechaFin}
+          `);
 
-        const totalFacturas = parseFloat((ventasFacturas.rows[0] as any)?.total || '0');
-        const totalNvv = parseFloat((ventasNvv.rows[0] as any)?.total || '0');
-        const ventasReales = totalFacturas + totalNvv;
+          const totalFacturas = parseFloat((ventasFacturas.rows[0] as any)?.total || '0');
+          const totalNvv = parseFloat((ventasNvv.rows[0] as any)?.total || '0');
+          ventasReales = totalFacturas + totalNvv;
+        }
 
         const montoPrometido = parseFloat(promesa.montoPrometido as any);
         const cumplimiento = montoPrometido > 0 ? (ventasReales / montoPrometido) * 100 : 0;
 
         let estado: 'cumplido' | 'superado' | 'no_cumplido';
-        if (ventasReales >= montoPrometido && montoPrometido > 0) {
-          estado = ventasReales > montoPrometido ? 'superado' : 'cumplido';
+        if (cumplimiento >= 100) {
+          estado = cumplimiento > 100 ? 'superado' : 'cumplido';
+        } else if (cumplimiento >= 70) {
+          estado = 'cumplido'; // Medianamente cumplido
         } else {
           estado = 'no_cumplido';
         }
