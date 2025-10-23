@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -247,6 +247,33 @@ export default function SalespersonDetail({
   const { data: goalsData, isLoading: isLoadingGoals } = useQuery<GoalProgress[]>({
     queryKey: [`/api/goals/progress?selectedPeriod=${selectedPeriod}&type=salesperson&target=${encodeURIComponent(salespersonName || '')}`],
     enabled: !!salespersonName,
+  });
+
+  // Fetch user/salesperson ID from the name
+  const { data: allUsersData } = useQuery<any[]>({
+    queryKey: ['/api/users/salespeople'],
+    enabled: !!salespersonName,
+  });
+
+  // Find the vendedor ID from the salesperson name
+  const vendedorUser = allUsersData?.find((u: any) => 
+    (u.fullName === salespersonName || u.salespersonName === salespersonName)
+  );
+  
+  const vendedorId = vendedorUser?.id;
+
+  // Fetch promesas de compra for the vendedor
+  const { data: promesasVendedor = [], isLoading: isLoadingPromesas } = useQuery<any[]>({
+    queryKey: ['/api/promesas-compra/cumplimiento/reporte', vendedorId],
+    queryFn: async () => {
+      if (!vendedorId) return [];
+      const response = await fetch(`/api/promesas-compra/cumplimiento/reporte?vendedorId=${vendedorId}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) return [];
+      return await response.json();
+    },
+    enabled: !!vendedorId,
   });
 
   // Fetch all salespeople for the selector (only when embedded)
@@ -595,6 +622,112 @@ export default function SalespersonDetail({
                       <p className="text-xs text-gray-600 mb-1">Meta</p>
                       <p className="text-xl font-bold text-gray-900">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
                     </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Promesas de Compra */}
+          {promesasVendedor.length > 0 && (
+            <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50">
+              <CardContent className="pt-6 pb-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-indigo-500 rounded-full p-3">
+                      <FileText className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Promesas de Compra</h3>
+                      <p className="text-sm text-gray-600">Semana actual - {promesasVendedor.length} compromiso(s)</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {promesasVendedor.map((item: any, index: number) => {
+                      const cumplimiento = item.cumplimiento || 0;
+                      const estado = item.estado || 'no_cumplido';
+                      
+                      return (
+                        <div key={index} className="bg-white/70 rounded-xl p-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">{item.promesa?.clienteNombre}</p>
+                              <p className="text-xs text-gray-600 mt-0.5">
+                                {item.promesa?.clienteTipo === 'potencial' ? 'Cliente Potencial' : 'Cliente Activo'}
+                              </p>
+                            </div>
+                            {estado === 'superado' && (
+                              <Badge className="bg-green-500 text-white text-xs">
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                                Superado
+                              </Badge>
+                            )}
+                            {estado === 'cumplido' && (
+                              <Badge className="bg-blue-500 text-white text-xs">
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                                Cumplido
+                              </Badge>
+                            )}
+                            {estado === 'cumplido_parcialmente' && (
+                              <Badge className="bg-yellow-500 text-white text-xs">
+                                <CheckCircle className="mr-1 h-3 w-3" />
+                                Parcial
+                              </Badge>
+                            )}
+                            {estado === 'insuficiente' && (
+                              <Badge className="bg-orange-500 text-white text-xs">
+                                <AlertCircle className="mr-1 h-3 w-3" />
+                                Insuficiente
+                              </Badge>
+                            )}
+                            {estado === 'no_cumplido' && (
+                              <Badge variant="destructive" className="text-xs">
+                                <XCircle className="mr-1 h-3 w-3" />
+                                No Cumplido
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <p className="text-xs text-gray-600">Prometido</p>
+                              <p className="text-sm font-bold text-gray-900">
+                                {formatCurrency(parseFloat(item.promesa?.montoPrometido || '0'))}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-600">Vendido</p>
+                              <p className="text-sm font-bold text-gray-900">
+                                {formatCurrency(item.ventasReales || 0)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-600">Cumplimiento</p>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-sm font-bold ${
+                                  cumplimiento >= 100 ? 'text-green-600' : 
+                                  cumplimiento >= 80 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                  {cumplimiento.toFixed(0)}%
+                                </span>
+                                {cumplimiento >= 100 ? (
+                                  <TrendingUp className="h-3 w-3 text-green-600" />
+                                ) : (
+                                  <TrendingDown className="h-3 w-3 text-red-600" />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {item.promesa?.observaciones && (
+                            <p className="text-xs text-gray-600 italic border-t pt-2">
+                              {item.promesa.observaciones}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </CardContent>
