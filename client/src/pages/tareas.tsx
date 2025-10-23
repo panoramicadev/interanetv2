@@ -97,7 +97,7 @@ interface PromesaCumplimiento {
   promesa: PromesaCompra;
   ventasReales: number;
   cumplimiento: number;
-  estado: 'cumplido' | 'superado' | 'no_cumplido';
+  estado: 'cumplido' | 'superado' | 'medianamente_cumplido' | 'cumplido_parcialmente' | 'no_cumplido';
 }
 
 interface Cliente {
@@ -1051,6 +1051,8 @@ function EstimacionSemanalTab({
     totalVendido: promesasFiltradas.reduce((sum, p) => sum + p.ventasReales, 0),
     cumplidas: promesasFiltradas.filter(p => p.estado === 'cumplido').length,
     superadas: promesasFiltradas.filter(p => p.estado === 'superado').length,
+    medianamenteCumplidas: promesasFiltradas.filter(p => p.estado === 'medianamente_cumplido').length,
+    cumplidasParcialmente: promesasFiltradas.filter(p => p.estado === 'cumplido_parcialmente').length,
     noCumplidas: promesasFiltradas.filter(p => p.estado === 'no_cumplido').length,
   };
 
@@ -1127,19 +1129,21 @@ function EstimacionSemanalTab({
             <CardTitle className="text-sm font-medium">Cumplidas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{resumen.cumplidas + resumen.superadas}</div>
-            <p className="text-xs text-muted-foreground mt-1">{resumen.superadas} superadas</p>
+            <div className="text-2xl font-bold text-green-600">{resumen.cumplidas + resumen.superadas + resumen.medianamenteCumplidas}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {resumen.superadas} superadas, {resumen.medianamenteCumplidas} parcial
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">No Cumplidas</CardTitle>
+            <CardTitle className="text-sm font-medium">Incumplidas</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{resumen.noCumplidas}</div>
+            <div className="text-2xl font-bold text-orange-600">{resumen.cumplidasParcialmente + resumen.noCumplidas}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {resumen.totalPromesas > 0 ? Math.round((resumen.noCumplidas / resumen.totalPromesas) * 100) : 0}% del total
+              {resumen.cumplidasParcialmente} con ventas, {resumen.noCumplidas} sin ventas
             </p>
           </CardContent>
         </Card>
@@ -1243,16 +1247,22 @@ function EstimacionSemanalTab({
                               Superado
                             </Badge>
                           )}
-                          {item.estado === 'cumplido' && item.cumplimiento >= 100 && (
+                          {item.estado === 'cumplido' && (
                             <Badge className="bg-blue-500 text-white">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Cumplido
                             </Badge>
                           )}
-                          {item.estado === 'cumplido' && item.cumplimiento >= 70 && item.cumplimiento < 100 && (
+                          {item.estado === 'medianamente_cumplido' && (
                             <Badge className="bg-yellow-500 text-white">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Medianamente Cumplido
+                            </Badge>
+                          )}
+                          {item.estado === 'cumplido_parcialmente' && (
+                            <Badge className="bg-orange-500 text-white">
+                              <AlertCircle className="mr-1 h-3 w-3" />
+                              Cumplido Parcialmente
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
@@ -1301,16 +1311,22 @@ function EstimacionSemanalTab({
                               Superado
                             </Badge>
                           )}
-                          {item.estado === 'cumplido' && item.cumplimiento >= 100 && (
+                          {item.estado === 'cumplido' && (
                             <Badge className="bg-blue-500 text-white">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Cumplido
                             </Badge>
                           )}
-                          {item.estado === 'cumplido' && item.cumplimiento >= 70 && item.cumplimiento < 100 && (
+                          {item.estado === 'medianamente_cumplido' && (
                             <Badge className="bg-yellow-500 text-white">
                               <CheckCircle className="mr-1 h-3 w-3" />
                               Medianamente Cumplido
+                            </Badge>
+                          )}
+                          {item.estado === 'cumplido_parcialmente' && (
+                            <Badge className="bg-orange-500 text-white">
+                              <AlertCircle className="mr-1 h-3 w-3" />
+                              Cumplido Parcialmente
                             </Badge>
                           )}
                           {item.estado === 'no_cumplido' && (
@@ -1870,11 +1886,13 @@ function EditPromesaDialog({
   const ventasActuales = ventasRealesManual ? parseFloat(ventasRealesManual) : promesa.ventasReales;
   const cumplimientoActual = montoPrometido > 0 ? (ventasActuales / montoPrometido) * 100 : 0;
   
-  let estadoActual: 'cumplido' | 'superado' | 'no_cumplido' | 'medianamente_cumplido';
+  let estadoActual: 'cumplido' | 'superado' | 'medianamente_cumplido' | 'cumplido_parcialmente' | 'no_cumplido';
   if (cumplimientoActual >= 100) {
     estadoActual = cumplimientoActual > 100 ? 'superado' : 'cumplido';
   } else if (cumplimientoActual >= 70) {
     estadoActual = 'medianamente_cumplido';
+  } else if (cumplimientoActual > 0) {
+    estadoActual = 'cumplido_parcialmente';
   } else {
     estadoActual = 'no_cumplido';
   }
@@ -1990,6 +2008,12 @@ function EditPromesaDialog({
                   <Badge className="bg-yellow-500 text-white text-base px-4 py-2">
                     <CheckCircle className="mr-2 h-4 w-4" />
                     Medianamente Cumplido
+                  </Badge>
+                )}
+                {estadoActual === 'cumplido_parcialmente' && (
+                  <Badge className="bg-orange-500 text-white text-base px-4 py-2">
+                    <AlertCircle className="mr-2 h-4 w-4" />
+                    Cumplido Parcialmente
                   </Badge>
                 )}
                 {estadoActual === 'no_cumplido' && (
