@@ -115,8 +115,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
-      href: "/promesas-compra",
-      label: "Promesas de Compra",
+      href: "/tareas",
+      label: "Estimación Semanal",
       icon: HandHeart,
     },
     {
@@ -233,8 +233,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
-      href: "/promesas-compra",
-      label: "Promesas de Compra",
+      href: "/tareas",
+      label: "Estimación Semanal",
       icon: HandHeart,
     },
     {
@@ -321,8 +321,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Banknote,
     },
     {
-      href: "/promesas-compra",
-      label: "Promesas de Compra",
+      href: "/tareas",
+      label: "Estimación Semanal",
       icon: HandHeart,
     },
     {
