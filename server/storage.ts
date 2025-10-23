@@ -2943,16 +2943,28 @@ export class DatabaseStorage implements IStorage {
       .from(salesTransactions)
       .where(and(...conditions));
 
+    // Calculate days since ACTUAL last sale (without period filters)
+    const [actualLastSale] = await db
+      .select({
+        lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
+      })
+      .from(salesTransactions)
+      .where(and(
+        eq(salesTransactions.nokofu, salespersonName),
+        ne(salesTransactions.tido, 'GDV')
+      ));
+
     // Calculate sales frequency (average days between sales)
     const firstSale = new Date(result.firstSale);
     const lastSale = new Date(result.lastSale);
     const daysBetween = Math.max(1, Math.floor((lastSale.getTime() - firstSale.getTime()) / (1000 * 60 * 60 * 24)));
     const salesFrequency = result.transactionCount > 1 ? daysBetween / result.transactionCount : 0;
 
-    // Calculate days since last sale
+    // Calculate days since REAL last sale (from all sales, not filtered)
     const now = new Date();
-    const daysSinceLastSale = result.lastSale 
-      ? Math.floor((now.getTime() - lastSale.getTime()) / (1000 * 60 * 60 * 24))
+    const realLastSale = actualLastSale.lastSale ? new Date(actualLastSale.lastSale) : null;
+    const daysSinceLastSale = realLastSale
+      ? Math.floor((now.getTime() - realLastSale.getTime()) / (1000 * 60 * 60 * 24))
       : 0;
 
     return {
@@ -2962,7 +2974,7 @@ export class DatabaseStorage implements IStorage {
       averageTicket: Number(result.averageTicket),
       salesFrequency: Number(salesFrequency.toFixed(1)),
       daysSinceLastSale: daysSinceLastSale,
-      lastSaleDate: result.lastSale || null
+      lastSaleDate: actualLastSale.lastSale || null  // Use actual last sale, not filtered
     };
   }
 
