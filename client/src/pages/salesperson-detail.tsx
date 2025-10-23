@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, startOfWeek, addWeeks, subWeeks, getWeek, startOfMonth, getISOWeek } from "date-fns";
+import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -149,6 +150,9 @@ export default function SalespersonDetail({
   
   // Segment filter state
   const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
+  
+  // Promesas week selector - initialize to current week
+  const [selectedPromesaWeek, setSelectedPromesaWeek] = useState<Date>(() => new Date());
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -262,12 +266,18 @@ export default function SalespersonDetail({
   
   const vendedorId = vendedorUser?.id;
 
-  // Fetch promesas de compra for the vendedor
+  // Calculate week boundaries for promesas
+  const weekStart = startOfWeek(selectedPromesaWeek, { weekStartsOn: 1 });
+  const weekEnd = addWeeks(weekStart, 1);
+  const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+  const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+
+  // Fetch promesas de compra for the vendedor and selected week
   const { data: promesasVendedor = [], isLoading: isLoadingPromesas } = useQuery<any[]>({
-    queryKey: ['/api/promesas-compra/cumplimiento/reporte', vendedorId],
+    queryKey: ['/api/promesas-compra/cumplimiento/reporte', vendedorId, weekStartStr, weekEndStr],
     queryFn: async () => {
       if (!vendedorId) return [];
-      const response = await fetch(`/api/promesas-compra/cumplimiento/reporte?vendedorId=${vendedorId}`, {
+      const response = await fetch(`/api/promesas-compra/cumplimiento/reporte?vendedorId=${vendedorId}&startDate=${weekStartStr}&endDate=${weekEndStr}`, {
         credentials: 'include',
       });
       if (!response.ok) return [];
@@ -332,6 +342,20 @@ export default function SalespersonDetail({
     if (days <= 7) return 'text-green-600';
     if (days <= 30) return 'text-yellow-600';
     return 'text-red-600';
+  };
+
+  const getWeekLabel = (date: Date) => {
+    const monthStart = startOfMonth(date);
+    const weekOfMonth = Math.ceil(getWeek(date, { weekStartsOn: 1 }) - getWeek(monthStart, { weekStartsOn: 1 }) + 1);
+    const monthName = format(date, 'MMMM', { locale: es });
+    return `Semana ${weekOfMonth} de ${monthName}`;
+  };
+
+  const isCurrentWeek = (date: Date) => {
+    const now = new Date();
+    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const selectedWeekStart = startOfWeek(date, { weekStartsOn: 1 });
+    return currentWeekStart.getTime() === selectedWeekStart.getTime();
   };
 
   return (
@@ -720,22 +744,65 @@ export default function SalespersonDetail({
           </div>
 
           {/* Promesas de Compra */}
-          {promesasVendedor.length > 0 && (
+          {(promesasVendedor.length > 0 || isLoadingPromesas) && (
             <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50">
               <CardContent className="pt-6 pb-6">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-indigo-500 rounded-full p-3">
-                      <FileText className="h-6 w-6 text-white" />
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-indigo-500 rounded-full p-3">
+                        <FileText className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">Promesas de Compra</h3>
+                        <p className="text-sm text-gray-600">
+                          {isCurrentWeek(selectedPromesaWeek) ? 'Semana actual' : getWeekLabel(selectedPromesaWeek)} - {promesasVendedor.length} compromiso(s)
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">Promesas de Compra</h3>
-                      <p className="text-sm text-gray-600">Semana actual - {promesasVendedor.length} compromiso(s)</p>
+                    
+                    {/* Week selector */}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedPromesaWeek(subWeeks(selectedPromesaWeek, 1))}
+                        className="h-8 w-8 p-0 bg-white/70 hover:bg-white border-indigo-200"
+                        data-testid="button-previous-week"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </Button>
+                      <div className="text-xs font-medium text-gray-700 min-w-[100px] text-center">
+                        {getWeekLabel(selectedPromesaWeek)}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedPromesaWeek(addWeeks(selectedPromesaWeek, 1))}
+                        disabled={isCurrentWeek(selectedPromesaWeek)}
+                        className="h-8 w-8 p-0 bg-white/70 hover:bg-white border-indigo-200 disabled:opacity-50"
+                        data-testid="button-next-week"
+                      >
+                        <ArrowLeft className="h-4 w-4 rotate-180" />
+                      </Button>
                     </div>
                   </div>
                   
-                  <div className="space-y-3">
-                    {promesasVendedor.map((item: any, index: number) => {
+                  {isLoadingPromesas ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-pulse text-gray-500">Cargando promesas...</div>
+                    </div>
+                  ) : promesasVendedor.length === 0 ? (
+                    <div className="bg-white/70 rounded-xl p-8 text-center">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600 font-medium">No hay promesas registradas</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        para {getWeekLabel(selectedPromesaWeek).toLowerCase()}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {promesasVendedor.map((item: any, index: number) => {
                       const cumplimiento = item.cumplimiento || 0;
                       const estado = item.estado || 'no_cumplido';
                       
@@ -820,6 +887,7 @@ export default function SalespersonDetail({
                       );
                     })}
                   </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
