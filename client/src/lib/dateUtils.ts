@@ -3,13 +3,23 @@
  */
 
 /**
- * Formats a Date object for API submission as YYYY-MM-DD
+ * Formats a Date object or date string for API submission as YYYY-MM-DD
  * Ensures the date is normalized to local midnight to avoid timezone shifts
  * 
  * Example: User selects Oct 23, 2025 → Always sends "2025-10-23" regardless of timezone
  */
-export function formatDateForAPI(date: Date | null | undefined): string | null {
+export function formatDateForAPI(date: Date | string | null | undefined): string | null {
   if (!date) return null;
+  
+  // If it's already a string in YYYY-MM-DD format from an HTML input, return as-is
+  if (typeof date === 'string') {
+    // Validate format YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return date;
+    }
+    // Try to parse it as a date string
+    date = new Date(date);
+  }
   
   // Create a new date at local midnight to avoid timezone shifts
   const localDate = new Date(date);
