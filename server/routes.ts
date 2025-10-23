@@ -8629,6 +8629,7 @@ export function registerRoutes(app: Express): Server {
       const resultados = await storage.getPromesasConCumplimiento(filters);
       res.json(resultados);
     } catch (error: any) {
+      console.error('[ERROR] /api/promesas-compra/cumplimiento/reporte:', error);
       res.status(500).json({ message: 'Error al obtener reporte de cumplimiento', error: error.message });
     }
   }));
