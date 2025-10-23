@@ -32,7 +32,7 @@ import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_175942
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
     // Inicializar con el mes actual por defecto
     return format(new Date(), "yyyy-MM");
@@ -424,6 +424,18 @@ export default function Dashboard() {
     return options;
   };
 
+  // Auto-configure salesperson view when a salesperson logs in
+  useEffect(() => {
+    if (user && user.role === 'salesperson' && globalFilter.type === 'all') {
+      // Get salesperson name from fullName or salespersonName
+      const salespersonName = user.fullName || user.salespersonName;
+      if (salespersonName) {
+        setGlobalFilter({ type: 'salesperson', value: salespersonName });
+        setSelectedFilter('salesperson');
+      }
+    }
+  }, [user, globalFilter.type]);
+
   // Redirect to home if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -456,9 +468,14 @@ export default function Dashboard() {
 
   // Si hay un vendedor seleccionado, mostrar el dashboard del vendedor embedido
   if (globalFilter.type === "salesperson" && globalFilter.value) {
+    // Only allow back if user is not a salesperson (admin/supervisor can navigate back)
+    const canNavigateBack = user?.role !== 'salesperson';
+    
     const handleBack = () => {
-      setGlobalFilter({ type: "all" });
-      setSelectedFilter("all");
+      if (canNavigateBack) {
+        setGlobalFilter({ type: "all" });
+        setSelectedFilter("all");
+      }
     };
     
     const handleSalespersonChange = (newSalesperson: string) => {
@@ -484,7 +501,7 @@ export default function Dashboard() {
         key={globalFilter.value} // Force remount when salesperson changes
         salespersonName={globalFilter.value} 
         embedded={true}
-        onBack={handleBack}
+        onBack={canNavigateBack ? handleBack : undefined}
         onSalespersonChange={handleSalespersonChange}
         onDateFilterChange={handleDateFilterChange}
         dashboardGlobalFilter={globalFilter}
