@@ -36,6 +36,7 @@ import QuotesPage from "@/pages/quotes";
 import OrdersPage from "@/pages/orders";
 import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
 import ReclamosGeneralesPage from "@/pages/reclamos-generales";
+import MantencionesPage from "@/pages/mantenciones";
 import Marketing from "@/pages/marketing";
 import Inventario from "@/pages/inventario";
 import GastosEmpresariales from "@/pages/gastos-empresariales";
@@ -141,6 +142,7 @@ function Router() {
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
             <Route path="/reclamos-generales" component={ReclamosGeneralesPage} />
+            <Route path="/mantenciones" component={MantencionesPage} />
             <Route path="/marketing" component={Marketing} />
             <Route path="/inventario" component={Inventario} />
             <Route path="/gastos-empresariales" component={GastosEmpresariales} />
