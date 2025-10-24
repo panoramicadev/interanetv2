@@ -3377,7 +3377,7 @@ export const insertSolicitudMantencionSchema = createInsertSchema(solicitudesMan
 }).extend({
   equipoNombre: z.string().min(1, "El nombre del equipo es requerido"),
   area: z.string().min(1, "El área es requerida"),
-  descripcionProblema: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
+  descripcionProblema: z.string().min(5, "La descripción debe tener al menos 5 caracteres"),
   gravedad: z.enum(["baja", "media", "alta", "critica"]),
   estado: z.enum(["registrado", "en_reparacion", "resuelto", "cerrado"]).optional(),
   tipoMantencion: z.enum(["preventivo", "correctivo", "predictivo"]).optional(),
