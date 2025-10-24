@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { UnifiedDateSelector } from "@/components/dashboard/unified-date-selector";
 import { ComparisonSelector } from "@/components/dashboard/comparison-selector";
-import { Calendar, GitCompare, Info } from "lucide-react";
+import { EntityFilterSelector } from "@/components/dashboard/entity-filter-selector";
+import { Calendar, GitCompare, Info, Filter } from "lucide-react";
 
 interface DateSelection {
   type: "year" | "years" | "month" | "months" | "range";
@@ -13,7 +14,14 @@ interface DateSelection {
   endDate?: Date;
 }
 
+interface EntityFilter {
+  dimension: "all" | "segment" | "salesperson" | "client";
+  value?: string;
+  label?: string;
+}
+
 export default function DateSelectorDemo() {
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>({ dimension: "all" });
   const [selectedPeriod, setSelectedPeriod] = useState<DateSelection | null>(null);
   const [comparisons, setComparisons] = useState<DateSelection[]>([]);
 
@@ -27,6 +35,44 @@ export default function DateSelectorDemo() {
             Un solo calendario para seleccionar años, meses o rangos de fechas
           </p>
         </div>
+
+        {/* Entity Filter Selector */}
+        <Card className="border-2 border-green-100">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-green-600 flex-shrink-0" />
+              <CardTitle className="text-sm font-semibold">Selector de Contexto</CardTitle>
+            </div>
+            <CardDescription className="text-xs">
+              Filtra por vendedor, segmento, cliente o ver todos
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700 w-20">
+                  Filtrar:
+                </label>
+                <EntityFilterSelector
+                  value={entityFilter}
+                  onChange={setEntityFilter}
+                />
+              </div>
+
+              {/* Display Selected Filter */}
+              {entityFilter.dimension !== "all" && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
+                  <Filter className="h-4 w-4 text-green-600 flex-shrink-0" />
+                  <span className="text-sm font-medium text-green-900">
+                    {entityFilter.dimension === "segment" && `Segmento: ${entityFilter.label}`}
+                    {entityFilter.dimension === "salesperson" && `Vendedor: ${entityFilter.label}`}
+                    {entityFilter.dimension === "client" && `Cliente: ${entityFilter.label}`}
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Selectors in Two Columns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
