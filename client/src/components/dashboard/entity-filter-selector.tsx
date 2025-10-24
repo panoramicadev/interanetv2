@@ -153,17 +153,17 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="w-[280px] p-0" align="start">
         {/* Step 1: Select Dimension */}
         {step === "dimension" && (
           <>
-            <div className="p-2 bg-gray-50 border-b">
-              <h4 className="font-semibold text-xs mb-0.5">Selecciona una vista</h4>
-              <p className="text-[10px] text-gray-500">
+            <div className="p-1.5 bg-gray-50 border-b">
+              <h4 className="font-semibold text-[11px] leading-tight">Selecciona una vista</h4>
+              <p className="text-[9px] text-gray-500 leading-tight">
                 Elige cómo quieres filtrar los datos
               </p>
             </div>
-            <div className="p-2 space-y-1">
+            <div className="p-1.5 space-y-0.5">
               {DIMENSIONS.map((dimension) => {
                 const Icon = dimension.icon;
                 const isSelected = selectedDimension === dimension.id;
@@ -172,16 +172,16 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
                   <Button
                     key={dimension.id}
                     variant={isSelected ? "default" : "ghost"}
-                    className="w-full h-auto py-2 px-3 justify-start text-left"
+                    className="w-full h-auto py-1.5 px-2 justify-start text-left"
                     onClick={() => handleDimensionClick(dimension.id)}
                     data-testid={`dimension-${dimension.id}`}
                   >
-                    <Icon className={`h-3.5 w-3.5 mr-2 shrink-0 ${isSelected ? 'text-white' : ''}`} />
+                    <Icon className={`h-3 w-3 mr-1.5 shrink-0 ${isSelected ? 'text-white' : ''}`} />
                     <div className="flex-1 min-w-0">
-                      <div className={`text-xs font-medium ${isSelected ? 'text-white' : ''}`}>{dimension.label}</div>
-                      <div className={`text-xs ${isSelected ? 'text-white/90' : 'text-muted-foreground'}`}>{dimension.description}</div>
+                      <div className={`text-[11px] font-medium leading-tight ${isSelected ? 'text-white' : ''}`}>{dimension.label}</div>
+                      <div className={`text-[10px] leading-tight ${isSelected ? 'text-white/90' : 'text-muted-foreground'}`}>{dimension.description}</div>
                     </div>
-                    {isSelected && <Check className="h-3.5 w-3.5 ml-2 shrink-0 text-white" />}
+                    {isSelected && <Check className="h-3 w-3 ml-1 shrink-0 text-white" />}
                   </Button>
                 );
               })}
@@ -192,31 +192,31 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
         {/* Step 2: Select Value */}
         {step === "value" && (
           <>
-            <div className="p-2 bg-gray-50 border-b flex items-center justify-between">
-              <div>
-                <h4 className="font-semibold text-xs mb-0.5">Selecciona {selectedDimensionData?.label}</h4>
-                <p className="text-[10px] text-gray-500">
+            <div className="p-1.5 bg-gray-50 border-b flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <h4 className="font-semibold text-[11px] leading-tight truncate">Selecciona {selectedDimensionData?.label}</h4>
+                <p className="text-[9px] text-gray-500 leading-tight">
                   Elige un valor específico
                 </p>
               </div>
               <Button
                 variant="ghost"
-                className="h-6 text-[10px] px-2"
+                className="h-5 text-[10px] px-1.5 ml-1 shrink-0"
                 onClick={handleBackToDimension}
                 data-testid="button-back-dimension"
               >
                 ← Atrás
               </Button>
             </div>
-            <div className="p-2 space-y-1 max-h-[300px] overflow-y-auto">
+            <div className="p-1.5 space-y-0.5 max-h-[180px] overflow-y-auto">
               {isLoading ? (
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {[...Array(5)].map((_, i) => (
-                    <Skeleton key={i} className="h-7 w-full" />
+                    <Skeleton key={i} className="h-6 w-full" />
                   ))}
                 </div>
               ) : getOptions().length === 0 ? (
-                <div className="text-center py-6 text-sm text-gray-400">
+                <div className="text-center py-4 text-xs text-gray-400">
                   No hay opciones disponibles
                 </div>
               ) : (
@@ -224,7 +224,7 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
                   <Button
                     key={option}
                     variant={selectedValue === option ? "default" : "ghost"}
-                    className="w-full h-7 text-xs justify-start"
+                    className="w-full h-6 text-[11px] justify-start px-2"
                     onClick={() => handleValueClick(option)}
                     data-testid={`option-${option}`}
                   >
@@ -235,17 +235,17 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
               )}
             </div>
             <Separator />
-            <div className="flex justify-end gap-2 p-2 bg-gray-50">
+            <div className="flex justify-end gap-1.5 p-1.5 bg-gray-50">
               <Button
                 variant="outline"
-                className="h-7 text-xs px-3"
+                className="h-6 text-[11px] px-2.5"
                 onClick={() => setOpen(false)}
                 data-testid="button-cancel"
               >
                 Cancelar
               </Button>
               <Button
-                className="h-7 text-xs px-3"
+                className="h-6 text-[11px] px-2.5"
                 onClick={handleApply}
                 disabled={!selectedValue}
                 data-testid="button-apply"
