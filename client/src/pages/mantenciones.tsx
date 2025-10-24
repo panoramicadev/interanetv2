@@ -32,6 +32,7 @@ import { es } from "date-fns/locale";
 
 interface MantencionWithDetails extends SolicitudMantencion {
   photos: MantencionPhoto[];
+  resolucionPhotos: MantencionPhoto[];
   historial: Array<{
     id: string;
     estadoAnterior: string | null;
@@ -79,6 +80,8 @@ export default function MantencionesPage() {
   const [selectedMantencion, setSelectedMantencion] = useState<MantencionWithDetails | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ url: string; description?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resolutionFileInputRef = useRef<HTMLInputElement>(null);
   const [gravedad, setGravedad] = useState('media');
@@ -218,45 +221,47 @@ export default function MantencionesPage() {
     }
 
     return (
-      <Table data-testid="table-mantenciones">
-        <TableHeader>
-          <TableRow>
-            <TableHead>Equipo</TableHead>
-            <TableHead>Área</TableHead>
-            <TableHead>Problema</TableHead>
-            <TableHead>Gravedad</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead>Creado</TableHead>
-            <TableHead>Acciones</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredMantenciones.map((mantencion) => (
-            <TableRow key={mantencion.id} data-testid={`row-mantencion-${mantencion.id}`}>
-              <TableCell className="font-medium">{mantencion.equipoNombre}</TableCell>
-              <TableCell>{mantencion.area}</TableCell>
-              <TableCell className="max-w-xs truncate">{mantencion.descripcionProblema}</TableCell>
-              <TableCell>{getGravedadBadge(mantencion.gravedad)}</TableCell>
-              <TableCell>{getEstadoBadge(mantencion.estado)}</TableCell>
-              <TableCell>{mantencion.createdAt && format(new Date(mantencion.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}</TableCell>
-              <TableCell>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedMantencion(mantencion);
-                    setIsDetailsDialogOpen(true);
-                  }}
-                  data-testid={`button-ver-detalles-${mantencion.id}`}
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Ver
-                </Button>
-              </TableCell>
+      <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
+        <Table data-testid="table-mantenciones">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="min-w-[150px]">Equipo</TableHead>
+              <TableHead className="min-w-[120px]">Área</TableHead>
+              <TableHead className="min-w-[200px] hidden lg:table-cell">Problema</TableHead>
+              <TableHead className="min-w-[100px]">Gravedad</TableHead>
+              <TableHead className="min-w-[100px]">Estado</TableHead>
+              <TableHead className="min-w-[120px] hidden md:table-cell">Creado</TableHead>
+              <TableHead className="min-w-[80px]">Acciones</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {filteredMantenciones.map((mantencion) => (
+              <TableRow key={mantencion.id} data-testid={`row-mantencion-${mantencion.id}`}>
+                <TableCell className="font-medium">{mantencion.equipoNombre}</TableCell>
+                <TableCell className="text-sm">{mantencion.area}</TableCell>
+                <TableCell className="max-w-xs truncate hidden lg:table-cell">{mantencion.descripcionProblema}</TableCell>
+                <TableCell>{getGravedadBadge(mantencion.gravedad)}</TableCell>
+                <TableCell>{getEstadoBadge(mantencion.estado)}</TableCell>
+                <TableCell className="text-sm hidden md:table-cell">{mantencion.createdAt && format(new Date(mantencion.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedMantencion(mantencion);
+                      setIsDetailsDialogOpen(true);
+                    }}
+                    data-testid={`button-ver-detalles-${mantencion.id}`}
+                  >
+                    <Eye className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Ver</span>
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     );
   };
 
@@ -305,7 +310,7 @@ export default function MantencionesPage() {
               <div className="space-y-4">
                 <ScrollArea className="max-h-[50vh]">
                   <div className="space-y-4 pr-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="equipoNombre">Nombre del Equipo *</Label>
                         <Input
@@ -327,7 +332,7 @@ export default function MantencionesPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="area">Área *</Label>
                         <Select value={area} onValueChange={setArea} required>
@@ -355,7 +360,7 @@ export default function MantencionesPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="gravedad">Gravedad *</Label>
                         <Select value={gravedad} onValueChange={setGravedad} required>
@@ -498,7 +503,7 @@ export default function MantencionesPage() {
           </DialogHeader>
           {selectedMantencion && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Estado</Label>
                   <div className="mt-1">{getEstadoBadge(selectedMantencion.estado)}</div>
@@ -535,13 +540,18 @@ export default function MantencionesPage() {
               {selectedMantencion.photos && selectedMantencion.photos.length > 0 && (
                 <div>
                   <Label className="text-muted-foreground">Fotos del Problema</Label>
-                  <div className="grid grid-cols-3 gap-4 mt-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 mt-2">
                     {selectedMantencion.photos.map((photo) => (
-                      <div key={photo.id} className="relative aspect-video bg-muted rounded-lg overflow-hidden">
+                      <div key={photo.id} className="relative group">
                         <img
                           src={photo.photoUrl}
-                          alt="Foto del problema"
-                          className="object-cover w-full h-full"
+                          alt={photo.description || 'Foto del problema'}
+                          className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => {
+                            setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
+                            setShowImageModal(true);
+                          }}
+                          data-testid={`img-mantencion-${photo.id}`}
                         />
                       </div>
                     ))}
@@ -550,14 +560,38 @@ export default function MantencionesPage() {
               )}
 
               {selectedMantencion.resolucionDescripcion && (
-                <div className="border-t pt-4">
-                  <Label className="text-muted-foreground">Descripción de la Resolución</Label>
-                  <p className="mt-1 whitespace-pre-wrap">{selectedMantencion.resolucionDescripcion}</p>
-                  {selectedMantencion.fechaResolucion && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Resuelto el {format(new Date(selectedMantencion.fechaResolucion), 'dd/MM/yyyy HH:mm', { locale: es })}
-                      {selectedMantencion.resolucionUsuarioName && ` por ${selectedMantencion.resolucionUsuarioName}`}
-                    </p>
+                <div className="border-t pt-4 space-y-4">
+                  <div>
+                    <Label className="text-muted-foreground">Descripción de la Resolución</Label>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedMantencion.resolucionDescripcion}</p>
+                    {selectedMantencion.fechaResolucion && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Resuelto el {format(new Date(selectedMantencion.fechaResolucion), 'dd/MM/yyyy HH:mm', { locale: es })}
+                        {selectedMantencion.resolucionUsuarioName && ` por ${selectedMantencion.resolucionUsuarioName}`}
+                      </p>
+                    )}
+                  </div>
+
+                  {selectedMantencion.resolucionPhotos && selectedMantencion.resolucionPhotos.length > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground">Fotos de la Resolución</Label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 mt-2">
+                        {selectedMantencion.resolucionPhotos.map((photo) => (
+                          <div key={photo.id} className="relative group">
+                            <img
+                              src={photo.photoUrl}
+                              alt={photo.description || 'Foto de resolución'}
+                              className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => {
+                                setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
+                                setShowImageModal(true);
+                              }}
+                              data-testid={`img-resolucion-${photo.id}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -647,6 +681,24 @@ export default function MantencionesPage() {
               </DialogFooter>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Image Modal */}
+      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+        <DialogContent className="max-w-4xl p-0">
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle>{selectedImage?.description || 'Vista de imagen'}</DialogTitle>
+          </DialogHeader>
+          <div className="p-6 pt-4">
+            {selectedImage && (
+              <img
+                src={selectedImage.url}
+                alt={selectedImage.description || 'Imagen ampliada'}
+                className="w-full h-auto rounded-lg"
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
