@@ -131,6 +131,19 @@ import {
   type InsertReclamoGeneralResolucionPhoto,
   type ReclamoGeneralHistorial,
   type InsertReclamoGeneralHistorial,
+  // Mantención module tables
+  solicitudesMantencion,
+  mantencionPhotos,
+  mantencionResolucionPhotos,
+  mantencionHistorial,
+  type SolicitudMantencion,
+  type InsertSolicitudMantencion,
+  type MantencionPhoto,
+  type InsertMantencionPhoto,
+  type MantencionResolucionPhoto,
+  type InsertMantencionResolucionPhoto,
+  type MantencionHistorial,
+  type InsertMantencionHistorial,
   // Marketing module tables
   presupuestoMarketing,
   solicitudesMarketing,
@@ -1018,6 +1031,54 @@ export interface IStorage {
   
   // Cerrar reclamo
   cerrarReclamoGeneral(id: string, userId: string, userName: string, notas?: string, photos?: Array<{ photoUrl: string; description?: string }>): Promise<ReclamoGeneral>;
+
+  // ==================================================================================
+  // MANTENCIÓN MODULE operations
+  // ==================================================================================
+  
+  // Solicitudes de Mantención operations
+  createSolicitudMantencion(solicitud: InsertSolicitudMantencion): Promise<SolicitudMantencion>;
+  getSolicitudesMantencion(filters?: {
+    solicitanteId?: string;
+    tecnicoAsignadoId?: string;
+    estado?: string;
+    gravedad?: string;
+    area?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SolicitudMantencion[]>;
+  getSolicitudMantencionById(id: string): Promise<SolicitudMantencion | undefined>;
+  updateSolicitudMantencion(id: string, updates: Partial<InsertSolicitudMantencion>): Promise<SolicitudMantencion>;
+  deleteSolicitudMantencion(id: string): Promise<void>;
+
+  // Mantención Photos operations
+  createMantencionPhoto(photo: InsertMantencionPhoto): Promise<MantencionPhoto>;
+  getMantencionPhotos(mantencionId: string): Promise<MantencionPhoto[]>;
+  deleteMantencionPhoto(id: string): Promise<void>;
+
+  // Mantención Historial operations
+  createMantencionHistorial(historial: InsertMantencionHistorial): Promise<MantencionHistorial>;
+  getMantencionHistorial(mantencionId: string): Promise<MantencionHistorial[]>;
+
+  // Combined operations
+  getSolicitudMantencionWithDetails(id: string): Promise<(SolicitudMantencion & { 
+    photos: MantencionPhoto[];
+    historial: MantencionHistorial[];
+    resolucionPhotos: MantencionResolucionPhoto[];
+  }) | undefined>;
+  
+  // Asignar técnico
+  assignTecnicoToMantencion(id: string, tecnicoId: string, tecnicoName: string, userId: string, userName: string): Promise<SolicitudMantencion>;
+  
+  // Cambiar estado
+  updateMantencionEstado(id: string, nuevoEstado: string, userId: string, userName: string, notas?: string): Promise<SolicitudMantencion>;
+  
+  // Resolución (solo produccion)
+  updateResolucionMantencion(id: string, resolucionDescripcion: string, photos: Array<{ photoUrl: string; description?: string }>, userId: string, userName: string, costoReal?: number, tiempoReal?: number, repuestosUtilizados?: string): Promise<SolicitudMantencion | null>;
+  getMantencionResolucionPhotos(mantencionId: string): Promise<MantencionResolucionPhoto[]>;
+  
+  // Cerrar solicitud de mantención
+  cerrarMantencion(id: string, userId: string, userName: string, notas?: string): Promise<SolicitudMantencion>;
 
   // ==================================================================================
   // MARKETING MODULE operations
@@ -10617,6 +10678,366 @@ export class DatabaseStorage implements IStorage {
       userId,
       userName,
       notas: notasConFotos,
+    });
+    
+    return updated;
+  }
+
+  // ==================================================================================
+  // MANTENCIÓN OPERATIONS
+  // ==================================================================================
+
+  async createSolicitudMantencion(solicitud: InsertSolicitudMantencion): Promise<SolicitudMantencion> {
+    const [newSolicitud] = await db
+      .insert(solicitudesMantencion)
+      .values(solicitud)
+      .returning();
+    
+    // Create initial historial entry
+    await this.createMantencionHistorial({
+      mantencionId: newSolicitud.id,
+      estadoAnterior: null,
+      estadoNuevo: 'registrado',
+      userId: newSolicitud.solicitanteId,
+      userName: newSolicitud.solicitanteName || 'Usuario',
+      notas: 'Solicitud de mantención creada',
+    });
+
+    return newSolicitud;
+  }
+
+  async getSolicitudesMantencion(filters?: {
+    solicitanteId?: string;
+    tecnicoAsignadoId?: string;
+    estado?: string;
+    gravedad?: string;
+    area?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<SolicitudMantencion[]> {
+    const conditions = [];
+    
+    if (filters?.solicitanteId) {
+      conditions.push(eq(solicitudesMantencion.solicitanteId, filters.solicitanteId));
+    }
+    if (filters?.tecnicoAsignadoId) {
+      conditions.push(eq(solicitudesMantencion.tecnicoAsignadoId, filters.tecnicoAsignadoId));
+    }
+    if (filters?.estado) {
+      conditions.push(eq(solicitudesMantencion.estado, filters.estado));
+    }
+    if (filters?.gravedad) {
+      conditions.push(eq(solicitudesMantencion.gravedad, filters.gravedad));
+    }
+    if (filters?.area) {
+      conditions.push(eq(solicitudesMantencion.area, filters.area));
+    }
+
+    let query = db
+      .select()
+      .from(solicitudesMantencion)
+      .orderBy(desc(solicitudesMantencion.fechaSolicitud));
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+
+    if (filters?.offset) {
+      query = query.offset(filters.offset);
+    }
+
+    return query;
+  }
+
+  async getSolicitudMantencionById(id: string): Promise<SolicitudMantencion | undefined> {
+    const [solicitud] = await db
+      .select()
+      .from(solicitudesMantencion)
+      .where(eq(solicitudesMantencion.id, id));
+    return solicitud;
+  }
+
+  async updateSolicitudMantencion(id: string, updates: Partial<InsertSolicitudMantencion>): Promise<SolicitudMantencion> {
+    const [updated] = await db
+      .update(solicitudesMantencion)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(solicitudesMantencion.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSolicitudMantencion(id: string): Promise<void> {
+    await db.delete(solicitudesMantencion).where(eq(solicitudesMantencion.id, id));
+  }
+
+  // Mantención Photos operations
+  async createMantencionPhoto(photo: InsertMantencionPhoto): Promise<MantencionPhoto> {
+    const [newPhoto] = await db
+      .insert(mantencionPhotos)
+      .values(photo)
+      .returning();
+    return newPhoto;
+  }
+
+  async getMantencionPhotos(mantencionId: string): Promise<MantencionPhoto[]> {
+    return db
+      .select()
+      .from(mantencionPhotos)
+      .where(eq(mantencionPhotos.mantencionId, mantencionId))
+      .orderBy(desc(mantencionPhotos.uploadedAt));
+  }
+
+  async deleteMantencionPhoto(id: string): Promise<void> {
+    await db.delete(mantencionPhotos).where(eq(mantencionPhotos.id, id));
+  }
+
+  // Mantención Resolución Photos operations
+  async getMantencionResolucionPhotos(mantencionId: string): Promise<MantencionResolucionPhoto[]> {
+    return db
+      .select()
+      .from(mantencionResolucionPhotos)
+      .where(eq(mantencionResolucionPhotos.mantencionId, mantencionId))
+      .orderBy(desc(mantencionResolucionPhotos.uploadedAt));
+  }
+
+  // Mantención Historial operations
+  async createMantencionHistorial(historial: InsertMantencionHistorial): Promise<MantencionHistorial> {
+    const [newHistorial] = await db
+      .insert(mantencionHistorial)
+      .values(historial)
+      .returning();
+    return newHistorial;
+  }
+
+  async getMantencionHistorial(mantencionId: string): Promise<MantencionHistorial[]> {
+    return db
+      .select()
+      .from(mantencionHistorial)
+      .where(eq(mantencionHistorial.mantencionId, mantencionId))
+      .orderBy(desc(mantencionHistorial.createdAt));
+  }
+
+  // Combined operations
+  async getSolicitudMantencionWithDetails(id: string): Promise<(SolicitudMantencion & { 
+    photos: MantencionPhoto[];
+    historial: MantencionHistorial[];
+    resolucionPhotos: MantencionResolucionPhoto[];
+  }) | undefined> {
+    const solicitud = await this.getSolicitudMantencionById(id);
+    if (!solicitud) return undefined;
+
+    const [photos, historial, resolucionPhotos] = await Promise.all([
+      this.getMantencionPhotos(id),
+      this.getMantencionHistorial(id),
+      this.getMantencionResolucionPhotos(id),
+    ]);
+
+    return {
+      ...solicitud,
+      photos,
+      historial,
+      resolucionPhotos,
+    };
+  }
+
+  // Asignar técnico
+  async assignTecnicoToMantencion(
+    id: string,
+    tecnicoId: string,
+    tecnicoName: string,
+    userId: string,
+    userName: string
+  ): Promise<SolicitudMantencion> {
+    const solicitud = await this.getSolicitudMantencionById(id);
+    
+    if (!solicitud) {
+      throw new Error('Solicitud de mantención not found');
+    }
+
+    const [updated] = await db
+      .update(solicitudesMantencion)
+      .set({
+        tecnicoAsignadoId: tecnicoId,
+        tecnicoAsignadoName: tecnicoName,
+        fechaAsignacion: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(solicitudesMantencion.id, id))
+      .returning();
+
+    // Create historial entry
+    await this.createMantencionHistorial({
+      mantencionId: id,
+      estadoAnterior: solicitud.estado,
+      estadoNuevo: solicitud.estado,
+      userId,
+      userName,
+      notas: `Técnico asignado: ${tecnicoName}`,
+    });
+
+    return updated;
+  }
+
+  // Cambiar estado
+  async updateMantencionEstado(
+    id: string,
+    nuevoEstado: string,
+    userId: string,
+    userName: string,
+    notas?: string
+  ): Promise<SolicitudMantencion> {
+    const solicitud = await this.getSolicitudMantencionById(id);
+    
+    if (!solicitud) {
+      throw new Error('Solicitud de mantención not found');
+    }
+
+    const updateData: any = {
+      estado: nuevoEstado,
+      updatedAt: new Date(),
+    };
+
+    // Si se marca como en_reparacion, registrar la fecha de asignación si no existe
+    if (nuevoEstado === 'en_reparacion' && !solicitud.fechaAsignacion) {
+      updateData.fechaAsignacion = new Date();
+    }
+
+    const [updated] = await db
+      .update(solicitudesMantencion)
+      .set(updateData)
+      .where(eq(solicitudesMantencion.id, id))
+      .returning();
+
+    // Create historial entry
+    await this.createMantencionHistorial({
+      mantencionId: id,
+      estadoAnterior: solicitud.estado,
+      estadoNuevo: nuevoEstado,
+      userId,
+      userName,
+      notas: notas || `Estado cambiado de ${solicitud.estado} a ${nuevoEstado}`,
+    });
+
+    return updated;
+  }
+
+  // Resolución (solo produccion)
+  async updateResolucionMantencion(
+    id: string,
+    resolucionDescripcion: string,
+    photos: Array<{ photoUrl: string; description?: string }>,
+    userId: string,
+    userName: string,
+    costoReal?: number,
+    tiempoReal?: number,
+    repuestosUtilizados?: string
+  ): Promise<SolicitudMantencion | null> {
+    const solicitud = await this.getSolicitudMantencionById(id);
+    
+    if (!solicitud) {
+      throw new Error('Solicitud de mantención not found');
+    }
+    
+    // Actualización condicional para prevenir race conditions
+    const updateData: any = {
+      resolucionDescripcion,
+      resolucionUsuarioId: userId,
+      resolucionUsuarioName: userName,
+      fechaResolucion: new Date(),
+      estado: 'resuelto',
+      updatedAt: new Date(),
+    };
+
+    if (costoReal !== undefined) updateData.costoReal = costoReal;
+    if (tiempoReal !== undefined) updateData.tiempoReal = tiempoReal;
+    if (repuestosUtilizados !== undefined) updateData.repuestosUtilizados = repuestosUtilizados;
+
+    const [updated] = await db
+      .update(solicitudesMantencion)
+      .set(updateData)
+      .where(and(
+        eq(solicitudesMantencion.id, id),
+        isNull(solicitudesMantencion.resolucionDescripcion)
+      ))
+      .returning();
+    
+    // Si no se actualizó ninguna fila, retornar null
+    if (!updated) {
+      return null;
+    }
+    
+    // Crear las fotos de evidencia de resolución
+    for (const photo of photos) {
+      await db.insert(mantencionResolucionPhotos).values({
+        mantencionId: id,
+        photoUrl: photo.photoUrl,
+        description: photo.description,
+      });
+    }
+    
+    // Create historial entry
+    await this.createMantencionHistorial({
+      mantencionId: id,
+      estadoAnterior: solicitud.estado,
+      estadoNuevo: 'resuelto',
+      userId,
+      userName,
+      notas: `Resolución agregada con ${photos.length} foto(s) de evidencia. Mantención finalizada.`,
+    });
+
+    // Crear notificación para el solicitante
+    if (updated.solicitanteId) {
+      await this.createNotification({
+        userId: updated.solicitanteId,
+        type: 'mantencion_resuelta',
+        title: 'Mantención Resuelta',
+        message: `La solicitud de mantención para "${updated.equipoNombre}" ha sido resuelta.`,
+        relatedReclamoId: null,
+        read: false,
+      });
+    }
+    
+    return updated;
+  }
+
+  // Cerrar solicitud de mantención
+  async cerrarMantencion(
+    id: string, 
+    userId: string, 
+    userName: string, 
+    notas?: string
+  ): Promise<SolicitudMantencion> {
+    const solicitud = await this.getSolicitudMantencionById(id);
+    
+    if (!solicitud) {
+      throw new Error('Solicitud de mantención not found');
+    }
+    
+    const [updated] = await db
+      .update(solicitudesMantencion)
+      .set({
+        estado: 'cerrado',
+        fechaCierre: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(solicitudesMantencion.id, id))
+      .returning();
+    
+    // Create historial entry
+    await this.createMantencionHistorial({
+      mantencionId: id,
+      estadoAnterior: solicitud.estado,
+      estadoNuevo: 'cerrado',
+      userId,
+      userName,
+      notas: notas || 'Solicitud de mantención cerrada',
     });
     
     return updated;
