@@ -516,13 +516,13 @@ export default function SegmentDetail({
                     <div className="mt-2">
                       <div className="flex items-center gap-2">
                         <Badge 
-                          variant={goalData.progress >= 100 ? "default" : "secondary"}
-                          className={goalData.progress >= 100 ? "bg-green-600" : ""}
+                          variant={goalData.percentage >= 100 ? "default" : "secondary"}
+                          className={goalData.percentage >= 100 ? "bg-green-600" : ""}
                         >
-                          {goalData.progress.toFixed(1)}%
+                          {goalData.percentage.toFixed(1)}%
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {formatCurrency(Number(goalData.currentAmount))} / {formatCurrency(Number(goalData.targetAmount))}
+                          {formatCurrency(Number(goalData.currentSales))} / {formatCurrency(Number(goalData.targetAmount))}
                         </span>
                       </div>
                     </div>
