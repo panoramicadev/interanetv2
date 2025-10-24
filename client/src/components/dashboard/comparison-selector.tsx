@@ -24,7 +24,14 @@ export function ComparisonSelector({ value, onChange }: ComparisonSelectorProps)
 
   const handleAddComparison = () => {
     if (tempSelections.length < 3) {
-      setTempSelections([...tempSelections, null as any]);
+      // Add an empty slot that will be filled by the user
+      setTempSelections([...tempSelections, { 
+        type: "year", 
+        value: "", 
+        display: "Sin seleccionar",
+        startDate: undefined,
+        endDate: undefined
+      } as any]);
     }
   };
 
