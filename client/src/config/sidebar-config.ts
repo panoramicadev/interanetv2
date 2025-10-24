@@ -99,6 +99,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: AlertTriangle,
     },
     {
+      href: "/mantenciones",
+      label: "Mantención",
+      icon: Wrench,
+    },
+    {
       href: "/marketing",
       label: "Marketing",
       icon: TrendingUp,
@@ -205,6 +210,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
+    },
+    {
+      href: "/mantenciones",
+      label: "Mantención",
+      icon: Wrench,
     },
     {
       href: "/marketing",
@@ -419,12 +429,17 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
     },
   ],
 
-  // Roles organizacionales - Solo acceso a Reclamos Generales
+  // Roles organizacionales - Acceso a Reclamos Generales y Mantención
   produccion: [
     {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
+    },
+    {
+      href: "/mantenciones",
+      label: "Mantención",
+      icon: Wrench,
     },
   ],
 
@@ -455,6 +470,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Reclamos",
       icon: AlertTriangle,
     },
+    {
+      href: "/mantenciones",
+      label: "Mantención",
+      icon: Wrench,
+    },
   ],
 
   planificacion: [
@@ -463,6 +483,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Reclamos",
       icon: AlertTriangle,
     },
+    {
+      href: "/mantenciones",
+      label: "Mantención",
+      icon: Wrench,
+    },
   ],
 
   bodega_materias_primas: [
@@ -470,6 +495,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/reclamos-generales",
       label: "Reclamos",
       icon: AlertTriangle,
+    },
+    {
+      href: "/mantenciones",
+      label: "Mantención",
+      icon: Wrench,
     },
   ],
 
