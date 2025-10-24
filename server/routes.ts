@@ -7733,8 +7733,8 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Create new solicitud de mantención
-  app.post('/api/mantenciones', requireAuth, asyncHandler(async (req: any, res: any) => {
+  // Create new solicitud de mantención with photos
+  app.post('/api/mantenciones', requireAuth, upload.array('photos', 10), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
@@ -7756,6 +7756,24 @@ export function registerRoutes(app: Express): Server {
       const validatedData = insertSolicitudMantencionSchema.parse(solicitudData);
 
       const solicitud = await storage.createSolicitudMantencion(validatedData);
+      
+      // Process uploaded photos
+      if (req.files && req.files.length > 0) {
+        const uploadedPhotos = await Promise.all(
+          req.files.map(async (file: Express.Multer.File) => {
+            const photoUrl = await uploadToObjectStorage(file.buffer, file.originalname, file.mimetype);
+            return storage.createMantencionPhoto({
+              mantencionId: solicitud.id,
+              photoUrl,
+              uploadedBy: user.id,
+            });
+          })
+        );
+        
+        // Return solicitud with photos
+        return res.status(201).json({ ...solicitud, photos: uploadedPhotos });
+      }
+      
       res.status(201).json(solicitud);
     } catch (error: any) {
       console.error('Error al crear solicitud de mantención:', error);
