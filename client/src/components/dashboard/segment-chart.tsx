@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3 } from "lucide-react";
-import { Link } from "wouter";
 
 interface SegmentData {
   segment: string;
@@ -11,9 +10,10 @@ interface SegmentData {
 interface SegmentChartProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
+  onSegmentClick?: (segmentName: string) => void;
 }
 
-export default function SegmentChart({ selectedPeriod, filterType }: SegmentChartProps) {
+export default function SegmentChart({ selectedPeriod, filterType, onSegmentClick }: SegmentChartProps) {
   const { data: segmentData, isLoading } = useQuery<SegmentData[]>({
     queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
   });
@@ -64,10 +64,10 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
         ) : segmentData && segmentData.length > 0 ? (
           <div className="space-y-4">
             {segmentData.map((segment, index) => (
-              <Link 
-                key={segment.segment} 
-                href={`/segment/${encodeURIComponent(segment.segment)}?period=${selectedPeriod}&filterType=${filterType}`}
-                className="block hover:bg-gray-50/50 rounded-lg transition-colors"
+              <div
+                key={segment.segment}
+                onClick={() => onSegmentClick?.(segment.segment)}
+                className="block hover:bg-gray-50/50 rounded-lg transition-colors cursor-pointer"
               >
                 <div 
                   className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
@@ -138,7 +138,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
                     </div>
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         ) : (
