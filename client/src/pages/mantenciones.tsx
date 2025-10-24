@@ -289,122 +289,125 @@ export default function MantencionesPage() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateSubmit}>
-              <ScrollArea className="max-h-[60vh]">
-                <div className="space-y-4 pr-4">
-                  <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
+                <ScrollArea className="max-h-[50vh]">
+                  <div className="space-y-4 pr-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="equipoNombre">Nombre del Equipo *</Label>
+                        <Input
+                          id="equipoNombre"
+                          name="equipoNombre"
+                          required
+                          placeholder="Ej: Mezcladora #3"
+                          data-testid="input-nombre-equipo"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="equipoCodigo">Código del Equipo</Label>
+                        <Input
+                          id="equipoCodigo"
+                          name="equipoCodigo"
+                          placeholder="Ej: MEZ-003"
+                          data-testid="input-codigo-equipo"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="area">Área *</Label>
+                        <Select value={area} onValueChange={setArea} required>
+                          <SelectTrigger data-testid="select-area">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AREA_OPTIONS.map(option => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <input type="hidden" name="area" value={area} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ubicacion">Ubicación</Label>
+                        <Input
+                          id="ubicacion"
+                          name="ubicacion"
+                          placeholder="Ej: Sector A"
+                          data-testid="input-ubicacion"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="gravedad">Gravedad *</Label>
+                        <Select value={gravedad} onValueChange={setGravedad} required>
+                          <SelectTrigger data-testid="select-gravedad">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {GRAVEDAD_OPTIONS.map(option => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <input type="hidden" name="gravedad" value={gravedad} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="tipoMantencion">Tipo de Mantención *</Label>
+                        <Select value={tipoMantencion} onValueChange={setTipoMantencion} required>
+                          <SelectTrigger data-testid="select-tipo-mantencion">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIPO_MANTENCION_OPTIONS.map(tipo => (
+                              <SelectItem key={tipo.value} value={tipo.value}>
+                                {tipo.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <input type="hidden" name="tipoMantencion" value={tipoMantencion} />
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
-                      <Label htmlFor="equipoNombre">Nombre del Equipo *</Label>
-                      <Input
-                        id="equipoNombre"
-                        name="equipoNombre"
+                      <Label htmlFor="descripcionProblema">Descripción del Problema *</Label>
+                      <Textarea
+                        id="descripcionProblema"
+                        name="descripcionProblema"
                         required
-                        placeholder="Ej: Mezcladora #3"
-                        data-testid="input-nombre-equipo"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="equipoCodigo">Código del Equipo</Label>
-                      <Input
-                        id="equipoCodigo"
-                        name="equipoCodigo"
-                        placeholder="Ej: MEZ-003"
-                        data-testid="input-codigo-equipo"
+                        rows={4}
+                        placeholder="Describa detalladamente el problema o falla del equipo..."
+                        data-testid="textarea-descripcion"
                       />
                     </div>
                   </div>
+                </ScrollArea>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="area">Área *</Label>
-                      <Select value={area} onValueChange={setArea} required>
-                        <SelectTrigger data-testid="select-area">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {AREA_OPTIONS.map(option => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <input type="hidden" name="area" value={area} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="ubicacion">Ubicación</Label>
-                      <Input
-                        id="ubicacion"
-                        name="ubicacion"
-                        placeholder="Ej: Sector A"
-                        data-testid="input-ubicacion"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="gravedad">Gravedad *</Label>
-                      <Select value={gravedad} onValueChange={setGravedad} required>
-                        <SelectTrigger data-testid="select-gravedad">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {GRAVEDAD_OPTIONS.map(option => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <input type="hidden" name="gravedad" value={gravedad} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tipoMantencion">Tipo de Mantención *</Label>
-                      <Select value={tipoMantencion} onValueChange={setTipoMantencion} required>
-                        <SelectTrigger data-testid="select-tipo-mantencion">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TIPO_MANTENCION_OPTIONS.map(tipo => (
-                            <SelectItem key={tipo.value} value={tipo.value}>
-                              {tipo.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <input type="hidden" name="tipoMantencion" value={tipoMantencion} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="descripcionProblema">Descripción del Problema *</Label>
-                    <Textarea
-                      id="descripcionProblema"
-                      name="descripcionProblema"
-                      required
-                      rows={4}
-                      placeholder="Describa detalladamente el problema o falla del equipo..."
-                      data-testid="textarea-descripcion"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="photos">Fotos del Problema</Label>
-                    <Input
-                      id="photos"
-                      name="photos"
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      data-testid="input-photos"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Puede adjuntar múltiples fotos del equipo o problema
-                    </p>
-                  </div>
+                <div className="space-y-2 border-t pt-4">
+                  <Label htmlFor="photos">Fotos del Problema</Label>
+                  <Input
+                    id="photos"
+                    name="photos"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    data-testid="input-photos"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Puede adjuntar múltiples fotos del equipo o problema
+                  </p>
                 </div>
-              </ScrollArea>
+              </div>
+              
               <DialogFooter className="mt-6">
                 <Button
                   type="button"
