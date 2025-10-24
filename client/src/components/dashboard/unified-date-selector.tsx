@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, X } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { CalendarIcon, X, ArrowRight, ChevronLeft } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
@@ -25,7 +25,7 @@ interface UnifiedDateSelectorProps {
 
 export function UnifiedDateSelector({ value, onChange, label = "Seleccionar período" }: UnifiedDateSelectorProps) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"year" | "month" | "range">("month");
+  const [step, setStep] = useState<"years" | "months" | "range">("years");
   const [tempSelection, setTempSelection] = useState<DateSelection | null>(value);
   
   // Year selection state
@@ -62,29 +62,43 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per�
     }
   };
 
+  const handleContinueToMonths = () => {
+    if (selectedYears.length > 0) {
+      setStep("months");
+    }
+  };
+
+  const handleApplyYearsOnly = () => {
+    let selection: DateSelection | null = null;
+
+    if (selectedYears.length === 1) {
+      selection = {
+        type: "year",
+        value: selectedYears[0].toString(),
+        display: selectedYears[0].toString(),
+        startDate: new Date(selectedYears[0], 0, 1),
+        endDate: new Date(selectedYears[0], 11, 31)
+      };
+    } else if (selectedYears.length > 1) {
+      const sorted = selectedYears.sort((a, b) => a - b);
+      selection = {
+        type: "years",
+        value: `${sorted[0]}-${sorted[sorted.length - 1]}`,
+        display: `${sorted[0]} - ${sorted[sorted.length - 1]}`,
+        startDate: new Date(sorted[0], 0, 1),
+        endDate: new Date(sorted[sorted.length - 1], 11, 31)
+      };
+    }
+
+    onChange(selection);
+    setTempSelection(selection);
+    setOpen(false);
+  };
+
   const handleApply = () => {
     let selection: DateSelection | null = null;
 
-    if (activeTab === "year") {
-      if (selectedYears.length === 1) {
-        selection = {
-          type: "year",
-          value: selectedYears[0].toString(),
-          display: selectedYears[0].toString(),
-          startDate: new Date(selectedYears[0], 0, 1),
-          endDate: new Date(selectedYears[0], 11, 31)
-        };
-      } else if (selectedYears.length > 1) {
-        const sorted = selectedYears.sort((a, b) => a - b);
-        selection = {
-          type: "years",
-          value: `${sorted[0]}-${sorted[sorted.length - 1]}`,
-          display: `${sorted[0]} - ${sorted[sorted.length - 1]}`,
-          startDate: new Date(sorted[0], 0, 1),
-          endDate: new Date(sorted[sorted.length - 1], 11, 31)
-        };
-      }
-    } else if (activeTab === "month") {
+    if (step === "months") {
       if (selectedMonths.length === 1) {
         const [year, month] = selectedMonths[0].split('-');
         selection = {
@@ -106,7 +120,7 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per�
           endDate: new Date(parseInt(lastYear), parseInt(lastMonth), 0)
         };
       }
-    } else if (activeTab === "range" && dateRange?.from) {
+    } else if (step === "range" && dateRange?.from) {
       const displayEnd = dateRange.to || dateRange.from;
       selection = {
         type: "range",
@@ -126,8 +140,14 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per�
     setSelectedYears([]);
     setSelectedMonths([]);
     setDateRange(undefined);
+    setStep("years");
     onChange(null);
     setTempSelection(null);
+  };
+
+  const handleBackToYears = () => {
+    setSelectedMonths([]);
+    setStep("years");
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -136,22 +156,29 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per�
       setSelectedYears([]);
       setSelectedMonths([]);
       setDateRange(undefined);
+      setStep("years");
       
       // Restore previous selection
       if (value) {
         if (value.type === "year") {
           setSelectedYears([parseInt(value.value)]);
-          setActiveTab("year");
         } else if (value.type === "years") {
           const [start, end] = value.value.split('-').map(Number);
           const years = Array.from({ length: end - start + 1 }, (_, i) => start + i);
           setSelectedYears(years);
-          setActiveTab("year");
         } else if (value.type === "month") {
+          const [year] = value.value.split('-');
+          setSelectedYears([parseInt(year)]);
           setSelectedMonths([value.value]);
-          setActiveTab("month");
+          setStep("months");
         } else if (value.type === "months") {
           const [start, end] = value.value.split('_');
+          const [startYear] = start.split('-');
+          const [endYear] = end.split('-');
+          const startYearNum = parseInt(startYear);
+          const endYearNum = parseInt(endYear);
+          const years = Array.from({ length: endYearNum - startYearNum + 1 }, (_, i) => startYearNum + i);
+          setSelectedYears(years);
           // Generate all months between start and end
           const startDate = new Date(start);
           const endDate = new Date(end);
@@ -162,10 +189,10 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per�
             current.setMonth(current.getMonth() + 1);
           }
           setSelectedMonths(months);
-          setActiveTab("month");
+          setStep("months");
         } else if (value.type === "range" && value.startDate && value.endDate) {
           setDateRange({ from: value.startDate, to: value.endDate });
-          setActiveTab("range");
+          setStep("range");
         }
       }
     }
@@ -198,93 +225,191 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per�
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 rounded-b-none">
-            <TabsTrigger value="year" data-testid="tab-year">Año</TabsTrigger>
-            <TabsTrigger value="month" data-testid="tab-month">Mes</TabsTrigger>
-            <TabsTrigger value="range" data-testid="tab-range">Rango</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="year" className="p-4 space-y-4">
-            <div className="text-sm text-gray-600 mb-2">
-              Selecciona uno o más años
+        {/* Step 1: Select Years */}
+        {step === "years" && (
+          <>
+            <div className="p-4 bg-gray-50 border-b">
+              <h4 className="font-semibold text-sm mb-1">Paso 1: Selecciona años</h4>
+              <p className="text-xs text-gray-500">
+                Luego podrás elegir meses específicos o usar todo el año
+              </p>
             </div>
-            <div className="grid grid-cols-5 gap-2">
-              {availableYears.map(year => (
-                <Button
-                  key={year}
-                  variant={selectedYears.includes(year) ? "default" : "outline"}
-                  size="sm"
-                  className="h-10"
-                  onClick={() => handleYearClick(year)}
-                  data-testid={`year-${year}`}
-                >
-                  {year}
-                </Button>
-              ))}
-            </div>
-            {selectedYears.length > 0 && (
-              <div className="pt-2 border-t">
-                <div className="text-xs text-gray-500 mb-2">Seleccionado:</div>
-                <div className="flex flex-wrap gap-1">
-                  {selectedYears.sort((a, b) => a - b).map(year => (
-                    <Badge key={year} variant="secondary">
-                      {year}
-                    </Badge>
-                  ))}
-                </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-5 gap-2">
+                {availableYears.map(year => (
+                  <Button
+                    key={year}
+                    variant={selectedYears.includes(year) ? "default" : "outline"}
+                    size="sm"
+                    className="h-10"
+                    onClick={() => handleYearClick(year)}
+                    data-testid={`year-${year}`}
+                  >
+                    {year}
+                  </Button>
+                ))}
               </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="month" className="p-4 space-y-4">
-            <div className="text-sm text-gray-600 mb-2">
-              Selecciona uno o más meses
-            </div>
-            {availableYears.slice(0, 3).map(year => (
-              <div key={year} className="space-y-2">
-                <div className="text-sm font-medium text-gray-700">{year}</div>
-                <div className="grid grid-cols-4 gap-2">
-                  {months.map((month, index) => {
-                    const monthStr = `${year}-${String(index + 1).padStart(2, '0')}`;
-                    const isSelected = selectedMonths.includes(monthStr);
-                    const isFuture = new Date(year, index) > new Date();
-                    
-                    return (
-                      <Button
-                        key={monthStr}
-                        variant={isSelected ? "default" : "outline"}
-                        size="sm"
-                        className="h-9 text-xs"
-                        onClick={() => handleMonthClick(index, year)}
-                        disabled={isFuture}
-                        data-testid={`month-${monthStr}`}
-                      >
-                        {month.substring(0, 3)}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            {selectedMonths.length > 0 && (
-              <div className="pt-2 border-t">
-                <div className="text-xs text-gray-500 mb-2">Seleccionado:</div>
-                <div className="flex flex-wrap gap-1">
-                  {selectedMonths.sort().map(monthStr => {
-                    const [year, month] = monthStr.split('-');
-                    return (
-                      <Badge key={monthStr} variant="secondary">
-                        {months[parseInt(month) - 1].substring(0, 3)} {year}
+              {selectedYears.length > 0 && (
+                <div className="pt-2 border-t">
+                  <div className="text-xs text-gray-500 mb-2">Años seleccionados:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedYears.sort((a, b) => a - b).map(year => (
+                      <Badge key={year} variant="secondary">
+                        {year}
                       </Badge>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </TabsContent>
+              )}
+            </div>
+            <Separator />
+            <div className="p-4 bg-gray-50 space-y-2">
+              <Button
+                className="w-full"
+                size="sm"
+                onClick={handleContinueToMonths}
+                disabled={selectedYears.length === 0}
+                data-testid="button-continue-months"
+              >
+                Continuar a meses
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <div className="text-center text-xs text-gray-500 py-1">o</div>
+              <Button
+                variant="outline"
+                className="w-full"
+                size="sm"
+                onClick={handleApplyYearsOnly}
+                disabled={selectedYears.length === 0}
+                data-testid="button-apply-years"
+              >
+                Aplicar {selectedYears.length > 1 ? 'años completos' : 'año completo'}
+              </Button>
+              <Separator className="my-2" />
+              <Button
+                variant="outline"
+                className="w-full"
+                size="sm"
+                onClick={() => setStep("range")}
+                data-testid="button-goto-range"
+              >
+                O seleccionar rango de fechas
+              </Button>
+            </div>
+          </>
+        )}
 
-          <TabsContent value="range" className="p-0">
+        {/* Step 2: Select Months */}
+        {step === "months" && (
+          <>
+            <div className="p-4 bg-gray-50 border-b flex items-center justify-between">
+              <div>
+                <h4 className="font-semibold text-sm mb-1">Paso 2: Selecciona meses</h4>
+                <p className="text-xs text-gray-500">
+                  Elige los meses de {selectedYears.length > 1 ? 'los años seleccionados' : 'el año seleccionado'}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackToYears}
+                data-testid="button-back-years"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Atrás
+              </Button>
+            </div>
+            <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+              {selectedYears.sort((a, b) => a - b).map(year => (
+                <div key={year} className="space-y-2">
+                  <div className="text-sm font-medium text-gray-700 flex items-center justify-between">
+                    <span>{year}</span>
+                    <Badge variant="outline" className="text-xs">
+                      {selectedMonths.filter(m => m.startsWith(`${year}-`)).length} meses
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {months.map((month, index) => {
+                      const monthStr = `${year}-${String(index + 1).padStart(2, '0')}`;
+                      const isSelected = selectedMonths.includes(monthStr);
+                      const isFuture = new Date(year, index) > new Date();
+                      
+                      return (
+                        <Button
+                          key={monthStr}
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          className="h-9 text-xs"
+                          onClick={() => handleMonthClick(index, year)}
+                          disabled={isFuture}
+                          data-testid={`month-${monthStr}`}
+                        >
+                          {month.substring(0, 3)}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {selectedMonths.length > 0 && (
+                <div className="pt-2 border-t">
+                  <div className="text-xs text-gray-500 mb-2">
+                    {selectedMonths.length} {selectedMonths.length === 1 ? 'mes seleccionado' : 'meses seleccionados'}:
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedMonths.sort().map(monthStr => {
+                      const [year, month] = monthStr.split('-');
+                      return (
+                        <Badge key={monthStr} variant="secondary">
+                          {months[parseInt(month) - 1].substring(0, 3)} {year}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setOpen(false)}
+                data-testid="button-cancel"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleApply}
+                disabled={selectedMonths.length === 0}
+                data-testid="button-apply"
+              >
+                Aplicar selección
+              </Button>
+            </div>
+          </>
+        )}
+
+        {/* Range Selection */}
+        {step === "range" && (
+          <>
+            <div className="p-4 bg-gray-50 border-b flex items-center justify-between">
+              <div>
+                <h4 className="font-semibold text-sm mb-1">Rango de fechas personalizado</h4>
+                <p className="text-xs text-gray-500">
+                  Selecciona fecha inicial y final
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStep("years")}
+                data-testid="button-back-years-from-range"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Atrás
+              </Button>
+            </div>
             <Calendar
               mode="range"
               selected={dateRange}
@@ -302,31 +427,26 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per�
                 </div>
               </div>
             )}
-          </TabsContent>
-        </Tabs>
-
-        <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setOpen(false)}
-            data-testid="button-cancel"
-          >
-            Cancelar
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleApply}
-            disabled={
-              (activeTab === "year" && selectedYears.length === 0) ||
-              (activeTab === "month" && selectedMonths.length === 0) ||
-              (activeTab === "range" && !dateRange?.from)
-            }
-            data-testid="button-apply"
-          >
-            Aplicar
-          </Button>
-        </div>
+            <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setOpen(false)}
+                data-testid="button-cancel"
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleApply}
+                disabled={!dateRange?.from}
+                data-testid="button-apply"
+              >
+                Aplicar rango
+              </Button>
+            </div>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );
