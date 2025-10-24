@@ -10714,7 +10714,7 @@ export class DatabaseStorage implements IStorage {
     area?: string;
     limit?: number;
     offset?: number;
-  }): Promise<SolicitudMantencion[]> {
+  }): Promise<any[]> {
     const conditions = [];
     
     if (filters?.solicitanteId) {
@@ -10750,7 +10750,27 @@ export class DatabaseStorage implements IStorage {
       query = query.offset(filters.offset);
     }
 
-    return query;
+    const solicitudes = await query;
+    
+    // Add photos, historial, and resolucion photos to each solicitud
+    const solicitudesWithDetails = await Promise.all(
+      solicitudes.map(async (solicitud) => {
+        const [photos, historial, resolucionPhotos] = await Promise.all([
+          this.getMantencionPhotos(solicitud.id),
+          this.getMantencionHistorial(solicitud.id),
+          this.getMantencionResolucionPhotos(solicitud.id),
+        ]);
+        
+        return {
+          ...solicitud,
+          photos,
+          historial,
+          resolucionPhotos,
+        };
+      })
+    );
+    
+    return solicitudesWithDetails;
   }
 
   async getSolicitudMantencionById(id: string): Promise<SolicitudMantencion | undefined> {
