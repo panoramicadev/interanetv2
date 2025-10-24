@@ -3206,7 +3206,10 @@ export class DatabaseStorage implements IStorage {
     averageTicket: number;
     purchaseFrequency: number;
   }> {
-    const conditions = [eq(salesTransactions.nokoen, clientName)];
+    const conditions = [
+      eq(salesTransactions.nokoen, clientName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
 
     // Apply date filters if period is provided
     if (period) {
@@ -3288,7 +3291,10 @@ export class DatabaseStorage implements IStorage {
     lastPurchase: string;
     daysSinceLastPurchase: number;
   }>> {
-    const conditions = [eq(salesTransactions.nokoen, clientName)];
+    const conditions = [
+      eq(salesTransactions.nokoen, clientName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
 
     // Apply date filters if period is provided
     if (period) {
