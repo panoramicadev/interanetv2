@@ -54,53 +54,13 @@ export default function DateSelectorDemo() {
                   />
                 </div>
 
-                {/* Display Selected Period */}
+                {/* Display Selected Period - Minimalista */}
                 {selectedPeriod && (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-start gap-3">
-                      <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-                      <div className="flex-1 space-y-2">
-                        <div className="font-medium text-sm text-blue-900">Período Seleccionado</div>
-                        <div className="grid grid-cols-1 gap-2 text-sm">
-                          <div>
-                            <span className="text-gray-600">Tipo:</span>
-                            <Badge variant="secondary" className="ml-2">
-                              {selectedPeriod.type === "year" && "Año"}
-                              {selectedPeriod.type === "years" && "Años"}
-                              {selectedPeriod.type === "month" && "Mes"}
-                              {selectedPeriod.type === "months" && "Meses"}
-                              {selectedPeriod.type === "range" && "Rango"}
-                            </Badge>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Valor:</span>
-                            <span className="ml-2 font-mono text-xs bg-white px-2 py-1 rounded break-all">
-                              {selectedPeriod.value}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Visualización:</span>
-                            <span className="ml-2 font-medium">{selectedPeriod.display}</span>
-                          </div>
-                          {selectedPeriod.startDate && (
-                            <>
-                              <div>
-                                <span className="text-gray-600">Inicio:</span>
-                                <span className="ml-2 font-mono text-xs">
-                                  {selectedPeriod.startDate.toISOString().split('T')[0]}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-gray-600">Fin:</span>
-                                <span className="ml-2 font-mono text-xs">
-                                  {selectedPeriod.endDate?.toISOString().split('T')[0]}
-                                </span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-200">
+                    <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                    <span className="text-sm font-medium text-blue-900">
+                      {selectedPeriod.display}
+                    </span>
                   </div>
                 )}
               </div>
@@ -129,37 +89,19 @@ export default function DateSelectorDemo() {
                 />
               </div>
 
-              {/* Display Comparisons */}
+              {/* Display Comparisons - Minimalista */}
               {comparisons.length > 0 && (
-                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                  <div className="flex items-start gap-3">
-                    <Info className="h-5 w-5 text-purple-600 mt-0.5" />
-                    <div className="flex-1 space-y-3">
-                      <div className="font-medium text-sm text-purple-900">
-                        Períodos ({comparisons.length})
+                <div className="space-y-2">
+                  {comparisons.map((comp, index) => (
+                    <div key={index} className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded-lg border border-purple-200">
+                      <div className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-medium flex-shrink-0">
+                        {index + 1}
                       </div>
-                      {comparisons.map((comp, index) => (
-                        <div key={index} className="bg-white p-3 rounded border border-purple-200">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-medium">
-                              {index + 1}
-                            </div>
-                            <span className="font-medium text-sm">{comp.display}</span>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {comp.type === "year" && "Año"}
-                            {comp.type === "years" && "Años"}
-                            {comp.type === "month" && "Mes"}
-                            {comp.type === "months" && "Meses"}
-                            {comp.type === "range" && "Rango"}
-                          </Badge>
-                          <div className="text-xs text-gray-600 font-mono bg-gray-50 px-2 py-1 rounded mt-2 break-all">
-                            {comp.value}
-                          </div>
-                        </div>
-                      ))}
+                      <span className="text-sm font-medium text-purple-900">
+                        {comp.display}
+                      </span>
                     </div>
-                  </div>
+                  ))}
                 </div>
               )}
             </CardContent>
