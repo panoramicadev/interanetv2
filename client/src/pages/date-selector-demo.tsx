@@ -36,47 +36,42 @@ export default function DateSelectorDemo() {
           </p>
         </div>
 
-        {/* Main Layout: Left Column (Context) + Right Panel (3 Columns) */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Left Column - Entity Filter Selector */}
-          <div className="lg:col-span-1">
-            <Card className="border-2 border-green-100 h-full">
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-green-600 flex-shrink-0" />
-                  <CardTitle className="text-sm font-semibold">Contexto</CardTitle>
-                </div>
-                <CardDescription className="text-xs">
-                  Filtra por vista
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col gap-4">
-                  <EntityFilterSelector
-                    value={entityFilter}
-                    onChange={setEntityFilter}
-                  />
+        {/* Main Layout: 3 Equal Columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Column 1 - Entity Filter Selector */}
+          <Card className="border-2 border-green-100">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-green-600 flex-shrink-0" />
+                <CardTitle className="text-sm font-semibold">Contexto</CardTitle>
+              </div>
+              <CardDescription className="text-xs">
+                Filtra por vista
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-4">
+                <EntityFilterSelector
+                  value={entityFilter}
+                  onChange={setEntityFilter}
+                />
 
-                  {/* Display Selected Filter */}
-                  {entityFilter.dimension !== "all" && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
-                      <Filter className="h-4 w-4 text-green-600 flex-shrink-0" />
-                      <span className="text-xs font-medium text-green-900 truncate">
-                        {entityFilter.dimension === "segment" && `${entityFilter.label}`}
-                        {entityFilter.dimension === "salesperson" && `${entityFilter.label}`}
-                        {entityFilter.dimension === "client" && `${entityFilter.label}`}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                {/* Display Selected Filter */}
+                {entityFilter.dimension !== "all" && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
+                    <Filter className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    <span className="text-xs font-medium text-green-900 truncate">
+                      {entityFilter.dimension === "segment" && `${entityFilter.label}`}
+                      {entityFilter.dimension === "salesperson" && `${entityFilter.label}`}
+                      {entityFilter.dimension === "client" && `${entityFilter.label}`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-          {/* Right Panel - 3 Column Grid */}
-          <div className="lg:col-span-3">
-            <div className="grid grid-cols-1 gap-6">
-          {/* Main Period Selector */}
+          {/* Column 2 - Main Period Selector */}
           <Card className="border-2 border-blue-100">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -113,7 +108,7 @@ export default function DateSelectorDemo() {
             </CardContent>
           </Card>
 
-          {/* Comparison Selector */}
+          {/* Column 3 - Comparison Selector */}
           <Card className="border-2 border-purple-100">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -152,8 +147,6 @@ export default function DateSelectorDemo() {
               )}
             </CardContent>
           </Card>
-            </div>
-          </div>
         </div>
 
         {/* Usage Examples */}
