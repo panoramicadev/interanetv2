@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface SegmentClient {
   clientName: string;
@@ -249,6 +250,33 @@ export default function SegmentDetail({
     return new Intl.NumberFormat('es-CL').format(num);
   };
 
+  // Format period display
+  const getPeriodDisplay = () => {
+    switch (filterType) {
+      case "day":
+        if (selectedDate) {
+          return format(selectedDate, "d 'de' MMMM yyyy", { locale: es });
+        }
+        return "";
+      case "month":
+        try {
+          const date = parse(selectedPeriod, "yyyy-MM", new Date());
+          return format(date, "MMMM yyyy", { locale: es });
+        } catch {
+          return selectedPeriod;
+        }
+      case "year":
+        return selectedPeriod;
+      case "range":
+        if (startDate && endDate) {
+          return `${format(startDate, "d MMM", { locale: es })} - ${format(endDate, "d MMM yyyy", { locale: es })}`;
+        }
+        return "Rango personalizado";
+      default:
+        return "";
+    }
+  };
+
   return (
     <div className="min-h-screen">
       <div className="w-full">
@@ -278,6 +306,11 @@ export default function SegmentDetail({
               </div>
               <p className="text-gray-600 text-sm">
                 {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
+                {getPeriodDisplay() && (
+                  <span className="ml-2 font-medium text-gray-900">
+                    • {getPeriodDisplay()}
+                  </span>
+                )}
               </p>
             </div>
             
