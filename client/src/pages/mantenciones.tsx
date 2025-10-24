@@ -55,6 +55,16 @@ const GRAVEDAD_OPTIONS = [
   { value: 'critica', label: 'Crítica', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
 ];
 
+const AREA_OPTIONS = [
+  { value: 'administracion', label: 'Administración' },
+  { value: 'produccion', label: 'Producción' },
+  { value: 'bodega_materias_primas', label: 'Bodega de Materias Primas' },
+  { value: 'laboratorio', label: 'Laboratorio' },
+  { value: 'bodega_productos_terminados', label: 'Bodega de Productos Terminados' },
+  { value: 'patio', label: 'Patio' },
+  { value: 'servicios_generales', label: 'Servicios Generales' },
+];
+
 const ESTADO_OPTIONS = [
   { value: 'registrado', label: 'Registrado', icon: Clock, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
   { value: 'en_reparacion', label: 'En Reparación', icon: Wrench, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
@@ -73,6 +83,7 @@ export default function MantencionesPage() {
   const resolutionFileInputRef = useRef<HTMLInputElement>(null);
   const [gravedad, setGravedad] = useState('media');
   const [tipoMantencion, setTipoMantencion] = useState('correctivo');
+  const [area, setArea] = useState('produccion');
 
   const canSubmitResolution = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
 
@@ -264,6 +275,7 @@ export default function MantencionesPage() {
           if (open) {
             setGravedad('media');
             setTipoMantencion('correctivo');
+            setArea('produccion');
           }
         }}>
           <DialogTrigger asChild>
@@ -307,13 +319,19 @@ export default function MantencionesPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="area">Área *</Label>
-                      <Input
-                        id="area"
-                        name="area"
-                        required
-                        placeholder="Ej: Producción"
-                        data-testid="input-area"
-                      />
+                      <Select value={area} onValueChange={setArea} required>
+                        <SelectTrigger data-testid="select-area">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {AREA_OPTIONS.map(option => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <input type="hidden" name="area" value={area} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="ubicacion">Ubicación</Label>

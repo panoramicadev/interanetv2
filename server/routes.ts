@@ -7759,19 +7759,42 @@ export function registerRoutes(app: Express): Server {
       
       // Process uploaded photos
       if (req.files && req.files.length > 0) {
+        const objectStorageService = new ObjectStorageService();
         const uploadedPhotos = await Promise.all(
-          req.files.map(async (file: Express.Multer.File) => {
-            const photoUrl = await uploadToObjectStorage(file.buffer, file.originalname, file.mimetype);
-            return storage.createMantencionPhoto({
-              mantencionId: solicitud.id,
-              photoUrl,
-              uploadedBy: user.id,
-            });
+          req.files.map(async (file: Express.Multer.File, index: number) => {
+            try {
+              // Get file extension and create unique filename
+              const fileExtension = path.extname(file.originalname).toLowerCase() || '.jpg';
+              const timestamp = Date.now();
+              const uniqueFileName = `${solicitud.id}_${timestamp}_${index}${fileExtension}`;
+              const storageKey = `mantencion-photos/${solicitud.id}/${uniqueFileName}`;
+              
+              // Upload to object storage
+              const photoUrl = await objectStorageService.uploadImage(
+                storageKey, 
+                file.buffer, 
+                file.mimetype || getContentType(fileExtension.substring(1))
+              );
+              
+              // Create photo record in database
+              return await storage.createMantencionPhoto({
+                mantencionId: solicitud.id,
+                photoUrl,
+                description: null,
+              });
+            } catch (uploadError) {
+              console.error('Error uploading photo:', uploadError);
+              // If upload fails, we still want to create the solicitud, so we don't throw here
+              return null;
+            }
           })
         );
         
+        // Filter out any failed uploads
+        const successfulPhotos = uploadedPhotos.filter(photo => photo !== null);
+        
         // Return solicitud with photos
-        return res.status(201).json({ ...solicitud, photos: uploadedPhotos });
+        return res.status(201).json({ ...solicitud, photos: successfulPhotos });
       }
       
       res.status(201).json(solicitud);
