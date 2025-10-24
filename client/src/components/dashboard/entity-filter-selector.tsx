@@ -133,18 +133,18 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className="h-11 min-w-[200px] justify-between text-left font-normal rounded-xl border-gray-200 shadow-sm"
+          className="h-8 min-w-[180px] justify-between text-left font-normal text-xs border-gray-200 shadow-sm"
           data-testid="entity-filter-selector"
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Filter className="h-4 w-4 shrink-0 text-gray-500" />
+            <Filter className="h-3 w-3 shrink-0 text-gray-500" />
             <span className="truncate">
               {getDisplayText()}
             </span>
           </div>
           {value.dimension !== "all" && (
             <X
-              className="h-4 w-4 ml-2 shrink-0 text-gray-400 hover:text-gray-600"
+              className="h-3 w-3 ml-2 shrink-0 text-gray-400 hover:text-gray-600"
               onClick={(e) => {
                 e.stopPropagation();
                 handleClear();
@@ -157,13 +157,13 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
         {/* Step 1: Select Dimension */}
         {step === "dimension" && (
           <>
-            <div className="p-3 bg-gray-50 border-b">
-              <h4 className="font-semibold text-sm mb-0.5">Selecciona una vista</h4>
-              <p className="text-xs text-gray-500">
+            <div className="p-2 bg-gray-50 border-b">
+              <h4 className="font-semibold text-xs mb-0.5">Selecciona una vista</h4>
+              <p className="text-[10px] text-gray-500">
                 Elige cómo quieres filtrar los datos
               </p>
             </div>
-            <div className="p-3 space-y-1.5">
+            <div className="p-2 space-y-1">
               {DIMENSIONS.map((dimension) => {
                 const Icon = dimension.icon;
                 const isSelected = selectedDimension === dimension.id;
@@ -176,12 +176,12 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
                     onClick={() => handleDimensionClick(dimension.id)}
                     data-testid={`dimension-${dimension.id}`}
                   >
-                    <Icon className="h-4 w-4 mr-2 shrink-0" />
+                    <Icon className={`h-3.5 w-3.5 mr-2 shrink-0 ${isSelected ? 'text-white' : ''}`} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">{dimension.label}</div>
-                      <div className="text-xs text-muted-foreground">{dimension.description}</div>
+                      <div className={`text-xs font-medium ${isSelected ? 'text-white' : ''}`}>{dimension.label}</div>
+                      <div className={`text-xs ${isSelected ? 'text-white/90' : 'text-muted-foreground'}`}>{dimension.description}</div>
                     </div>
-                    {isSelected && <Check className="h-4 w-4 ml-2 shrink-0" />}
+                    {isSelected && <Check className="h-3.5 w-3.5 ml-2 shrink-0 text-white" />}
                   </Button>
                 );
               })}
@@ -192,27 +192,27 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
         {/* Step 2: Select Value */}
         {step === "value" && (
           <>
-            <div className="p-3 bg-gray-50 border-b flex items-center justify-between">
+            <div className="p-2 bg-gray-50 border-b flex items-center justify-between">
               <div>
-                <h4 className="font-semibold text-sm mb-0.5">Selecciona {selectedDimensionData?.label}</h4>
-                <p className="text-xs text-gray-500">
+                <h4 className="font-semibold text-xs mb-0.5">Selecciona {selectedDimensionData?.label}</h4>
+                <p className="text-[10px] text-gray-500">
                   Elige un valor específico
                 </p>
               </div>
               <Button
                 variant="ghost"
-                className="h-7 text-xs"
+                className="h-6 text-[10px] px-2"
                 onClick={handleBackToDimension}
                 data-testid="button-back-dimension"
               >
                 ← Atrás
               </Button>
             </div>
-            <div className="p-3 space-y-1 max-h-[300px] overflow-y-auto">
+            <div className="p-2 space-y-1 max-h-[300px] overflow-y-auto">
               {isLoading ? (
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {[...Array(5)].map((_, i) => (
-                    <Skeleton key={i} className="h-8 w-full" />
+                    <Skeleton key={i} className="h-7 w-full" />
                   ))}
                 </div>
               ) : getOptions().length === 0 ? (
@@ -224,28 +224,28 @@ export function EntityFilterSelector({ value, onChange }: EntityFilterSelectorPr
                   <Button
                     key={option}
                     variant={selectedValue === option ? "default" : "ghost"}
-                    className="w-full h-8 text-xs justify-start"
+                    className="w-full h-7 text-xs justify-start"
                     onClick={() => handleValueClick(option)}
                     data-testid={`option-${option}`}
                   >
-                    {option}
-                    {selectedValue === option && <Check className="h-3 w-3 ml-auto" />}
+                    <span className={selectedValue === option ? 'text-white' : ''}>{option}</span>
+                    {selectedValue === option && <Check className="h-3 w-3 ml-auto text-white" />}
                   </Button>
                 ))
               )}
             </div>
             <Separator />
-            <div className="flex justify-end gap-2 p-3 bg-gray-50">
+            <div className="flex justify-end gap-2 p-2 bg-gray-50">
               <Button
                 variant="outline"
-                className="h-8 text-xs"
+                className="h-7 text-xs px-3"
                 onClick={() => setOpen(false)}
                 data-testid="button-cancel"
               >
                 Cancelar
               </Button>
               <Button
-                className="h-8 text-xs"
+                className="h-7 text-xs px-3"
                 onClick={handleApply}
                 disabled={!selectedValue}
                 data-testid="button-apply"
