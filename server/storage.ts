@@ -2785,7 +2785,10 @@ export class DatabaseStorage implements IStorage {
     averageTicket: number;
     percentage: number;
   }>> {
-    const conditions = [eq(salesTransactions.noruen, segmentName)];
+    const conditions = [
+      eq(salesTransactions.noruen, segmentName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
 
     // Apply date filters if period is provided
     if (period) {
@@ -2835,14 +2838,14 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         clientName: salesTransactions.nokoen,
-        totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
       .from(salesTransactions)
       .where(and(...conditions))
       .groupBy(salesTransactions.nokoen)
-      .orderBy(sql`SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END) DESC`);
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
     
     // Calculate segment total for percentages - ensure proper number conversion
     const segmentTotal = result.reduce((sum, client) => sum + Number(client.totalSales || 0), 0);
@@ -2863,7 +2866,10 @@ export class DatabaseStorage implements IStorage {
     averageTicket: number;
     percentage: number;
   }>> {
-    const conditions = [eq(salesTransactions.noruen, segmentName)];
+    const conditions = [
+      eq(salesTransactions.noruen, segmentName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
 
     // Apply date filters if period is provided
     if (period) {
@@ -2913,14 +2919,14 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         salespersonName: salesTransactions.nokofu,
-        totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
       .from(salesTransactions)
       .where(and(...conditions))
       .groupBy(salesTransactions.nokofu)
-      .orderBy(sql`SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END) DESC`);
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
     
     // Calculate segment total for percentages - ensure proper number conversion
     const segmentTotal = result.reduce((sum, salesperson) => sum + Number(salesperson.totalSales || 0), 0);
