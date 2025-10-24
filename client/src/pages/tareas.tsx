@@ -1039,10 +1039,11 @@ function EstimacionSemanalTab({
     enabled: user?.role === 'admin' || user?.role === 'supervisor',
   });
 
-  // Filtrar promesas por vendedor
+  // Filtrar promesas válidas y por vendedor
+  const promesasValidas = promesasCumplimiento.filter(p => p.promesa != null);
   const promesasFiltradas = vendedorFilter === "all" 
-    ? promesasCumplimiento 
-    : promesasCumplimiento.filter(p => p.promesa.vendedorId === vendedorFilter);
+    ? promesasValidas 
+    : promesasValidas.filter(p => p.promesa.vendedorId === vendedorFilter);
 
   // Calcular resumen
   const resumen = {
