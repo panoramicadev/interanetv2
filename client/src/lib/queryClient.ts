@@ -45,10 +45,13 @@ export async function apiRequest(
     requestData = urlOrOptions?.data;
   }
 
+  // Handle FormData differently from JSON
+  const isFormData = requestData instanceof FormData;
+  
   const res = await fetch(url, {
     method,
-    headers: requestData ? { "Content-Type": "application/json" } : {},
-    body: requestData ? JSON.stringify(requestData) : undefined,
+    headers: isFormData ? {} : (requestData ? { "Content-Type": "application/json" } : {}),
+    body: isFormData ? requestData : (requestData ? JSON.stringify(requestData) : undefined),
     credentials: "include",
   });
 
