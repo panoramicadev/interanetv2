@@ -107,9 +107,22 @@ export default function MantencionesPage() {
       });
     },
     onError: (error: any) => {
+      let errorMessage = "Error al crear solicitud";
+      
+      try {
+        const errorData = JSON.parse(error.message.split(': ')[1]);
+        if (errorData.errors && errorData.errors.length > 0) {
+          errorMessage = errorData.errors.map((e: any) => e.message).join(', ');
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch {
+        errorMessage = error.message || "Error al crear solicitud";
+      }
+      
       toast({
-        title: "Error",
-        description: error.message || "Error al crear solicitud",
+        title: "Error al crear solicitud",
+        description: errorMessage,
         variant: "destructive",
       });
     },
