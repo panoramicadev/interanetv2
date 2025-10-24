@@ -425,14 +425,24 @@ function CreatePromesaDialog({
       }
     }
 
-    const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 });
+    let weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 });
+    let weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 });
+    
+    // IMPORTANTE: Si el fin de semana cae en el mes siguiente, cortarlo en el último día del mes actual
+    const currentMonth = selectedWeek.getMonth();
+    const lastDayOfMonth = new Date(selectedWeek.getFullYear(), currentMonth + 1, 0);
+    
+    if (weekEnd.getMonth() !== currentMonth) {
+      weekEnd = lastDayOfMonth;
+    }
+    
     const weekNumber = getISOWeek(selectedWeek);
     const year = getYear(selectedWeek);
 
     createMutation.mutate({
       clienteId: isManualEntry ? (manualClienteId.trim() || 'MANUAL') : selectedClient!.koen,
       clienteNombre: isManualEntry ? manualClienteNombre.trim() : selectedClient!.nokoen,
+      clienteTipo: "activo", // CRÍTICO: Campo requerido por el schema
       montoPrometido: parseFloat(montoPrometido),
       semana: `${year}-${String(weekNumber).padStart(2, '0')}`,
       anio: year,

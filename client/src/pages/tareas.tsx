@@ -1517,8 +1517,17 @@ function CreatePromesaDialog({
       }
     }
 
-    const weekStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
+    let weekStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
+    let weekEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
+    
+    // IMPORTANTE: Si el fin de semana cae en el mes siguiente, cortarlo en el último día del mes actual
+    const currentMonth = dialogWeek.getMonth();
+    const lastDayOfMonth = new Date(dialogWeek.getFullYear(), currentMonth + 1, 0);
+    
+    if (weekEnd.getMonth() !== currentMonth) {
+      weekEnd = lastDayOfMonth;
+    }
+    
     const weekNumber = getISOWeek(dialogWeek);
     const year = getYear(dialogWeek);
 
@@ -1539,8 +1548,16 @@ function CreatePromesaDialog({
 
   const weekNumber = getISOWeek(dialogWeek);
   const year = getYear(dialogWeek);
-  const weekStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
+  let weekStart = startOfWeek(dialogWeek, { weekStartsOn: 1 });
+  let weekEnd = endOfWeek(dialogWeek, { weekStartsOn: 1 });
+  
+  // IMPORTANTE: Si el fin de semana cae en el mes siguiente, cortarlo en el último día del mes actual
+  const currentMonth = dialogWeek.getMonth();
+  const lastDayOfMonth = new Date(dialogWeek.getFullYear(), currentMonth + 1, 0);
+  
+  if (weekEnd.getMonth() !== currentMonth) {
+    weekEnd = lastDayOfMonth;
+  }
 
   // Calcular semana del mes (1-5)
   const monthStart = new Date(dialogWeek.getFullYear(), dialogWeek.getMonth(), 1);
