@@ -3223,6 +3223,182 @@ export const insertReclamoGeneralHistorialSchema = createInsertSchema(reclamosGe
 });
 
 // ==================================================================================
+// SISTEMA DE MANTENCIÓN (gestión de reparaciones y mantenimiento)
+// ==================================================================================
+
+// Tabla principal de solicitudes de mantención
+export const solicitudesMantencion = pgTable("solicitudes_mantencion", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Información del equipo/máquina
+  equipoNombre: text("equipo_nombre").notNull(), // Nombre del equipo o máquina
+  equipoCodigo: varchar("equipo_codigo"), // Código interno del equipo
+  area: varchar("area").notNull(), // Área donde está ubicado el equipo
+  ubicacion: text("ubicacion"), // Ubicación específica dentro del área
+  
+  // Descripción del problema
+  descripcionProblema: text("descripcion_problema").notNull(),
+  gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica
+  tipoMantencion: varchar("tipo_mantencion").default("correctivo"), // preventivo, correctivo, predictivo
+  
+  // Flujo de trabajo
+  estado: varchar("estado").default("registrado").notNull(), // registrado, en_reparacion, resuelto, cerrado
+  
+  // Asignaciones
+  solicitanteId: varchar("solicitante_id").notNull(), // FK to users.id (quien crea la solicitud)
+  solicitanteName: varchar("solicitante_name"), // Nombre del solicitante
+  tecnicoAsignadoId: varchar("tecnico_asignado_id"), // FK to users.id (produccion asignado)
+  tecnicoAsignadoName: varchar("tecnico_asignado_name"), // Nombre del técnico
+  
+  // Resolución
+  resolucionDescripcion: text("resolucion_descripcion"), // Descripción de la reparación realizada
+  resolucionUsuarioId: varchar("resolucion_usuario_id"), // Usuario de produccion que resolvió
+  resolucionUsuarioName: varchar("resolucion_usuario_name"), // Nombre del usuario que resolvió
+  fechaResolucion: timestamp("fecha_resolucion"), // Fecha de la resolución
+  
+  // Información adicional
+  costoEstimado: numeric("costo_estimado", { precision: 15, scale: 2 }), // Costo estimado de la reparación
+  costoReal: numeric("costo_real", { precision: 15, scale: 2 }), // Costo real de la reparación
+  tiempoEstimado: integer("tiempo_estimado"), // Tiempo estimado en horas
+  tiempoReal: integer("tiempo_real"), // Tiempo real en horas
+  repuestosUtilizados: text("repuestos_utilizados"), // Lista de repuestos utilizados
+  
+  // Fechas de seguimiento
+  fechaSolicitud: timestamp("fecha_solicitud").defaultNow(),
+  fechaAsignacion: timestamp("fecha_asignacion"),
+  fechaCierre: timestamp("fecha_cierre"),
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  solicitanteIdIdx: index("IDX_mantencion_solicitante_id").on(table.solicitanteId),
+  tecnicoIdIdx: index("IDX_mantencion_tecnico_id").on(table.tecnicoAsignadoId),
+  estadoIdx: index("IDX_mantencion_estado").on(table.estado),
+  gravedadIdx: index("IDX_mantencion_gravedad").on(table.gravedad),
+  areaIdx: index("IDX_mantencion_area").on(table.area),
+}));
+
+// Tabla de fotos de evidencia inicial
+export const mantencionPhotos = pgTable("mantencion_photos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mantencionId: varchar("mantencion_id").notNull(), // FK to solicitudesMantencion.id
+  photoUrl: text("photo_url").notNull(),
+  description: text("description"),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+}, (table) => ({
+  mantencionIdIdx: index("IDX_mantencion_photos_mantencion_id").on(table.mantencionId),
+}));
+
+// Tabla de fotos de resolución
+export const mantencionResolucionPhotos = pgTable("mantencion_resolucion_photos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mantencionId: varchar("mantencion_id").notNull(), // FK to solicitudesMantencion.id
+  photoUrl: text("photo_url").notNull(),
+  description: text("description"),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+}, (table) => ({
+  mantencionIdIdx: index("IDX_mantencion_resolucion_photos_mantencion_id").on(table.mantencionId),
+}));
+
+// Tabla de historial de estados
+export const mantencionHistorial = pgTable("mantencion_historial", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mantencionId: varchar("mantencion_id").notNull(), // FK to solicitudesMantencion.id
+  estadoAnterior: varchar("estado_anterior"),
+  estadoNuevo: varchar("estado_nuevo").notNull(),
+  userId: varchar("user_id").notNull(), // FK to users.id (quien hizo el cambio)
+  userName: varchar("user_name"), // Nombre del usuario que hizo el cambio
+  notas: text("notas"), // Notas adicionales sobre el cambio
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  mantencionIdIdx: index("IDX_mantencion_historial_mantencion_id").on(table.mantencionId),
+}));
+
+// Relaciones para solicitudes de mantención
+export const solicitudesMantencionRelations = relations(solicitudesMantencion, ({ one, many }) => ({
+  solicitante: one(users, {
+    fields: [solicitudesMantencion.solicitanteId],
+    references: [users.id],
+  }),
+  tecnicoAsignado: one(users, {
+    fields: [solicitudesMantencion.tecnicoAsignadoId],
+    references: [users.id],
+  }),
+  photos: many(mantencionPhotos),
+  resolucionPhotos: many(mantencionResolucionPhotos),
+  historial: many(mantencionHistorial),
+}));
+
+export const mantencionPhotosRelations = relations(mantencionPhotos, ({ one }) => ({
+  mantencion: one(solicitudesMantencion, {
+    fields: [mantencionPhotos.mantencionId],
+    references: [solicitudesMantencion.id],
+  }),
+}));
+
+export const mantencionResolucionPhotosRelations = relations(mantencionResolucionPhotos, ({ one }) => ({
+  mantencion: one(solicitudesMantencion, {
+    fields: [mantencionResolucionPhotos.mantencionId],
+    references: [solicitudesMantencion.id],
+  }),
+}));
+
+export const mantencionHistorialRelations = relations(mantencionHistorial, ({ one }) => ({
+  mantencion: one(solicitudesMantencion, {
+    fields: [mantencionHistorial.mantencionId],
+    references: [solicitudesMantencion.id],
+  }),
+  user: one(users, {
+    fields: [mantencionHistorial.userId],
+    references: [users.id],
+  }),
+}));
+
+// Types para solicitudes de mantención
+export type SolicitudMantencion = typeof solicitudesMantencion.$inferSelect;
+export type InsertSolicitudMantencion = typeof solicitudesMantencion.$inferInsert;
+
+export type MantencionPhoto = typeof mantencionPhotos.$inferSelect;
+export type InsertMantencionPhoto = typeof mantencionPhotos.$inferInsert;
+
+export type MantencionResolucionPhoto = typeof mantencionResolucionPhotos.$inferSelect;
+export type InsertMantencionResolucionPhoto = typeof mantencionResolucionPhotos.$inferInsert;
+
+export type MantencionHistorial = typeof mantencionHistorial.$inferSelect;
+export type InsertMantencionHistorial = typeof mantencionHistorial.$inferInsert;
+
+// Schemas de validación para solicitudes de mantención
+export const insertSolicitudMantencionSchema = createInsertSchema(solicitudesMantencion).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  fechaSolicitud: true,
+}).extend({
+  equipoNombre: z.string().min(1, "El nombre del equipo es requerido"),
+  area: z.string().min(1, "El área es requerida"),
+  descripcionProblema: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
+  gravedad: z.enum(["baja", "media", "alta", "critica"]),
+  estado: z.enum(["registrado", "en_reparacion", "resuelto", "cerrado"]).optional(),
+  tipoMantencion: z.enum(["preventivo", "correctivo", "predictivo"]).optional(),
+});
+
+export const insertMantencionPhotoSchema = createInsertSchema(mantencionPhotos).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertMantencionResolucionPhotoSchema = createInsertSchema(mantencionResolucionPhotos).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertMantencionHistorialSchema = createInsertSchema(mantencionHistorial).omit({
+  id: true,
+  createdAt: true,
+});
+
+// ==================================================================================
 // MARKETING MODULE
 // ==================================================================================
 
