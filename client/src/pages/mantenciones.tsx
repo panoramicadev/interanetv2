@@ -71,6 +71,8 @@ export default function MantencionesPage() {
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const resolutionFileInputRef = useRef<HTMLInputElement>(null);
+  const [gravedad, setGravedad] = useState('media');
+  const [tipoMantencion, setTipoMantencion] = useState('correctivo');
 
   const canSubmitResolution = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
 
@@ -257,7 +259,13 @@ export default function MantencionesPage() {
             Sistema de solicitudes de mantención de equipos
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (open) {
+            setGravedad('media');
+            setTipoMantencion('correctivo');
+          }
+        }}>
           <DialogTrigger asChild>
             <Button data-testid="button-nueva-solicitud">
               <Plus className="h-4 w-4 mr-2" />
@@ -321,22 +329,23 @@ export default function MantencionesPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="gravedad">Gravedad *</Label>
-                      <Select name="gravedad" required defaultValue="media">
+                      <Select value={gravedad} onValueChange={setGravedad} required>
                         <SelectTrigger data-testid="select-gravedad">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {GRAVEDAD_OPTIONS.map(gravedad => (
-                            <SelectItem key={gravedad.value} value={gravedad.value}>
-                              {gravedad.label}
+                          {GRAVEDAD_OPTIONS.map(option => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      <input type="hidden" name="gravedad" value={gravedad} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="tipoMantencion">Tipo de Mantención *</Label>
-                      <Select name="tipoMantencion" required defaultValue="correctivo">
+                      <Select value={tipoMantencion} onValueChange={setTipoMantencion} required>
                         <SelectTrigger data-testid="select-tipo-mantencion">
                           <SelectValue />
                         </SelectTrigger>
@@ -348,6 +357,7 @@ export default function MantencionesPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <input type="hidden" name="tipoMantencion" value={tipoMantencion} />
                     </div>
                   </div>
 
