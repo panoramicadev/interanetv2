@@ -2835,14 +2835,14 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         clientName: salesTransactions.nokoen,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END), 0)`
       })
       .from(salesTransactions)
       .where(and(...conditions))
       .groupBy(salesTransactions.nokoen)
-      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+      .orderBy(sql`SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END) DESC`);
     
     // Calculate segment total for percentages
     const segmentTotal = result.reduce((sum, client) => sum + client.totalSales, 0);
@@ -2913,14 +2913,14 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         salespersonName: salesTransactions.nokofu,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END), 0)`
       })
       .from(salesTransactions)
       .where(and(...conditions))
       .groupBy(salesTransactions.nokofu)
-      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+      .orderBy(sql`SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END) DESC`);
     
     // Calculate segment total for percentages
     const segmentTotal = result.reduce((sum, salesperson) => sum + salesperson.totalSales, 0);
