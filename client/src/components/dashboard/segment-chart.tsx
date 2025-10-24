@@ -66,7 +66,7 @@ export default function SegmentChart({ selectedPeriod, filterType }: SegmentChar
             {segmentData.map((segment, index) => (
               <Link 
                 key={segment.segment} 
-                href={`/segment/${encodeURIComponent(segment.segment)}`}
+                href={`/segment/${encodeURIComponent(segment.segment)}?period=${selectedPeriod}&filterType=${filterType}`}
                 className="block hover:bg-gray-50/50 rounded-lg transition-colors"
               >
                 <div 

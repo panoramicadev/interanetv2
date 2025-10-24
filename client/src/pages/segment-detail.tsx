@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
 import {
   Table,
   TableBody,
@@ -36,16 +36,64 @@ interface SegmentSalesperson {
 
 export default function SegmentDetail() {
   const { segmentName } = useParams();
+  const [location] = useLocation();
   
-  // Date filter states
+  // Get URL parameters
+  const getUrlParams = () => {
+    const searchParams = new URLSearchParams(location.split('?')[1] || '');
+    return {
+      period: searchParams.get('period'),
+      filterType: searchParams.get('filterType') as "day" | "month" | "year" | "range" | null
+    };
+  };
+
+  const urlParams = getUrlParams();
+  
+  // Date filter states - initialize with URL parameters if available
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
-    return format(new Date(), "yyyy-MM");
+    return urlParams.period || format(new Date(), "yyyy-MM");
   });
-  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">("month");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [startDate, setStartDate] = useState<Date | undefined>();
-  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">(() => {
+    return urlParams.filterType || "month";
+  });
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
+    if (urlParams.filterType === "day" && urlParams.period) {
+      try {
+        return parse(urlParams.period, "yyyy-MM-dd", new Date());
+      } catch {
+        return new Date();
+      }
+    }
+    return new Date();
+  });
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    if (urlParams.filterType === "year" && urlParams.period) {
+      return parseInt(urlParams.period);
+    }
+    return new Date().getFullYear();
+  });
+  const [startDate, setStartDate] = useState<Date | undefined>(() => {
+    if (urlParams.filterType === "range" && urlParams.period && urlParams.period.includes("_")) {
+      const [start] = urlParams.period.split("_");
+      try {
+        return parse(start, "yyyy-MM-dd", new Date());
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  });
+  const [endDate, setEndDate] = useState<Date | undefined>(() => {
+    if (urlParams.filterType === "range" && urlParams.period && urlParams.period.includes("_")) {
+      const [, end] = urlParams.period.split("_");
+      try {
+        return parse(end, "yyyy-MM-dd", new Date());
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  });
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
