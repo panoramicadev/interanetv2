@@ -288,7 +288,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -7651,6 +7651,448 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error al obtener fotos de resolución:', error);
       res.status(500).json({ message: 'Error al obtener fotos de resolución' });
+    }
+  }));
+
+  // ==================================================================================
+  // MANTENCIÓN MODULE ROUTES
+  // ==================================================================================
+
+  // Get all solicitudes de mantención with optional filters
+  app.get('/api/mantenciones', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only specific roles can access mantenciones
+      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para acceder a mantenciones' });
+      }
+
+      const filters: any = {};
+      
+      if (req.query.solicitanteId) filters.solicitanteId = req.query.solicitanteId;
+      if (req.query.tecnicoAsignadoId) filters.tecnicoAsignadoId = req.query.tecnicoAsignadoId;
+      if (req.query.estado) filters.estado = req.query.estado;
+      if (req.query.gravedad) filters.gravedad = req.query.gravedad;
+      if (req.query.area) filters.area = req.query.area;
+      
+      const solicitudes = await storage.getSolicitudesMantencion(filters);
+      res.json(solicitudes);
+    } catch (error: any) {
+      console.error('Error al obtener solicitudes de mantención:', error);
+      res.status(500).json({ message: 'Error al obtener solicitudes de mantención', error: error.message });
+    }
+  }));
+
+  // Get solicitud de mantención by ID
+  app.get('/api/mantenciones/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only specific roles can access mantenciones
+      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para acceder a mantenciones' });
+      }
+
+      const solicitud = await storage.getSolicitudMantencionById(req.params.id);
+      
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud de mantención no encontrada' });
+      }
+      
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al obtener solicitud de mantención:', error);
+      res.status(500).json({ message: 'Error al obtener solicitud de mantención', error: error.message });
+    }
+  }));
+
+  // Get solicitud de mantención with photos and historial
+  app.get('/api/mantenciones/:id/details', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only specific roles can access mantenciones
+      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para acceder a mantenciones' });
+      }
+
+      const solicitud = await storage.getSolicitudMantencionWithDetails(req.params.id);
+      
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud de mantención no encontrada' });
+      }
+      
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al obtener detalles de mantención:', error);
+      res.status(500).json({ message: 'Error al obtener detalles de mantención', error: error.message });
+    }
+  }));
+
+  // Create new solicitud de mantención
+  app.post('/api/mantenciones', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only specific roles can create mantenciones
+      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para crear solicitudes de mantención' });
+      }
+
+      // Validate request body with Zod schema
+      const solicitudData = {
+        ...req.body,
+        solicitanteId: user.id,
+        solicitanteName: user.name || user.username,
+        estado: 'registrado',
+      };
+
+      // Parse and validate with schema
+      const validatedData = insertSolicitudMantencionSchema.parse(solicitudData);
+
+      const solicitud = await storage.createSolicitudMantencion(validatedData);
+      res.status(201).json(solicitud);
+    } catch (error: any) {
+      console.error('Error al crear solicitud de mantención:', error);
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ message: 'Error al crear solicitud de mantención', error: error.message });
+    }
+  }));
+
+  // Update solicitud de mantención
+  app.patch('/api/mantenciones/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin, supervisor, and produccion can update
+      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para actualizar solicitudes de mantención' });
+      }
+
+      // Validate partial update with schema
+      const partialSchema = insertSolicitudMantencionSchema.partial();
+      const validatedData = partialSchema.parse(req.body);
+
+      const solicitud = await storage.updateSolicitudMantencion(req.params.id, validatedData);
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al actualizar solicitud de mantención:', error);
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ message: 'Error al actualizar solicitud de mantención', error: error.message });
+    }
+  }));
+
+  // Delete solicitud de mantención (only within 5 minutes of creation)
+  app.delete('/api/mantenciones/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const solicitud = await storage.getSolicitudMantencionById(req.params.id);
+
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud de mantención no encontrada' });
+      }
+
+      // Only the creator can delete (within 5 minutes)
+      if (solicitud.solicitanteId !== user.id) {
+        return res.status(403).json({ message: 'Solo el creador puede eliminar la solicitud' });
+      }
+
+      const now = new Date();
+      const createdAt = new Date(solicitud.fechaSolicitud);
+      const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+
+      if (diffMinutes > 5) {
+        return res.status(403).json({ message: 'Solo se puede eliminar dentro de los primeros 5 minutos' });
+      }
+
+      await storage.deleteSolicitudMantencion(req.params.id);
+      res.json({ message: 'Solicitud de mantención eliminada exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar solicitud de mantención:', error);
+      res.status(500).json({ message: 'Error al eliminar solicitud de mantención', error: error.message });
+    }
+  }));
+
+  // Upload photos for solicitud de mantención
+  app.post('/api/mantenciones/:id/photos', requireAuth, upload.array('photos', 10), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only specific roles can upload photos
+      const allowedRoles = ['admin', 'supervisor', 'produccion', 'planificacion', 'logistica_bodega', 'bodega_materias_primas'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para subir fotos' });
+      }
+
+      const solicitud = await storage.getSolicitudMantencionById(req.params.id);
+      if (!solicitud) {
+        return res.status(404).json({ message: 'Solicitud de mantención no encontrada' });
+      }
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ message: 'No se subieron fotos' });
+      }
+
+      const photoUrls = files.map(file => file.path);
+      
+      const photos = await Promise.all(
+        photoUrls.map((photoUrl, index) => 
+          storage.createMantencionPhoto({
+            mantencionId: req.params.id,
+            photoUrl,
+            description: req.body[`descriptions[${index}]`] || null,
+          })
+        )
+      );
+
+      res.status(201).json(photos);
+    } catch (error: any) {
+      console.error('Error al subir fotos:', error);
+      res.status(500).json({ message: 'Error al subir fotos', error: error.message });
+    }
+  }));
+
+  // Get photos for solicitud de mantención
+  app.get('/api/mantenciones/:id/photos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const photos = await storage.getMantencionPhotos(req.params.id);
+      res.json(photos);
+    } catch (error: any) {
+      console.error('Error al obtener fotos:', error);
+      res.status(500).json({ message: 'Error al obtener fotos' });
+    }
+  }));
+
+  // Delete photo
+  app.delete('/api/mantenciones/photos/:photoId', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteMantencionPhoto(req.params.photoId);
+      res.json({ message: 'Foto eliminada exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar foto:', error);
+      res.status(500).json({ message: 'Error al eliminar foto' });
+    }
+  }));
+
+  // Assign técnico to mantención
+  app.post('/api/mantenciones/:id/assign-tecnico', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin, supervisor, and produccion can assign técnico
+      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para asignar técnicos' });
+      }
+
+      // Validate request data
+      const assignSchema = z.object({
+        tecnicoId: z.string().min(1, 'El ID del técnico es requerido'),
+        tecnicoName: z.string().min(1, 'El nombre del técnico es requerido'),
+      });
+
+      const { tecnicoId, tecnicoName } = assignSchema.parse(req.body);
+
+      const solicitud = await storage.assignTecnicoToMantencion(
+        req.params.id,
+        tecnicoId,
+        tecnicoName,
+        user.id,
+        user.name || user.username
+      );
+
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al asignar técnico:', error);
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ message: 'Error al asignar técnico', error: error.message });
+    }
+  }));
+
+  // Change estado
+  app.post('/api/mantenciones/:id/cambiar-estado', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin, supervisor, and produccion can change estado
+      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para cambiar estado' });
+      }
+
+      // Validate request data
+      const estadoSchema = z.object({
+        nuevoEstado: z.enum(['registrado', 'en_reparacion', 'resuelto', 'cerrado'], {
+          errorMap: () => ({ message: 'Estado inválido' })
+        }),
+        notas: z.string().optional(),
+      });
+
+      const { nuevoEstado, notas } = estadoSchema.parse(req.body);
+
+      const solicitud = await storage.updateMantencionEstado(
+        req.params.id,
+        nuevoEstado,
+        user.id,
+        user.name || user.username,
+        notas
+      );
+
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al cambiar estado:', error);
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ message: 'Error al cambiar estado', error: error.message });
+    }
+  }));
+
+  // Submit resolución (solo produccion)
+  app.post('/api/mantenciones/:id/resolucion', requireAuth, upload.array('photos', 10), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only produccion can submit resolucion
+      if (user.role !== 'produccion') {
+        return res.status(403).json({ message: 'Solo el área de producción puede enviar resoluciones' });
+      }
+
+      // Validate resolution data
+      const resolucionSchema = z.object({
+        resolucionDescripcion: z.string().min(10, 'La descripción de la resolución debe tener al menos 10 caracteres'),
+        costoReal: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
+        tiempoReal: z.string().optional().transform(val => val ? parseInt(val) : undefined),
+        repuestosUtilizados: z.string().optional(),
+      });
+
+      const validatedData = resolucionSchema.parse(req.body);
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        return res.status(400).json({ message: 'Se requiere al menos una foto de evidencia' });
+      }
+
+      const photoUrls = files.map(file => file.path);
+      const photos = photoUrls.map((photoUrl, index) => ({
+        photoUrl,
+        description: req.body[`descriptions[${index}]`] || 'Evidencia de resolución',
+      }));
+
+      const solicitud = await storage.updateResolucionMantencion(
+        req.params.id,
+        validatedData.resolucionDescripcion,
+        photos,
+        user.id,
+        user.name || user.username,
+        validatedData.costoReal,
+        validatedData.tiempoReal,
+        validatedData.repuestosUtilizados
+      );
+
+      if (!solicitud) {
+        return res.status(409).json({ message: 'La solicitud ya tiene una resolución o fue modificada por otro usuario' });
+      }
+
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al subir resolución:', error);
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ message: 'Error al subir resolución', error: error.message });
+    }
+  }));
+
+  // Get resolución photos
+  app.get('/api/mantenciones/:id/resolucion-photos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const photos = await storage.getMantencionResolucionPhotos(req.params.id);
+      res.json(photos);
+    } catch (error: any) {
+      console.error('Error al obtener fotos de resolución:', error);
+      res.status(500).json({ message: 'Error al obtener fotos de resolución' });
+    }
+  }));
+
+  // Get historial
+  app.get('/api/mantenciones/:id/historial', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const historial = await storage.getMantencionHistorial(req.params.id);
+      res.json(historial);
+    } catch (error: any) {
+      console.error('Error al obtener historial:', error);
+      res.status(500).json({ message: 'Error al obtener historial' });
+    }
+  }));
+
+  // Cerrar solicitud de mantención
+  app.post('/api/mantenciones/:id/cerrar', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin, supervisor, and produccion can close
+      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para cerrar solicitudes' });
+      }
+
+      const { notas } = req.body;
+
+      const solicitud = await storage.cerrarMantencion(
+        req.params.id,
+        user.id,
+        user.name || user.username,
+        notas
+      );
+
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al cerrar solicitud:', error);
+      res.status(500).json({ message: 'Error al cerrar solicitud', error: error.message });
     }
   }));
 
