@@ -1,0 +1,254 @@
+
+/
+
+Databases
+Development Database
+69.84MB / 10GB
+Production Database
+101.08MB / 100GB
+Billing Period
+Renews monthly, 26 oct
+Hours of Compute Used
+92.56 hours
+Production
+Status
+Paolo published 30 minutes ago
+Visibility
+Public
+Domain
+https://ipanoramica.replit.app
+https://app.pinturaspanoramica.cl
+Type
+Autoscale
+(4 vCPU / 8 GiB RAM / 3 Max)
+See all usage
+Database
+Production database connected
+eb4fbbe4
+PC
+
+pchaparro
+Paolo
+published 37 minutes ago
+1fe74d7a
+PC
+
+pchaparro
+Paolo
+published about 2 hours ago
+77d5ede8
+PC
+
+pchaparro
+Paolo
+published about 21 hours ago
+3ecba2cd
+PC
+
+pchaparro
+Paolo
+published about 21 hours ago
+95067398
+PC
+
+pchaparro
+Paolo
+published about 22 hours ago
+bd7e303c
+PC
+
+pchaparro
+Paolo
+published about 22 hours ago
+9fceac25
+PC
+
+pchaparro
+Paolo
+published about 22 hours ago
+4c3548f2
+PC
+
+pchaparro
+Paolo
+published about 24 hours ago
+a80d2f86
+PC
+
+pchaparro
+Paolo
+published about 24 hours ago
+1e11ff31
+PC
+
+pchaparro
+Paolo
+published 1 day ago
+4f10323b
+PC
+
+pchaparro
+Paolo
+published 1 day ago
+eb2b2935
+PC
+
+pchaparro
+Paolo
+failed to publish 1 day ago
+170700c1
+PC
+
+pchaparro
+Paolo
+published 1 day ago
+7d45ab15
+PC
+
+pchaparro
+Paolo
+published 2 days ago
+78f09dcd
+PC
+
+pchaparro
+Paolo
+published 3 days ago
+6f9da2f5
+PC
+
+pchaparro
+Paolo
+published 3 days ago
+b542fa5b
+PC
+
+pchaparro
+Paolo
+published 3 days ago
+efd33fe7
+PC
+
+pchaparro
+Paolo
+failed to publish 4 days ago
+1fa7ef3e
+PC
+
+pchaparro
+Paolo
+published 4 days ago
+SESSION_SECRET
+••••••••
+DATABASE_URL
+••••••••
+PGDATABASE
+••••••••
+PGHOST
+••••••••
+PGPORT
+••••••••
+PGUSER
+••••••••
+PGPASSWORD
+••••••••
+DEFAULT_OBJECT_STORAGE_BUCKET_ID
+••••••••
+PUBLIC_OBJECT_SEARCH_PATHS
+••••••••
+PRIVATE_OBJECT_DIR
+••••••••
+SQLSERVER_DATABASE
+••••••••
+SQLSERVER_HOST
+••••••••
+SQLSERVER_PASSWORD
+••••••••
+SQLSERVER_PORT
+••••••••
+SQLSERVER_TRUST_CERT
+••••••••
+SQLSERVER_USER
+••••••••
+SQL_SERVER_DATABASE
+••••••••
+SQL_SERVER_HOST
+••••••••
+SQL_SERVER_PASSWORD
+••••••••
+SQL_SERVER_PORT
+••••••••
+SQL_SERVER_USER
+••••••••
+7m
+ • 
+8 minutes ago
+Improve access control for claim resolution based on normalized user and responsibility areas
+
+3 messages & 11 actions
+Entiendo. Voy a revisar todas las funciones de detalle para asegurarme de que excluyan GDV y NVV correctamente. Déjame verificar panel por panel:
+33 minutes ago
+Filter out non-invoiced sales from specific transaction views
+
+1 action
+necesito un selector de fechas mas sencillo de utilizar, ojala de un solo calendario donde se pueda seleccionar año, años, mes, meses y rango de fechas, y otro selector para comparativa que tenga las mismas opciones para y que de la opcion de comparar hasta 3 rangos, por ejempolo 2023, 2024, 2025
+
+24 minutes ago
+
+8 messages & 31 actions
+Entiendo, necesitas un selector de fechas más simple e intuitivo. Primero déjame revisar qué causó el error en el servidor:
+20 minutes ago
+Add date selectors for simplified date and comparison period selection
+4 minutes of work
+en el panel de segment agrega la meta de segmento
+
+20 minutes ago
+en el panel de segment agrega la meta de segmento
+
+20 minutes ago
+
+6 messages & 25 actions
+Entiendo, voy a agregar la meta del segmento en el panel de detalle de segmento. Déjame revisar primero la estructura actual:
+17 minutes ago
+Add segment goal progress to the segment detail panel
+2 minutes of work
+si pincho los años, luego debo poder seleccionar los meses de los años que seleccionaste, y necesito que el cuadro comparativo funciones igual, esta perfecto que lo trabajemos aqui antes de implementar
+
+13 minutes ago
+
+4 messages & 14 actions
+Entiendo perfecto. Voy a mejorar el selector para que funcione en dos pasos: 1. Primero seleccionas los años 2. Luego puedes seleccionar meses específicos dentro de esos años
+10 minutes ago
+Enable selecting multiple years and then individual months within those years
+2 minutes of work
+En el panel de tareas, en la sección promesas en la estimación semanal, dentro del rango de fechas configurado por semana, funcione de la siguiente manera:
+
+La última semana de cada mes no debe incluir días del mes siguiente.
+
+Es decir, la semana debe cortarse exactamente en el último día del mes, aunque esa semana quede incompleta (con uno, dos o más días).
+
+Esto es importante para mantener correctamente ordenado el siguiente período mensual.
+
+Además, hay otro problema:
+
+No es posible cargar en producción los registros de “nueva promesa” correctamente. Ni en supervisor, ni adminsitrador ni vendedor. Corrige eso es importante,
+
+Una vez creadas, no aparecen publicadas o visibles en el sistema.
+
+9 minutes ago
+
+5 messages & 35 actions
+Entiendo. Hay dos problemas importantes: 1. **Semanas que cruzan meses**: La última semana del mes debe cortarse en el último día del mes 2. **No se pueden guardar nuevas promesas**: Las promesas no se guardan ni aparecen en el sistema Voy a investigar ambos problemas:
+6 minutes ago
+Fix issues with weekly estimations and promise creation
+3 minutes of work
+necesito ademas que me muestre las metas
+
+6 minutes ago
+
+3 messages & 13 actions
+Veo el error. El problema es que `goalData.progress` no está definido. Déjame revisar el código del panel de detalle del segmento:
+3 minutes ago
+Show sales goals and progress in segment detail view
+3 minutes of work
+deberia mostrar l ameta como el dashboard principal y abajo de las tarjetas de metricas
