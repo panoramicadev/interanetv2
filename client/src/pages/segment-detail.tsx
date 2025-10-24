@@ -211,7 +211,7 @@ export default function SegmentDetail({
 
   // Fetch segment goal (only for monthly periods)
   const { data: goalData } = useQuery({
-    queryKey: ['/api/goals/progress', selectedPeriod],
+    queryKey: ['/api/goals/progress', selectedPeriod, segmentName],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedPeriod) {
@@ -225,11 +225,8 @@ export default function SegmentDetail({
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       const data = await res.json();
       
-      // Find the goal for this specific segment
-      return data.find((goal: any) => 
-        goal.type === 'segment' && 
-        goal.target?.toLowerCase() === segmentName?.toLowerCase()
-      ) || null;
+      // Backend already filters by type and target, so just return first element
+      return data && data.length > 0 ? data[0] : null;
     },
     enabled: !!segmentName && filterType === 'month', // Only fetch for monthly view
   });
