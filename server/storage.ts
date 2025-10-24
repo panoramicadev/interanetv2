@@ -2844,8 +2844,8 @@ export class DatabaseStorage implements IStorage {
       .groupBy(salesTransactions.nokoen)
       .orderBy(sql`SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END) DESC`);
     
-    // Calculate segment total for percentages
-    const segmentTotal = result.reduce((sum, client) => sum + client.totalSales, 0);
+    // Calculate segment total for percentages - ensure proper number conversion
+    const segmentTotal = result.reduce((sum, client) => sum + Number(client.totalSales || 0), 0);
     
     return result.map(client => ({
       clientName: client.clientName || 'Cliente desconocido',
@@ -2922,8 +2922,8 @@ export class DatabaseStorage implements IStorage {
       .groupBy(salesTransactions.nokofu)
       .orderBy(sql`SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS NUMERIC) ELSE 0 END) DESC`);
     
-    // Calculate segment total for percentages
-    const segmentTotal = result.reduce((sum, salesperson) => sum + salesperson.totalSales, 0);
+    // Calculate segment total for percentages - ensure proper number conversion
+    const segmentTotal = result.reduce((sum, salesperson) => sum + Number(salesperson.totalSales || 0), 0);
     
     return result.map(salesperson => ({
       salespersonName: salesperson.salespersonName || 'Vendedor desconocido',
