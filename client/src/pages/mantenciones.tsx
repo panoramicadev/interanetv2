@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,9 @@ import {
   Upload,
   Image as ImageIcon,
   Eye,
-  XCircle
+  XCircle,
+  Calendar,
+  MoreVertical
 } from "lucide-react";
 import type { SolicitudMantencion, MantencionPhoto } from "@shared/schema";
 import { format } from "date-fns";
@@ -210,7 +212,7 @@ export default function MantencionesPage() {
     return mantenciones.filter(m => m.estado === estado);
   };
 
-  const renderMantencionesTable = (filteredMantenciones: MantencionWithDetails[]) => {
+  const renderMantencionesCards = (filteredMantenciones: MantencionWithDetails[]) => {
     if (filteredMantenciones.length === 0) {
       return (
         <div className="text-center py-12">
@@ -221,46 +223,91 @@ export default function MantencionesPage() {
     }
 
     return (
-      <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
-        <Table data-testid="table-mantenciones">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-[150px]">Equipo</TableHead>
-              <TableHead className="min-w-[120px]">Área</TableHead>
-              <TableHead className="min-w-[200px] hidden lg:table-cell">Problema</TableHead>
-              <TableHead className="min-w-[100px]">Gravedad</TableHead>
-              <TableHead className="min-w-[100px]">Estado</TableHead>
-              <TableHead className="min-w-[120px] hidden md:table-cell">Creado</TableHead>
-              <TableHead className="min-w-[80px]">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredMantenciones.map((mantencion) => (
-              <TableRow key={mantencion.id} data-testid={`row-mantencion-${mantencion.id}`}>
-                <TableCell className="font-medium">{mantencion.equipoNombre}</TableCell>
-                <TableCell className="text-sm">{mantencion.area}</TableCell>
-                <TableCell className="max-w-xs truncate hidden lg:table-cell">{mantencion.descripcionProblema}</TableCell>
-                <TableCell>{getGravedadBadge(mantencion.gravedad)}</TableCell>
-                <TableCell>{getEstadoBadge(mantencion.estado)}</TableCell>
-                <TableCell className="text-sm hidden md:table-cell">{mantencion.createdAt && format(new Date(mantencion.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}</TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedMantencion(mantencion);
-                      setIsDetailsDialogOpen(true);
-                    }}
-                    data-testid={`button-ver-detalles-${mantencion.id}`}
-                  >
-                    <Eye className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Ver</span>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <div className="space-y-3">
+        {filteredMantenciones.map((mantencion) => {
+          const estadoInfo = ESTADO_OPTIONS.find(e => e.value === mantencion.estado);
+          const gravedadInfo = GRAVEDAD_OPTIONS.find(g => g.value === mantencion.gravedad);
+          const Icon = estadoInfo?.icon || Clock;
+          
+          return (
+            <Card key={mantencion.id} className="hover:bg-accent/50 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold" data-testid={`text-mantencion-equipo-${mantencion.id}`}>
+                        {mantencion.equipoNombre}
+                      </h3>
+                      <Badge className={gravedadInfo?.color} data-testid={`badge-gravedad-${mantencion.id}`}>
+                        {gravedadInfo?.label}
+                      </Badge>
+                      <Badge className={estadoInfo?.color} data-testid={`badge-estado-${mantencion.id}`}>
+                        <Icon className="h-3 w-3 mr-1" />
+                        {estadoInfo?.label}
+                      </Badge>
+                    </div>
+                    
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {mantencion.descripcionProblema}
+                    </p>
+                    
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(mantencion.createdAt || ''), "dd MMM yyyy", { locale: es })}
+                      </span>
+                      <span>Área: {AREA_OPTIONS.find(a => a.value === mantencion.area)?.label || mantencion.area}</span>
+                      {mantencion.ubicacion && (
+                        <span>Ubicación: {mantencion.ubicacion}</span>
+                      )}
+                      {mantencion.equipoCodigo && (
+                        <span>Código: {mantencion.equipoCodigo}</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedMantencion(mantencion);
+                        setIsDetailsDialogOpen(true);
+                      }}
+                      data-testid={`button-view-mantencion-${mantencion.id}`}
+                      className="w-full sm:w-auto"
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver Detalle
+                    </Button>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" data-testid={`button-actions-${mantencion.id}`}>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        {canSubmitResolution && mantencion.estado !== 'resuelto' && mantencion.estado !== 'cerrado' && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setSelectedMantencion(mantencion);
+                              setIsResolutionDialogOpen(true);
+                            }}
+                            data-testid={`menu-resolver-${mantencion.id}`}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Enviar Resolución
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     );
   };
@@ -477,16 +524,16 @@ export default function MantencionesPage() {
             </TabsList>
 
             <TabsContent value="todos">
-              {renderMantencionesTable(mantenciones)}
+              {renderMantencionesCards(mantenciones)}
             </TabsContent>
             <TabsContent value="registrado">
-              {renderMantencionesTable(filterByEstado('registrado'))}
+              {renderMantencionesCards(filterByEstado('registrado'))}
             </TabsContent>
             <TabsContent value="en_reparacion">
-              {renderMantencionesTable(filterByEstado('en_reparacion'))}
+              {renderMantencionesCards(filterByEstado('en_reparacion'))}
             </TabsContent>
             <TabsContent value="resuelto">
-              {renderMantencionesTable(filterByEstado('resuelto'))}
+              {renderMantencionesCards(filterByEstado('resuelto'))}
             </TabsContent>
           </Tabs>
         </CardContent>
