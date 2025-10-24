@@ -28,140 +28,143 @@ export default function DateSelectorDemo() {
           </p>
         </div>
 
-        {/* Main Period Selector */}
-        <Card className="border-2 border-blue-100">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
-              <CardTitle>Selector Principal de Período</CardTitle>
-            </div>
-            <CardDescription>
-              Selecciona un año, múltiples años, un mes, varios meses o un rango de fechas personalizado
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <label className="text-sm font-medium text-gray-700 w-20">
-                  Período:
-                </label>
-                <UnifiedDateSelector
-                  value={selectedPeriod}
-                  onChange={setSelectedPeriod}
-                  label="Seleccionar período"
-                />
+        {/* Selectors in Two Columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Main Period Selector */}
+          <Card className="border-2 border-blue-100">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-blue-600" />
+                <CardTitle>Selector Principal</CardTitle>
               </div>
+              <CardDescription>
+                Selecciona año(s), mes(es) o rango
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-gray-700 w-20">
+                    Período:
+                  </label>
+                  <UnifiedDateSelector
+                    value={selectedPeriod}
+                    onChange={setSelectedPeriod}
+                    label="Seleccionar período"
+                  />
+                </div>
 
-              {/* Display Selected Period */}
-              {selectedPeriod && (
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-start gap-3">
-                    <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div className="flex-1 space-y-2">
-                      <div className="font-medium text-sm text-blue-900">Período Seleccionado</div>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="text-gray-600">Tipo:</span>
-                          <Badge variant="secondary" className="ml-2">
-                            {selectedPeriod.type === "year" && "Año"}
-                            {selectedPeriod.type === "years" && "Años"}
-                            {selectedPeriod.type === "month" && "Mes"}
-                            {selectedPeriod.type === "months" && "Meses"}
-                            {selectedPeriod.type === "range" && "Rango"}
-                          </Badge>
+                {/* Display Selected Period */}
+                {selectedPeriod && (
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-start gap-3">
+                      <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div className="flex-1 space-y-2">
+                        <div className="font-medium text-sm text-blue-900">Período Seleccionado</div>
+                        <div className="grid grid-cols-1 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-600">Tipo:</span>
+                            <Badge variant="secondary" className="ml-2">
+                              {selectedPeriod.type === "year" && "Año"}
+                              {selectedPeriod.type === "years" && "Años"}
+                              {selectedPeriod.type === "month" && "Mes"}
+                              {selectedPeriod.type === "months" && "Meses"}
+                              {selectedPeriod.type === "range" && "Rango"}
+                            </Badge>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Valor:</span>
+                            <span className="ml-2 font-mono text-xs bg-white px-2 py-1 rounded break-all">
+                              {selectedPeriod.value}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Visualización:</span>
+                            <span className="ml-2 font-medium">{selectedPeriod.display}</span>
+                          </div>
+                          {selectedPeriod.startDate && (
+                            <>
+                              <div>
+                                <span className="text-gray-600">Inicio:</span>
+                                <span className="ml-2 font-mono text-xs">
+                                  {selectedPeriod.startDate.toISOString().split('T')[0]}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Fin:</span>
+                                <span className="ml-2 font-mono text-xs">
+                                  {selectedPeriod.endDate?.toISOString().split('T')[0]}
+                                </span>
+                              </div>
+                            </>
+                          )}
                         </div>
-                        <div>
-                          <span className="text-gray-600">Valor:</span>
-                          <span className="ml-2 font-mono text-xs bg-white px-2 py-1 rounded">
-                            {selectedPeriod.value}
-                          </span>
-                        </div>
-                        <div className="col-span-2">
-                          <span className="text-gray-600">Visualización:</span>
-                          <span className="ml-2 font-medium">{selectedPeriod.display}</span>
-                        </div>
-                        {selectedPeriod.startDate && (
-                          <>
-                            <div>
-                              <span className="text-gray-600">Inicio:</span>
-                              <span className="ml-2 font-mono text-xs">
-                                {selectedPeriod.startDate.toISOString().split('T')[0]}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Fin:</span>
-                              <span className="ml-2 font-mono text-xs">
-                                {selectedPeriod.endDate?.toISOString().split('T')[0]}
-                              </span>
-                            </div>
-                          </>
-                        )}
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Comparison Selector */}
-        <Card className="border-2 border-purple-100">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <GitCompare className="h-5 w-5 text-purple-600" />
-              <CardTitle>Selector de Comparación</CardTitle>
-            </div>
-            <CardDescription>
-              Compara hasta 3 períodos diferentes (ejemplo: 2023, 2024, 2025)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-gray-700 w-20">
-                Comparar:
-              </label>
-              <ComparisonSelector
-                value={comparisons}
-                onChange={setComparisons}
-              />
-            </div>
+          {/* Comparison Selector */}
+          <Card className="border-2 border-purple-100">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <GitCompare className="h-5 w-5 text-purple-600" />
+                <CardTitle>Selector de Comparación</CardTitle>
+              </div>
+              <CardDescription>
+                Compara hasta 3 períodos
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700 w-20">
+                  Comparar:
+                </label>
+                <ComparisonSelector
+                  value={comparisons}
+                  onChange={setComparisons}
+                />
+              </div>
 
-            {/* Display Comparisons */}
-            {comparisons.length > 0 && (
-              <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                <div className="flex items-start gap-3">
-                  <Info className="h-5 w-5 text-purple-600 mt-0.5" />
-                  <div className="flex-1 space-y-3">
-                    <div className="font-medium text-sm text-purple-900">
-                      Períodos para Comparar ({comparisons.length})
-                    </div>
-                    {comparisons.map((comp, index) => (
-                      <div key={index} className="bg-white p-3 rounded border border-purple-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-medium">
-                            {index + 1}
+              {/* Display Comparisons */}
+              {comparisons.length > 0 && (
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="flex items-start gap-3">
+                    <Info className="h-5 w-5 text-purple-600 mt-0.5" />
+                    <div className="flex-1 space-y-3">
+                      <div className="font-medium text-sm text-purple-900">
+                        Períodos ({comparisons.length})
+                      </div>
+                      {comparisons.map((comp, index) => (
+                        <div key={index} className="bg-white p-3 rounded border border-purple-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-medium">
+                              {index + 1}
+                            </div>
+                            <span className="font-medium text-sm">{comp.display}</span>
                           </div>
-                          <span className="font-medium">{comp.display}</span>
-                          <Badge variant="outline" className="ml-auto">
+                          <Badge variant="outline" className="text-xs">
                             {comp.type === "year" && "Año"}
                             {comp.type === "years" && "Años"}
                             {comp.type === "month" && "Mes"}
                             {comp.type === "months" && "Meses"}
                             {comp.type === "range" && "Rango"}
                           </Badge>
+                          <div className="text-xs text-gray-600 font-mono bg-gray-50 px-2 py-1 rounded mt-2 break-all">
+                            {comp.value}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-600 font-mono bg-gray-50 px-2 py-1 rounded">
-                          {comp.value}
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Usage Examples */}
         <Card>
