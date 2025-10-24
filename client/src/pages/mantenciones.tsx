@@ -541,16 +541,28 @@ export default function MantencionesPage() {
 
       {/* Details Dialog */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
-              Detalle de Solicitud de Mantención
-            </DialogTitle>
+            <DialogTitle>Detalle de Solicitud de Mantención</DialogTitle>
           </DialogHeader>
           {selectedMantencion && (
-            <div className="space-y-6">
+            <div className="space-y-6 pt-4">
+              {/* Header info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Equipo</Label>
+                  <p className="font-semibold">{selectedMantencion.equipoNombre}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Fecha Registro</Label>
+                  <p>{selectedMantencion.createdAt && format(new Date(selectedMantencion.createdAt), "dd MMMM yyyy HH:mm", { locale: es })}</p>
+                </div>
+                {selectedMantencion.equipoCodigo && (
+                  <div>
+                    <Label className="text-muted-foreground">Código de Equipo</Label>
+                    <p className="font-medium">{selectedMantencion.equipoCodigo}</p>
+                  </div>
+                )}
                 <div>
                   <Label className="text-muted-foreground">Estado</Label>
                   <div className="mt-1">{getEstadoBadge(selectedMantencion.estado)}</div>
@@ -560,34 +572,40 @@ export default function MantencionesPage() {
                   <div className="mt-1">{getGravedadBadge(selectedMantencion.gravedad)}</div>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Equipo</Label>
-                  <p className="font-medium">{selectedMantencion.equipoNombre}</p>
+                  <Label className="text-muted-foreground">Tipo de Mantención</Label>
+                  <div className="mt-1">
+                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 capitalize">
+                      {selectedMantencion.tipoMantencion}
+                    </Badge>
+                  </div>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Área</Label>
-                  <p className="font-medium">{selectedMantencion.area}</p>
+                  <div className="mt-1">
+                    <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                      {AREA_OPTIONS.find(a => a.value === selectedMantencion.area)?.label || selectedMantencion.area}
+                    </Badge>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Ubicación</Label>
-                  <p className="font-medium">{selectedMantencion.ubicacion || 'N/A'}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Fecha de Creación</Label>
-                  <p className="font-medium">
-                    {selectedMantencion.createdAt && format(new Date(selectedMantencion.createdAt), 'dd/MM/yyyy HH:mm', { locale: es })}
-                  </p>
-                </div>
+                {selectedMantencion.ubicacion && (
+                  <div>
+                    <Label className="text-muted-foreground">Ubicación</Label>
+                    <p className="font-medium">{selectedMantencion.ubicacion}</p>
+                  </div>
+                )}
               </div>
 
+              {/* Description */}
               <div>
-                <Label className="text-muted-foreground">Descripción del Problema</Label>
-                <p className="mt-1 whitespace-pre-wrap">{selectedMantencion.descripcionProblema}</p>
+                <Label className="text-muted-foreground">Descripción</Label>
+                <p className="mt-1">{selectedMantencion.descripcionProblema}</p>
               </div>
 
+              {/* Photos */}
               {selectedMantencion.photos && selectedMantencion.photos.length > 0 && (
                 <div>
-                  <Label className="text-muted-foreground">Fotos del Problema</Label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 mt-2">
+                  <Label className="text-muted-foreground">Fotos</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
                     {selectedMantencion.photos.map((photo) => (
                       <div key={photo.id} className="relative group">
                         <img
@@ -600,15 +618,20 @@ export default function MantencionesPage() {
                           }}
                           data-testid={`img-mantencion-${photo.id}`}
                         />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
+                          <Eye className="h-3 w-3 inline mr-1" />
+                          Ver imagen
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
+              {/* Resolution section if resolved */}
               {selectedMantencion.resolucionDescripcion && (
-                <div className="border-t pt-4 space-y-4">
-                  <div>
+                <div className="space-y-4">
+                  <div className="border-t pt-4">
                     <Label className="text-muted-foreground">Descripción de la Resolución</Label>
                     <p className="mt-1 whitespace-pre-wrap">{selectedMantencion.resolucionDescripcion}</p>
                     {selectedMantencion.fechaResolucion && (
@@ -622,7 +645,7 @@ export default function MantencionesPage() {
                   {selectedMantencion.resolucionPhotos && selectedMantencion.resolucionPhotos.length > 0 && (
                     <div>
                       <Label className="text-muted-foreground">Fotos de la Resolución</Label>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 mt-2">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
                         {selectedMantencion.resolucionPhotos.map((photo) => (
                           <div key={photo.id} className="relative group">
                             <img
@@ -635,11 +658,53 @@ export default function MantencionesPage() {
                               }}
                               data-testid={`img-resolucion-${photo.id}`}
                             />
+                            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
+                              <Eye className="h-3 w-3 inline mr-1" />
+                              Ver imagen
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Historial */}
+              {selectedMantencion.historial && selectedMantencion.historial.length > 0 && (
+                <div>
+                  <Label className="text-muted-foreground">Historial de Cambios</Label>
+                  <div className="mt-2 space-y-2">
+                    {selectedMantencion.historial.map((entry) => (
+                      <Card key={entry.id}>
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                {entry.estadoAnterior && (
+                                  <>
+                                    <Badge variant="outline" className="text-xs">
+                                      {ESTADO_OPTIONS.find(e => e.value === entry.estadoAnterior)?.label || entry.estadoAnterior}
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground">→</span>
+                                  </>
+                                )}
+                                <Badge className={(ESTADO_OPTIONS.find(e => e.value === entry.estadoNuevo)?.color || '') + " text-xs"}>
+                                  {ESTADO_OPTIONS.find(e => e.value === entry.estadoNuevo)?.label || entry.estadoNuevo}
+                                </Badge>
+                              </div>
+                              {entry.notas && (
+                                <p className="text-sm text-muted-foreground mt-1">{entry.notas}</p>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {entry.userName} - {format(new Date(entry.createdAt), "dd MMM yyyy HH:mm", { locale: es })}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -651,6 +716,7 @@ export default function MantencionesPage() {
                       setIsDetailsDialogOpen(false);
                     }}
                     data-testid="button-enviar-resolucion"
+                    className="w-full"
                   >
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     Enviar Resolución
