@@ -7744,6 +7744,9 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No autorizado para crear solicitudes de mantención' });
       }
 
+      console.log('📝 Request body:', req.body);
+      console.log('📷 Files:', req.files);
+
       // Validate request body with Zod schema
       const solicitudData = {
         ...req.body,

@@ -145,11 +145,8 @@ export default function MantencionesPage() {
     const form = e.currentTarget;
     const formData = new FormData(form);
     
-    if (fileInputRef.current?.files) {
-      Array.from(fileInputRef.current.files).forEach((file) => {
-        formData.append('photos', file);
-      });
-    }
+    // Photos are already included in FormData via the input name="photos"
+    // No need to manually append them again
 
     createMutation.mutate(formData);
   };
@@ -395,6 +392,7 @@ export default function MantencionesPage() {
                     <Label htmlFor="photos">Fotos del Problema</Label>
                     <Input
                       id="photos"
+                      name="photos"
                       ref={fileInputRef}
                       type="file"
                       accept="image/*"
