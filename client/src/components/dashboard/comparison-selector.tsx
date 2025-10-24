@@ -143,12 +143,11 @@ export function ComparisonSelector({ value, onChange }: ComparisonSelectorProps)
           {tempSelections.length < 3 && (
             <Button
               variant="outline"
-              size="sm"
-              className="w-full border-dashed"
+              className="w-full h-8 text-xs border-dashed"
               onClick={handleAddComparison}
               data-testid="button-add-comparison"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-3 w-3 mr-1.5" />
               Agregar período
             </Button>
           )}
@@ -162,17 +161,17 @@ export function ComparisonSelector({ value, onChange }: ComparisonSelectorProps)
           )}
         </div>
 
-        <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
+        <div className="flex justify-end gap-2 p-3 border-t bg-gray-50">
           <Button
             variant="outline"
-            size="sm"
+            className="h-8 text-xs"
             onClick={() => setOpen(false)}
             data-testid="button-cancel"
           >
             Cancelar
           </Button>
           <Button
-            size="sm"
+            className="h-8 text-xs"
             onClick={handleApply}
             disabled={tempSelections.length === 0 || tempSelections.some(s => !s)}
             data-testid="button-apply"

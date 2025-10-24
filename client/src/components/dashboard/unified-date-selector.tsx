@@ -263,37 +263,34 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per√
               )}
             </div>
             <Separator />
-            <div className="p-4 bg-gray-50 space-y-2">
+            <div className="p-3 bg-gray-50 space-y-1.5">
               <Button
-                className="w-full"
-                size="sm"
+                className="w-full h-8 text-xs"
                 onClick={handleContinueToMonths}
                 disabled={selectedYears.length === 0}
                 data-testid="button-continue-months"
               >
                 Continuar a meses
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <ArrowRight className="ml-1.5 h-3 w-3" />
               </Button>
-              <div className="text-center text-xs text-gray-500 py-1">o</div>
+              <div className="text-center text-[10px] text-gray-400 uppercase tracking-wide py-0.5">o</div>
               <Button
                 variant="outline"
-                className="w-full"
-                size="sm"
+                className="w-full h-8 text-xs"
                 onClick={handleApplyYearsOnly}
                 disabled={selectedYears.length === 0}
                 data-testid="button-apply-years"
               >
                 Aplicar {selectedYears.length > 1 ? 'a√±os completos' : 'a√±o completo'}
               </Button>
-              <Separator className="my-2" />
+              <Separator className="my-1" />
               <Button
                 variant="outline"
-                className="w-full"
-                size="sm"
+                className="w-full h-8 text-xs"
                 onClick={() => setStep("range")}
                 data-testid="button-goto-range"
               >
-                O seleccionar rango de fechas
+                Seleccionar rango de fechas
               </Button>
             </div>
           </>
@@ -369,17 +366,17 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per√
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
+            <div className="flex justify-end gap-2 p-3 border-t bg-gray-50">
               <Button
                 variant="outline"
-                size="sm"
+                className="h-8 text-xs"
                 onClick={() => setOpen(false)}
                 data-testid="button-cancel"
               >
                 Cancelar
               </Button>
               <Button
-                size="sm"
+                className="h-8 text-xs"
                 onClick={handleApply}
                 disabled={selectedMonths.length === 0}
                 data-testid="button-apply"
@@ -427,17 +424,17 @@ export function UnifiedDateSelector({ value, onChange, label = "Seleccionar per√
                 </div>
               </div>
             )}
-            <div className="flex justify-end gap-2 p-4 border-t bg-gray-50">
+            <div className="flex justify-end gap-2 p-3 border-t bg-gray-50">
               <Button
                 variant="outline"
-                size="sm"
+                className="h-8 text-xs"
                 onClick={() => setOpen(false)}
                 data-testid="button-cancel"
               >
                 Cancelar
               </Button>
               <Button
-                size="sm"
+                className="h-8 text-xs"
                 onClick={handleApply}
                 disabled={!dateRange?.from}
                 data-testid="button-apply"

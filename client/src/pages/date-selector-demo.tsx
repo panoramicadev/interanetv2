@@ -32,12 +32,12 @@ export default function DateSelectorDemo() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Main Period Selector */}
           <Card className="border-2 border-blue-100">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                <CardTitle>Selector Principal</CardTitle>
+                <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                <CardTitle className="text-sm font-semibold">Selector Principal</CardTitle>
               </div>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 Selecciona año(s), mes(es) o rango
               </CardDescription>
             </CardHeader>
@@ -69,12 +69,12 @@ export default function DateSelectorDemo() {
 
           {/* Comparison Selector */}
           <Card className="border-2 border-purple-100">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
-                <GitCompare className="h-5 w-5 text-purple-600" />
-                <CardTitle>Selector de Comparación</CardTitle>
+                <GitCompare className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                <CardTitle className="text-sm font-semibold">Selector de Comparación</CardTitle>
               </div>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 Compara hasta 3 períodos
               </CardDescription>
             </CardHeader>
