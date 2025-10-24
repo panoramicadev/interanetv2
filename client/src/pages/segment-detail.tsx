@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -206,6 +207,31 @@ export default function SegmentDetail({
   const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<SegmentSalesperson[]>({
     queryKey: [`/api/sales/segment/${segmentName}/salespeople?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!segmentName,
+  });
+
+  // Fetch segment goal (only for monthly periods)
+  const { data: goalData } = useQuery({
+    queryKey: ['/api/goals/progress', selectedPeriod],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedPeriod) {
+        params.append('selectedPeriod', selectedPeriod);
+      }
+      params.append('type', 'segment');
+      params.append('target', segmentName || '');
+      
+      const url = `/api/goals/progress${params.toString() ? `?${params.toString()}` : ''}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      
+      // Find the goal for this specific segment
+      return data.find((goal: any) => 
+        goal.type === 'segment' && 
+        goal.target?.toLowerCase() === segmentName?.toLowerCase()
+      ) || null;
+    },
+    enabled: !!segmentName && filterType === 'month', // Only fetch for monthly view
   });
 
   if (!segmentName) {
@@ -475,6 +501,38 @@ export default function SegmentDetail({
                 </div>
               </div>
             </div>
+
+            {/* Goal Card - Only show for monthly view */}
+            {filterType === 'month' && goalData && (
+              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 sm:mb-2">
+                      Meta del Mes
+                    </p>
+                    <p className="text-base sm:text-lg lg:text-2xl font-bold text-purple-600" data-testid="text-goal-amount">
+                      {formatCurrency(Number(goalData.targetAmount))}
+                    </p>
+                    <div className="mt-2">
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant={goalData.progress >= 100 ? "default" : "secondary"}
+                          className={goalData.progress >= 100 ? "bg-green-600" : ""}
+                        >
+                          {goalData.progress.toFixed(1)}%
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {formatCurrency(Number(goalData.currentAmount))} / {formatCurrency(Number(goalData.targetAmount))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-purple-100 rounded-xl flex items-center justify-center ml-2 sm:ml-4 flex-shrink-0">
+                    <Target className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-purple-600" />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
