@@ -16,6 +16,7 @@ import GoalsProgress from "@/components/dashboard/goals-progress";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 import PackagingUnitsMetrics from "@/components/dashboard/packaging-units-metrics";
 import SalespersonDetail from "@/pages/salesperson-detail";
+import SegmentDetail from "@/pages/segment-detail";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -464,6 +465,49 @@ export default function Dashboard() {
 
   if (!isAuthenticated) {
     return null;
+  }
+
+  // Si hay un segmento seleccionado, mostrar el dashboard del segmento embedido
+  if (globalFilter.type === "segment" && globalFilter.value) {
+    const handleBack = () => {
+      setGlobalFilter({ type: "all" });
+      setSelectedFilter("all");
+    };
+    
+    const handleSegmentChange = (newSegment: string) => {
+      setGlobalFilter({ type: "segment", value: newSegment });
+    };
+    
+    const handleDateFilterChange = (
+      newFilterType: "day" | "month" | "year" | "range",
+      newPeriod: string,
+      newDate?: Date,
+      newYear?: number,
+      newRange?: { from?: Date; to?: Date }
+    ) => {
+      setFilterType(newFilterType);
+      setSelectedPeriod(newPeriod);
+      if (newDate) setSelectedDate(newDate);
+      if (newYear) setSelectedYear(newYear);
+      if (newRange !== undefined) setDateRange(newRange as any);
+    };
+    
+    return (
+      <SegmentDetail 
+        key={globalFilter.value} // Force remount when segment changes
+        segmentName={globalFilter.value} 
+        embedded={true}
+        onBack={handleBack}
+        onSegmentChange={handleSegmentChange}
+        onDateFilterChange={handleDateFilterChange}
+        dashboardGlobalFilter={globalFilter}
+        dashboardFilterType={filterType}
+        dashboardSelectedPeriod={selectedPeriod}
+        dashboardSelectedDate={selectedDate}
+        dashboardSelectedYear={selectedYear}
+        dashboardDateRange={dateRange}
+      />
+    );
   }
 
   // Si hay un vendedor seleccionado, mostrar el dashboard del vendedor embedido
@@ -1121,6 +1165,10 @@ export default function Dashboard() {
               <SegmentChart 
                 selectedPeriod={selectedPeriod} 
                 filterType={filterType}
+                onSegmentClick={(segmentName) => {
+                  setGlobalFilter({ type: "segment", value: segmentName });
+                  setSelectedFilter("segment");
+                }}
               />
             </div>
           )}

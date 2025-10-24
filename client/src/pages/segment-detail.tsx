@@ -1,22 +1,12 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format, parse } from "date-fns";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { format } from "date-fns";
 
 interface SegmentClient {
   clientName: string;
@@ -34,63 +24,92 @@ interface SegmentSalesperson {
   percentage: number;
 }
 
-export default function SegmentDetail() {
-  const { segmentName } = useParams();
-  const [location] = useLocation();
-  
-  // Get URL parameters
-  const getUrlParams = () => {
-    const searchParams = new URLSearchParams(location.split('?')[1] || '');
-    return {
-      period: searchParams.get('period'),
-      filterType: searchParams.get('filterType') as "day" | "month" | "year" | "range" | null
-    };
+interface SegmentDetailProps {
+  segmentName?: string;
+  embedded?: boolean;
+  onBack?: () => void;
+  onSegmentChange?: (segmentName: string) => void;
+  onDateFilterChange?: (
+    filterType: "day" | "month" | "year" | "range",
+    period: string,
+    date?: Date,
+    year?: number,
+    range?: { from?: Date; to?: Date }
+  ) => void;
+  // Dashboard filter props (when embedded)
+  dashboardGlobalFilter?: {
+    type: "all" | "global" | "segment" | "salesperson";
+    value?: string;
   };
+  dashboardFilterType?: "day" | "month" | "year" | "range";
+  dashboardSelectedPeriod?: string;
+  dashboardSelectedDate?: Date;
+  dashboardSelectedYear?: number;
+  dashboardDateRange?: { from?: Date; to?: Date };
+}
 
-  const urlParams = getUrlParams();
+interface SegmentData {
+  segment: string;
+  totalSales: number;
+  percentage: number;
+}
+
+export default function SegmentDetail({
+  segmentName: propSegmentName,
+  embedded = false,
+  onBack,
+  onSegmentChange,
+  onDateFilterChange,
+  dashboardGlobalFilter,
+  dashboardFilterType,
+  dashboardSelectedPeriod,
+  dashboardSelectedDate,
+  dashboardSelectedYear,
+  dashboardDateRange
+}: SegmentDetailProps = {}) {
+  const { segmentName: paramSegmentName } = useParams();
+  const segmentName = propSegmentName || paramSegmentName;
   
-  // Date filter states - initialize with URL parameters if available
-  const [selectedPeriod, setSelectedPeriod] = useState(() => {
-    return urlParams.period || format(new Date(), "yyyy-MM");
-  });
+  // Date filter states - Initialize from dashboard props if embedded
   const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">(() => {
-    return urlParams.filterType || "month";
+    return dashboardFilterType || "month";
   });
+  
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    if (dashboardSelectedPeriod) {
+      return dashboardSelectedPeriod;
+    }
+    return format(new Date(), "yyyy-MM");
+  });
+  
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
-    if (urlParams.filterType === "day" && urlParams.period) {
-      try {
-        return parse(urlParams.period, "yyyy-MM-dd", new Date());
-      } catch {
-        return new Date();
-      }
+    if (dashboardFilterType === "day" && dashboardSelectedPeriod) {
+      return new Date(dashboardSelectedPeriod);
     }
     return new Date();
   });
+  
   const [selectedYear, setSelectedYear] = useState<number>(() => {
-    if (urlParams.filterType === "year" && urlParams.period) {
-      return parseInt(urlParams.period);
+    if (dashboardFilterType === "year" && dashboardSelectedPeriod) {
+      return parseInt(dashboardSelectedPeriod);
     }
     return new Date().getFullYear();
   });
+  
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
-    if (urlParams.filterType === "range" && urlParams.period && urlParams.period.includes("_")) {
-      const [start] = urlParams.period.split("_");
-      try {
-        return parse(start, "yyyy-MM-dd", new Date());
-      } catch {
-        return undefined;
-      }
+    if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
+      const [start] = dashboardSelectedPeriod.split("_");
+      const [year, month, day] = start.split("-").map(Number);
+      return new Date(year, month - 1, day);
     }
     return undefined;
   });
+  
   const [endDate, setEndDate] = useState<Date | undefined>(() => {
-    if (urlParams.filterType === "range" && urlParams.period && urlParams.period.includes("_")) {
-      const [, end] = urlParams.period.split("_");
-      try {
-        return parse(end, "yyyy-MM-dd", new Date());
-      } catch {
-        return undefined;
-      }
+    if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
+      const [, end] = dashboardSelectedPeriod.split("_");
+      const [year, month, day] = end.split("-").map(Number);
+      return new Date(year, month - 1, day);
     }
     return undefined;
   });
@@ -103,8 +122,55 @@ export default function SegmentDetail() {
     queryKey: ['/api/sales/available-periods'],
   });
 
-  // Update selected period when filter type changes
+  // Fetch all segments for dropdown
+  const { data: segmentData } = useQuery<SegmentData[]>({
+    queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
+    enabled: embedded, // Only fetch when embedded
+  });
+
+  // Sync local state with dashboard props when they change
   useEffect(() => {
+    if (embedded && dashboardFilterType) {
+      setFilterType(dashboardFilterType);
+    }
+  }, [embedded, dashboardFilterType]);
+
+  useEffect(() => {
+    if (embedded && dashboardSelectedPeriod) {
+      setSelectedPeriod(dashboardSelectedPeriod);
+    }
+  }, [embedded, dashboardSelectedPeriod]);
+
+  useEffect(() => {
+    if (embedded && dashboardSelectedDate) {
+      setSelectedDate(dashboardSelectedDate);
+    }
+  }, [embedded, dashboardSelectedDate]);
+
+  useEffect(() => {
+    if (embedded && dashboardSelectedYear) {
+      setSelectedYear(dashboardSelectedYear);
+    }
+  }, [embedded, dashboardSelectedYear]);
+
+  useEffect(() => {
+    if (embedded && dashboardDateRange) {
+      if (dashboardDateRange.from) {
+        setStartDate(dashboardDateRange.from);
+      }
+      if (dashboardDateRange.to) {
+        setEndDate(dashboardDateRange.to);
+      }
+    }
+  }, [embedded, dashboardDateRange]);
+
+  // Update selected period when filter type or dates change
+  useEffect(() => {
+    // Skip if we're embedded and using dashboard values
+    if (embedded && dashboardSelectedPeriod) {
+      return;
+    }
+    
     switch (filterType) {
       case "day":
         if (selectedDate) {
@@ -129,7 +195,7 @@ export default function SegmentDetail() {
         }
         break;
     }
-  }, [filterType, selectedDate, selectedYear, startDate, endDate]);
+  }, [filterType, selectedDate, selectedYear, startDate, endDate, embedded, dashboardSelectedPeriod]);
   
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SegmentClient[]>({
     queryKey: [`/api/sales/segment/${segmentName}/clients?period=${selectedPeriod}&filterType=${filterType}`],
@@ -146,12 +212,12 @@ export default function SegmentDetail() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600">Segmento no encontrado</h1>
-          <Link href="/">
-            <Button variant="outline" className="mt-4">
+          {onBack && (
+            <Button variant="outline" className="mt-4" onClick={onBack}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Volver al Dashboard
             </Button>
-          </Link>
+          )}
         </div>
       </div>
     );
@@ -165,8 +231,6 @@ export default function SegmentDetail() {
   
   // Salespeople KPIs
   const totalSalespeople = salespeople.length;
-  const totalSalesFromSalespeople = salespeople.reduce((sum: number, salesperson: SegmentSalesperson) => sum + salesperson.totalSales, 0);
-  const totalTransactionsFromSalespeople = salespeople.reduce((sum: number, salesperson: SegmentSalesperson) => sum + salesperson.transactionCount, 0);
 
   // Use clients data for main KPIs (more accurate for customer perspective)
   const totalSales = totalSalesFromClients;
@@ -193,162 +257,172 @@ export default function SegmentDetail() {
           {/* Title Section */}
           <div className="flex items-start justify-between mb-4">
             <div className="min-w-0 flex-1">
-              <nav className="flex items-center space-x-1 text-xs text-gray-600 mb-1">
-                <Link href="/" className="hover:text-blue-600 transition-colors">
-                  Dashboard
-                </Link>
-                <span>›</span>
-                <span className="hidden sm:inline">Segmento</span>
-                <span className="hidden sm:inline">›</span>
-                <span className="font-medium text-gray-900 truncate">{segmentName}</span>
-              </nav>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
-                {segmentName}
-              </h1>
+              <div className="flex items-center gap-4 mb-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                  {segmentName}
+                </h1>
+                {embedded && onSegmentChange && segmentData && (
+                  <Select value={segmentName} onValueChange={onSegmentChange}>
+                    <SelectTrigger className="w-56 rounded-xl border-gray-200 shadow-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-gray-200">
+                      {segmentData.map((segment) => (
+                        <SelectItem key={segment.segment} value={segment.segment}>
+                          {segment.segment}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
               <p className="text-gray-600 text-sm">
                 {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
               </p>
             </div>
             
-            <Link href="/">
+            {onBack && (
               <Button 
                 variant="outline" 
                 size="sm"
                 className="rounded-xl border-gray-200 shadow-sm ml-4"
+                onClick={onBack}
                 data-testid="button-back-dashboard"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 <span className="hidden sm:inline">Volver al Dashboard</span>
                 <span className="sm:hidden">Volver</span>
               </Button>
-            </Link>
+            )}
           </div>
 
-          {/* Filter Controls - Horizontal Layout */}
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Filter Type */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                Filtrar:
-              </label>
-              <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
-                <SelectTrigger className="w-24 rounded-xl border-gray-200 shadow-sm text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-gray-200">
-                  <SelectItem value="day">Día</SelectItem>
-                  <SelectItem value="month">Mes</SelectItem>
-                  <SelectItem value="year">Año</SelectItem>
-                  <SelectItem value="range">Rango</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Filter Controls - Only show if not embedded (dashboard controls it) */}
+          {!embedded && (
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Filter Type */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Filtrar:
+                </label>
+                <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
+                  <SelectTrigger className="w-24 rounded-xl border-gray-200 shadow-sm text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-gray-200">
+                    <SelectItem value="day">Día</SelectItem>
+                    <SelectItem value="month">Mes</SelectItem>
+                    <SelectItem value="year">Año</SelectItem>
+                    <SelectItem value="range">Rango</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Period Selector */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                Período:
-              </label>
-              {filterType === "day" ? (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      <span>
-                        {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar"}
-                      </span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={setSelectedDate}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              ) : filterType === "range" ? (
-                <div className="flex items-center gap-2">
+              {/* Period Selector */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Período:
+                </label>
+                {filterType === "day" ? (
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
+                        className="w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
                       >
-                        <CalendarIcon className="mr-1 h-3 w-3" />
+                        <CalendarIcon className="mr-2 h-4 w-4" />
                         <span>
-                          {startDate ? format(startDate, "dd/MM") : "Inicio"}
+                          {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar"}
                         </span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
                       <Calendar
                         mode="single"
-                        selected={startDate}
-                        onSelect={setStartDate}
+                        selected={selectedDate}
+                        onSelect={setSelectedDate}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
-                  
-                  <span className="text-gray-500">-</span>
-                  
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
-                      >
-                        <CalendarIcon className="mr-1 h-3 w-3" />
-                        <span>
-                          {endDate ? format(endDate, "dd/MM") : "Final"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={endDate}
-                        onSelect={setEndDate}
-                        initialFocus
-                        disabled={(date) => startDate ? date < startDate : false}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              ) : filterType === "year" ? (
-                <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                  <SelectTrigger className="w-40 rounded-xl border-gray-200 shadow-sm text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200">
-                    {availablePeriods?.years.map((year) => (
-                      <SelectItem key={year.value} value={year.value}>
-                        {year.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                  <SelectTrigger className="w-44 rounded-xl border-gray-200 shadow-sm text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200">
-                    {availablePeriods?.months.map((month) => (
-                      <SelectItem key={month.value} value={month.value}>
-                        {month.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+                ) : filterType === "range" ? (
+                  <div className="flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
+                        >
+                          <CalendarIcon className="mr-1 h-3 w-3" />
+                          <span>
+                            {startDate ? format(startDate, "dd/MM") : "Inicio"}
+                          </span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={startDate}
+                          onSelect={setStartDate}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    
+                    <span className="text-gray-500">-</span>
+                    
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
+                        >
+                          <CalendarIcon className="mr-1 h-3 w-3" />
+                          <span>
+                            {endDate ? format(endDate, "dd/MM") : "Final"}
+                          </span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={endDate}
+                          onSelect={setEndDate}
+                          initialFocus
+                          disabled={(date) => startDate ? date < startDate : false}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                ) : filterType === "year" ? (
+                  <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                    <SelectTrigger className="w-40 rounded-xl border-gray-200 shadow-sm text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-gray-200">
+                      {availablePeriods?.years.map((year) => (
+                        <SelectItem key={year.value} value={year.value}>
+                          {year.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                    <SelectTrigger className="w-44 rounded-xl border-gray-200 shadow-sm text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-gray-200">
+                      {availablePeriods?.months.map((month) => (
+                        <SelectItem key={month.value} value={month.value}>
+                          {month.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </header>
 
         {/* Main Content */}
@@ -433,27 +507,25 @@ export default function SegmentDetail() {
                 ) : clients.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No hay clientes en este segmento</p>
                 ) : (
-                  clients.slice(0, 8).map((client, index) => (
-                    <Link key={client.clientName} href={`/client/${encodeURIComponent(client.clientName)}`}>
-                      <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {client.clientName}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatNumber(client.transactionCount)} transacciones
-                          </p>
-                        </div>
-                        <div className="text-right ml-4">
-                          <p className="text-sm font-semibold text-gray-900">
-                            {formatCurrency(client.totalSales)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {client.percentage.toFixed(1)}%
-                          </p>
-                        </div>
+                  clients.slice(0, 10).map((client) => (
+                    <div key={client.clientName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {client.clientName}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatNumber(client.transactionCount)} transacciones
+                        </p>
                       </div>
-                    </Link>
+                      <div className="text-right ml-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(client.totalSales)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {client.percentage.toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
                   ))
                 )}
               </div>
@@ -478,27 +550,25 @@ export default function SegmentDetail() {
                 ) : salespeople.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No hay vendedores en este segmento</p>
                 ) : (
-                  salespeople.slice(0, 8).map((salesperson, index) => (
-                    <Link key={salesperson.salespersonName} href={`/salesperson/${encodeURIComponent(salesperson.salespersonName)}`}>
-                      <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {salesperson.salespersonName}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatNumber(salesperson.transactionCount)} transacciones
-                          </p>
-                        </div>
-                        <div className="text-right ml-4">
-                          <p className="text-sm font-semibold text-gray-900">
-                            {formatCurrency(salesperson.totalSales)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {salesperson.percentage.toFixed(1)}%
-                          </p>
-                        </div>
+                  salespeople.slice(0, 10).map((salesperson) => (
+                    <div key={salesperson.salespersonName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {salesperson.salespersonName}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatNumber(salesperson.transactionCount)} transacciones
+                        </p>
                       </div>
-                    </Link>
+                      <div className="text-right ml-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(salesperson.totalSales)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {salesperson.percentage.toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
                   ))
                 )}
               </div>
