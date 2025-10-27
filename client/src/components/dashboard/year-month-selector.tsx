@@ -88,10 +88,22 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   };
 
   const handleApplyMonths = () => {
-    if (selectedYears.length === 0 || selectedMonths.length === 0) return;
+    console.log("🔍 handleApplyMonths iniciado:", {
+      selectedYears,
+      selectedMonths,
+      yearsLength: selectedYears.length,
+      monthsLength: selectedMonths.length
+    });
+    
+    if (selectedYears.length === 0 || selectedMonths.length === 0) {
+      console.log("❌ Validación falló: años o meses vacíos");
+      return;
+    }
 
     const monthNames = selectedMonths.map(idx => MONTHS[idx]);
     const monthsValue = selectedMonths.map(idx => idx + 1); // Convert to 1-12
+    
+    console.log("📝 Datos procesados:", { monthNames, monthsValue });
     
     let display = "";
     if (selectedMonths.length === 1) {
@@ -105,12 +117,15 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         : `${monthsStr} (${selectedYears.join(", ")})`;
     }
 
-    onChange({
+    const selection = {
       years: selectedYears,
       period: selectedMonths.length === 1 ? "month" : "months",
       months: monthsValue,
       display
-    });
+    };
+    
+    console.log("✅ Llamando onChange con:", selection);
+    onChange(selection);
 
     setOpen(false);
   };
@@ -268,12 +283,20 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
               <Button
                 className="w-full h-7 text-xs font-medium"
                 onClick={() => {
+                  console.log("🔍 Botón Aplicar clickeado:", {
+                    selectedYears,
+                    selectedMonths,
+                    selectedDays
+                  });
                   // Detectar qué tipo de selección se ha hecho
                   if (selectedMonths.length === 1 && selectedDays.length > 0) {
+                    console.log("📅 Llamando handleApplyDays()");
                     handleApplyDays();
                   } else if (selectedMonths.length > 0) {
+                    console.log("📅 Llamando handleApplyMonths() con", selectedMonths.length, "meses");
                     handleApplyMonths();
                   } else {
+                    console.log("📅 Llamando handleApplyFullYear()");
                     handleApplyFullYear();
                   }
                 }}
