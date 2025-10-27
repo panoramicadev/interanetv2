@@ -15,6 +15,11 @@ interface YearMonthSelection {
   display: string;
 }
 
+const MONTHS = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+];
+
 export default function DateSelectorDemo() {
   const [selection, setSelection] = useState<YearMonthSelection | null>(null);
   const [view, setView] = useState<DashboardView>("all");
@@ -120,6 +125,168 @@ export default function DateSelectorDemo() {
                       {view === "by-segment" && `Segmento: ${selectedEntity}`}
                       {view === "by-salesperson" && `Vendedor: ${selectedEntity}`}
                     </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Dashboard Preview */}
+        <Card className="border-2 border-green-100">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Vista Previa del Dashboard</CardTitle>
+            <CardDescription className="text-sm">
+              Simulación de cómo se vería el dashboard con estos filtros
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Dashboard Layout Simulation */}
+            <div className="space-y-3">
+              {/* What will be shown based on view */}
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="text-xs font-semibold text-blue-900 mb-2">Secciones visibles:</div>
+                <div className="space-y-1.5 text-xs text-blue-800">
+                  {view === "all" && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ KPIs principales (Ventas, Unidades, Clientes)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Gráficos de tendencias</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Tabla de segmentos</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Top vendedores</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Top clientes</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Top productos</span>
+                      </div>
+                    </>
+                  )}
+                  {view === "goals-only" && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Metas globales y progreso</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                        <span className="text-gray-500">✗ Gráficos detallados</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                        <span className="text-gray-500">✗ Tablas de datos</span>
+                      </div>
+                    </>
+                  )}
+                  {view === "by-segment" && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ KPIs del segmento {selectedEntity ? `"${selectedEntity}"` : "(todos)"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Vendedores del segmento</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Clientes del segmento</span>
+                      </div>
+                      {selectedEntity && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                          <span>✓ Meta del segmento (si existe)</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {view === "by-salesperson" && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ KPIs del vendedor {selectedEntity ? `"${selectedEntity}"` : "(todos)"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Clientes del vendedor</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        <span>✓ Productos más vendidos</span>
+                      </div>
+                      {selectedEntity && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                          <span>✓ Meta del vendedor (si existe)</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Period info */}
+              {selection && (
+                <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <div className="text-xs font-semibold text-amber-900 mb-2">Período de datos:</div>
+                  <div className="space-y-1 text-xs text-amber-800">
+                    {selection.period === "full-year" && (
+                      <>
+                        <div>• Mostrando datos del año completo</div>
+                        <div>• Años: {selection.years.join(", ")}</div>
+                        {selection.years.length > 1 && (
+                          <div>• Comparación entre {selection.years.length} años</div>
+                        )}
+                      </>
+                    )}
+                    {selection.period === "month" && (
+                      <>
+                        <div>• Mostrando datos de un mes específico</div>
+                        <div>• Mes: {MONTHS[(selection.months?.[0] || 1) - 1]}</div>
+                        <div>• Años: {selection.years.join(", ")}</div>
+                        {selection.years.length > 1 && (
+                          <div>• Comparando el mismo mes en {selection.years.length} años</div>
+                        )}
+                      </>
+                    )}
+                    {selection.period === "months" && (
+                      <>
+                        <div>• Mostrando datos de múltiples meses</div>
+                        <div>• Meses: {selection.months?.map(m => MONTHS[m - 1].substring(0, 3)).join(", ")}</div>
+                        <div>• Años: {selection.years.join(", ")}</div>
+                        {selection.years.length > 1 && (
+                          <div>• Comparando los mismos meses en {selection.years.length} años</div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Entity filter info */}
+              {selectedEntity && (
+                <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="text-xs font-semibold text-purple-900 mb-2">Filtro de entidad:</div>
+                  <div className="text-xs text-purple-800">
+                    {view === "by-segment" && (
+                      <div>• Solo datos del segmento: <span className="font-semibold">{selectedEntity}</span></div>
+                    )}
+                    {view === "by-salesperson" && (
+                      <div>• Solo datos del vendedor: <span className="font-semibold">{selectedEntity}</span></div>
+                    )}
                   </div>
                 </div>
               )}
