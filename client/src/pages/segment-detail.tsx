@@ -291,12 +291,13 @@ export default function SegmentDetail({
             )}
           </div>
 
-          {/* Filter Controls - Only show if not embedded (dashboard controls it) */}
-          {!embedded && (
-            <div className="flex items-center gap-2">
-              <YearMonthSelector />
-            </div>
-          )}
+          {/* Filter Controls - Always show selector for period selection */}
+          <div className="flex items-center gap-2">
+            <YearMonthSelector 
+              value={selection}
+              onChange={setSelection}
+            />
+          </div>
         </header>
 
         {/* Main Content */}

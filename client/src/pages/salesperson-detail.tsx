@@ -533,6 +533,14 @@ export default function SalespersonDetail({
               )}
             </div>
           )}
+          
+          {/* Filter Controls - Always show selector for period selection */}
+          <div className="flex items-center gap-2 mt-4">
+            <YearMonthSelector 
+              value={selection}
+              onChange={setSelection}
+            />
+          </div>
         </header>
 
         {/* Main Content */}
