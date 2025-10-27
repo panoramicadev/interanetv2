@@ -428,6 +428,22 @@ export default function Dashboard() {
     return availablePeriods.years;
   };
 
+  // Convert singular comparePeriod to array format for SalesChart
+  const convertToComparisonPeriods = (comparePeriod: string, selectedPeriod: string, filterType: string) => {
+    if (!comparePeriod || comparePeriod === "none") return undefined;
+    
+    const comparisonOptions = generateComparisonOptions();
+    const option = comparisonOptions.find(opt => opt.value === comparePeriod);
+    
+    if (!option) return undefined;
+    
+    return [{
+      period: comparePeriod,
+      label: option.label,
+      filterType: filterType
+    }];
+  };
+
   // Generate dynamic comparison options based on current filter type
   const generateComparisonOptions = () => {
     const options = [{ value: "none", label: "Ninguno" }];
@@ -1044,6 +1060,7 @@ export default function Dashboard() {
                 filterType={filterType}
                 segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                 salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                comparisonPeriods={convertToComparisonPeriods(comparePeriod, selectedPeriod, filterType)}
               />
             </div>
           )}
