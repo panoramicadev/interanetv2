@@ -86,6 +86,7 @@ export default function SegmentDetail({
   // Handler for selection changes that notifies dashboard when embedded
   const handleSelectionChange = (newSelection: typeof selection) => {
     console.log("🔍 [segment-detail] handleSelectionChange called:", newSelection);
+    console.trace("📍 Stack trace de handleSelectionChange");
     setSelection(newSelection);
     
     // If embedded and onDateFilterChange is provided, notify the dashboard
