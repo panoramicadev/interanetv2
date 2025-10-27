@@ -50,7 +50,7 @@ const CHART_COLORS = [
 ];
 
 export default function SalesChart({ selectedPeriod, filterType, segment, salesperson, comparisonPeriods }: SalesChartProps) {
-  const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('daily');
+  const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('weekly');
   const isComparison = comparisonPeriods && comparisonPeriods.length > 0;
   
   useEffect(() => {
@@ -273,13 +273,14 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
             }
           </p>
         </div>
-        {!isComparison && filterType !== 'day' && (
+        {filterType !== 'day' && (
           <div className="flex gap-2">
             <Button
               variant={period === 'daily' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setPeriod('daily')}
               className="text-xs"
+              data-testid="button-chart-daily"
             >
               Diario
             </Button>
@@ -288,6 +289,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
               size="sm"
               onClick={() => setPeriod('weekly')}
               className="text-xs"
+              data-testid="button-chart-weekly"
             >
               Semanal
             </Button>
@@ -296,6 +298,7 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
               size="sm"
               onClick={() => setPeriod('monthly')}
               className="text-xs"
+              data-testid="button-chart-monthly"
             >
               Mensual
             </Button>
