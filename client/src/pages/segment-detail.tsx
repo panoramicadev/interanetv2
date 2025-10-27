@@ -138,75 +138,6 @@ export default function SegmentDetail({
     enabled: embedded, // Only fetch when embedded
   });
 
-  // Sync local state with dashboard props when they change
-  useEffect(() => {
-    if (embedded && dashboardFilterType) {
-      setFilterType(dashboardFilterType);
-    }
-  }, [embedded, dashboardFilterType]);
-
-  useEffect(() => {
-    if (embedded && dashboardSelectedPeriod) {
-      setSelectedPeriod(dashboardSelectedPeriod);
-    }
-  }, [embedded, dashboardSelectedPeriod]);
-
-  useEffect(() => {
-    if (embedded && dashboardSelectedDate) {
-      setSelectedDate(dashboardSelectedDate);
-    }
-  }, [embedded, dashboardSelectedDate]);
-
-  useEffect(() => {
-    if (embedded && dashboardSelectedYear) {
-      setSelectedYear(dashboardSelectedYear);
-    }
-  }, [embedded, dashboardSelectedYear]);
-
-  useEffect(() => {
-    if (embedded && dashboardDateRange) {
-      if (dashboardDateRange.from) {
-        setStartDate(dashboardDateRange.from);
-      }
-      if (dashboardDateRange.to) {
-        setEndDate(dashboardDateRange.to);
-      }
-    }
-  }, [embedded, dashboardDateRange]);
-
-  // Update selected period when filter type or dates change
-  useEffect(() => {
-    // Skip if we're embedded and using dashboard values
-    if (embedded && dashboardSelectedPeriod) {
-      return;
-    }
-    
-    switch (filterType) {
-      case "day":
-        if (selectedDate) {
-          setSelectedPeriod(format(selectedDate, "yyyy-MM-dd"));
-        } else {
-          setSelectedPeriod(format(new Date(), "yyyy-MM-dd"));
-        }
-        break;
-      case "month":
-        if (!selectedPeriod || selectedPeriod.includes("_") || selectedPeriod === "current-month" || selectedPeriod === "last-month") {
-          setSelectedPeriod(format(new Date(), "yyyy-MM"));
-        }
-        break;
-      case "year":
-        setSelectedPeriod(selectedYear.toString());
-        break;
-      case "range":
-        if (startDate && endDate) {
-          setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
-        } else {
-          setSelectedPeriod("last-30-days");
-        }
-        break;
-    }
-  }, [filterType, selectedDate, selectedYear, startDate, endDate, embedded, dashboardSelectedPeriod]);
-  
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SegmentClient[]>({
     queryKey: [`/api/sales/segment/${segmentName}/clients?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!segmentName,
@@ -299,8 +230,8 @@ export default function SegmentDetail({
       case "year":
         return selectedPeriod;
       case "range":
-        if (startDate && endDate) {
-          return `${format(startDate, "d MMM", { locale: es })} - ${format(endDate, "d MMM yyyy", { locale: es })}`;
+        if (dateRange?.from && dateRange?.to) {
+          return `${format(dateRange.from, "d MMM", { locale: es })} - ${format(dateRange.to, "d MMM yyyy", { locale: es })}`;
         }
         return "Rango personalizado";
       default:
