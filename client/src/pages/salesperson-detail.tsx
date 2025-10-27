@@ -108,6 +108,9 @@ export default function SalespersonDetail({
   // Use global filter context
   const { selection, setSelection } = useFilter();
   
+  // Local state for view type
+  const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("vendedor");
+  
   // Derived values from selection for backward compatibility
   const selectedPeriod = (() => {
     if (selection.period === "month" && selection.month !== undefined) {
@@ -261,6 +264,11 @@ export default function SalespersonDetail({
     enabled: !!vendedorId,
   });
 
+  // Fetch all segments for dropdown when switching views
+  const { data: allSegments } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/segments"],
+  });
+
   // Fetch all salespeople for the selector - always fetch to enable salesperson switching
   const { data: allSalespeopleResponse } = useQuery<TopSalespeopleResponse>({
     queryKey: ['/api/sales/top-salespeople', 5000, selectedPeriod, filterType],
@@ -366,20 +374,18 @@ export default function SalespersonDetail({
                 <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
                 <Select 
-                  value="vendedor"
-                  onValueChange={(value) => {
+                  value={selectedView}
+                  onValueChange={(value: "all" | "segmento" | "vendedor") => {
+                    setSelectedView(value);
                     if (value === "all") {
                       setLocation('/');
-                    } else if (value === "segmento") {
-                      // Navigate to dashboard with segment filter (no value yet)
-                      setLocation('/?filter=segment');
                     }
                   }}
                 >
                   <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-lg border-gray-200">
+                  <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
                     <SelectItem value="all">
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
@@ -402,9 +408,33 @@ export default function SalespersonDetail({
                 </Select>
               </div>
 
-              {/* Salesperson selector */}
-              {!embedded && allSalespeople && allSalespeople.length > 0 && (
-                <div className="flex items-center gap-2">
+              {/* Segment selector - shown when view is segmento */}
+              {!embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
+                <div className="flex items-center gap-2" key="segment-selector">
+                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
+                  <Select 
+                    value=""
+                    onValueChange={(segment) => {
+                      setLocation(`/segment/${encodeURIComponent(segment)}`);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
+                      <SelectValue placeholder="Selecciona segmento" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                      {allSegments.map((segment) => (
+                        <SelectItem key={segment} value={segment}>
+                          {segment}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Salesperson selector - shown when view is vendedor */}
+              {!embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+                <div className="flex items-center gap-2" key="salesperson-selector">
                   <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                   <Select 
                     value={salespersonName} 
