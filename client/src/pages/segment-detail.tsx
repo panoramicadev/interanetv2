@@ -212,7 +212,12 @@ export default function SegmentDetail({
     queryKey: ['/api/sales/available-periods'],
   });
 
-  // Fetch all segments for dropdown - always fetch to enable segment switching
+  // Fetch all segments for dropdown - use general list to ensure stability
+  const { data: allSegments } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/segments"],
+  });
+  
+  // Fetch segments with data for current period (for reference, not for dropdown)
   const { data: segmentData } = useQuery<SegmentData[]>({
     queryKey: ['/api/sales/segments', selectedPeriod, filterType],
     queryFn: async () => {
@@ -407,7 +412,7 @@ export default function SegmentDetail({
               </div>
 
               {/* Segment selector - shown when view is segmento */}
-              {!embedded && selectedView === "segmento" && segmentData && segmentData.length > 0 && segmentName && (
+              {!embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && segmentName && (
                 <div className="flex items-center gap-2" key="segment-selector">
                   <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select 
@@ -420,9 +425,9 @@ export default function SegmentDetail({
                       <SelectValue placeholder={segmentName} />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {segmentData.map((segment) => (
-                        <SelectItem key={segment.segment} value={segment.segment}>
-                          {segment.segment}
+                      {allSegments.map((segment) => (
+                        <SelectItem key={segment} value={segment}>
+                          {segment}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -455,7 +460,7 @@ export default function SegmentDetail({
               )}
 
               {/* Embedded segment selector - shown when view is segmento */}
-              {embedded && selectedView === "segmento" && onSegmentChange && segmentData && segmentName && (
+              {embedded && selectedView === "segmento" && onSegmentChange && allSegments && allSegments.length > 0 && segmentName && (
                 <div className="flex items-center gap-2" key="embedded-segment-selector">
                   <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select value={segmentName} onValueChange={onSegmentChange}>
@@ -463,9 +468,9 @@ export default function SegmentDetail({
                       <SelectValue placeholder={segmentName} />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {segmentData.map((segment) => (
-                        <SelectItem key={segment.segment} value={segment.segment}>
-                          {segment.segment}
+                      {allSegments.map((segment) => (
+                        <SelectItem key={segment} value={segment}>
+                          {segment}
                         </SelectItem>
                       ))}
                     </SelectContent>
