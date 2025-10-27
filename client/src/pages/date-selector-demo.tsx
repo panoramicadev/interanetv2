@@ -160,6 +160,79 @@ export default function DateSelectorDemo() {
               </div>
             </div>
 
+            {/* Full year comparison */}
+            {selection?.period === "full-year" && selection.years.length > 1 && (
+              <div className="p-3 bg-white rounded-lg border-2 border-purple-200 shadow-sm">
+                <div className="text-xs font-semibold text-gray-700 mb-3">Comparativa Anual</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {selection.years.map((year, index) => {
+                    const mockYearSales = [730589429, 685432109, 712345678, 695234567, 708765432];
+                    const sales = mockYearSales[index] || 700000000;
+                    const prevSales = mockYearSales[index + 1] || 650000000;
+                    const change = ((sales - prevSales) / prevSales * 100);
+                    
+                    return (
+                      <div key={year} className="p-3 bg-gradient-to-br from-purple-50 to-pink-50 rounded border border-purple-200">
+                        <div className="text-xs font-semibold text-purple-900 mb-2">{year}</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          ${(sales / 1000000).toFixed(1)}M
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-purple-200">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-gray-600">vs año anterior</span>
+                            <span className={`px-1.5 py-0.5 rounded font-semibold ${
+                              change > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {change > 0 ? '↑' : '↓'} {Math.abs(change).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Year metrics comparison table */}
+                <div className="mt-3 pt-3 border-t">
+                  <div className="text-[10px] font-semibold text-gray-700 mb-2">Métricas por Año</div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-1.5 pr-2 font-semibold text-gray-700">Año</th>
+                          <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Ventas</th>
+                          <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Unidades</th>
+                          <th className="text-right py-1.5 pl-2 font-semibold text-gray-700">Clientes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selection.years.map((year, index) => {
+                          const mockYearSales = [730589429, 685432109, 712345678];
+                          const mockUnits = [12219, 11543, 11876];
+                          const mockClients = [204, 189, 195];
+                          
+                          return (
+                            <tr key={year} className="border-b last:border-0 hover:bg-gray-50">
+                              <td className="py-1.5 pr-2 font-medium">{year}</td>
+                              <td className="text-right py-1.5 px-2 text-gray-700">
+                                ${(mockYearSales[index] / 1000000).toFixed(1)}M
+                              </td>
+                              <td className="text-right py-1.5 px-2 text-gray-700">
+                                {mockUnits[index]?.toLocaleString()}
+                              </td>
+                              <td className="text-right py-1.5 pl-2 text-gray-700">
+                                {mockClients[index]}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Multi-month comparison */}
             {selection?.period === "months" && selection.months && selection.months.length > 1 && (
               <div className="p-3 bg-white rounded-lg border-2 border-indigo-200 shadow-sm">
