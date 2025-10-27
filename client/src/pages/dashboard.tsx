@@ -1074,6 +1074,11 @@ export default function Dashboard() {
                 />
               </div>
 
+              {/* Comparative Segment Table - Moved to top */}
+              {globalFilter.type === "all" && (
+                <ComparativeSegmentTable periods={comparativePeriods} />
+              )}
+
               {/* Resumen Comparativo Section */}
               <div className="bg-white border rounded-lg p-4">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Resumen Comparativo</h2>
@@ -1081,11 +1086,6 @@ export default function Dashboard() {
                   Comparando datos de {comparativePeriods.length} períodos seleccionados
                 </div>
               </div>
-
-              {/* Comparative Segment Table */}
-              {globalFilter.type === "all" && (
-                <ComparativeSegmentTable periods={comparativePeriods} />
-              )}
 
               {/* Comparative Salespeople Table */}
               {globalFilter.type === "all" && (
