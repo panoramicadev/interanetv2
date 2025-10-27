@@ -936,7 +936,7 @@ export default function Dashboard() {
                     <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200">
+                    <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
                       <SelectItem value="all">
                         <div className="flex items-center space-x-2">
                           <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
@@ -979,7 +979,7 @@ export default function Dashboard() {
                       <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
                         <SelectValue placeholder={selectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"} />
                       </SelectTrigger>
-                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
                         {selectedFilter === "segment" ? (
                           segments?.map((segment) => (
                             <SelectItem key={segment} value={segment}>
