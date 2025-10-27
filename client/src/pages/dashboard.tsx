@@ -299,7 +299,7 @@ export default function Dashboard() {
     setLocalSelection({
       years: [now.getFullYear()],
       period: "month",
-      month: now.getMonth(), // 0-indexed
+      months: [now.getMonth() + 1], // Convert to 1-12 format array
       display: format(now, "MMMM yyyy")
     });
     setLocalSelectedFilter("all");

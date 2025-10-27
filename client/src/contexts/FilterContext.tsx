@@ -4,8 +4,7 @@ import { format } from "date-fns";
 export interface YearMonthSelection {
   years: number[];
   period: "full-year" | "month" | "months" | "day" | "days" | "custom-range";
-  month?: number;
-  months?: number[];
+  months?: number[]; // Always in 1-12 format
   days?: number[];
   startDate?: Date;
   endDate?: Date;
@@ -29,10 +28,11 @@ const FilterContext = createContext<FilterContextType | undefined>(undefined);
 
 const getDefaultSelection = (): YearMonthSelection => {
   const now = new Date();
+  const currentMonth = now.getMonth() + 1; // Convert to 1-12 format
   return {
     years: [now.getFullYear()],
     period: "month",
-    month: now.getMonth(),
+    months: [currentMonth], // Use months array in 1-12 format
     display: format(now, "MMMM yyyy")
   };
 };
