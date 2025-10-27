@@ -1970,7 +1970,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         name: sql<string>`nokoprct`,
         totalSales: sql<number>`COALESCE(SUM(CAST(monto AS NUMERIC)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(CAST(caprco1_cg AS NUMERIC)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CAST(caprco1 AS NUMERIC)), 0)`,
       })
       .from(salesTransactions)
       .where(whereClause)
