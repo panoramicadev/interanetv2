@@ -27,7 +27,6 @@ const YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
 
 export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<"years" | "period-choice">("years");
   const [selectedYears, setSelectedYears] = useState<number[]>(value?.years || []);
 
   const handleYearToggle = (year: number) => {
@@ -36,10 +35,6 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         ? prev.filter(y => y !== year)
         : [...prev, year].sort((a, b) => b - a)
     );
-  };
-
-  const handleContinueToMonths = () => {
-    setStep("period-choice");
   };
 
   const handleApplyFullYear = () => {
@@ -56,7 +51,6 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     });
     
     setOpen(false);
-    setStep("years");
   };
 
   const handleMonthSelect = (monthIndex: number) => {
@@ -75,21 +69,13 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     });
 
     setOpen(false);
-    setStep("years");
   };
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       setSelectedYears(value?.years || []);
-      setStep("years");
     }
     setOpen(newOpen);
-  };
-
-  const handleClear = () => {
-    onChange(null);
-    setSelectedYears([]);
-    setStep("years");
   };
 
   const getDisplayText = () => {
@@ -112,104 +98,68 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         </Button>
       </PopoverTrigger>
       
-      <PopoverContent className="w-[500px] p-0" align="start">
-        {/* Paso 1: Seleccionar años */}
-        {step === "years" && (
+      <PopoverContent className="w-[600px] p-0" align="start">
+        <div className="p-3 bg-gray-50 border-b">
+          <h4 className="font-semibold text-sm mb-1">Selecciona período</h4>
+          <p className="text-xs text-gray-500">
+            Elige años y luego un mes específico o año completo
+          </p>
+        </div>
+
+        {/* Selección de años - línea horizontal con scroll */}
+        <div className="p-3 border-b">
+          <label className="text-xs font-medium text-gray-700 mb-2 block">Años:</label>
+          <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
+            {YEARS.map((year) => {
+              const isSelected = selectedYears.includes(year);
+              return (
+                <Button
+                  key={year}
+                  variant={isSelected ? "default" : "outline"}
+                  className={`h-9 min-w-[70px] text-sm font-medium shrink-0 ${
+                    isSelected ? 'bg-primary text-white' : ''
+                  }`}
+                  onClick={() => handleYearToggle(year)}
+                  data-testid={`year-${year}`}
+                >
+                  {year}
+                  {isSelected && <Check className="h-3 w-3 ml-1" />}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Selección de meses - grid */}
+        {selectedYears.length > 0 && (
           <>
-            <div className="p-3 bg-gray-50 border-b">
-              <h4 className="font-semibold text-sm mb-1">Paso 1: Selecciona años</h4>
-              <p className="text-xs text-gray-500">
-                Luego podrás elegir meses específicos o usar todo el año
-              </p>
-            </div>
-
-            <div className="p-4">
-              <div className="grid grid-cols-5 gap-2">
-                {YEARS.map((year) => {
-                  const isSelected = selectedYears.includes(year);
-                  return (
-                    <Button
-                      key={year}
-                      variant={isSelected ? "default" : "outline"}
-                      className={`h-12 text-sm font-medium ${
-                        isSelected ? 'bg-primary text-white' : ''
-                      }`}
-                      onClick={() => handleYearToggle(year)}
-                      data-testid={`year-${year}`}
-                    >
-                      {year}
-                      {isSelected && <Check className="h-3 w-3 ml-1" />}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {selectedYears.length > 0 && (
-              <>
-                <Separator />
-                <div className="p-3 space-y-2">
-                  <Button
-                    className="w-full h-10 bg-orange-500 hover:bg-orange-600 text-white font-medium"
-                    onClick={handleContinueToMonths}
-                    data-testid="button-continue-months"
-                  >
-                    Continuar a meses
-                    <ChevronRight className="h-4 w-4 ml-2" />
-                  </Button>
-                  
-                  <div className="text-center text-xs text-gray-400">O</div>
-                  
-                  <Button
-                    variant="outline"
-                    className="w-full h-9 text-sm"
-                    onClick={handleApplyFullYear}
-                    data-testid="button-apply-full-year"
-                  >
-                    Aplicar año completo
-                  </Button>
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        {/* Paso 2: Seleccionar mes o rango */}
-        {step === "period-choice" && (
-          <>
-            <div className="p-3 bg-gray-50 border-b flex items-center justify-between">
-              <div>
-                <h4 className="font-semibold text-sm mb-1">
-                  Paso 2: Selecciona mes
-                </h4>
-                <p className="text-xs text-gray-500">
-                  Años seleccionados: {selectedYears.join(", ")}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                className="h-7 text-xs"
-                onClick={() => setStep("years")}
-                data-testid="button-back-years"
-              >
-                ← Atrás
-              </Button>
-            </div>
-
-            <div className="p-4">
-              <div className="grid grid-cols-4 gap-2">
+            <div className="p-3 border-b">
+              <label className="text-xs font-medium text-gray-700 mb-2 block">Meses:</label>
+              <div className="grid grid-cols-6 gap-1.5">
                 {MONTHS.map((month, index) => (
                   <Button
                     key={month}
                     variant="outline"
-                    className="h-10 text-xs hover:bg-primary hover:text-white"
+                    className="h-8 text-[11px] hover:bg-primary hover:text-white px-1"
                     onClick={() => handleMonthSelect(index)}
                     data-testid={`month-${index}`}
                   >
-                    {month}
+                    {month.substring(0, 3)}
                   </Button>
                 ))}
               </div>
+            </div>
+
+            {/* Botón año completo */}
+            <div className="p-3 bg-gray-50">
+              <Button
+                variant="outline"
+                className="w-full h-9 text-sm font-medium"
+                onClick={handleApplyFullYear}
+                data-testid="button-apply-full-year"
+              >
+                Aplicar año completo
+              </Button>
             </div>
           </>
         )}
