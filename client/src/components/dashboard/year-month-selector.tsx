@@ -119,25 +119,25 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         </Button>
       </PopoverTrigger>
       
-      <PopoverContent className="w-[600px] p-0" align="start">
-        <div className="p-3 bg-gray-50 border-b">
-          <h4 className="font-semibold text-sm mb-1">Selecciona período</h4>
-          <p className="text-xs text-gray-500">
+      <PopoverContent className="w-[440px] p-0" align="start">
+        <div className="px-2.5 py-1.5 bg-gray-50 border-b">
+          <h4 className="font-semibold text-xs">Selecciona período</h4>
+          <p className="text-[10px] text-gray-500">
             Elige años y luego un mes específico o año completo
           </p>
         </div>
 
         {/* Selección de años - línea horizontal con scroll */}
-        <div className="p-3 border-b">
-          <label className="text-xs font-medium text-gray-700 mb-2 block">Años:</label>
-          <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
+        <div className="px-2.5 py-2 border-b">
+          <label className="text-[10px] font-medium text-gray-700 mb-1.5 block">Años:</label>
+          <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
             {YEARS.map((year) => {
               const isSelected = selectedYears.includes(year);
               return (
                 <Button
                   key={year}
                   variant={isSelected ? "default" : "outline"}
-                  className={`h-9 min-w-[70px] text-sm font-medium shrink-0 ${
+                  className={`h-7 min-w-[60px] text-xs font-medium shrink-0 ${
                     isSelected ? 'bg-primary text-white' : ''
                   }`}
                   onClick={() => handleYearToggle(year)}
@@ -154,23 +154,23 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         {/* Selección de meses - grid */}
         {selectedYears.length > 0 && (
           <>
-            <div className="p-3 border-b">
-              <label className="text-xs font-medium text-gray-700 mb-2 block">Meses:</label>
-              <div className="grid grid-cols-6 gap-1.5">
+            <div className="px-2.5 py-2 border-b">
+              <label className="text-[10px] font-medium text-gray-700 mb-1.5 block">Meses:</label>
+              <div className="grid grid-cols-6 gap-1">
                 {MONTHS.map((month, index) => {
                   const isSelected = selectedMonths.includes(index);
                   return (
                     <Button
                       key={month}
                       variant={isSelected ? "default" : "outline"}
-                      className={`h-8 text-[11px] px-1 ${
+                      className={`h-7 text-[10px] px-1 ${
                         isSelected ? 'bg-primary text-white' : 'hover:bg-primary hover:text-white'
                       }`}
                       onClick={() => handleMonthToggle(index)}
                       data-testid={`month-${index}`}
                     >
                       {month.substring(0, 3)}
-                      {isSelected && <Check className="h-3 w-3 ml-0.5" />}
+                      {isSelected && <Check className="h-2.5 w-2.5 ml-0.5" />}
                     </Button>
                   );
                 })}
@@ -178,10 +178,10 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
             </div>
 
             {/* Botones de acción */}
-            <div className="p-3 bg-gray-50 space-y-2">
+            <div className="p-2 bg-gray-50 space-y-1.5">
               {selectedMonths.length > 0 && (
                 <Button
-                  className="w-full h-9 text-sm font-medium"
+                  className="w-full h-7 text-xs font-medium"
                   onClick={handleApplyMonths}
                   data-testid="button-apply-months"
                 >
@@ -190,7 +190,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
               )}
               <Button
                 variant="outline"
-                className="w-full h-9 text-sm font-medium"
+                className="w-full h-7 text-xs font-medium"
                 onClick={handleApplyFullYear}
                 data-testid="button-apply-full-year"
               >
