@@ -645,10 +645,10 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
       )}
       
       {/* Primary Analytics - Sales Chart Full Width */}
-      {view !== "goals-only" && !isComparison && (
+      {view !== "goals-only" && !isComparison && singlePeriod && (
         <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
           <SalesChart 
-            selectedPeriod={singlePeriod || ""} 
+            selectedPeriod={singlePeriod} 
             filterType={filterType}
             segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
             salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
