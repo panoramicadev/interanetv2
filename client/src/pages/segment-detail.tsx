@@ -80,6 +80,9 @@ export default function SegmentDetail({
   // Use global filter context
   const { selection, setSelection } = useFilter();
   
+  // Local state for view type
+  const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("segmento");
+  
   // Derived values from selection for backward compatibility
   const selectedPeriod = (() => {
     if (selection.period === "month" && selection.month !== undefined) {
@@ -220,6 +223,11 @@ export default function SegmentDetail({
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
+  });
+
+  // Fetch all salespeople for dropdown when switching views
+  const { data: allSalespeople } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/salespeople"],
   });
 
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SegmentClient[]>({
@@ -364,20 +372,18 @@ export default function SegmentDetail({
                 <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
                 <Select 
-                  value="segmento"
-                  onValueChange={(value) => {
+                  value={selectedView}
+                  onValueChange={(value: "all" | "segmento" | "vendedor") => {
+                    setSelectedView(value);
                     if (value === "all") {
                       setLocation('/');
-                    } else if (value === "vendedor") {
-                      // Navigate to dashboard with salesperson filter (no value yet)
-                      setLocation('/?filter=salesperson');
                     }
                   }}
                 >
                   <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-lg border-gray-200">
+                  <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
                     <SelectItem value="all">
                       <div className="flex items-center gap-2">
                         <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
@@ -400,9 +406,9 @@ export default function SegmentDetail({
                 </Select>
               </div>
 
-              {/* Segment selector */}
-              {!embedded && segmentData && segmentData.length > 0 && (
-                <div className="flex items-center gap-2">
+              {/* Segment selector - shown when view is segmento */}
+              {!embedded && selectedView === "segmento" && segmentData && segmentData.length > 0 && (
+                <div className="flex items-center gap-2" key="segment-selector">
                   <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select 
                     value={segmentName} 
@@ -417,6 +423,30 @@ export default function SegmentDetail({
                       {segmentData.map((segment) => (
                         <SelectItem key={segment.segment} value={segment.segment}>
                           {segment.segment}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Salesperson selector - shown when view is vendedor */}
+              {!embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+                <div className="flex items-center gap-2" key="salesperson-selector">
+                  <span className="text-sm font-medium text-gray-700">Vendedor:</span>
+                  <Select 
+                    value=""
+                    onValueChange={(salesperson) => {
+                      setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-salesperson">
+                      <SelectValue placeholder="Selecciona vendedor" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                      {allSalespeople.map((salesperson) => (
+                        <SelectItem key={salesperson} value={salesperson}>
+                          {salesperson}
                         </SelectItem>
                       ))}
                     </SelectContent>
