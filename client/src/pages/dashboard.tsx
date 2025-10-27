@@ -18,6 +18,9 @@ import PackagingUnitsMetrics from "@/components/dashboard/packaging-units-metric
 import SalespersonDetail from "@/pages/salesperson-detail";
 import SegmentDetail from "@/pages/segment-detail";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
+import ComparativeKPICards from "@/components/dashboard/comparative-kpi-cards";
+import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
+import ComparativeSalespeopleTable from "@/components/dashboard/comparative-salespeople-table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -115,6 +118,58 @@ export default function Dashboard() {
   
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
+  
+  // Detect comparative mode (multiple periods selected)
+  const isComparativeMode = (() => {
+    if (selection.period === "months" && selection.months && selection.months.length > 1) return true;
+    if (selection.period === "days" && selection.days && selection.days.length > 1) return true;
+    if (selection.years.length > 1 && selection.period === "full-year") return true;
+    return false;
+  })();
+  
+  // Generate list of periods for comparative mode
+  const comparativePeriods = (() => {
+    if (!isComparativeMode) return [];
+    
+    const periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }> = [];
+    
+    if (selection.period === "months" && selection.months) {
+      selection.months.forEach(monthIndex => {
+        selection.years.forEach(year => {
+          const month = monthIndex + 1; // Convert to 1-indexed
+          const monthName = format(new Date(year, monthIndex), "MMM yyyy");
+          periods.push({
+            period: `${year}-${String(month).padStart(2, '0')}`,
+            label: monthName,
+            filterType: "month"
+          });
+        });
+      });
+    } else if (selection.period === "days" && selection.days && selection.month !== undefined) {
+      selection.days.forEach(day => {
+        selection.years.forEach(year => {
+          const month = selection.month! + 1; // Convert to 1-indexed
+          const date = new Date(year, selection.month!, day);
+          const dateLabel = format(date, "dd MMM yyyy");
+          periods.push({
+            period: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+            label: dateLabel,
+            filterType: "day"
+          });
+        });
+      });
+    } else if (selection.years.length > 1 && selection.period === "full-year") {
+      selection.years.forEach(year => {
+        periods.push({
+          period: `${year}`,
+          label: `${year}`,
+          filterType: "year"
+        });
+      });
+    }
+    
+    return periods;
+  })();
   
   // Query to fetch available periods with data
   const { data: availablePeriods } = useQuery({
@@ -1031,63 +1086,98 @@ export default function Dashboard() {
             </div>
           )}
           
-          {/* KPI Cards with Modern Styling */}
-          <div>
-            <KPICards 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-              comparePeriod={comparePeriod}
-            />
-          </div>
-          
-          {/* Goals Progress Dashboard - Solo mostrar para meses completos y cuando hay metas configuradas */}
-          {filterType === "month" && goalsProgress && goalsProgress.length > 0 && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <GoalsProgress 
-                globalFilter={globalFilter}
-                selectedPeriod={selectedPeriod}
-              />
-            </div>
-          )}
-          
-          {/* Primary Analytics - Sales Chart Full Width - Solo mostrar para meses y rangos */}
-          {filterType !== "day" && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <SalesChart 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                comparisonPeriods={convertToComparisonPeriods(comparePeriod, selectedPeriod, filterType)}
-              />
-            </div>
-          )}
+          {/* Comparative Mode Layout */}
+          {isComparativeMode ? (
+            <>
+              {/* Comparative KPI Cards */}
+              <div>
+                <ComparativeKPICards 
+                  periods={comparativePeriods}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                />
+              </div>
 
-          {/* Ventas por Segmento - Full Width Chart - Ocultar cuando hay filtro activo */}
-          {globalFilter.type === "all" && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <SegmentChart 
-                selectedPeriod={selectedPeriod} 
-                filterType={filterType}
-                onSegmentClick={(segmentName) => {
-                  setGlobalFilter({ type: "segment", value: segmentName });
-                  setSelectedFilter("segment");
-                }}
-              />
-            </div>
-          )}
+              {/* Resumen Comparativo Section */}
+              <div className="bg-white border rounded-lg p-4">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Resumen Comparativo</h2>
+                <div className="text-sm text-gray-600 mb-4">
+                  Comparando datos de {comparativePeriods.length} períodos seleccionados
+                </div>
+              </div>
 
-          {/* Sales Team & Client Analytics - Full Width Column */}
-          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            <TopSalespeoplePanel 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-            />
-          </div>
+              {/* Comparative Segment Table */}
+              {globalFilter.type === "all" && (
+                <ComparativeSegmentTable periods={comparativePeriods} />
+              )}
+
+              {/* Comparative Salespeople Table */}
+              {globalFilter.type === "all" && (
+                <ComparativeSalespeopleTable periods={comparativePeriods} />
+              )}
+            </>
+          ) : (
+            <>
+              {/* Standard Dashboard Layout */}
+              {/* KPI Cards with Modern Styling */}
+              <div>
+                <KPICards 
+                  selectedPeriod={selectedPeriod} 
+                  filterType={filterType}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                  comparePeriod={comparePeriod}
+                />
+              </div>
+              
+              {/* Goals Progress Dashboard - Solo mostrar para meses completos y cuando hay metas configuradas */}
+              {filterType === "month" && goalsProgress && goalsProgress.length > 0 && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <GoalsProgress 
+                    globalFilter={globalFilter}
+                    selectedPeriod={selectedPeriod}
+                  />
+                </div>
+              )}
+              
+              {/* Primary Analytics - Sales Chart Full Width - Solo mostrar para meses y rangos */}
+              {filterType !== "day" && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <SalesChart 
+                    selectedPeriod={selectedPeriod} 
+                    filterType={filterType}
+                    segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                    salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                    comparisonPeriods={convertToComparisonPeriods(comparePeriod, selectedPeriod, filterType)}
+                  />
+                </div>
+              )}
+
+              {/* Ventas por Segmento - Full Width Chart - Ocultar cuando hay filtro activo */}
+              {globalFilter.type === "all" && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <SegmentChart 
+                    selectedPeriod={selectedPeriod} 
+                    filterType={filterType}
+                    onSegmentClick={(segmentName) => {
+                      setGlobalFilter({ type: "segment", value: segmentName });
+                      setSelectedFilter("segment");
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Sales Team & Client Analytics - Full Width Column */}
+              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <TopSalespeoplePanel 
+                  selectedPeriod={selectedPeriod} 
+                  filterType={filterType}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                />
+              </div>
+            </>
+          )}
           <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
             <TopClientsPanel 
               selectedPeriod={selectedPeriod} 
