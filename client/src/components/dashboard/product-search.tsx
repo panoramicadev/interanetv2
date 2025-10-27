@@ -4,20 +4,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { useLocation } from "wouter";
 
-interface ClientSearchResult {
+interface ProductSearchResult {
   name: string;
   totalSales: number;
-  transactionCount: number;
+  totalUnits: number;
 }
 
-interface ClientSearchProps {
+interface ProductSearchProps {
   selectedPeriod?: string;
   filterType?: string;
   segment?: string;
   salesperson?: string;
 }
 
-export function ClientSearch({ selectedPeriod, filterType, segment, salesperson }: ClientSearchProps) {
+export function ProductSearch({ selectedPeriod, filterType, segment, salesperson }: ProductSearchProps) {
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [, setLocation] = useLocation();
@@ -30,8 +30,8 @@ export function ClientSearch({ selectedPeriod, filterType, segment, salesperson 
   if (segment) params.append('segment', segment);
   if (salesperson) params.append('salesperson', salesperson);
 
-  const { data: results, isLoading } = useQuery<ClientSearchResult[]>({
-    queryKey: [`/api/clients/search?${params.toString()}`],
+  const { data: results, isLoading } = useQuery<ProductSearchResult[]>({
+    queryKey: [`/api/products/search?${params.toString()}`],
     enabled: search.length >= 2,
   });
 
@@ -46,8 +46,8 @@ export function ClientSearch({ selectedPeriod, filterType, segment, salesperson 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleClientClick = (clientName: string) => {
-    setLocation(`/client/${encodeURIComponent(clientName)}`);
+  const handleProductClick = (productName: string) => {
+    setLocation(`/product/${encodeURIComponent(productName)}`);
     setSearch("");
     setIsOpen(false);
   };
@@ -60,13 +60,17 @@ export function ClientSearch({ selectedPeriod, filterType, segment, salesperson 
     }).format(value);
   };
 
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('es-CL').format(value);
+  };
+
   return (
     <div ref={wrapperRef} className="relative w-full sm:w-64">
       <div className="relative">
         <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
         <Input
           type="text"
-          placeholder="Buscar cliente..."
+          placeholder="Buscar producto..."
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -74,7 +78,7 @@ export function ClientSearch({ selectedPeriod, filterType, segment, salesperson 
           }}
           onFocus={() => setIsOpen(true)}
           className="pl-8 pr-8 h-8 text-xs"
-          data-testid="input-search-client"
+          data-testid="input-search-product"
         />
         {search && (
           <button
@@ -99,24 +103,24 @@ export function ClientSearch({ selectedPeriod, filterType, segment, salesperson 
             </div>
           ) : results && results.length > 0 ? (
             <div className="py-1">
-              {results.map((client) => (
+              {results.map((product) => (
                 <button
-                  key={client.name}
-                  onClick={() => handleClientClick(client.name)}
+                  key={product.name}
+                  onClick={() => handleProductClick(product.name)}
                   className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-                  data-testid={`search-result-${client.name}`}
+                  data-testid={`search-result-${product.name}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0 pr-2">
                       <p className="text-sm font-medium text-gray-900 truncate">
-                        {client.name}
+                        {product.name}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {client.transactionCount} transacciones
+                        {formatNumber(product.totalUnits)} unidades
                       </p>
                     </div>
-                    <div className="text-sm font-semibold text-blue-600">
-                      {formatCurrency(client.totalSales)}
+                    <div className="text-sm font-semibold text-green-600">
+                      {formatCurrency(product.totalSales)}
                     </div>
                   </div>
                 </button>
@@ -124,7 +128,7 @@ export function ClientSearch({ selectedPeriod, filterType, segment, salesperson 
             </div>
           ) : (
             <div className="p-3 text-center text-xs text-gray-500">
-              No se encontraron clientes
+              No se encontraron productos
             </div>
           )}
         </div>

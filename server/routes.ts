@@ -1444,19 +1444,68 @@ export function registerRoutes(app: Express): Server {
   // Client search endpoint (AJAX autocomplete)
   app.get('/api/clients/search', requireAuth, async (req, res) => {
     try {
-      const { q } = req.query;
+      const { q, period, filterType, segment, salesperson } = req.query;
       
       if (!q || typeof q !== 'string' || q.trim().length < 2) {
         return res.json([]);
       }
       
       const searchTerm = q.trim().toLowerCase();
-      const results = await storage.searchClients(searchTerm);
+      
+      // Get date range if period is provided
+      let startDate, endDate;
+      if (period && filterType) {
+        const dateRange = getDateRange(period as string, filterType as string);
+        startDate = dateRange.startDate;
+        endDate = dateRange.endDate;
+      }
+      
+      const results = await storage.searchClients(
+        searchTerm,
+        startDate,
+        endDate,
+        salesperson as string,
+        segment as string
+      );
       
       res.json(results);
     } catch (error) {
       console.error("Error searching clients:", error);
       res.status(500).json({ message: "Failed to search clients" });
+    }
+  });
+
+  // Product search endpoint (AJAX autocomplete)
+  app.get('/api/products/search', requireAuth, async (req, res) => {
+    try {
+      const { q, period, filterType, segment, salesperson } = req.query;
+      
+      if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        return res.json([]);
+      }
+      
+      const searchTerm = q.trim().toLowerCase();
+      
+      // Get date range if period is provided
+      let startDate, endDate;
+      if (period && filterType) {
+        const dateRange = getDateRange(period as string, filterType as string);
+        startDate = dateRange.startDate;
+        endDate = dateRange.endDate;
+      }
+      
+      const results = await storage.searchProducts(
+        searchTerm,
+        startDate,
+        endDate,
+        salesperson as string,
+        segment as string
+      );
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching products:", error);
+      res.status(500).json({ message: "Failed to search products" });
     }
   });
 

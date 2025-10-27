@@ -1893,12 +1893,33 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async searchClients(searchTerm: string): Promise<Array<{
+  async searchClients(searchTerm: string, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     name: string;
     totalSales: number;
     transactionCount: number;
   }>> {
     // Search clients by name (case-insensitive) and return aggregated sales data
+    const conditions = [
+      sql`LOWER(nokoen) LIKE ${`%${searchTerm}%`}`,
+      sql`nokoen IS NOT NULL AND nokoen != ''`,
+      sql`tido != 'GDV'`
+    ];
+    
+    if (startDate) {
+      conditions.push(sql`feemdo >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`feemdo <= ${endDate}`);
+    }
+    if (salesperson) {
+      conditions.push(sql`nokofu = ${salesperson}`);
+    }
+    if (segment) {
+      conditions.push(sql`noruen = ${segment}`);
+    }
+    
+    const whereClause = sql.join(conditions, sql` AND `);
+    
     const results = await db
       .select({
         name: sql<string>`nokoen`,
@@ -1906,7 +1927,7 @@ export class DatabaseStorage implements IStorage {
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(salesTransactions)
-      .where(sql`LOWER(nokoen) LIKE ${`%${searchTerm}%`} AND nokoen IS NOT NULL AND nokoen != '' AND tido != 'GDV'`)
+      .where(whereClause)
       .groupBy(sql`nokoen`)
       .orderBy(sql`SUM(CAST(monto AS NUMERIC)) DESC`)
       .limit(20);
@@ -1915,6 +1936,52 @@ export class DatabaseStorage implements IStorage {
       name: r.name || '',
       totalSales: Number(r.totalSales),
       transactionCount: Number(r.transactionCount),
+    }));
+  }
+
+  async searchProducts(searchTerm: string, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
+    name: string;
+    totalSales: number;
+    totalUnits: number;
+  }>> {
+    // Search products by name (case-insensitive) and return aggregated sales data
+    const conditions = [
+      sql`LOWER(nokoprct) LIKE ${`%${searchTerm}%`}`,
+      sql`nokoprct IS NOT NULL AND nokoprct != ''`,
+      sql`tido != 'GDV'`
+    ];
+    
+    if (startDate) {
+      conditions.push(sql`feemdo >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`feemdo <= ${endDate}`);
+    }
+    if (salesperson) {
+      conditions.push(sql`nokofu = ${salesperson}`);
+    }
+    if (segment) {
+      conditions.push(sql`noruen = ${segment}`);
+    }
+    
+    const whereClause = sql.join(conditions, sql` AND `);
+    
+    const results = await db
+      .select({
+        name: sql<string>`nokoprct`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(monto AS NUMERIC)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CAST(caprco1_cg AS NUMERIC)), 0)`,
+      })
+      .from(salesTransactions)
+      .where(whereClause)
+      .groupBy(sql`nokoprct`)
+      .orderBy(sql`SUM(CAST(monto AS NUMERIC)) DESC`)
+      .limit(20);
+
+    return results.map(r => ({
+      name: r.name || '',
+      totalSales: Number(r.totalSales),
+      totalUnits: Number(r.totalUnits),
     }));
   }
 
