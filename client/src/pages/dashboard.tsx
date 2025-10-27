@@ -672,9 +672,8 @@ export default function Dashboard() {
                         </div>
                         
                         <YearMonthSelector
-                          selection={localSelection}
-                          onSelectionChange={setLocalSelection}
-                          availableYears={availablePeriods?.years?.map((y: any) => parseInt(y.value)) || []}
+                          value={localSelection}
+                          onChange={setLocalSelection}
                         />
                       </div>
                       
@@ -943,9 +942,8 @@ export default function Dashboard() {
                   <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700">Período:</span>
                   <YearMonthSelector
-                    selection={selection}
-                    onSelectionChange={setSelection}
-                    availableYears={availablePeriods?.years?.map((y: any) => parseInt(y.value)) || []}
+                    value={selection}
+                    onChange={setSelection}
                   />
                 </div>
               </div>
