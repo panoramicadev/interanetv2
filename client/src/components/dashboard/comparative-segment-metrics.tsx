@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { TrendingUp, Users, ShoppingCart, DollarSign, UserPlus } from "lucide-react";
+import { TrendingUp, Users, ShoppingCart, DollarSign, UserPlus, BarChart3, Table2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import ComparativeMetricsChart from "./comparative-metrics-chart";
 
 interface SegmentClient {
   clientName: string;
@@ -14,6 +17,8 @@ interface ComparativeSegmentMetricsProps {
 }
 
 export default function ComparativeSegmentMetrics({ segmentName, periods }: ComparativeSegmentMetricsProps) {
+  const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
+  
   // Fetch segment clients data for all periods
   const clientsQueries = useQueries({
     queries: periods.map(({ period, filterType }) => ({
@@ -124,31 +129,66 @@ export default function ComparativeSegmentMetrics({ segmentName, periods }: Comp
 
   return (
     <div className="bg-white border rounded-lg p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="h-5 w-5 text-gray-600" />
-        <h3 className="text-lg font-semibold text-gray-900">Métricas del Segmento: {segmentName}</h3>
-        {isYearOverYear && (
-          <span className="ml-auto text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full">
-            Comparación año contra año
-          </span>
-        )}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-gray-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Métricas del Segmento: {segmentName}</h3>
+          {isYearOverYear && (
+            <span className="text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full">
+              Comparación año contra año
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'chart' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('chart')}
+            className="gap-2"
+            data-testid="button-metrics-chart-view"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Gráfico
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('table')}
+            className="gap-2"
+            data-testid="button-metrics-table-view"
+          >
+            <Table2 className="h-4 w-4" />
+            Tabla
+          </Button>
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-3 px-2 font-semibold text-gray-700 sticky left-0 bg-white">Métrica</th>
-              {periods.map(({ period, label }) => {
-                const year = getYearFromPeriod(period);
-                return (
-                  <th key={period} className={`text-right py-3 px-2 font-semibold text-gray-700 ${getYearColor(year)}`}>
-                    {label}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
+      {viewMode === 'chart' ? (
+        <ComparativeMetricsChart
+          segmentName={segmentName}
+          periods={periods}
+          periodMetrics={periodMetrics.map((m, idx) => ({
+            ...m,
+            clients: [],
+            newClients: newClientsByPeriod[idx] || 0
+          }))}
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-3 px-2 font-semibold text-gray-700 sticky left-0 bg-white">Métrica</th>
+                {periods.map(({ period, label }) => {
+                  const year = getYearFromPeriod(period);
+                  return (
+                    <th key={period} className={`text-right py-3 px-2 font-semibold text-gray-700 ${getYearColor(year)}`}>
+                      {label}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
           <tbody>
             <tr className="border-b hover:bg-gray-50">
               <td className="py-3 px-2 font-medium text-gray-900 sticky left-0 bg-white">
@@ -237,6 +277,7 @@ export default function ComparativeSegmentMetrics({ segmentName, periods }: Comp
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
