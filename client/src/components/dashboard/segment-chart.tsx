@@ -15,7 +15,15 @@ interface SegmentChartProps {
 
 export default function SegmentChart({ selectedPeriod, filterType, onSegmentClick }: SegmentChartProps) {
   const { data: segmentData, isLoading } = useQuery<SegmentData[]>({
-    queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: ['/api/sales/segments', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/segments?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
   });
 
   const formatCurrency = (amount: number) => {
