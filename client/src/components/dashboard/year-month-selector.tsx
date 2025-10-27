@@ -30,7 +30,10 @@ const YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
 export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   const [open, setOpen] = useState(false);
   const [selectedYears, setSelectedYears] = useState<number[]>(value?.years || []);
-  const [selectedMonths, setSelectedMonths] = useState<number[]>(value?.months || []);
+  // Convert months from 1-12 to 0-11 for internal state
+  const [selectedMonths, setSelectedMonths] = useState<number[]>(
+    value?.months ? value.months.map(m => m - 1) : []
+  );
   const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
   
   // Sync internal state with external value when it changes
