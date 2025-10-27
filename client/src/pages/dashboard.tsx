@@ -333,9 +333,6 @@ export default function Dashboard() {
     if (globalFilter.type !== "all") {
       let vistaText = "";
       switch (globalFilter.type) {
-        case "global":
-          vistaText = "Solo metas globales";
-          break;
         case "segment":
           vistaText = globalFilter.value ? `Segmento: ${globalFilter.value}` : "Por segmento";
           break;
@@ -777,12 +774,6 @@ export default function Dashboard() {
                                     <span>Todo el dashboard</span>
                                   </div>
                                 </SelectItem>
-                                <SelectItem value="global">
-                                  <div className="flex items-center space-x-2">
-                                    <Target className="h-4 w-4 text-blue-500" />
-                                    <span>Solo metas globales</span>
-                                  </div>
-                                </SelectItem>
                                 <SelectItem value="segment">
                                   <div className="flex items-center space-x-2">
                                     <Building className="h-4 w-4 text-green-500" />
@@ -940,12 +931,6 @@ export default function Dashboard() {
                           <span>Todo el dashboard</span>
                         </div>
                       </SelectItem>
-                      <SelectItem value="global">
-                        <div className="flex items-center space-x-2">
-                          <Target className="h-3.5 w-3.5 text-blue-500" />
-                          <span>Solo metas globales</span>
-                        </div>
-                      </SelectItem>
                       <SelectItem value="segment">
                         <div className="flex items-center space-x-2">
                           <Building className="h-3.5 w-3.5 text-green-500" />
@@ -1020,7 +1005,6 @@ export default function Dashboard() {
                   <div className="flex-1">
                     <div className="text-xs font-medium text-purple-900">
                       Vista: {selectedFilter === "all" ? "Todo el dashboard" : 
-                             selectedFilter === "global" ? "Solo metas globales" :
                              selectedFilter === "segment" ? "Por segmento" : "Por vendedor"}
                     </div>
                   </div>
