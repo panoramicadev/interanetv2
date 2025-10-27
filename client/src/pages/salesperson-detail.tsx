@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -317,10 +317,44 @@ export default function SalespersonDetail({
                 )}
                 <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
-                <div className="h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center text-sm">
-                  <Users className="h-3.5 w-3.5 text-purple-500 mr-2" />
-                  <span>Por vendedor</span>
-                </div>
+                <Select 
+                  value="vendedor"
+                  onValueChange={async (value) => {
+                    if (value === "segmento") {
+                      // Fetch segments to navigate to first one
+                      try {
+                        const response = await fetch('/api/analytics/segments');
+                        const data = await response.json();
+                        if (data.items && data.items.length > 0) {
+                          setLocation(`/segment/${encodeURIComponent(data.items[0].segment)}`);
+                        } else {
+                          setLocation('/');
+                        }
+                      } catch (error) {
+                        console.error('Error fetching segments:', error);
+                        setLocation('/');
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-lg border-gray-200">
+                    <SelectItem value="vendedor">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-3.5 w-3.5 text-purple-500" />
+                        <span>Por vendedor</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="segmento">
+                      <div className="flex items-center gap-2">
+                        <Building className="h-3.5 w-3.5 text-green-500" />
+                        <span>Por segmento</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Salesperson selector */}
