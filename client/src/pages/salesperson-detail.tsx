@@ -172,23 +172,57 @@ export default function SalespersonDetail({
   });
 
   const { data: details, isLoading: isLoadingDetails } = useQuery<SalespersonDetails>({
-    queryKey: [`/api/sales/salesperson/${salespersonName}/details?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: ['/api/sales/salesperson', salespersonName, 'details', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/salesperson/${salespersonName}/details?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
     enabled: !!salespersonName,
   });
 
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SalespersonClient[]>({
-    queryKey: [`/api/sales/salesperson/${salespersonName}/clients?period=${selectedPeriod}&filterType=${filterType}${selectedSegment ? `&segment=${encodeURIComponent(selectedSegment)}` : ''}`],
+    queryKey: ['/api/sales/salesperson', salespersonName, 'clients', selectedPeriod, filterType, selectedSegment],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (selectedSegment) params.append('segment', selectedSegment);
+      const res = await fetch(`/api/sales/salesperson/${salespersonName}/clients?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
     enabled: !!salespersonName,
   });
 
   const { data: segments = [], isLoading: isLoadingSegments } = useQuery<SalespersonSegment[]>({
-    queryKey: [`/api/sales/salesperson/${salespersonName}/segments?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: ['/api/sales/salesperson', salespersonName, 'segments', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/salesperson/${salespersonName}/segments?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
     enabled: !!salespersonName,
   });
 
   // Fetch goals for the salesperson
   const { data: goalsData, isLoading: isLoadingGoals } = useQuery<GoalProgress[]>({
-    queryKey: [`/api/goals/progress?selectedPeriod=${selectedPeriod}&type=salesperson&target=${encodeURIComponent(salespersonName || '')}`],
+    queryKey: ['/api/goals/progress', selectedPeriod, 'salesperson', salespersonName],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('selectedPeriod', selectedPeriod);
+      params.append('type', 'salesperson');
+      params.append('target', salespersonName || '');
+      const res = await fetch(`/api/goals/progress?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
     enabled: !!salespersonName,
   });
 
@@ -227,7 +261,16 @@ export default function SalespersonDetail({
 
   // Fetch all salespeople for the selector - always fetch to enable salesperson switching
   const { data: allSalespeopleResponse } = useQuery<TopSalespeopleResponse>({
-    queryKey: [`/api/sales/top-salespeople?limit=5000&period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: ['/api/sales/top-salespeople', 5000, selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('limit', '5000');
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
   });
   
   const allSalespeople = allSalespeopleResponse?.items || [];
