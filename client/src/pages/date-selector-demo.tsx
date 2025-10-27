@@ -21,14 +21,13 @@ export default function DateSelectorDemo() {
   const getCurrentMonthSelection = (): YearMonthSelection => {
     const now = new Date();
     const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-11
+    const currentMonth = now.getMonth(); // 0-11 (9 = Octubre)
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     
     return {
       years: [currentYear],
-      period: "month",
-      month: currentMonth + 1,
-      months: [currentMonth],
+      period: "months",  // Changed from "month" to "months" for consistency
+      months: [currentMonth],  // Keep as 0-indexed array for internal use
       display: `${monthNames[currentMonth]} ${currentYear}`
     };
   };
