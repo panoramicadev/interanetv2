@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -296,34 +296,47 @@ export default function SalespersonDetail({
   return (
     <div className="min-h-screen">
       <div className="w-full">
-        {/* Header - Compact Layout */}
-        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 m-3 sm:m-4 rounded-2xl shadow-sm">
-          {/* Title Section */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="min-w-0 flex-1">
-              {!embedded && (
-                <nav className="flex items-center space-x-1 text-xs text-gray-600 mb-1">
-                  <Link href="/" className="hover:text-blue-600 transition-colors">
-                    Dashboard
-                  </Link>
-                  <span>›</span>
-                  <span className="hidden sm:inline">Vendedor</span>
-                  <span className="hidden sm:inline">›</span>
-                  <span className="font-medium text-gray-900 truncate">{decodeURIComponent(salespersonName)}</span>
-                </nav>
-              )}
-              {!embedded && allSalespeople.length > 0 ? (
-                <div className="mb-1">
+        {/* Header - Same as Dashboard and Segment */}
+        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
+          <div className="space-y-4 w-full">
+            {/* All filters in one line */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Home button and Vista */}
+              <div className="flex items-center gap-2">
+                {onBack && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onBack}
+                    className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
+                    data-testid="button-back-dashboard"
+                    title="Volver al Dashboard"
+                  >
+                    <Home className="h-4 w-4 text-gray-600" />
+                  </Button>
+                )}
+                <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-700">Vista:</span>
+                <div className="h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center text-sm">
+                  <Users className="h-3.5 w-3.5 text-purple-500 mr-2" />
+                  <span>Por vendedor</span>
+                </div>
+              </div>
+
+              {/* Salesperson selector */}
+              {!embedded && allSalespeople && allSalespeople.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                   <Select 
                     value={salespersonName} 
                     onValueChange={(newSalesperson) => {
                       setLocation(`/salesperson/${encodeURIComponent(newSalesperson)}`);
                     }}
                   >
-                    <SelectTrigger className="w-64 rounded-xl border-gray-200 shadow-sm">
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200 max-h-80">
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
                       {allSalespeople.map((sp) => (
                         <SelectItem key={sp.salesperson} value={sp.salesperson}>
                           {sp.salesperson}
@@ -332,235 +345,92 @@ export default function SalespersonDetail({
                     </SelectContent>
                   </Select>
                 </div>
-              ) : (
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
-                  {decodeURIComponent(salespersonName)}
-                </h1>
               )}
-              <p className="text-gray-600 text-sm">
-                {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
-              </p>
-            </div>
-            
-            {embedded && onBack ? (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={onBack}
-                className="rounded-xl border-gray-200 shadow-sm ml-4"
-                data-testid="button-back-dashboard"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Volver al Dashboard</span>
-                <span className="sm:hidden">Volver</span>
-              </Button>
-            ) : !embedded && (
-              <Link href="/">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="rounded-xl border-gray-200 shadow-sm ml-4"
-                  data-testid="button-back-dashboard"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Volver al Dashboard</span>
-                  <span className="sm:hidden">Volver</span>
-                </Button>
-              </Link>
-            )}
-          </div>
 
-          {/* Dashboard Filters Info (when embedded) - Interactive Badges */}
-          {embedded && dashboardGlobalFilter && (
-            <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="text-gray-700 font-medium">Filtros del Dashboard:</span>
+              {/* Embedded salesperson selector */}
+              {embedded && onSalespersonChange && allSalespeople && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Vendedor:</span>
+                  <Select value={salespersonName} onValueChange={onSalespersonChange}>
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                      {allSalespeople.map((sp) => (
+                        <SelectItem key={sp.salesperson} value={sp.salesperson}>
+                          {sp.salesperson}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Period selector with YearMonthSelector */}
+              {!embedded && (
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-700">Período:</span>
+                  <div className="h-9 px-3 rounded-lg border border-gray-200 bg-white flex items-center">
+                    <YearMonthSelector
+                      value={selection}
+                      onChange={setSelection}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Embedded period selector */}
+              {embedded && onDateFilterChange && (
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-700">Período:</span>
+                  <YearMonthSelector
+                    value={selection}
+                    onChange={setSelection}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Display Selected Filters as chips */}
+            <div className="pt-2 border-t space-y-2">
+              <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
               
-              {/* Vendedor Badge - Interactive */}
-              {onSalespersonChange && allSalespeople.length > 0 && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer">
-                      <Filter className="h-3.5 w-3.5" />
-                      <span>
-                        {dashboardGlobalFilter.type === "all" && "Todos"}
-                        {dashboardGlobalFilter.type === "global" && "Solo metas globales"}
-                        {dashboardGlobalFilter.type === "segment" && `Segmento: ${dashboardGlobalFilter.value}`}
-                        {dashboardGlobalFilter.type === "salesperson" && `Vendedor: ${dashboardGlobalFilter.value}`}
-                      </span>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-3 rounded-xl border-gray-200" align="start">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        Cambiar vendedor:
-                      </label>
-                      <Select 
-                        value={salespersonName || ""} 
-                        onValueChange={(value) => {
-                          if (onSalespersonChange) {
-                            onSalespersonChange(value);
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="w-full rounded-lg border-gray-200">
-                          <SelectValue placeholder="Seleccionar vendedor" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-gray-200 max-h-80">
-                          {allSalespeople.map((sp) => (
-                            <SelectItem key={sp.salesperson} value={sp.salesperson}>
-                              {sp.salesperson}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
+              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
+                <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-purple-900">
+                    Vista: Por vendedor
+                  </div>
+                </div>
+              </div>
 
-              {/* Rango Badge - Interactive */}
-              {dashboardFilterType && onDateFilterChange && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-lg border border-green-200 hover:bg-green-100 transition-colors cursor-pointer">
-                      <CalendarIcon className="h-3.5 w-3.5" />
-                      <span>
-                        {filterType === "day" && (selectedDate ? `Día: ${format(selectedDate, "dd/MM/yyyy")}` : "Día")}
-                        {filterType === "month" && selectedPeriod && (() => {
-                          const [year, month] = selectedPeriod.split("-").map(Number);
-                          const date = new Date(year, month - 1, 1);
-                          return `Mes: ${format(date, "MMM yyyy")}`;
-                        })()}
-                        {filterType === "year" && (selectedYear ? `Año: ${selectedYear}` : "Año")}
-                        {filterType === "range" && (dateRange?.from && dateRange?.to ? 
-                          `Rango: ${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}` : "Rango")}
-                      </span>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-3 rounded-xl border-gray-200" align="start">
-                    <div className="space-y-3">
-                      <label className="text-sm font-medium text-gray-700">
-                        Cambiar período:
-                      </label>
-                      
-                      {/* Filter Type Selector */}
-                      <Select 
-                        value={dashboardFilterType} 
-                        onValueChange={(value: "day" | "month" | "year" | "range") => {
-                          // Reset period when changing type
-                          if (value === "month") {
-                            const currentMonth = format(new Date(), "yyyy-MM");
-                            onDateFilterChange(value, currentMonth);
-                          } else if (value === "year") {
-                            const currentYear = new Date().getFullYear();
-                            onDateFilterChange(value, currentYear.toString(), undefined, currentYear);
-                          } else if (value === "day") {
-                            const today = new Date();
-                            const todayStr = format(today, "yyyy-MM-dd");
-                            onDateFilterChange(value, todayStr, today);
-                          } else if (value === "range") {
-                            onDateFilterChange(value, "", undefined, undefined, undefined);
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="w-full rounded-lg border-gray-200">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-gray-200">
-                          <SelectItem value="day">Día</SelectItem>
-                          <SelectItem value="month">Mes</SelectItem>
-                          <SelectItem value="year">Año</SelectItem>
-                          <SelectItem value="range">Rango</SelectItem>
-                        </SelectContent>
-                      </Select>
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
+                <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-blue-900">
+                    Período: {selection.display}
+                  </div>
+                  <div className="text-[10px] text-blue-700 mt-0.5">
+                    {selection.period === "full-year" && `${selection.years.length} año(s) completo(s)`}
+                    {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
+                    {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
+                    {selection.period === "day" && `Día específico en ${selection.years.length} año(s)`}
+                    {selection.period === "days" && `${selection.days?.length} días en ${selection.years.length} año(s)`}
+                  </div>
+                </div>
+              </div>
 
-                      {/* Period Selector */}
-                      {dashboardFilterType === "day" && (
-                        <Calendar
-                          mode="single"
-                          selected={dashboardSelectedDate}
-                          onSelect={(date) => {
-                            if (date) {
-                              const dateStr = format(date, "yyyy-MM-dd");
-                              onDateFilterChange("day", dateStr, date);
-                            }
-                          }}
-                          className="rounded-lg border"
-                        />
-                      )}
-                      
-                      {dashboardFilterType === "month" && availablePeriods && (
-                        <Select 
-                          value={dashboardSelectedPeriod} 
-                          onValueChange={(value) => {
-                            onDateFilterChange("month", value);
-                          }}
-                        >
-                          <SelectTrigger className="w-full rounded-lg border-gray-200">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-xl border-gray-200 max-h-60">
-                            {availablePeriods.months.map((month: any) => (
-                              <SelectItem key={month.value} value={month.value}>
-                                {month.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      
-                      {dashboardFilterType === "year" && availablePeriods && (
-                        <Select 
-                          value={dashboardSelectedYear?.toString() || ""} 
-                          onValueChange={(value) => {
-                            const year = parseInt(value);
-                            onDateFilterChange("year", value, undefined, year);
-                          }}
-                        >
-                          <SelectTrigger className="w-full rounded-lg border-gray-200">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-xl border-gray-200">
-                            {availablePeriods.years.map((year: any) => (
-                              <SelectItem key={year.value} value={year.value}>
-                                {year.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      
-                      {dashboardFilterType === "range" && (
-                        <div className="space-y-2">
-                          <Calendar
-                            mode="range"
-                            selected={dashboardDateRange as any}
-                            onSelect={(range) => {
-                              if (range?.from && range?.to) {
-                                const rangeStr = `${format(range.from, "yyyy-MM-dd")}_${format(range.to, "yyyy-MM-dd")}`;
-                                onDateFilterChange("range", rangeStr, undefined, undefined, range);
-                              } else if (range?.from) {
-                                // Handle partial selection
-                                onDateFilterChange("range", "", undefined, undefined, range);
-                              }
-                            }}
-                            className="rounded-lg border"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
+              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
+                <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-green-900">
+                    Vendedor: {salespersonName}
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-          
-          {/* Filter Controls - Always show selector for period selection */}
-          <div className="flex items-center gap-2 mt-4">
-            <YearMonthSelector 
-              value={selection}
-              onChange={setSelection}
-            />
           </div>
         </header>
 
