@@ -21,6 +21,9 @@ import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeKPICards from "@/components/dashboard/comparative-kpi-cards";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import ComparativeSalespeopleTable from "@/components/dashboard/comparative-salespeople-table";
+import ComparativeClientsTable from "@/components/dashboard/comparative-clients-table";
+import ComparativeProductsTable from "@/components/dashboard/comparative-products-table";
+import ComparativePackagingTable from "@/components/dashboard/comparative-packaging-table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -1115,6 +1118,21 @@ export default function Dashboard() {
               {globalFilter.type === "all" && (
                 <ComparativeSalespeopleTable periods={comparativePeriods} />
               )}
+
+              {/* Comparative Clients Table */}
+              {globalFilter.type === "all" && (
+                <ComparativeClientsTable periods={comparativePeriods} />
+              )}
+
+              {/* Comparative Products Table */}
+              {globalFilter.type === "all" && (
+                <ComparativeProductsTable periods={comparativePeriods} />
+              )}
+
+              {/* Comparative Packaging Table */}
+              {globalFilter.type === "all" && (
+                <ComparativePackagingTable periods={comparativePeriods} />
+              )}
             </>
           ) : (
             <>
@@ -1176,46 +1194,47 @@ export default function Dashboard() {
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
                 />
               </div>
+
+              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <TopClientsPanel 
+                  selectedPeriod={selectedPeriod} 
+                  filterType={filterType}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                />
+              </div>
+
+              {/* Products Chart */}
+              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <TopProductsChart 
+                  selectedPeriod={selectedPeriod} 
+                  filterType={filterType}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                />
+              </div>
+
+              {/* Packaging Metrics - Full Width */}
+              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <PackagingSalesMetrics 
+                  selectedPeriod={selectedPeriod} 
+                  filterType={filterType}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                />
+              </div>
+
+              {/* Transactions - Full Width - Only in non-comparative mode */}
+              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <TransactionsTable 
+                  selectedPeriod={selectedPeriod} 
+                  filterType={filterType}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                />
+              </div>
             </>
           )}
-          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            <TopClientsPanel 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-            />
-          </div>
-
-          {/* Products Chart */}
-          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            <TopProductsChart 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-            />
-          </div>
-
-          {/* Packaging Metrics - Full Width */}
-          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            <PackagingSalesMetrics 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-            />
-          </div>
-
-          {/* Transactions - Full Width */}
-          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            <TransactionsTable 
-              selectedPeriod={selectedPeriod} 
-              filterType={filterType}
-              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-            />
-          </div>
         </main>
     </div>
   );

@@ -1,0 +1,144 @@
+import { useQueries } from "@tanstack/react-query";
+import { Box } from "lucide-react";
+
+interface PackagingData {
+  packagingType: string;
+  totalSales: number;
+  totalUnits: number;
+}
+
+interface ComparativePackagingTableProps {
+  periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }>;
+}
+
+export default function ComparativePackagingTable({ periods }: ComparativePackagingTableProps) {
+  // Fetch packaging data for all periods using useQueries to respect Rules of Hooks
+  const packagingQueries = useQueries({
+    queries: periods.map(({ period, filterType }) => ({
+      queryKey: [`/api/sales/packaging-metrics?period=${period}&filterType=${filterType}`],
+      queryFn: async () => {
+        const res = await fetch(
+          `/api/sales/packaging-metrics?period=${period}&filterType=${filterType}`, 
+          { credentials: "include" }
+        );
+        if (!res.ok) throw new Error('Failed to fetch');
+        return await res.json() as PackagingData[];
+      }
+    }))
+  });
+
+  const isLoading = packagingQueries.some(q => q.isLoading);
+  const allData = packagingQueries.map(q => q.data || []);
+
+  // Get all unique packaging types across all periods
+  const allPackagingTypes = Array.from(
+    new Set(allData.flatMap(data => data.map(item => item.packagingType)))
+  ).sort();
+
+  // Calculate totals for percentage
+  const totalsByPeriod = allData.map(data => 
+    data.reduce((sum, item) => sum + item.totalUnits, 0)
+  );
+
+  // Get year from period for color coding
+  const getYearFromPeriod = (period: string): number => {
+    return parseInt(period.split('-')[0]);
+  };
+
+  // Subtle color palette for different years
+  const getYearColor = (year: number): string => {
+    const colors = [
+      'bg-blue-50',
+      'bg-green-50', 
+      'bg-purple-50',
+      'bg-amber-50',
+      'bg-rose-50',
+      'bg-cyan-50',
+      'bg-indigo-50',
+      'bg-teal-50'
+    ];
+    return colors[year % colors.length];
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white border rounded-lg p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Box className="h-5 w-5 text-gray-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Total Facturado por Unidades</h3>
+        </div>
+        <div className="animate-pulse space-y-2">
+          <div className="h-8 bg-gray-200 rounded"></div>
+          <div className="h-24 bg-gray-100 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border rounded-lg p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <Box className="h-5 w-5 text-gray-600" />
+        <h3 className="text-lg font-semibold text-gray-900">Total Facturado por Unidades</h3>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left py-3 px-2 font-semibold text-gray-700 sticky left-0 bg-white">Tipo Envase</th>
+              {periods.map(({ period, label }) => {
+                const year = getYearFromPeriod(period);
+                return (
+                  <th key={period} className={`text-right py-3 px-2 font-semibold text-gray-700 ${getYearColor(year)}`}>
+                    <div>{label}</div>
+                    <div className="text-xs font-normal text-gray-500">Unidades / %</div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {allPackagingTypes.map((packagingType) => {
+              return (
+                <tr key={packagingType} className="border-b hover:bg-gray-50">
+                  <td className="py-2 px-2 font-medium text-gray-900 sticky left-0 bg-white">{packagingType}</td>
+                  {allData.map((data, idx) => {
+                    const item = data.find(d => d.packagingType === packagingType);
+                    const units = item?.totalUnits || 0;
+                    const percentage = totalsByPeriod[idx] > 0 
+                      ? (units / totalsByPeriod[idx] * 100).toFixed(1)
+                      : '0.0';
+                    const year = getYearFromPeriod(periods[idx].period);
+                    
+                    return (
+                      <td key={idx} className={`text-right py-2 px-2 ${getYearColor(year)}`}>
+                        <div className="font-semibold text-gray-900">
+                          {units.toLocaleString('es-CL')}
+                        </div>
+                        <div className="text-xs text-gray-500">{percentage}%</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 font-bold">
+              <td className="py-3 px-2 sticky left-0 bg-white">Total Unidades</td>
+              {totalsByPeriod.map((total, idx) => {
+                const year = getYearFromPeriod(periods[idx].period);
+                return (
+                  <td key={idx} className={`text-right py-3 px-2 ${getYearColor(year)}`}>
+                    {total.toLocaleString('es-CL')}
+                  </td>
+                );
+              })}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}
