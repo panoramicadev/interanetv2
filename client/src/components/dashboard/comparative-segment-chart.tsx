@@ -1,24 +1,24 @@
-import { Line } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
   ChartOptions,
 } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ChartDataLabels
 );
 
 interface SegmentData {
@@ -65,13 +65,13 @@ export default function ComparativeSegmentChart({ periods, segmentsData }: Compa
     new Set(segmentsData.flatMap(data => data.map(item => item.segment)))
   ).sort();
 
-  // Color palette for years
+  // Color palette for years - solid colors for bars
   const yearColors = [
-    { border: 'rgb(59, 130, 246)', bg: 'rgba(59, 130, 246, 0.1)' },  // blue
-    { border: 'rgb(34, 197, 94)', bg: 'rgba(34, 197, 94, 0.1)' },    // green
-    { border: 'rgb(168, 85, 247)', bg: 'rgba(168, 85, 247, 0.1)' },  // purple
-    { border: 'rgb(251, 146, 60)', bg: 'rgba(251, 146, 60, 0.1)' },  // orange
-    { border: 'rgb(236, 72, 153)', bg: 'rgba(236, 72, 153, 0.1)' },  // pink
+    'rgb(16, 185, 129)',   // emerald-500
+    'rgb(245, 158, 11)',   // amber-500
+    'rgb(59, 130, 246)',   // blue-500
+    'rgb(168, 85, 247)',   // purple-500
+    'rgb(239, 68, 68)',    // red-500
   ];
 
   const formatCurrency = (value: number) => {
@@ -103,15 +103,9 @@ export default function ComparativeSegmentChart({ periods, segmentsData }: Compa
       return {
         label: year,
         data,
-        borderColor: color.border,
-        backgroundColor: color.bg,
-        tension: 0.3,
-        borderWidth: 3,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        pointBackgroundColor: color.border,
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2,
+        backgroundColor: color,
+        borderRadius: 6,
+        borderSkipped: false,
       };
     })
   } : {
@@ -122,28 +116,23 @@ export default function ComparativeSegmentChart({ periods, segmentsData }: Compa
       data: segmentsData.map(periodData => 
         periodData.reduce((sum, segment) => sum + segment.totalSales, 0)
       ),
-      borderColor: 'rgb(59, 130, 246)',
-      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-      tension: 0.3,
-      borderWidth: 3,
-      pointRadius: 5,
-      pointHoverRadius: 7,
-      pointBackgroundColor: 'rgb(59, 130, 246)',
-      pointBorderColor: '#fff',
-      pointBorderWidth: 2,
+      backgroundColor: 'rgb(16, 185, 129)',
+      borderRadius: 6,
+      borderSkipped: false,
     }]
   };
 
-  const options: ChartOptions<'line'> = {
+  const options: ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: isYearOverYear,
+        display: true,
         position: 'top' as const,
         labels: {
           usePointStyle: true,
-          padding: 15,
+          pointStyle: 'circle',
+          padding: 20,
           font: {
             size: 13,
             weight: 'bold',
@@ -167,6 +156,20 @@ export default function ComparativeSegmentChart({ periods, segmentsData }: Compa
             return `${label}: ${value}`;
           }
         }
+      },
+      datalabels: {
+        anchor: 'end',
+        align: 'top',
+        formatter: (value: number) => {
+          if (value === 0) return '';
+          // Format in millions with 'M' suffix
+          return `$${(value / 1000000).toFixed(1)}M`;
+        },
+        font: {
+          size: 10,
+          weight: 'bold',
+        },
+        color: '#374151',
       }
     },
     scales: {
@@ -191,7 +194,7 @@ export default function ComparativeSegmentChart({ periods, segmentsData }: Compa
         ticks: {
           font: {
             size: 12,
-            weight: 'normal',
+            weight: 'bold',
           },
         },
       },
@@ -199,9 +202,9 @@ export default function ComparativeSegmentChart({ periods, segmentsData }: Compa
   };
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
-      <div className="h-80">
-        <Line data={chartData} options={options} />
+    <div className="bg-white rounded-xl p-6 border border-gray-200">
+      <div className="h-96">
+        <Bar data={chartData} options={options} />
       </div>
       {isYearOverYear && (
         <div className="mt-4 text-center">
