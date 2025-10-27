@@ -160,6 +160,56 @@ export default function DateSelectorDemo() {
               </div>
             </div>
 
+            {/* Multi-month comparison */}
+            {selection?.period === "months" && selection.months && selection.months.length > 1 && (
+              <div className="p-3 bg-white rounded-lg border-2 border-indigo-200 shadow-sm">
+                <div className="text-xs font-semibold text-gray-700 mb-3">Comparativa por Mes Seleccionado</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {selection.months.map((monthNum) => {
+                    const monthName = MONTHS[monthNum - 1];
+                    const mockSales = [195086384, 218293568, 187456789, 203567890, 176543210, 189234567, 198765432, 207654321, 195432109, 212345678, 188876543, 201234567];
+                    const sales = mockSales[monthNum - 1];
+                    
+                    return (
+                      <div key={monthNum} className="p-2.5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded border border-blue-200">
+                        <div className="text-[10px] font-semibold text-blue-900 mb-1">{monthName.toUpperCase()}</div>
+                        <div className="text-base font-bold text-gray-900">
+                          ${(sales / 1000000).toFixed(1)}M
+                        </div>
+                        <div className="text-[9px] text-gray-600 mt-0.5">
+                          {selection.years.length > 1 ? `${selection.years.join(", ")}` : selection.years[0]}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Year comparison for multi-months */}
+                {selection.years.length > 1 && (
+                  <div className="mt-3 pt-3 border-t">
+                    <div className="text-[10px] font-semibold text-gray-700 mb-2">Comparación entre años</div>
+                    <div className="space-y-2">
+                      {selection.years.map((year) => (
+                        <div key={year} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <span className="text-xs font-medium text-gray-700">{year}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-600">
+                              ${((Math.random() * 100 + 150) * selection.months!.length).toFixed(1)}M
+                            </span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                              Math.random() > 0.5 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {Math.random() > 0.5 ? '↑' : '↓'} {(Math.random() * 20).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* View-specific content */}
             {view === "all" && (
               <>
