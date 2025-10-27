@@ -132,25 +132,17 @@ export default function DateSelectorDemo() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">Dashboard con Datos Reales</CardTitle>
             <CardDescription className="text-sm">
-              Datos reales del backend según los filtros seleccionados
+              {selection && (selection.years.length > 1 || (selection.months && selection.months.length > 1)) 
+                ? "Mostrando comparativas entre múltiples períodos"
+                : "Datos reales del backend según los filtros seleccionados"
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <DashboardSimulator
               view={view}
-              period={selection ? (() => {
-                if (selection.period === "full-year") {
-                  return selection.years[0].toString();
-                } else if (selection.period === "month" || selection.period === "months") {
-                  const year = selection.years[0];
-                  const month = (selection.months?.[0] || 1).toString().padStart(2, '0');
-                  return `${year}-${month}`;
-                }
-                return null;
-              })() : null}
-              filterType={selection?.period === "full-year" ? "year" : "month"}
+              selection={selection}
               selectedEntity={selectedEntity}
-              years={selection?.years}
             />
           </CardContent>
         </Card>
