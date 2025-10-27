@@ -36,14 +36,16 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   );
   const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
   
-  // Sync internal state with external value when it changes
+  // Sync internal state ONLY when the popover is closed
+  // When open, the user is actively selecting, so don't interfere
   useEffect(() => {
-    if (value) {
+    if (!open && value) {
+      console.log("🔄 Sincronizando estado del selector (cerrado):", value);
       setSelectedYears(value.years || []);
       setSelectedMonths(value.months ? value.months.map(m => m - 1) : []);
       setSelectedDays(value.days || []);
     }
-  }, [value]);
+  }, [value, open]);
 
   const handleYearToggle = (year: number) => {
     setSelectedYears(prev => 
@@ -161,7 +163,15 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   };
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
+    if (newOpen) {
+      // Al abrir, sincronizar con el valor actual
+      console.log("🔓 Abriendo selector, sincronizando con:", value);
+      setSelectedYears(value?.years || []);
+      setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
+      setSelectedDays(value?.days || []);
+    } else {
+      // Al cerrar sin aplicar, revertir a los valores guardados
+      console.log("🔒 Cerrando selector sin aplicar, revirtiendo a:", value);
       setSelectedYears(value?.years || []);
       setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
       setSelectedDays(value?.days || []);
