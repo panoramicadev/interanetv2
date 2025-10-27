@@ -8794,9 +8794,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No autorizado para crear gastos' });
       }
       
+      // Admin and supervisor can create expenses on behalf of other users
+      // Salesperson can only create their own expenses
+      let targetUserId = user.id;
+      if (['admin', 'supervisor'].includes(user.role) && req.body.userId) {
+        targetUserId = req.body.userId;
+      }
+      
       const validated = insertGastoEmpresarialSchema.parse({
         ...req.body,
-        userId: user.id, // Set the userId from authenticated user
+        userId: targetUserId,
       });
       
       const gasto = await storage.createGastoEmpresarial(validated);
