@@ -753,14 +753,13 @@ export default function Dashboard() {
                               value={localSelectedFilter} 
                               onValueChange={(value) => {
                                 setLocalSelectedFilter(value);
+                                // Clear the value when changing filter type to avoid showing wrong data
                                 if (value === "all") {
                                   setLocalGlobalFilter({ type: "all" });
-                                } else if (value === "global") {
-                                  setLocalGlobalFilter({ type: "global" });
                                 } else if (value === "segment") {
-                                  setLocalGlobalFilter({ type: "segment" });
+                                  setLocalGlobalFilter({ type: "segment", value: undefined });
                                 } else if (value === "salesperson") {
-                                  setLocalGlobalFilter({ type: "salesperson" });
+                                  setLocalGlobalFilter({ type: "salesperson", value: undefined });
                                 }
                               }}
                             >
@@ -910,14 +909,13 @@ export default function Dashboard() {
                     value={selectedFilter} 
                     onValueChange={(value) => {
                       setSelectedFilter(value);
+                      // Clear the value when changing filter type to avoid showing wrong data
                       if (value === "all") {
                         setGlobalFilter({ type: "all" });
-                      } else if (value === "global") {
-                        setGlobalFilter({ type: "global" });
                       } else if (value === "segment") {
-                        setGlobalFilter({ type: "segment" });
+                        setGlobalFilter({ type: "segment", value: undefined });
                       } else if (value === "salesperson") {
-                        setGlobalFilter({ type: "salesperson" });
+                        setGlobalFilter({ type: "salesperson", value: undefined });
                       }
                     }}
                   >
