@@ -192,6 +192,30 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
     enabled: Boolean(isComparison && comparisonPeriods.length > 0 && globalFilter.type === "all"),
   });
 
+  // Salespeople across all comparison periods (for salesperson evolution chart)
+  const salespeopleAcrossPeriodsQuery = useQuery({
+    queryKey: ['/api/sales/salespeople-across-periods', comparisonPeriods, globalFilter],
+    queryFn: async () => {
+      if (globalFilter.type !== "all") return null;
+      
+      const results = await Promise.all(
+        comparisonPeriods.map(async ({ period, label, filterType }) => {
+          const params = new URLSearchParams();
+          params.append('period', period);
+          params.append('filterType', filterType);
+          params.append('limit', '5000');
+          
+          const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: "include" });
+          if (!res.ok) throw new Error('Failed to fetch salespeople');
+          const data = await res.json();
+          return { period, label, salespeople: data.items || [] };
+        })
+      );
+      return results;
+    },
+    enabled: Boolean(isComparison && comparisonPeriods.length > 0 && globalFilter.type === "all"),
+  });
+
   // Additional dimension comparison: Salespeople when segment is selected (per period)
   const salespeopleComparisonQuery = useQuery({
     queryKey: ['/api/sales/salespeople-comparison', comparisonPeriods, globalFilter],
@@ -449,6 +473,96 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
                                       </div>
                                       <div className="text-[10px] text-gray-500">
                                         {segmentData.percentage?.toFixed(1)}%
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <div className="font-semibold text-gray-400">
+                                        {formatCurrency(0)}
+                                      </div>
+                                      <div className="text-[10px] text-gray-400">
+                                        0%
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            </Card>
+          )}
+
+          {/* Salespeople Evolution Chart (when no filter and multiple periods) */}
+          {globalFilter.type === "all" && salespeopleAcrossPeriodsQuery.data && (
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Users className="h-5 w-5 text-blue-500" />
+                <h3 className="text-sm font-semibold">Evolución de Ventas por Vendedor</h3>
+                <span className="text-xs text-gray-500 ml-auto">
+                  Comparación entre períodos seleccionados
+                </span>
+              </div>
+              
+              {/* Tabla de datos por vendedor y período */}
+              <div className="overflow-x-auto">
+                {(() => {
+                  // Get unique salespeople across all periods
+                  const allSalespeople = new Set<string>();
+                  salespeopleAcrossPeriodsQuery.data.forEach((periodData: any) => {
+                    periodData.salespeople.forEach((sp: any) => {
+                      allSalespeople.add(sp.salesperson);
+                    });
+                  });
+                  
+                  if (allSalespeople.size === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No hay datos de vendedores disponibles para los períodos seleccionados</p>
+                      </div>
+                    );
+                  }
+                  
+                  // Sort salespeople by total sales across all periods
+                  const salespeopleWithTotals = Array.from(allSalespeople).map((salespersonName) => {
+                    let totalSales = 0;
+                    salespeopleAcrossPeriodsQuery.data.forEach((periodData: any) => {
+                      const spData = periodData.salespeople.find((s: any) => s.salesperson === salespersonName);
+                      if (spData) totalSales += spData.totalSales || 0;
+                    });
+                    return { name: salespersonName, totalSales };
+                  }).sort((a, b) => b.totalSales - a.totalSales);
+                  
+                  return (
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2 font-semibold">Vendedor</th>
+                          {salespeopleAcrossPeriodsQuery.data.map((periodData: any) => (
+                            <th key={periodData.period} className="text-right p-2 font-semibold">{periodData.label}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salespeopleWithTotals.map(({ name: salespersonName }) => (
+                          <tr key={salespersonName} className="border-b hover:bg-gray-50">
+                            <td className="p-2 font-medium text-gray-700">{salespersonName}</td>
+                            {salespeopleAcrossPeriodsQuery.data.map((periodData: any) => {
+                              const spData = periodData.salespeople.find((s: any) => s.salesperson === salespersonName);
+                              return (
+                                <td key={periodData.period} className="p-2 text-right">
+                                  {spData ? (
+                                    <div>
+                                      <div className="font-semibold text-gray-900">
+                                        {formatCurrency(spData.totalSales || 0)}
+                                      </div>
+                                      <div className="text-[10px] text-gray-500">
+                                        {spData.percentage?.toFixed(1)}%
                                       </div>
                                     </div>
                                   ) : (
