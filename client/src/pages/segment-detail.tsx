@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,6 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
+import { useFilter } from "@/contexts/FilterContext";
+import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 
 interface SegmentClient {
   clientName: string;
@@ -71,50 +73,56 @@ export default function SegmentDetail({
 }: SegmentDetailProps = {}) {
   const { segmentName: paramSegmentName } = useParams();
   const segmentName = propSegmentName || paramSegmentName;
+  const [, setLocation] = useLocation();
   
-  // Date filter states - Initialize from dashboard props if embedded
-  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">(() => {
-    return dashboardFilterType || "month";
-  });
+  // Use global filter context
+  const { selection, setSelection } = useFilter();
   
-  const [selectedPeriod, setSelectedPeriod] = useState(() => {
-    if (dashboardSelectedPeriod) {
-      return dashboardSelectedPeriod;
+  // Derived values from selection for backward compatibility
+  const selectedPeriod = (() => {
+    if (selection.period === "month" && selection.month !== undefined) {
+      const year = selection.years[0];
+      const month = selection.month + 1;
+      return `${year}-${String(month).padStart(2, '0')}`;
+    } else if (selection.period === "full-year") {
+      return `${selection.years[0]}-01`;
+    } else if (selection.period === "day" && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = selection.month !== undefined ? selection.month + 1 : 1;
+      const day = selection.days[0];
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    } else if (selection.period === "custom-range") {
+      return "custom-range";
     }
     return format(new Date(), "yyyy-MM");
-  });
+  })();
   
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
-    if (dashboardFilterType === "day" && dashboardSelectedPeriod) {
-      return new Date(dashboardSelectedPeriod);
+  const filterType: "day" | "month" | "year" | "range" = (() => {
+    if (selection.period === "day" || selection.period === "days") return "day";
+    if (selection.period === "month" || selection.period === "months") return "month";
+    if (selection.period === "full-year") return "year";
+    if (selection.period === "custom-range") return "range";
+    return "month";
+  })();
+  
+  const selectedDate = (() => {
+    if (selection.period === "day" && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = selection.month !== undefined ? selection.month : 0;
+      const day = selection.days[0];
+      return new Date(year, month, day);
     }
     return new Date();
-  });
+  })();
   
-  const [selectedYear, setSelectedYear] = useState<number>(() => {
-    if (dashboardFilterType === "year" && dashboardSelectedPeriod) {
-      return parseInt(dashboardSelectedPeriod);
-    }
-    return new Date().getFullYear();
-  });
+  const selectedYear = selection.years[0];
   
-  const [startDate, setStartDate] = useState<Date | undefined>(() => {
-    if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
-      const [start] = dashboardSelectedPeriod.split("_");
-      const [year, month, day] = start.split("-").map(Number);
-      return new Date(year, month - 1, day);
+  const dateRange = (() => {
+    if (selection.period === "custom-range" && selection.startDate && selection.endDate) {
+      return { from: selection.startDate, to: selection.endDate };
     }
     return undefined;
-  });
-  
-  const [endDate, setEndDate] = useState<Date | undefined>(() => {
-    if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
-      const [, end] = dashboardSelectedPeriod.split("_");
-      const [year, month, day] = end.split("-").map(Number);
-      return new Date(year, month - 1, day);
-    }
-    return undefined;
-  });
+  })();
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -354,129 +362,8 @@ export default function SegmentDetail({
 
           {/* Filter Controls - Only show if not embedded (dashboard controls it) */}
           {!embedded && (
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Filter Type */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Filtrar:
-                </label>
-                <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="w-24 rounded-xl border-gray-200 shadow-sm text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200">
-                    <SelectItem value="day">Día</SelectItem>
-                    <SelectItem value="month">Mes</SelectItem>
-                    <SelectItem value="year">Año</SelectItem>
-                    <SelectItem value="range">Rango</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Period Selector */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Período:
-                </label>
-                {filterType === "day" ? (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-40 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        <span>
-                          {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={setSelectedDate}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                ) : filterType === "range" ? (
-                  <div className="flex items-center gap-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
-                        >
-                          <CalendarIcon className="mr-1 h-3 w-3" />
-                          <span>
-                            {startDate ? format(startDate, "dd/MM") : "Inicio"}
-                          </span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={startDate}
-                          onSelect={setStartDate}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    
-                    <span className="text-gray-500">-</span>
-                    
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-24 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm"
-                        >
-                          <CalendarIcon className="mr-1 h-3 w-3" />
-                          <span>
-                            {endDate ? format(endDate, "dd/MM") : "Final"}
-                          </span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={endDate}
-                          onSelect={setEndDate}
-                          initialFocus
-                          disabled={(date) => startDate ? date < startDate : false}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                ) : filterType === "year" ? (
-                  <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                    <SelectTrigger className="w-40 rounded-xl border-gray-200 shadow-sm text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200">
-                      {availablePeriods?.years.map((year) => (
-                        <SelectItem key={year.value} value={year.value}>
-                          {year.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger className="w-44 rounded-xl border-gray-200 shadow-sm text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200">
-                      {availablePeriods?.months.map((month) => (
-                        <SelectItem key={month.value} value={month.value}>
-                          {month.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+            <div className="flex items-center gap-2">
+              <YearMonthSelector />
             </div>
           )}
         </header>

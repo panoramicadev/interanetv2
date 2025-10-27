@@ -163,8 +163,12 @@ function Router() {
             <Route path="/tintometria/calculadora" component={TintometriaCalculadora} />
             <Route path="/tintometria/selector" component={TintometriaSelector} />
             
-            <Route path="/segment/:segmentName" component={SegmentDetail} />
-            <Route path="/salesperson/:salespersonName" component={SalespersonDetail} />
+            <Route path="/segment/:segmentName">
+              {(params: any) => <SegmentDetail segmentName={params.segmentName} />}
+            </Route>
+            <Route path="/salesperson/:salespersonName">
+              {(params: any) => <SalespersonDetail salespersonName={params.salespersonName} />}
+            </Route>
             <Route path="/client/:clientName" component={ClientDetail} />
             <Route path="/product/:productName" component={ProductDetail} />
             <Route path="/metricas-productos" component={MetricasProductos} />
