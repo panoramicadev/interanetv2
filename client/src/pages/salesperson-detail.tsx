@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -159,6 +159,9 @@ export default function SalespersonDetail({
   
   // Promesas week selector - initialize to current week
   const [selectedPromesaWeek, setSelectedPromesaWeek] = useState<Date>(() => new Date());
+  
+  // Promesas collapse state
+  const [isPromesasExpanded, setIsPromesasExpanded] = useState(false);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -671,8 +674,84 @@ export default function SalespersonDetail({
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-2 sm:space-y-3">
-                      {promesasVendedor.map((item: any, index: number) => {
+                    <div className="space-y-3">
+                      {/* Summary Card - Always visible */}
+                      <button
+                        onClick={() => setIsPromesasExpanded(!isPromesasExpanded)}
+                        className="w-full bg-white/90 rounded-xl p-4 border-2 border-indigo-200 hover:border-indigo-300 transition-all"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="bg-indigo-100 rounded-full p-2">
+                              <Target className="h-5 w-5 text-indigo-600" />
+                            </div>
+                            <h4 className="text-sm font-bold text-gray-900">
+                              Resumen Semanal
+                            </h4>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-600">
+                              {promesasVendedor.length} promesa{promesasVendedor.length !== 1 ? 's' : ''}
+                            </span>
+                            {isPromesasExpanded ? (
+                              <ChevronUp className="h-5 w-5 text-indigo-600" />
+                            ) : (
+                              <ChevronDown className="h-5 w-5 text-indigo-600" />
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-purple-50 rounded-lg p-3">
+                            <p className="text-xs text-purple-700 mb-1">Total Prometido</p>
+                            <p className="text-sm font-bold text-purple-900">
+                              {formatCurrency(promesasVendedor.reduce((sum: number, item: any) => 
+                                sum + parseFloat(item.promesa?.montoPrometido || '0'), 0
+                              ))}
+                            </p>
+                          </div>
+                          <div className="bg-blue-50 rounded-lg p-3">
+                            <p className="text-xs text-blue-700 mb-1">Total Vendido</p>
+                            <p className="text-sm font-bold text-blue-900">
+                              {formatCurrency(promesasVendedor.reduce((sum: number, item: any) => 
+                                sum + (item.ventasReales || 0), 0
+                              ))}
+                            </p>
+                          </div>
+                          <div className="bg-green-50 rounded-lg p-3">
+                            <p className="text-xs text-green-700 mb-1">Cumplimiento</p>
+                            <p className={`text-sm font-bold ${
+                              (() => {
+                                const totalPrometido = promesasVendedor.reduce((sum: number, item: any) => 
+                                  sum + parseFloat(item.promesa?.montoPrometido || '0'), 0
+                                );
+                                const totalVendido = promesasVendedor.reduce((sum: number, item: any) => 
+                                  sum + (item.ventasReales || 0), 0
+                                );
+                                const cumplimientoGeneral = totalPrometido > 0 ? (totalVendido / totalPrometido * 100) : 0;
+                                return cumplimientoGeneral >= 100 ? 'text-green-600' : 
+                                       cumplimientoGeneral >= 80 ? 'text-yellow-600' : 'text-red-600';
+                              })()
+                            }`}>
+                              {(() => {
+                                const totalPrometido = promesasVendedor.reduce((sum: number, item: any) => 
+                                  sum + parseFloat(item.promesa?.montoPrometido || '0'), 0
+                                );
+                                const totalVendido = promesasVendedor.reduce((sum: number, item: any) => 
+                                  sum + (item.ventasReales || 0), 0
+                                );
+                                const cumplimientoGeneral = totalPrometido > 0 ? (totalVendido / totalPrometido * 100) : 0;
+                                return cumplimientoGeneral.toFixed(0);
+                              })()}%
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                      
+                      {/* Detailed List - Collapsible */}
+                      {isPromesasExpanded && (
+                        <div className="space-y-2 sm:space-y-3">
+                          {promesasVendedor.map((item: any, index: number) => {
                       const cumplimiento = item.cumplimiento || 0;
                       const estado = item.estado || 'no_cumplido';
                       
@@ -761,7 +840,9 @@ export default function SalespersonDetail({
                         </div>
                       );
                     })}
-                  </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </CardContent>
