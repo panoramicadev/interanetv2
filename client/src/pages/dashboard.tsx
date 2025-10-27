@@ -220,6 +220,19 @@ export default function Dashboard() {
     }
   }, [filterType]);
   
+  // Read URL parameters and update filter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const filterParam = params.get('filter');
+    if (filterParam === 'segment') {
+      setSelectedFilter('segment');
+      setGlobalFilter({ type: 'segment' });
+    } else if (filterParam === 'salesperson') {
+      setSelectedFilter('salesperson');
+      setGlobalFilter({ type: 'salesperson' });
+    }
+  }, [setGlobalFilter]);
+  
   // Update local state when drawer opens
   const handleDrawerOpen = () => {
     setLocalSelection(selection);

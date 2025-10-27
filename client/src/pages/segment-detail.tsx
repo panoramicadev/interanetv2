@@ -365,21 +365,12 @@ export default function SegmentDetail({
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
                 <Select 
                   value="segmento"
-                  onValueChange={async (value) => {
-                    if (value === "vendedor") {
-                      // Fetch salespeople to navigate to first one
-                      try {
-                        const response = await fetch('/api/analytics/salespeople');
-                        const data = await response.json();
-                        if (data.items && data.items.length > 0) {
-                          setLocation(`/salesperson/${encodeURIComponent(data.items[0].salesperson)}`);
-                        } else {
-                          setLocation('/');
-                        }
-                      } catch (error) {
-                        console.error('Error fetching salespeople:', error);
-                        setLocation('/');
-                      }
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      setLocation('/');
+                    } else if (value === "vendedor") {
+                      // Navigate to dashboard with salesperson filter (no value yet)
+                      setLocation('/?filter=salesperson');
                     }
                   }}
                 >
@@ -387,16 +378,22 @@ export default function SegmentDetail({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-lg border-gray-200">
-                    <SelectItem value="vendedor">
+                    <SelectItem value="all">
                       <div className="flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5 text-purple-500" />
-                        <span>Por vendedor</span>
+                        <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                        <span>Todo el dashboard</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="segmento">
                       <div className="flex items-center gap-2">
                         <Building className="h-3.5 w-3.5 text-green-500" />
                         <span>Por segmento</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="vendedor">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-3.5 w-3.5 text-purple-500" />
+                        <span>Por vendedor</span>
                       </div>
                     </SelectItem>
                   </SelectContent>
