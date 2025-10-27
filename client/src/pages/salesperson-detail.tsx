@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
+import ComparativeSalespersonMetrics from "@/components/dashboard/comparative-salesperson-metrics";
 
 interface GoalProgress {
   id: string;
@@ -157,6 +158,79 @@ export default function SalespersonDetail({
       return { from: selection.startDate, to: selection.endDate };
     }
     return undefined;
+  })();
+
+  // Detect comparative mode (multiple periods selected)
+  const isComparativeMode = (() => {
+    if (selection.period === "months" && selection.months && selection.months.length > 1) return true;
+    if (selection.period === "days" && selection.days && selection.days.length > 1) return true;
+    if (selection.years.length > 1 && selection.period === "full-year") return true;
+    return false;
+  })();
+
+  // Generate list of periods for comparative mode
+  const comparativePeriods = (() => {
+    if (!isComparativeMode) return [];
+    
+    const periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }> = [];
+    
+    // Comparativa mes-a-año: cuando hay múltiples años Y múltiples meses
+    if (selection.period === "months" && selection.months && selection.months.length > 1 && selection.years.length > 1) {
+      // Para cada mes, crear columnas para cada año
+      selection.months.forEach(month => {
+        selection.years.forEach(year => {
+          const monthStr = String(month).padStart(2, '0');
+          const period = `${year}-${monthStr}`;
+          const label = format(new Date(year, month - 1), "MMM yyyy", { locale: es });
+          periods.push({ period, label, filterType: "month" });
+        });
+      });
+    }
+    // Múltiples meses en un solo año
+    else if (selection.period === "months" && selection.months && selection.months.length > 1) {
+      const year = selection.years[0];
+      selection.months.forEach(month => {
+        const monthStr = String(month).padStart(2, '0');
+        const period = `${year}-${monthStr}`;
+        const label = format(new Date(year, month - 1), "MMMM yyyy", { locale: es });
+        periods.push({ period, label, filterType: "month" });
+      });
+    }
+    // Comparativa día-a-año: cuando hay múltiples años Y múltiples días
+    else if (selection.period === "days" && selection.days && selection.days.length > 1 && selection.years.length > 1) {
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
+      selection.days.forEach(day => {
+        selection.years.forEach(year => {
+          const monthStr = String(month).padStart(2, '0');
+          const dayStr = String(day).padStart(2, '0');
+          const period = `${year}-${monthStr}-${dayStr}`;
+          const label = format(new Date(year, month - 1, day), "d MMM yyyy", { locale: es });
+          periods.push({ period, label, filterType: "day" });
+        });
+      });
+    }
+    // Múltiples días en un solo año
+    else if (selection.period === "days" && selection.days && selection.days.length > 1) {
+      const year = selection.years[0];
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
+      selection.days.forEach(day => {
+        const monthStr = String(month).padStart(2, '0');
+        const dayStr = String(day).padStart(2, '0');
+        const period = `${year}-${monthStr}-${dayStr}`;
+        const label = format(new Date(year, month - 1, day), "d 'de' MMMM yyyy", { locale: es });
+        periods.push({ period, label, filterType: "day" });
+      });
+    }
+    // Comparativa de años completos
+    else if (selection.years.length > 1 && selection.period === "full-year") {
+      selection.years.forEach(year => {
+        const period = `${year}-01`;
+        const label = `${year}`;
+        periods.push({ period, label, filterType: "year" });
+      });
+    }
+    
+    return periods;
   })();
   
   // Segment filter state
@@ -569,6 +643,17 @@ export default function SalespersonDetail({
 
         {/* Main Content */}
         <main className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
+          {/* Comparative Mode Layout */}
+          {isComparativeMode ? (
+            <>
+              {/* Comparative Metrics Table */}
+              <ComparativeSalespersonMetrics 
+                salespersonName={salespersonName || ''}
+                periods={comparativePeriods}
+              />
+            </>
+          ) : (
+            <>
           {/* Meta de Ventas */}
           {primaryGoal && (
             <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
@@ -1076,6 +1161,8 @@ export default function SalespersonDetail({
               )}
             </div>
           </div>
+            </>
+          )}
         </main>
       </div>
     </div>
