@@ -46,16 +46,63 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
-  const [selectedPeriod, setSelectedPeriod] = useState(() => {
-    // Inicializar con el mes actual por defecto
-    return format(new Date(), "yyyy-MM");
-  });
-  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">("month");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   
-  // Date range state for custom range selection
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  // New state using YearMonthSelection
+  const [selection, setSelection] = useState<YearMonthSelection>(() => {
+    const now = new Date();
+    return {
+      years: [now.getFullYear()],
+      period: "month",
+      month: now.getMonth(), // 0-indexed
+      display: format(now, "MMMM yyyy")
+    };
+  });
+  
+  // Derived values from selection for backward compatibility
+  const selectedPeriod = (() => {
+    if (selection.period === "month" && selection.month !== undefined) {
+      const year = selection.years[0];
+      const month = selection.month + 1; // Convert to 1-indexed
+      return `${year}-${String(month).padStart(2, '0')}`;
+    } else if (selection.period === "full-year") {
+      return `${selection.years[0]}-01`; // Placeholder for year view
+    } else if (selection.period === "day" && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = selection.month !== undefined ? selection.month + 1 : 1;
+      const day = selection.days[0];
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    } else if (selection.period === "custom-range") {
+      return "custom-range";
+    }
+    return format(new Date(), "yyyy-MM");
+  })();
+  
+  const filterType: "day" | "month" | "year" | "range" = (() => {
+    if (selection.period === "day" || selection.period === "days") return "day";
+    if (selection.period === "month" || selection.period === "months") return "month";
+    if (selection.period === "full-year") return "year";
+    if (selection.period === "custom-range") return "range";
+    return "month";
+  })();
+  
+  const selectedDate = (() => {
+    if (selection.period === "day" && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = selection.month !== undefined ? selection.month : 0;
+      const day = selection.days[0];
+      return new Date(year, month, day);
+    }
+    return new Date();
+  })();
+  
+  const selectedYear = selection.years[0];
+  
+  const dateRange: DateRange | undefined = (() => {
+    if (selection.period === "custom-range" && selection.startDate && selection.endDate) {
+      return { from: selection.startDate, to: selection.endDate };
+    }
+    return undefined;
+  })();
   
   // Global filter state for goals/segments/salespeople
   const [globalFilter, setGlobalFilter] = useState<{
@@ -112,11 +159,7 @@ export default function Dashboard() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
   // Local state for drawer filters (before applying)
-  const [localFilterType, setLocalFilterType] = useState(filterType);
-  const [localSelectedPeriod, setLocalSelectedPeriod] = useState(selectedPeriod);
-  const [localSelectedDate, setLocalSelectedDate] = useState(selectedDate);
-  const [localSelectedYear, setLocalSelectedYear] = useState(selectedYear);
-  const [localDateRange, setLocalDateRange] = useState(dateRange);
+  const [localSelection, setLocalSelection] = useState(selection);
   const [localSelectedFilter, setLocalSelectedFilter] = useState(selectedFilter);
   const [localGlobalFilter, setLocalGlobalFilter] = useState(globalFilter);
   const [localComparePeriod, setLocalComparePeriod] = useState(comparePeriod);
@@ -132,11 +175,7 @@ export default function Dashboard() {
   
   // Update local state when drawer opens
   const handleDrawerOpen = () => {
-    setLocalFilterType(filterType);
-    setLocalSelectedPeriod(selectedPeriod);
-    setLocalSelectedDate(selectedDate);
-    setLocalSelectedYear(selectedYear);
-    setLocalDateRange(dateRange);
+    setLocalSelection(selection);
     setLocalSelectedFilter(selectedFilter);
     setLocalGlobalFilter(globalFilter);
     setLocalComparePeriod(comparePeriod);
@@ -145,11 +184,7 @@ export default function Dashboard() {
   
   // Apply drawer filters to main state
   const handleApplyFilters = () => {
-    setFilterType(localFilterType);
-    setSelectedPeriod(localSelectedPeriod);
-    setSelectedDate(localSelectedDate);
-    setSelectedYear(localSelectedYear);
-    setDateRange(localDateRange);
+    setSelection(localSelection);
     setSelectedFilter(localSelectedFilter);
     setGlobalFilter(localGlobalFilter);
     setComparePeriod(localComparePeriod);
@@ -158,12 +193,13 @@ export default function Dashboard() {
   
   // Clear all filters
   const handleClearFilters = () => {
-    const currentMonth = format(new Date(), "yyyy-MM");
-    setLocalFilterType("month");
-    setLocalSelectedPeriod(currentMonth);
-    setLocalSelectedDate(new Date());
-    setLocalSelectedYear(new Date().getFullYear());
-    setLocalDateRange(undefined);
+    const now = new Date();
+    setLocalSelection({
+      years: [now.getFullYear()],
+      period: "month",
+      month: now.getMonth(), // 0-indexed
+      display: format(now, "MMMM yyyy")
+    });
     setLocalSelectedFilter("all");
     setLocalGlobalFilter({ type: "all" });
     setLocalComparePeriod("none");
@@ -320,35 +356,8 @@ export default function Dashboard() {
     }
   }, [lastFileUpload, lastUpdated]);
 
-  // Update selected period when filter type changes
-  useEffect(() => {
-    switch (filterType) {
-      case "day":
-        if (selectedDate) {
-          setSelectedPeriod(format(selectedDate, "yyyy-MM-dd"));
-        } else {
-          setSelectedPeriod(format(new Date(), "yyyy-MM-dd"));
-        }
-        break;
-      case "month":
-        // No forzar período, mantener el seleccionado por el usuario
-        // Solo inicializar si no hay período seleccionado
-        if (!selectedPeriod || selectedPeriod.includes("_") || selectedPeriod === "current-month" || selectedPeriod === "last-month") {
-          setSelectedPeriod(format(new Date(), "yyyy-MM"));
-        }
-        break;
-      case "year":
-        setSelectedPeriod(selectedYear.toString());
-        break;
-      case "range":
-        if (dateRange?.from && dateRange?.to) {
-          setSelectedPeriod(`${format(dateRange.from, "yyyy-MM-dd")}_${format(dateRange.to, "yyyy-MM-dd")}`);
-        } else {
-          setSelectedPeriod("last-30-days");
-        }
-        break;
-    }
-  }, [filterType, selectedDate, selectedYear, dateRange]);
+  // selectedPeriod and filterType are now derived from selection state automatically
+  // No need for manual sync effect
 
   // Get month options from backend (only periods with data)
   const getMonthOptions = () => {
