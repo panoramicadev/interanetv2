@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +11,8 @@ import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useFilter } from "@/contexts/FilterContext";
+import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 
 interface GoalProgress {
   id: string;
@@ -101,52 +103,56 @@ export default function SalespersonDetail({
 }: SalespersonDetailProps = {}) {
   const { salespersonName: paramSalespersonName } = useParams();
   const salespersonName = propSalespersonName || paramSalespersonName;
+  const [, setLocation] = useLocation();
   
-  // Date filter states - Initialize from dashboard props if embedded
-  const [filterType, setFilterType] = useState<"day" | "month" | "year" | "range">(() => {
-    return dashboardFilterType || "month";
-  });
+  // Use global filter context
+  const { selection, setSelection } = useFilter();
   
-  const [selectedPeriod, setSelectedPeriod] = useState(() => {
-    if (dashboardSelectedPeriod) {
-      return dashboardSelectedPeriod;
+  // Derived values from selection for backward compatibility
+  const selectedPeriod = (() => {
+    if (selection.period === "month" && selection.month !== undefined) {
+      const year = selection.years[0];
+      const month = selection.month + 1;
+      return `${year}-${String(month).padStart(2, '0')}`;
+    } else if (selection.period === "full-year") {
+      return `${selection.years[0]}-01`;
+    } else if (selection.period === "day" && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = selection.month !== undefined ? selection.month + 1 : 1;
+      const day = selection.days[0];
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    } else if (selection.period === "custom-range") {
+      return "custom-range";
     }
     return format(new Date(), "yyyy-MM");
-  });
+  })();
   
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(() => {
-    if (dashboardFilterType === "day" && dashboardSelectedPeriod) {
-      return new Date(dashboardSelectedPeriod);
+  const filterType: "day" | "month" | "year" | "range" = (() => {
+    if (selection.period === "day" || selection.period === "days") return "day";
+    if (selection.period === "month" || selection.period === "months") return "month";
+    if (selection.period === "full-year") return "year";
+    if (selection.period === "custom-range") return "range";
+    return "month";
+  })();
+  
+  const selectedDate = (() => {
+    if (selection.period === "day" && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = selection.month !== undefined ? selection.month : 0;
+      const day = selection.days[0];
+      return new Date(year, month, day);
     }
     return new Date();
-  });
+  })();
   
-  const [selectedYear, setSelectedYear] = useState<number>(() => {
-    if (dashboardFilterType === "year" && dashboardSelectedPeriod) {
-      return parseInt(dashboardSelectedPeriod);
-    }
-    return new Date().getFullYear();
-  });
+  const selectedYear = selection.years[0];
   
-  const [startDate, setStartDate] = useState<Date | undefined>(() => {
-    if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
-      const [start] = dashboardSelectedPeriod.split("_");
-      // Parse as local date to avoid timezone issues
-      const [year, month, day] = start.split("-").map(Number);
-      return new Date(year, month - 1, day);
+  const dateRange = (() => {
+    if (selection.period === "custom-range" && selection.startDate && selection.endDate) {
+      return { from: selection.startDate, to: selection.endDate };
     }
     return undefined;
-  });
-  
-  const [endDate, setEndDate] = useState<Date | undefined>(() => {
-    if (dashboardFilterType === "range" && dashboardSelectedPeriod && dashboardSelectedPeriod.includes("_")) {
-      const [, end] = dashboardSelectedPeriod.split("_");
-      // Parse as local date to avoid timezone issues
-      const [year, month, day] = end.split("-").map(Number);
-      return new Date(year, month - 1, day);
-    }
-    return undefined;
-  });
+  })();
   
   // Segment filter state
   const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
@@ -162,76 +168,6 @@ export default function SalespersonDetail({
     queryKey: ['/api/sales/available-periods'],
   });
 
-  // Sync local state with dashboard props when they change
-  useEffect(() => {
-    if (embedded && dashboardFilterType) {
-      setFilterType(dashboardFilterType);
-    }
-  }, [embedded, dashboardFilterType]);
-
-  useEffect(() => {
-    if (embedded && dashboardSelectedPeriod) {
-      setSelectedPeriod(dashboardSelectedPeriod);
-    }
-  }, [embedded, dashboardSelectedPeriod]);
-
-  useEffect(() => {
-    if (embedded && dashboardSelectedDate) {
-      setSelectedDate(dashboardSelectedDate);
-    }
-  }, [embedded, dashboardSelectedDate]);
-
-  useEffect(() => {
-    if (embedded && dashboardSelectedYear) {
-      setSelectedYear(dashboardSelectedYear);
-    }
-  }, [embedded, dashboardSelectedYear]);
-
-  useEffect(() => {
-    if (embedded && dashboardDateRange) {
-      if (dashboardDateRange.from) {
-        setStartDate(dashboardDateRange.from);
-      }
-      if (dashboardDateRange.to) {
-        setEndDate(dashboardDateRange.to);
-      }
-    }
-  }, [embedded, dashboardDateRange]);
-
-  // Update selected period when filter type or dates change (but not on initial mount with dashboard values)
-  useEffect(() => {
-    // Skip if we're embedded and using dashboard values
-    if (embedded && dashboardSelectedPeriod) {
-      return;
-    }
-    
-    switch (filterType) {
-      case "day":
-        if (selectedDate) {
-          setSelectedPeriod(format(selectedDate, "yyyy-MM-dd"));
-        } else {
-          setSelectedPeriod(format(new Date(), "yyyy-MM-dd"));
-        }
-        break;
-      case "month":
-        if (!selectedPeriod || selectedPeriod.includes("_") || selectedPeriod === "current-month" || selectedPeriod === "last-month") {
-          setSelectedPeriod(format(new Date(), "yyyy-MM"));
-        }
-        break;
-      case "year":
-        setSelectedPeriod(selectedYear.toString());
-        break;
-      case "range":
-        if (startDate && endDate) {
-          setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
-        } else if (!dashboardSelectedPeriod) {
-          // Only set default if not coming from dashboard
-          setSelectedPeriod("last-30-days");
-        }
-        break;
-    }
-  }, [filterType, selectedDate, selectedYear, startDate, endDate]);
-  
   const { data: details, isLoading: isLoadingDetails } = useQuery<SalespersonDetails>({
     queryKey: [`/api/sales/salesperson/${salespersonName}/details?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!salespersonName,
@@ -475,8 +411,8 @@ export default function SalespersonDetail({
                           return `Mes: ${format(date, "MMM yyyy")}`;
                         })()}
                         {filterType === "year" && (selectedYear ? `Año: ${selectedYear}` : "Año")}
-                        {filterType === "range" && (startDate && endDate ? 
-                          `Rango: ${format(startDate, "dd/MM")} - ${format(endDate, "dd/MM")}` : "Rango")}
+                        {filterType === "range" && (dateRange?.from && dateRange?.to ? 
+                          `Rango: ${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}` : "Rango")}
                       </span>
                     </button>
                   </PopoverTrigger>
