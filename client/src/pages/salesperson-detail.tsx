@@ -343,21 +343,12 @@ export default function SalespersonDetail({
     queryKey: ["/api/goals/data/segments"],
   });
 
-  // Fetch all salespeople for the selector - always fetch to enable salesperson switching
-  const { data: allSalespeopleResponse } = useQuery<TopSalespeopleResponse>({
-    queryKey: ['/api/sales/top-salespeople', 5000, selectedPeriod, filterType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('limit', '5000');
-      params.append('period', selectedPeriod);
-      params.append('filterType', filterType);
-      const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
+  // Fetch all salespeople for the selector - use period-independent query to prevent selector from disappearing
+  const { data: allSalespeopleList } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/salespeople"],
   });
   
-  const allSalespeople = allSalespeopleResponse?.items || [];
+  const allSalespeople = allSalespeopleList?.map(name => ({ salesperson: name })) || [];
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
