@@ -27,7 +27,18 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
   const apiLimit = 5000; // Get all data from API
   
   const { data: topSalespeopleResponse, isLoading } = useQuery<TopSalespeopleResponse>({
-    queryKey: [`/api/sales/top-salespeople?limit=${apiLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: ['/api/sales/top-salespeople', apiLimit, selectedPeriod, filterType, segment, salesperson],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('limit', apiLimit.toString());
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
   });
 
   const topSalespeople = topSalespeopleResponse?.items;
