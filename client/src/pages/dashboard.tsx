@@ -220,6 +220,9 @@ export default function Dashboard() {
     }
   }, [filterType]);
   
+  // Get current location from wouter
+  const [currentLocation] = useLocation();
+  
   // Read URL parameters and update filter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -231,7 +234,7 @@ export default function Dashboard() {
       setSelectedFilter('salesperson');
       setGlobalFilter({ type: 'salesperson', value: undefined });
     }
-  }, [window.location.search, setGlobalFilter]);
+  }, [currentLocation, setGlobalFilter]);
   
   // Update local state when drawer opens
   const handleDrawerOpen = () => {
