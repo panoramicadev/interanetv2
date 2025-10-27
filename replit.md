@@ -24,6 +24,7 @@ Preferred communication style: Simple, everyday language.
 - **API Design**: RESTful API
 - **Session Management**: Express sessions with PostgreSQL storage
 - **File Processing**: CSV import
+- **File Storage**: Replit Object Storage (Google Cloud Storage) for permanent storage of product images, group photos, complaint photos, maintenance evidence, and expense receipts. All image uploads use Object Storage to ensure persistence across server restarts and deployments.
 - **Authentication**: Passport.js Local Strategy with bcrypt for hashing, HTTP-only cookies, and CSRF protection. Role-based access control (Admin, Supervisor, Logística y Bodega, Salesperson, Técnico de Obra, Client, Reception, Laboratorio, Area Producción, Area Logística, Area Aplicación, Area Materia Prima, Area Colores, Area Envase, Area Etiqueta). Dashboard access: Admin, Supervisor, Logística y Bodega (full analytics); Salesperson (personal metrics). Module permissions: NVV (Admin, Supervisor, Logística y Bodega), Inventario (Admin, Supervisor, Salesperson, Logística y Bodega).
 
 ### Database
@@ -67,6 +68,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Core Infrastructure
 - **Database**: Neon PostgreSQL serverless
+- **Object Storage**: Replit Object Storage (Google Cloud Storage backend) for persistent file storage
 - **Hosting**: Replit deployment environment
 
 ### Third-Party Libraries
