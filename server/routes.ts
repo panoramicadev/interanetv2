@@ -9020,6 +9020,31 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get gastos by day
+  app.get('/api/gastos-empresariales/analytics/por-dia', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { mes, anio, userId } = req.query;
+      
+      const filters: any = {};
+      
+      // Salesperson can only see their own analytics
+      if (user.role === 'salesperson') {
+        filters.userId = user.id;
+      } else if (userId) {
+        filters.userId = userId;
+      }
+      
+      if (mes) filters.mes = parseInt(mes);
+      if (anio) filters.anio = parseInt(anio);
+      
+      const data = await storage.getGastosEmpresarialesByDia(filters);
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener datos por día', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // PROMESAS DE COMPRA ROUTES
   // ==================================================================================
