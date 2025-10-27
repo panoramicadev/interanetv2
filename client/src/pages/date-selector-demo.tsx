@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { ViewSelector, type DashboardView } from "@/components/dashboard/view-selector";
-import { EntityFilterSelector } from "@/components/dashboard/entity-filter-selector";
+import { SimpleEntitySelector } from "@/components/dashboard/simple-entity-selector";
 import { Calendar, Eye } from "lucide-react";
 
 interface YearMonthSelection {
@@ -15,16 +15,10 @@ interface YearMonthSelection {
   display: string;
 }
 
-interface EntityFilter {
-  dimension: "all" | "segment" | "salesperson" | "client";
-  value?: string;
-  label?: string;
-}
-
 export default function DateSelectorDemo() {
   const [selection, setSelection] = useState<YearMonthSelection | null>(null);
   const [view, setView] = useState<DashboardView>("all");
-  const [entityFilter, setEntityFilter] = useState<EntityFilter>({ dimension: "all" });
+  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white p-6">
@@ -46,43 +40,46 @@ export default function DateSelectorDemo() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Vista selector */}
-            <div className="flex items-center gap-3">
-              <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <label className="text-sm font-medium text-gray-700 w-16">
-                Vista:
-              </label>
-              <ViewSelector
-                value={view}
-                onChange={setView}
-              />
-            </div>
-
-            {/* Period selector */}
-            <div className="flex items-center gap-3">
-              <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
-              <label className="text-sm font-medium text-gray-700 w-16">
-                Período:
-              </label>
-              <YearMonthSelector
-                value={selection}
-                onChange={setSelection}
-              />
-            </div>
-
-            {/* Entity filter - shown conditionally based on view */}
-            {(view === "by-segment" || view === "by-salesperson") && (
-              <div className="flex items-center gap-3">
-                <div className="h-4 w-4 flex-shrink-0" />
-                <label className="text-sm font-medium text-gray-700 w-16">
-                  Filtrar:
-                </label>
-                <EntityFilterSelector
-                  value={entityFilter}
-                  onChange={(filter) => setEntityFilter(filter)}
+            {/* All filters in one line */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Vista */}
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-700">Vista:</span>
+                <ViewSelector
+                  value={view}
+                  onChange={(newView) => {
+                    setView(newView);
+                    // Reset entity filter when changing view
+                    setSelectedEntity(null);
+                  }}
                 />
               </div>
-            )}
+
+              {/* Period */}
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-700">Período:</span>
+                <YearMonthSelector
+                  value={selection}
+                  onChange={setSelection}
+                />
+              </div>
+
+              {/* Segment/Salesperson selector - shown conditionally */}
+              {(view === "by-segment" || view === "by-salesperson") && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    {view === "by-segment" ? "Segmento:" : "Vendedor:"}
+                  </span>
+                  <SimpleEntitySelector
+                    dimension={view === "by-segment" ? "segment" : "salesperson"}
+                    value={selectedEntity}
+                    onChange={setSelectedEntity}
+                  />
+                </div>
+              )}
+            </div>
 
             {/* Display Selected Filters */}
             <div className="pt-2 border-t space-y-2">
@@ -115,14 +112,13 @@ export default function DateSelectorDemo() {
                 </div>
               )}
 
-              {entityFilter.dimension !== "all" && entityFilter.value && (
+              {selectedEntity && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
                   <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
                   <div className="flex-1">
                     <div className="text-xs font-medium text-green-900">
-                      {entityFilter.dimension === "segment" && `Segmento: ${entityFilter.value}`}
-                      {entityFilter.dimension === "salesperson" && `Vendedor: ${entityFilter.value}`}
-                      {entityFilter.dimension === "client" && `Cliente: ${entityFilter.value}`}
+                      {view === "by-segment" && `Segmento: ${selectedEntity}`}
+                      {view === "by-salesperson" && `Vendedor: ${selectedEntity}`}
                     </div>
                   </div>
                 </div>
@@ -184,7 +180,7 @@ export default function DateSelectorDemo() {
           </CardHeader>
           <CardContent>
             <pre className="text-xs overflow-x-auto">
-              {JSON.stringify({ view, period: selection, entityFilter }, null, 2)}
+              {JSON.stringify({ view, period: selection, selectedEntity }, null, 2)}
             </pre>
           </CardContent>
         </Card>
