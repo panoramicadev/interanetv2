@@ -83,8 +83,8 @@ export default function SegmentDetail({
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("segmento");
   
-  // Derived values from selection for backward compatibility
-  const selectedPeriod = (() => {
+  // Use dashboard props when embedded, otherwise derive from selection
+  const selectedPeriod = embedded && dashboardSelectedPeriod ? dashboardSelectedPeriod : (() => {
     if (selection.period === "month" && selection.month !== undefined) {
       const year = selection.years[0];
       const month = selection.month + 1;
@@ -103,7 +103,7 @@ export default function SegmentDetail({
     return format(new Date(), "yyyy-MM");
   })();
   
-  const filterType: "day" | "month" | "year" | "range" = (() => {
+  const filterType: "day" | "month" | "year" | "range" = embedded && dashboardFilterType ? dashboardFilterType : (() => {
     if (selection.period === "day" || selection.period === "days") return "day";
     if (selection.period === "month" || selection.period === "months") return "month";
     if (selection.period === "full-year") return "year";
@@ -111,7 +111,7 @@ export default function SegmentDetail({
     return "month";
   })();
   
-  const selectedDate = (() => {
+  const selectedDate = embedded && dashboardSelectedDate ? dashboardSelectedDate : (() => {
     if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
       const year = selection.years[0];
       // For day selection, use months array (not month singular), subtract 1 for Date object
@@ -122,9 +122,9 @@ export default function SegmentDetail({
     return new Date();
   })();
   
-  const selectedYear = selection.years[0];
+  const selectedYear = embedded && dashboardSelectedYear ? dashboardSelectedYear : selection.years[0];
   
-  const dateRange = (() => {
+  const dateRange = embedded && dashboardDateRange ? dashboardDateRange : (() => {
     if (selection.period === "custom-range" && selection.startDate && selection.endDate) {
       return { from: selection.startDate, to: selection.endDate };
     }
