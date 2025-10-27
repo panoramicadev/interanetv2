@@ -330,6 +330,59 @@ export default function Dashboard() {
   useEffect(() => {
     setSelectedFilter(globalFilter.type);
   }, [globalFilter.type]);
+  
+  // Helper function to convert old filter format to new YearMonthSelection format
+  const convertToSelection = (
+    filterType: "day" | "month" | "year" | "range",
+    period: string,
+    date?: Date,
+    year?: number,
+    range?: { from?: Date; to?: Date }
+  ): YearMonthSelection => {
+    if (filterType === "day" && date) {
+      return {
+        years: [date.getFullYear()],
+        period: "day",
+        month: date.getMonth(),
+        days: [date.getDate()],
+        display: format(date, "dd/MM/yyyy")
+      };
+    } else if (filterType === "year" && year) {
+      return {
+        years: [year],
+        period: "full-year",
+        display: year.toString()
+      };
+    } else if (filterType === "range" && range?.from && range?.to) {
+      return {
+        years: [range.from.getFullYear()],
+        period: "custom-range",
+        startDate: range.from,
+        endDate: range.to,
+        display: `${format(range.from, "dd/MM/yyyy")} - ${format(range.to, "dd/MM/yyyy")}`
+      };
+    } else if (filterType === "month" && period) {
+      // Parse period format "YYYY-MM"
+      const [yearStr, monthStr] = period.split("-");
+      const parsedYear = parseInt(yearStr);
+      const parsedMonth = parseInt(monthStr) - 1; // Convert to 0-indexed
+      return {
+        years: [parsedYear],
+        period: "month",
+        month: parsedMonth,
+        display: format(new Date(parsedYear, parsedMonth), "MMMM yyyy")
+      };
+    }
+    
+    // Fallback to current month
+    const now = new Date();
+    return {
+      years: [now.getFullYear()],
+      period: "month",
+      month: now.getMonth(),
+      display: format(now, "MMMM yyyy")
+    };
+  };
 
   // Fetch last file upload timestamp for sales data
   const { data: lastFileUpload } = useQuery({
@@ -506,11 +559,8 @@ export default function Dashboard() {
       newYear?: number,
       newRange?: { from?: Date; to?: Date }
     ) => {
-      setFilterType(newFilterType);
-      setSelectedPeriod(newPeriod);
-      if (newDate) setSelectedDate(newDate);
-      if (newYear) setSelectedYear(newYear);
-      if (newRange !== undefined) setDateRange(newRange as any);
+      const newSelection = convertToSelection(newFilterType, newPeriod, newDate, newYear, newRange);
+      setSelection(newSelection);
     };
     
     return (
@@ -554,11 +604,8 @@ export default function Dashboard() {
       newYear?: number,
       newRange?: { from?: Date; to?: Date }
     ) => {
-      setFilterType(newFilterType);
-      setSelectedPeriod(newPeriod);
-      if (newDate) setSelectedDate(newDate);
-      if (newYear) setSelectedYear(newYear);
-      if (newRange !== undefined) setDateRange(newRange as any);
+      const newSelection = convertToSelection(newFilterType, newPeriod, newDate, newYear, newRange);
+      setSelection(newSelection);
     };
     
     return (
