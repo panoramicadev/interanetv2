@@ -113,8 +113,13 @@ export default function Dashboard() {
   
   // Detect comparative mode (multiple periods selected)
   const isComparativeMode = (() => {
+    // Multiple months selected
     if (selection.period === "months" && selection.months && selection.months.length > 1) return true;
+    // Multiple years with month(s) selected (mes-a-año comparison)
+    if ((selection.period === "month" || selection.period === "months") && selection.years.length > 1) return true;
+    // Multiple days selected
     if (selection.period === "days" && selection.days && selection.days.length > 1) return true;
+    // Multiple years with full-year view
     if (selection.years.length > 1 && selection.period === "full-year") return true;
     return false;
   })();
@@ -125,11 +130,13 @@ export default function Dashboard() {
     
     const periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }> = [];
     
-    if (selection.period === "months" && selection.months) {
-      selection.months.forEach(monthIndex => {
+    // Multiple months (can be with single or multiple years)
+    if ((selection.period === "month" || selection.period === "months") && selection.months) {
+      selection.months.forEach(month => {
         selection.years.forEach(year => {
-          const month = monthIndex + 1; // Convert to 1-indexed
-          const monthName = format(new Date(year, monthIndex), "MMM yyyy");
+          // month is already 1-12, use it directly for the period string
+          // but subtract 1 for Date object (which expects 0-11)
+          const monthName = format(new Date(year, month - 1), "MMM yyyy");
           periods.push({
             period: `${year}-${String(month).padStart(2, '0')}`,
             label: monthName,
@@ -137,11 +144,11 @@ export default function Dashboard() {
           });
         });
       });
-    } else if (selection.period === "days" && selection.days && selection.month !== undefined) {
+    } else if (selection.period === "days" && selection.days && selection.months && selection.months.length > 0) {
+      const month = selection.months[0]; // Use first month from months array (1-12)
       selection.days.forEach(day => {
         selection.years.forEach(year => {
-          const month = selection.month! + 1; // Convert to 1-indexed
-          const date = new Date(year, selection.month!, day);
+          const date = new Date(year, month - 1, day); // month - 1 for Date object
           const dateLabel = format(date, "dd MMM yyyy");
           periods.push({
             period: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
