@@ -204,6 +204,9 @@ export default function SalesChart({ selectedPeriod, filterType, segment, salesp
           },
         },
       },
+      datalabels: {
+        display: false,
+      },
     },
     scales: {
       y: {
