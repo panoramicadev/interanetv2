@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -286,34 +286,35 @@ export default function SegmentDetail({
   return (
     <div className="min-h-screen">
       <div className="w-full">
-        {/* Header - Compact Layout */}
-        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 m-3 sm:m-4 rounded-2xl shadow-sm">
-          {/* Title Section */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
-                {segmentName}
-              </h1>
-              <div className="flex items-center gap-3 flex-wrap">
-                <p className="text-gray-600 text-sm">
-                  {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
-                  {getPeriodDisplay() && (
-                    <span className="ml-2 font-medium text-gray-900">
-                      • {getPeriodDisplay()}
-                    </span>
-                  )}
-                </p>
-                {!embedded && segmentData && segmentData.length > 0 && (
+        {/* Header - Same as Dashboard */}
+        <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
+          <div className="space-y-4 w-full">
+            {/* All filters in one line */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Vista */}
+              <div className="flex items-center gap-2">
+                <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-700">Vista:</span>
+                <div className="h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center text-sm">
+                  <Building className="h-3.5 w-3.5 text-green-500 mr-2" />
+                  <span>Por segmento</span>
+                </div>
+              </div>
+
+              {/* Segment selector */}
+              {!embedded && segmentData && segmentData.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select 
                     value={segmentName} 
                     onValueChange={(newSegment) => {
                       setLocation(`/segment/${encodeURIComponent(newSegment)}`);
                     }}
                   >
-                    <SelectTrigger className="w-64 rounded-xl border-gray-200 shadow-sm">
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200 max-h-80">
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
                       {segmentData.map((segment) => (
                         <SelectItem key={segment.segment} value={segment.segment}>
                           {segment.segment}
@@ -321,13 +322,18 @@ export default function SegmentDetail({
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-                {embedded && onSegmentChange && segmentData && (
+                </div>
+              )}
+
+              {/* Embedded segment selector */}
+              {embedded && onSegmentChange && segmentData && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select value={segmentName} onValueChange={onSegmentChange}>
-                    <SelectTrigger className="w-56 rounded-xl border-gray-200 shadow-sm">
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200">
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
                       {segmentData.map((segment) => (
                         <SelectItem key={segment.segment} value={segment.segment}>
                           {segment.segment}
@@ -335,31 +341,75 @@ export default function SegmentDetail({
                       ))}
                     </SelectContent>
                   </Select>
-                )}
+                </div>
+              )}
+
+              {/* Period */}
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-700">Período:</span>
+                <YearMonthSelector 
+                  value={selection}
+                  onChange={setSelection}
+                />
+              </div>
+
+              {/* Back button */}
+              {onBack && (
+                <div className="ml-auto">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="rounded-lg border-gray-200 h-9"
+                    onClick={onBack}
+                    data-testid="button-back-dashboard"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">Volver al Dashboard</span>
+                    <span className="sm:hidden">Volver</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Display Selected Filters as chips */}
+            <div className="pt-2 border-t space-y-2">
+              <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
+              
+              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
+                <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-purple-900">
+                    Vista: Por segmento
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
+                <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-blue-900">
+                    Período: {selection.display}
+                  </div>
+                  <div className="text-[10px] text-blue-700 mt-0.5">
+                    {selection.period === "full-year" && `${selection.years.length} año(s) completo(s)`}
+                    {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
+                    {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
+                    {selection.period === "day" && `Día específico en ${selection.years.length} año(s)`}
+                    {selection.period === "days" && `${selection.days?.length} días en ${selection.years.length} año(s)`}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
+                <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-green-900">
+                    Segmento: {segmentName}
+                  </div>
+                </div>
               </div>
             </div>
-            
-            {onBack && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="rounded-xl border-gray-200 shadow-sm ml-4"
-                onClick={onBack}
-                data-testid="button-back-dashboard"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Volver al Dashboard</span>
-                <span className="sm:hidden">Volver</span>
-              </Button>
-            )}
-          </div>
-
-          {/* Filter Controls - Always show selector for period selection */}
-          <div className="flex items-center gap-2">
-            <YearMonthSelector 
-              value={selection}
-              onChange={setSelection}
-            />
           </div>
         </header>
 
