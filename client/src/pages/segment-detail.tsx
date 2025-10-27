@@ -407,7 +407,7 @@ export default function SegmentDetail({
               </div>
 
               {/* Segment selector - shown when view is segmento */}
-              {!embedded && selectedView === "segmento" && segmentData && segmentData.length > 0 && (
+              {!embedded && selectedView === "segmento" && segmentData && segmentData.length > 0 && segmentName && (
                 <div className="flex items-center gap-2" key="segment-selector">
                   <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select 
@@ -417,7 +417,7 @@ export default function SegmentDetail({
                     }}
                   >
                     <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
-                      <SelectValue />
+                      <SelectValue placeholder={segmentName} />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
                       {segmentData.map((segment) => (
@@ -455,12 +455,12 @@ export default function SegmentDetail({
               )}
 
               {/* Embedded segment selector - shown when view is segmento */}
-              {embedded && selectedView === "segmento" && onSegmentChange && segmentData && (
+              {embedded && selectedView === "segmento" && onSegmentChange && segmentData && segmentName && (
                 <div className="flex items-center gap-2" key="embedded-segment-selector">
                   <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select value={segmentName} onValueChange={onSegmentChange}>
                     <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
-                      <SelectValue />
+                      <SelectValue placeholder={segmentName} />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
                       {segmentData.map((segment) => (
