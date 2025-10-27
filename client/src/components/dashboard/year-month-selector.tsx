@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar, Check, ChevronRight } from "lucide-react";
@@ -36,34 +36,20 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   );
   const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
   
-  // Sync internal state when popover opens OR when value changes externally while closed
-  useEffect(() => {
-    if (value) {
-      const currentMonthsStr = JSON.stringify(selectedMonths.map(m => m + 1).sort());
-      const newMonthsStr = JSON.stringify((value.months || []).sort());
-      const yearsChanged = JSON.stringify(selectedYears) !== JSON.stringify(value.years);
-      const monthsChanged = currentMonthsStr !== newMonthsStr;
-      const daysChanged = JSON.stringify(selectedDays) !== JSON.stringify(value.days || []);
-      
-      // Sync when value changed externally while closed, OR when opening
-      if (!open && (yearsChanged || monthsChanged || daysChanged)) {
-        console.log("🔄 [YearMonthSelector] Sincronizando con valor externo (cerrado):", value);
-        setSelectedYears(value.years || []);
-        setSelectedMonths(value.months ? value.months.map(m => m - 1) : []);
-        setSelectedDays(value.days || []);
-      }
-    }
-  }, [value, open, selectedYears, selectedMonths, selectedDays]);
+  // Load current selection ONLY when opening the popover
+  // Store the previous open state to detect transitions
+  const prevOpenRef = useRef(open);
   
-  // Load current selection when opening the popover
   useEffect(() => {
-    if (open && value) {
+    // Only sync when the popover transitions from closed to open
+    if (open && !prevOpenRef.current && value) {
       console.log("📂 [YearMonthSelector] Cargando selección al abrir:", value);
       setSelectedYears(value.years || []);
       setSelectedMonths(value.months ? value.months.map(m => m - 1) : []);
       setSelectedDays(value.days || []);
     }
-  }, [open]); // Only trigger when 'open' changes
+    prevOpenRef.current = open;
+  }, [open, value]);
 
   const handleYearToggle = (year: number) => {
     setSelectedYears(prev => 
