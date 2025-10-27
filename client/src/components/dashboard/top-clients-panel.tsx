@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { ClientSearch } from "./client-search";
 
 interface TopClient {
   clientName: string;
@@ -51,13 +52,19 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center space-x-2 sm:space-x-3">
           <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Clientes</h2>
         </div>
+        
+        {/* Client Search - AJAX autocomplete */}
+        <div className="w-full sm:w-auto sm:flex-1 sm:max-w-xs">
+          <ClientSearch />
+        </div>
+        
         <div className="flex items-center gap-2">
           <Link href="/clientes">
             <Button
