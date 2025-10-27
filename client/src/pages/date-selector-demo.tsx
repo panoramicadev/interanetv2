@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
-import { Calendar } from "lucide-react";
+import { ViewSelector, type DashboardView } from "@/components/dashboard/view-selector";
+import { EntityFilterSelector } from "@/components/dashboard/entity-filter-selector";
+import { Calendar, Eye } from "lucide-react";
 
 interface YearMonthSelection {
   years: number[];
@@ -13,55 +15,114 @@ interface YearMonthSelection {
   display: string;
 }
 
+interface EntityFilter {
+  dimension: "all" | "segment" | "salesperson" | "client";
+  value?: string;
+  label?: string;
+}
+
 export default function DateSelectorDemo() {
   const [selection, setSelection] = useState<YearMonthSelection | null>(null);
+  const [view, setView] = useState<DashboardView>("all");
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>({ dimension: "all" });
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center space-y-2 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Selector Principal</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Sistema de Filtros Dashboard</h1>
           <p className="text-gray-600">
-            Selecciona años y meses para comparar períodos
+            Prueba todos los filtros antes de integrarlos al dashboard principal
           </p>
         </div>
 
-        {/* Main Selector Card */}
+        {/* All Selectors Card */}
         <Card className="border-2 border-blue-100">
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600 flex-shrink-0" />
-              <CardTitle className="text-base font-semibold">Selector Principal</CardTitle>
-            </div>
+            <CardTitle className="text-base font-semibold">Filtros del Dashboard</CardTitle>
             <CardDescription className="text-sm">
-              Selecciona año(s), mes(es) o rango
+              Todos los controles de filtrado en un solo lugar
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-col gap-4">
+            {/* Vista selector */}
+            <div className="flex items-center gap-3">
+              <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <label className="text-sm font-medium text-gray-700 w-16">
+                Vista:
+              </label>
+              <ViewSelector
+                value={view}
+                onChange={setView}
+              />
+            </div>
+
+            {/* Period selector */}
+            <div className="flex items-center gap-3">
+              <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
+              <label className="text-sm font-medium text-gray-700 w-16">
+                Período:
+              </label>
+              <YearMonthSelector
+                value={selection}
+                onChange={setSelection}
+              />
+            </div>
+
+            {/* Entity filter - shown conditionally based on view */}
+            {(view === "by-segment" || view === "by-salesperson") && (
               <div className="flex items-center gap-3">
-                <label className="text-sm font-medium text-gray-700 w-20">
-                  Período:
+                <div className="h-4 w-4 flex-shrink-0" />
+                <label className="text-sm font-medium text-gray-700 w-16">
+                  Filtrar:
                 </label>
-                <YearMonthSelector
-                  value={selection}
-                  onChange={setSelection}
+                <EntityFilterSelector
+                  value={entityFilter}
+                  onChange={(filter) => setEntityFilter(filter)}
                 />
               </div>
+            )}
 
-              {/* Display Selected Period */}
+            {/* Display Selected Filters */}
+            <div className="pt-2 border-t space-y-2">
+              <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
+              
+              <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
+                <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="text-xs font-medium text-purple-900">
+                    Vista: {view === "all" ? "Todo el dashboard" : 
+                           view === "goals-only" ? "Solo metas globales" :
+                           view === "by-segment" ? "Por segmento" : "Por vendedor"}
+                  </div>
+                </div>
+              </div>
+
               {selection && (
-                <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
+                  <Calendar className="h-3 w-3 text-blue-600 flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-blue-900">
-                      {selection.display}
+                    <div className="text-xs font-medium text-blue-900">
+                      Período: {selection.display}
                     </div>
-                    <div className="text-xs text-blue-700 mt-0.5">
+                    <div className="text-[10px] text-blue-700 mt-0.5">
                       {selection.period === "full-year" && "Año(s) completo(s)"}
-                      {selection.period === "month" && `Mes específico comparado en ${selection.years.length} año(s)`}
-                      {selection.period === "months" && `${selection.months?.length} meses comparados en ${selection.years.length} año(s)`}
+                      {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
+                      {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {entityFilter.dimension !== "all" && entityFilter.value && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
+                  <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-green-900">
+                      {entityFilter.dimension === "segment" && `Segmento: ${entityFilter.value}`}
+                      {entityFilter.dimension === "salesperson" && `Vendedor: ${entityFilter.value}`}
+                      {entityFilter.dimension === "client" && `Cliente: ${entityFilter.value}`}
                     </div>
                   </div>
                 </div>
@@ -123,7 +184,7 @@ export default function DateSelectorDemo() {
           </CardHeader>
           <CardContent>
             <pre className="text-xs overflow-x-auto">
-              {JSON.stringify(selection, null, 2)}
+              {JSON.stringify({ view, period: selection, entityFilter }, null, 2)}
             </pre>
           </CardContent>
         </Card>
