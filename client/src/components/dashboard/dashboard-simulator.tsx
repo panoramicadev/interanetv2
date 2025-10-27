@@ -145,6 +145,44 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
     enabled: Boolean(isComparison && comparisonPeriods.length > 0),
   });
 
+  // Additional dimension comparison: Segments when salesperson is selected
+  const segmentComparisonQuery = useQuery({
+    queryKey: ['/api/sales/segments-comparison', singlePeriod, globalFilter],
+    queryFn: async () => {
+      if (!singlePeriod || globalFilter.type !== "salesperson") return null;
+      
+      const params = new URLSearchParams();
+      params.append('period', singlePeriod);
+      params.append('filterType', filterType);
+      params.append('salesperson', globalFilter.value!);
+      
+      const res = await fetch(`/api/sales/segments?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error('Failed to fetch segments');
+      return await res.json();
+    },
+    enabled: Boolean(isComparison && singlePeriod && globalFilter.type === "salesperson"),
+  });
+
+  // Additional dimension comparison: Salespeople when segment is selected
+  const salespeopleComparisonQuery = useQuery({
+    queryKey: ['/api/sales/salespeople-comparison', singlePeriod, globalFilter],
+    queryFn: async () => {
+      if (!singlePeriod || globalFilter.type !== "segment") return null;
+      
+      const params = new URLSearchParams();
+      params.append('limit', '20');
+      params.append('period', singlePeriod);
+      params.append('filterType', filterType);
+      params.append('segment', globalFilter.value!);
+      
+      const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error('Failed to fetch salespeople');
+      const data = await res.json();
+      return data.items || [];
+    },
+    enabled: Boolean(isComparison && singlePeriod && globalFilter.type === "segment"),
+  });
+
   if (!selection) {
     return (
       <div className="p-8 text-center text-gray-500">
@@ -273,6 +311,54 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
               comparisonPeriods={comparisonPeriods}
             />
           </div>
+
+          {/* Additional Dimension: Segments comparison (when salesperson is selected) */}
+          {globalFilter.type === "salesperson" && segmentComparisonQuery.data && segmentComparisonQuery.data.length > 0 && (
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="h-5 w-5 text-purple-500" />
+                <h3 className="text-sm font-semibold">Ventas por Segmento - {globalFilter.value}</h3>
+                <span className="text-xs text-gray-500 ml-auto">
+                  Todos los períodos seleccionados combinados
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {segmentComparisonQuery.data.map((segment: any) => (
+                  <div key={segment.segment} className="p-3 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+                    <div className="text-xs text-purple-700 font-medium mb-1 truncate">{segment.segment}</div>
+                    <div className="text-lg font-bold text-purple-900">{formatCurrency(segment.totalSales || 0)}</div>
+                    <div className="text-[10px] text-purple-600 mt-1">
+                      {segment.percentage?.toFixed(1)}% del total
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Additional Dimension: Salespeople comparison (when segment is selected) */}
+          {globalFilter.type === "segment" && salespeopleComparisonQuery.data && salespeopleComparisonQuery.data.length > 0 && (
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Users className="h-5 w-5 text-indigo-500" />
+                <h3 className="text-sm font-semibold">Ventas por Vendedor - {globalFilter.value}</h3>
+                <span className="text-xs text-gray-500 ml-auto">
+                  Todos los períodos seleccionados combinados
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {salespeopleComparisonQuery.data.slice(0, 12).map((salesperson: any) => (
+                  <div key={salesperson.salesperson} className="p-3 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg border border-indigo-200">
+                    <div className="text-xs text-indigo-700 font-medium mb-1 truncate">{salesperson.salesperson}</div>
+                    <div className="text-lg font-bold text-indigo-900">{formatCurrency(salesperson.totalSales || 0)}</div>
+                    <div className="text-[10px] text-indigo-600 mt-1">
+                      {salesperson.percentage?.toFixed(1)}% del total
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     );
