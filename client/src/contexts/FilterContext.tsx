@@ -106,6 +106,14 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       old: selection,
       new: newSelection
     });
+    
+    // Comparación profunda para evitar actualizaciones innecesarias
+    const isSame = JSON.stringify(selection) === JSON.stringify(newSelection);
+    if (isSame) {
+      console.log("⏭️  [FilterContext] Valor idéntico, ignorando actualización");
+      return;
+    }
+    
     setSelectionState(newSelection);
   };
 
