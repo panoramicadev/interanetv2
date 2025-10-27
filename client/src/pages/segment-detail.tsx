@@ -11,6 +11,8 @@ import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
+import ComparativeSegmentMetrics from "@/components/dashboard/comparative-segment-metrics";
+import ComparativeSegmentClientsTable from "@/components/dashboard/comparative-segment-clients-table";
 
 interface SegmentClient {
   clientName: string;
@@ -122,6 +124,49 @@ export default function SegmentDetail({
       return { from: selection.startDate, to: selection.endDate };
     }
     return undefined;
+  })();
+
+  // Detect comparative mode (multiple periods selected)
+  const isComparativeMode = (() => {
+    if (selection.period === "months" && selection.months && selection.months.length > 1) return true;
+    if (selection.period === "days" && selection.days && selection.days.length > 1) return true;
+    if (selection.years.length > 1 && selection.period === "full-year") return true;
+    return false;
+  })();
+
+  // Generate list of periods for comparative mode
+  const comparativePeriods = (() => {
+    if (!isComparativeMode) return [];
+    
+    const periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }> = [];
+    
+    if (selection.period === "months" && selection.months && selection.months.length > 1) {
+      const year = selection.years[0];
+      selection.months.forEach(month => {
+        const monthStr = String(month + 1).padStart(2, '0');
+        const period = `${year}-${monthStr}`;
+        const label = format(new Date(year, month), "MMMM yyyy", { locale: es });
+        periods.push({ period, label, filterType: "month" });
+      });
+    } else if (selection.period === "days" && selection.days && selection.days.length > 1) {
+      const year = selection.years[0];
+      const month = selection.month !== undefined ? selection.month : 0;
+      selection.days.forEach(day => {
+        const monthStr = String(month + 1).padStart(2, '0');
+        const dayStr = String(day).padStart(2, '0');
+        const period = `${year}-${monthStr}-${dayStr}`;
+        const label = format(new Date(year, month, day), "d 'de' MMMM yyyy", { locale: es });
+        periods.push({ period, label, filterType: "day" });
+      });
+    } else if (selection.years.length > 1 && selection.period === "full-year") {
+      selection.years.forEach(year => {
+        const period = `${year}-01`;
+        const label = `${year}`;
+        periods.push({ period, label, filterType: "year" });
+      });
+    }
+    
+    return periods;
   })();
 
   // Fetch available periods
@@ -320,8 +365,25 @@ export default function SegmentDetail({
 
         {/* Main Content */}
         <main className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+          {/* Comparative Mode Layout */}
+          {isComparativeMode ? (
+            <>
+              {/* Comparative Metrics Table */}
+              <ComparativeSegmentMetrics 
+                segmentName={segmentName}
+                periods={comparativePeriods}
+              />
+
+              {/* Comparative Clients Table */}
+              <ComparativeSegmentClientsTable 
+                segmentName={segmentName}
+                periods={comparativePeriods}
+              />
+            </>
+          ) : (
+            <>
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
@@ -439,12 +501,13 @@ export default function SegmentDetail({
                 </div>
               </div>
             </div>
-          )}
+            )}
 
-          {/* Data Tables */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
-            {/* Top Clients Table */}
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            {/* Data Tables - Only show in normal mode */}
+            {!isComparativeMode && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+                {/* Top Clients Table */}
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
                 <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
@@ -526,9 +589,12 @@ export default function SegmentDetail({
                     </div>
                   ))
                 )}
+                </div>
               </div>
-            </div>
-          </div>
+              </div>
+            )}
+            </>
+          )}
         </main>
       </div>
     </div>
