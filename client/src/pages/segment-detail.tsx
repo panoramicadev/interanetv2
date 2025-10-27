@@ -246,8 +246,19 @@ export default function SegmentDetail({
           {/* Title Section */}
           <div className="flex items-start justify-between mb-4">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-4 mb-2">
-                {!embedded && segmentData && segmentData.length > 0 ? (
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+                {segmentName}
+              </h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <p className="text-gray-600 text-sm">
+                  {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
+                  {getPeriodDisplay() && (
+                    <span className="ml-2 font-medium text-gray-900">
+                      • {getPeriodDisplay()}
+                    </span>
+                  )}
+                </p>
+                {!embedded && segmentData && segmentData.length > 0 && (
                   <Select 
                     value={segmentName} 
                     onValueChange={(newSegment) => {
@@ -265,10 +276,6 @@ export default function SegmentDetail({
                       ))}
                     </SelectContent>
                   </Select>
-                ) : (
-                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-                    {segmentName}
-                  </h1>
                 )}
                 {embedded && onSegmentChange && segmentData && (
                   <Select value={segmentName} onValueChange={onSegmentChange}>
@@ -285,14 +292,6 @@ export default function SegmentDetail({
                   </Select>
                 )}
               </div>
-              <p className="text-gray-600 text-sm">
-                {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
-                {getPeriodDisplay() && (
-                  <span className="ml-2 font-medium text-gray-900">
-                    • {getPeriodDisplay()}
-                  </span>
-                )}
-              </p>
             </div>
             
             {onBack && (
