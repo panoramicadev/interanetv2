@@ -80,15 +80,19 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
       });
     } else if (selection.months && selection.months.length > 0) {
       // Multiple months comparison
+      const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+      
       selection.years.forEach(year => {
         selection.months!.forEach(monthIndex => {
-          const month = (monthIndex + 1).toString().padStart(2, '0');
-          const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-          periods.push({
-            period: `${year}-${month}`,
-            label: `${monthNames[monthIndex]} ${year}`,
-            filterType: "month"
-          });
+          // Filter out invalid month indices
+          if (typeof monthIndex === 'number' && monthIndex >= 0 && monthIndex <= 11) {
+            const month = (monthIndex + 1).toString().padStart(2, '0');
+            periods.push({
+              period: `${year}-${month}`,
+              label: `${monthNames[monthIndex]} ${year}`,
+              filterType: "month"
+            });
+          }
         });
       });
     }
