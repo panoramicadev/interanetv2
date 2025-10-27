@@ -204,7 +204,6 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                   data-testid={`year-${year}`}
                 >
                   {year}
-                  {isSelected && <Check className="h-3 w-3 ml-1" />}
                 </Button>
               );
             })}
@@ -230,7 +229,6 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                       data-testid={`month-${index}`}
                     >
                       {month.substring(0, 3)}
-                      {isSelected && <Check className="h-2.5 w-2.5 ml-0.5" />}
                     </Button>
                   );
                 })}
@@ -255,7 +253,6 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                         data-testid={`day-${day}`}
                       >
                         {day}
-                        {isSelected && <Check className="h-2.5 w-2.5 ml-0.5" />}
                       </Button>
                     );
                   })}
