@@ -922,7 +922,6 @@ export default function Dashboard() {
                   <Select 
                     value={selectedFilter} 
                     onValueChange={(value) => {
-                      console.log('Vista changed to:', value);
                       setSelectedFilter(value);
                       // Clear the value when changing filter type to avoid showing wrong data
                       if (value === "all") {
