@@ -132,10 +132,9 @@ export default function SegmentDetail({
     queryKey: ['/api/sales/available-periods'],
   });
 
-  // Fetch all segments for dropdown
+  // Fetch all segments for dropdown - always fetch to enable segment switching
   const { data: segmentData } = useQuery<SegmentData[]>({
     queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: embedded, // Only fetch when embedded
   });
 
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SegmentClient[]>({
@@ -248,9 +247,29 @@ export default function SegmentDetail({
           <div className="flex items-start justify-between mb-4">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-4 mb-2">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-                  {segmentName}
-                </h1>
+                {!embedded && segmentData && segmentData.length > 0 ? (
+                  <Select 
+                    value={segmentName} 
+                    onValueChange={(newSegment) => {
+                      setLocation(`/segment/${encodeURIComponent(newSegment)}`);
+                    }}
+                  >
+                    <SelectTrigger className="w-64 rounded-xl border-gray-200 shadow-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-gray-200 max-h-80">
+                      {segmentData.map((segment) => (
+                        <SelectItem key={segment.segment} value={segment.segment}>
+                          {segment.segment}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+                    {segmentName}
+                  </h1>
+                )}
                 {embedded && onSegmentChange && segmentData && (
                   <Select value={segmentName} onValueChange={onSegmentChange}>
                     <SelectTrigger className="w-56 rounded-xl border-gray-200 shadow-sm">
