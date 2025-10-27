@@ -88,9 +88,10 @@ export default function SegmentDetail({
       return `${year}-${String(month).padStart(2, '0')}`;
     } else if (selection.period === "full-year") {
       return `${selection.years[0]}-01`;
-    } else if (selection.period === "day" && selection.days && selection.days.length > 0) {
+    } else if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
       const year = selection.years[0];
-      const month = selection.month !== undefined ? selection.month + 1 : 1;
+      // For day selection, use months array (not month singular)
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
       const day = selection.days[0];
       return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     } else if (selection.period === "custom-range") {
@@ -108,9 +109,10 @@ export default function SegmentDetail({
   })();
   
   const selectedDate = (() => {
-    if (selection.period === "day" && selection.days && selection.days.length > 0) {
+    if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
       const year = selection.years[0];
-      const month = selection.month !== undefined ? selection.month : 0;
+      // For day selection, use months array (not month singular), subtract 1 for Date object
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] - 1 : 0;
       const day = selection.days[0];
       return new Date(year, month, day);
     }
