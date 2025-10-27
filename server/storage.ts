@@ -1893,6 +1893,31 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  async searchClients(searchTerm: string): Promise<Array<{
+    name: string;
+    totalSales: number;
+    transactionCount: number;
+  }>> {
+    // Search clients by name (case-insensitive) and return aggregated sales data
+    const results = await db
+      .select({
+        name: sql<string>`nokoen`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(monto AS NUMERIC)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(salesTransactions)
+      .where(sql`LOWER(nokoen) LIKE ${`%${searchTerm}%`} AND nokoen IS NOT NULL AND nokoen != '' AND tido != 'GDV'`)
+      .groupBy(sql`nokoen`)
+      .orderBy(sql`SUM(CAST(monto AS NUMERIC)) DESC`)
+      .limit(20);
+
+    return results.map(r => ({
+      name: r.name || '',
+      totalSales: Number(r.totalSales),
+      transactionCount: Number(r.transactionCount),
+    }));
+  }
+
   async getSegmentAnalysis(startDate?: string, endDate?: string): Promise<Array<{
     segment: string;
     totalSales: number;

@@ -1441,6 +1441,25 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Client search endpoint (AJAX autocomplete)
+  app.get('/api/clients/search', requireAuth, async (req, res) => {
+    try {
+      const { q } = req.query;
+      
+      if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        return res.json([]);
+      }
+      
+      const searchTerm = q.trim().toLowerCase();
+      const results = await storage.searchClients(searchTerm);
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching clients:", error);
+      res.status(500).json({ message: "Failed to search clients" });
+    }
+  });
+
   // Segment analysis endpoint
   app.get('/api/sales/segments', requireAuth, async (req, res) => {
     try {
