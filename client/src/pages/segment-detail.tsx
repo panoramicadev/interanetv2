@@ -387,10 +387,10 @@ export default function SegmentDetail({
                       setLocation(`/segment/${encodeURIComponent(newSegment)}`);
                     }}
                   >
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
                       {segmentData.map((segment) => (
                         <SelectItem key={segment.segment} value={segment.segment}>
                           {segment.segment}
