@@ -102,7 +102,7 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
     queryFn: async () => {
       if (!singlePeriod) return [];
       const params = new URLSearchParams();
-      params.append('period', singlePeriod);
+      params.append('selectedPeriod', singlePeriod);
       const res = await fetch(`/api/goals/progress?${params}`, { credentials: "include" });
       if (!res.ok) throw new Error('Failed to fetch goals');
       return await res.json();
