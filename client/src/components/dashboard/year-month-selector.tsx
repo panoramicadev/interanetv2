@@ -263,33 +263,24 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
               </div>
             )}
 
-            {/* Botones de acción */}
-            <div className="p-2 bg-gray-50 space-y-1.5">
-              {selectedMonths.length === 1 && selectedDays.length > 0 && (
-                <Button
-                  className="w-full h-7 text-xs font-medium"
-                  onClick={handleApplyDays}
-                  data-testid="button-apply-days"
-                >
-                  Aplicar {selectedDays.length} día{selectedDays.length > 1 ? 's' : ''}
-                </Button>
-              )}
-              {selectedMonths.length > 0 && (
-                <Button
-                  className="w-full h-7 text-xs font-medium"
-                  onClick={handleApplyMonths}
-                  data-testid="button-apply-months"
-                >
-                  Aplicar {selectedMonths.length} mes{selectedMonths.length > 1 ? 'es' : ''}
-                </Button>
-              )}
+            {/* Botón de acción único */}
+            <div className="p-2 bg-gray-50">
               <Button
-                variant="outline"
                 className="w-full h-7 text-xs font-medium"
-                onClick={handleApplyFullYear}
-                data-testid="button-apply-full-year"
+                onClick={() => {
+                  // Detectar qué tipo de selección se ha hecho
+                  if (selectedMonths.length === 1 && selectedDays.length > 0) {
+                    handleApplyDays();
+                  } else if (selectedMonths.length > 0) {
+                    handleApplyMonths();
+                  } else {
+                    handleApplyFullYear();
+                  }
+                }}
+                disabled={selectedYears.length === 0}
+                data-testid="button-apply"
               >
-                Aplicar año completo
+                Aplicar
               </Button>
             </div>
           </>
