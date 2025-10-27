@@ -9237,27 +9237,8 @@ export function registerRoutes(app: Express): Server {
       
       const resultados = await storage.getPromesasConCumplimiento(filters);
       
-      // Flatten the structure for easier frontend consumption
-      const flattenedResults = resultados.map(r => ({
-        id: r.promesa.id,
-        vendedorId: r.promesa.vendedorId,
-        clienteId: r.promesa.clienteId,
-        clienteNombre: r.promesa.clienteNombre,
-        clienteTipo: r.promesa.clienteTipo,
-        montoPromesa: r.promesa.montoPrometido, // Use correct field name
-        semana: r.promesa.semana,
-        anio: r.promesa.anio,
-        fechaInicio: r.promesa.fechaInicio,
-        fechaFin: r.promesa.fechaFin,
-        ventasReales: r.ventasReales,
-        cumplimiento: r.cumplimiento,
-        estado: r.estado,
-        observaciones: r.promesa.observaciones,
-        ventasRealesManual: r.promesa.ventasRealesManual,
-        createdAt: r.promesa.createdAt,
-      }));
-      
-      res.json(flattenedResults);
+      // Keep the nested structure that the frontend expects
+      res.json(resultados);
     } catch (error: any) {
       console.error('[ERROR] /api/promesas-compra/cumplimiento/reporte:', error);
       res.status(500).json({ message: 'Error al obtener reporte de cumplimiento', error: error.message });
