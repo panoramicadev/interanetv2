@@ -132,12 +132,196 @@ export default function DateSelectorDemo() {
           </CardContent>
         </Card>
 
+        {/* Dashboard Visual Simulation */}
+        <Card className="border-2 border-indigo-100 bg-gradient-to-br from-gray-50 to-white">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Simulación Visual del Dashboard</CardTitle>
+            <CardDescription className="text-sm">
+              Vista previa de cómo se vería el dashboard con estos filtros aplicados
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Mock KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="p-3 bg-white rounded-lg border shadow-sm">
+                <div className="text-[10px] font-medium text-gray-500 mb-1">VENTAS TOTALES</div>
+                <div className="text-xl font-bold text-gray-900">$195.086.384</div>
+                <div className="text-[10px] text-green-600 mt-1">↑ 12.4% vs período anterior</div>
+              </div>
+              <div className="p-3 bg-white rounded-lg border shadow-sm">
+                <div className="text-[10px] font-medium text-gray-500 mb-1">TOTAL ACUMULADO AÑO</div>
+                <div className="text-xl font-bold text-gray-900">$730.589.429</div>
+                <div className="text-[10px] text-blue-600 mt-1">Año 2025</div>
+              </div>
+              <div className="p-3 bg-white rounded-lg border shadow-sm">
+                <div className="text-[10px] font-medium text-gray-500 mb-1">UNIDADES VENDIDAS</div>
+                <div className="text-xl font-bold text-gray-900">12.219</div>
+                <div className="text-[10px] text-orange-600 mt-1">↓ 7.5% vs período anterior</div>
+              </div>
+            </div>
+
+            {/* View-specific content */}
+            {view === "all" && (
+              <>
+                {/* Chart placeholder */}
+                <div className="p-4 bg-white rounded-lg border shadow-sm">
+                  <div className="text-xs font-semibold text-gray-700 mb-3">Tendencia de Ventas</div>
+                  <div className="h-32 bg-gradient-to-r from-blue-50 to-indigo-50 rounded flex items-end justify-around px-4 gap-1">
+                    <div className="w-full bg-blue-400 rounded-t" style={{ height: '45%' }}></div>
+                    <div className="w-full bg-blue-400 rounded-t" style={{ height: '62%' }}></div>
+                    <div className="w-full bg-blue-400 rounded-t" style={{ height: '38%' }}></div>
+                    <div className="w-full bg-blue-500 rounded-t" style={{ height: '75%' }}></div>
+                    <div className="w-full bg-blue-500 rounded-t" style={{ height: '88%' }}></div>
+                    <div className="w-full bg-blue-600 rounded-t" style={{ height: '95%' }}></div>
+                  </div>
+                </div>
+
+                {/* Segments table */}
+                <div className="p-3 bg-white rounded-lg border shadow-sm">
+                  <div className="text-xs font-semibold text-gray-700 mb-2">Ventas por Segmento</div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">FERRETERIAS</span>
+                      <span className="text-gray-600">$45.230.120</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">CONSTRUCTORAS</span>
+                      <span className="text-gray-600">$38.564.890</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">PINTURERIAS</span>
+                      <span className="text-gray-600">$32.450.760</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {view === "goals-only" && (
+              <div className="p-4 bg-white rounded-lg border shadow-sm">
+                <div className="text-xs font-semibold text-gray-700 mb-3">Progreso de Metas</div>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-medium">Meta Global</span>
+                      <span className="text-gray-600">85% completado</span>
+                    </div>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500" style={{ width: '85%' }}></div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2 bg-blue-50 rounded">
+                      <div className="text-gray-600">Meta</div>
+                      <div className="font-bold text-blue-900">$230.000.000</div>
+                    </div>
+                    <div className="p-2 bg-green-50 rounded">
+                      <div className="text-gray-600">Alcanzado</div>
+                      <div className="font-bold text-green-900">$195.086.384</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {view === "by-segment" && (
+              <>
+                <div className="p-3 bg-white rounded-lg border shadow-sm">
+                  <div className="text-xs font-semibold text-gray-700 mb-2">
+                    Vendedores del Segmento {selectedEntity ? `"${selectedEntity}"` : ""}
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">JUAN PÉREZ</span>
+                      <span className="text-gray-600">$15.230.120</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">MARÍA GONZÁLEZ</span>
+                      <span className="text-gray-600">$12.564.890</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">PEDRO LÓPEZ</span>
+                      <span className="text-gray-600">$8.450.760</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg border shadow-sm">
+                  <div className="text-xs font-semibold text-gray-700 mb-2">Clientes del Segmento</div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">FERRETERIA CENTRAL</span>
+                      <span className="text-gray-600">$8.230.120</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">CASA ROYAL</span>
+                      <span className="text-gray-600">$6.564.890</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {view === "by-salesperson" && (
+              <>
+                <div className="p-3 bg-white rounded-lg border shadow-sm">
+                  <div className="text-xs font-semibold text-gray-700 mb-2">
+                    Clientes del Vendedor {selectedEntity ? `"${selectedEntity}"` : ""}
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">PINTURERIA ARCOIRIS</span>
+                      <span className="text-gray-600">$5.230.120</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">FERRETERIA SAN JOSE</span>
+                      <span className="text-gray-600">$4.564.890</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">CONSTRUCTORA ABC</span>
+                      <span className="text-gray-600">$3.450.760</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white rounded-lg border shadow-sm">
+                  <div className="text-xs font-semibold text-gray-700 mb-2">Productos Más Vendidos</div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">LATEX SUPER BLANCO</span>
+                      <span className="text-gray-600">450 uds</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                      <span className="font-medium">ESMALTE SINTETICO</span>
+                      <span className="text-gray-600">320 uds</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Period indicator */}
+            <div className="flex items-center gap-2 p-2 bg-indigo-50 rounded border border-indigo-200">
+              <Calendar className="h-3 w-3 text-indigo-600" />
+              <div className="text-[10px] text-indigo-700">
+                {selection ? (
+                  <span>
+                    Mostrando datos de: <strong>{selection.display}</strong>
+                  </span>
+                ) : (
+                  <span className="text-gray-500">Selecciona un período para filtrar datos</span>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Dashboard Preview */}
         <Card className="border-2 border-green-100">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Vista Previa del Dashboard</CardTitle>
+            <CardTitle className="text-base font-semibold">Información de Filtros Aplicados</CardTitle>
             <CardDescription className="text-sm">
-              Simulación de cómo se vería el dashboard con estos filtros
+              Detalle de qué mostrará el dashboard con estos filtros
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
