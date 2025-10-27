@@ -116,24 +116,11 @@ export default function Dashboard() {
     // Multiple months selected
     if (selection.period === "months" && selection.months && selection.months.length > 1) return true;
     // Multiple years with month(s) selected (mes-a-año comparison)
-    if ((selection.period === "month" || selection.period === "months") && selection.years.length > 1) {
-      console.log("🔍 Modo comparativo detectado: múltiples años con mes(es)", {
-        period: selection.period,
-        years: selection.years,
-        months: selection.months
-      });
-      return true;
-    }
+    if ((selection.period === "month" || selection.period === "months") && selection.years.length > 1) return true;
     // Multiple days selected
     if (selection.period === "days" && selection.days && selection.days.length > 1) return true;
     // Multiple years with full-year view
     if (selection.years.length > 1 && selection.period === "full-year") return true;
-    
-    console.log("❌ Modo comparativo NO detectado", {
-      period: selection.period,
-      yearsLength: selection.years.length,
-      monthsLength: selection.months?.length
-    });
     return false;
   })();
   
