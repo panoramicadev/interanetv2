@@ -85,6 +85,7 @@ export default function SegmentDetail({
   
   // Handler for selection changes that notifies dashboard when embedded
   const handleSelectionChange = (newSelection: typeof selection) => {
+    console.log("🔍 [segment-detail] handleSelectionChange called:", newSelection);
     setSelection(newSelection);
     
     // If embedded and onDateFilterChange is provided, notify the dashboard
@@ -180,9 +181,26 @@ export default function SegmentDetail({
 
   // Detect comparative mode (multiple periods selected)
   const isComparativeMode = (() => {
-    if (selection.period === "months" && selection.months && selection.months.length > 1) return true;
-    if (selection.period === "days" && selection.days && selection.days.length > 1) return true;
-    if (selection.years.length > 1 && selection.period === "full-year") return true;
+    console.log("🔍 [segment-detail] Detectando modo comparativo:", {
+      period: selection.period,
+      monthsLength: selection.months?.length,
+      daysLength: selection.days?.length,
+      yearsLength: selection.years.length,
+      selection
+    });
+    if (selection.period === "months" && selection.months && selection.months.length > 1) {
+      console.log("✅ Modo comparativo: múltiples meses");
+      return true;
+    }
+    if (selection.period === "days" && selection.days && selection.days.length > 1) {
+      console.log("✅ Modo comparativo: múltiples días");
+      return true;
+    }
+    if (selection.years.length > 1 && selection.period === "full-year") {
+      console.log("✅ Modo comparativo: múltiples años");
+      return true;
+    }
+    console.log("❌ NO modo comparativo");
     return false;
   })();
 
@@ -190,6 +208,7 @@ export default function SegmentDetail({
   const comparativePeriods = (() => {
     if (!isComparativeMode) return [];
     
+    console.log("📊 [segment-detail] Generando períodos comparativos...");
     const periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }> = [];
     
     // Comparativa mes-a-año: cuando hay múltiples años Y múltiples meses
@@ -207,11 +226,13 @@ export default function SegmentDetail({
     // Múltiples meses en un solo año
     else if (selection.period === "months" && selection.months && selection.months.length > 1) {
       const year = selection.years[0];
+      console.log("📅 Procesando múltiples meses en un solo año:", { year, months: selection.months });
       selection.months.forEach(month => {
         const monthStr = String(month).padStart(2, '0');
         const period = `${year}-${monthStr}`;
         const label = format(new Date(year, month - 1), "MMMM yyyy", { locale: es });
         periods.push({ period, label, filterType: "month" });
+        console.log("  ➕ Agregado:", { period, label });
       });
     }
     // Comparativa día-a-año: cuando hay múltiples años Y múltiples días
@@ -248,6 +269,7 @@ export default function SegmentDetail({
       });
     }
     
+    console.log("✅ [segment-detail] Períodos comparativos generados:", periods);
     return periods;
   })();
 
