@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { useFilter } from "@/contexts/FilterContext";
 import KPICards from "@/components/dashboard/kpi-cards";
 import SalesChart from "@/components/dashboard/sales-chart";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
@@ -53,16 +54,8 @@ export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
   
-  // New state using YearMonthSelection
-  const [selection, setSelection] = useState<YearMonthSelection>(() => {
-    const now = new Date();
-    return {
-      years: [now.getFullYear()],
-      period: "month",
-      month: now.getMonth(), // 0-indexed
-      display: format(now, "MMMM yyyy")
-    };
-  });
+  // Use global filter context
+  const { selection, setSelection, globalFilter, setGlobalFilter } = useFilter();
   
   // Derived values from selection for backward compatibility
   const selectedPeriod = (() => {
@@ -109,12 +102,6 @@ export default function Dashboard() {
     }
     return undefined;
   })();
-  
-  // Global filter state for goals/segments/salespeople
-  const [globalFilter, setGlobalFilter] = useState<{
-    type: "all" | "global" | "segment" | "salesperson";
-    value?: string;
-  }>({ type: "all" });
   
   // Filter selector state
   const [selectedFilter, setSelectedFilter] = useState<string>("all");

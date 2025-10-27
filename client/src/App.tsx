@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { CartProvider } from "@/contexts/CartContext";
+import { FilterProvider } from "@/contexts/FilterContext";
 import { UpdateNotification } from "@/components/UpdateNotification";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import Landing from "@/pages/landing";
@@ -197,12 +198,14 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <CartProvider>
-        <TooltipProvider>
-          <Router />
-          <UpdateNotification />
-        </TooltipProvider>
-      </CartProvider>
+      <FilterProvider>
+        <CartProvider>
+          <TooltipProvider>
+            <Router />
+            <UpdateNotification />
+          </TooltipProvider>
+        </CartProvider>
+      </FilterProvider>
     </QueryClientProvider>
   );
 }
