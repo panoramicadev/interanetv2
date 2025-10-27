@@ -169,6 +169,29 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
     enabled: Boolean(isComparison && comparisonPeriods.length > 0 && globalFilter.type === "salesperson"),
   });
 
+  // Segments across all comparison periods (for segment evolution chart)
+  const segmentsAcrossPeriodsQuery = useQuery({
+    queryKey: ['/api/sales/segments-across-periods', comparisonPeriods, globalFilter],
+    queryFn: async () => {
+      if (globalFilter.type !== "all") return null;
+      
+      const results = await Promise.all(
+        comparisonPeriods.map(async ({ period, label, filterType }) => {
+          const params = new URLSearchParams();
+          params.append('period', period);
+          params.append('filterType', filterType);
+          
+          const res = await fetch(`/api/sales/segments?${params}`, { credentials: "include" });
+          if (!res.ok) throw new Error('Failed to fetch segments');
+          const segments = await res.json();
+          return { period, label, segments };
+        })
+      );
+      return results;
+    },
+    enabled: Boolean(isComparison && comparisonPeriods.length > 0 && globalFilter.type === "all"),
+  });
+
   // Additional dimension comparison: Salespeople when segment is selected (per period)
   const salespeopleComparisonQuery = useQuery({
     queryKey: ['/api/sales/salespeople-comparison', comparisonPeriods, globalFilter],
@@ -367,6 +390,69 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
                     </div>
                   </div>
                 ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Segments Evolution Chart (when no filter and multiple periods) */}
+          {globalFilter.type === "all" && segmentsAcrossPeriodsQuery.data && segmentsAcrossPeriodsQuery.data.length > 0 && (
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="h-5 w-5 text-emerald-500" />
+                <h3 className="text-sm font-semibold">Evolución de Ventas por Segmento</h3>
+                <span className="text-xs text-gray-500 ml-auto">
+                  Comparación entre períodos seleccionados
+                </span>
+              </div>
+              
+              {/* Tabla de datos por segmento y período */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2 font-semibold">Segmento</th>
+                      {segmentsAcrossPeriodsQuery.data.map((periodData: any) => (
+                        <th key={periodData.period} className="text-right p-2 font-semibold">{periodData.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      // Get unique segments across all periods
+                      const allSegments = new Set<string>();
+                      segmentsAcrossPeriodsQuery.data.forEach((periodData: any) => {
+                        periodData.segments.forEach((seg: any) => {
+                          allSegments.add(seg.segment);
+                        });
+                      });
+                      
+                      return Array.from(allSegments).map((segmentName) => (
+                        <tr key={segmentName} className="border-b hover:bg-gray-50">
+                          <td className="p-2 font-medium text-gray-700">{segmentName}</td>
+                          {segmentsAcrossPeriodsQuery.data.map((periodData: any) => {
+                            const segmentData = periodData.segments.find((s: any) => s.segment === segmentName);
+                            return (
+                              <td key={periodData.period} className="p-2 text-right">
+                                {segmentData ? (
+                                  <div>
+                                    <div className="font-semibold text-gray-900">
+                                      {formatCurrency(segmentData.totalSales || 0)}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500">
+                                      {segmentData.percentage?.toFixed(1)}%
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
               </div>
             </Card>
           )}
