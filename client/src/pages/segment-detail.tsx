@@ -143,19 +143,23 @@ export default function SegmentDetail({
     if (selection.period === "months" && selection.months && selection.months.length > 1) {
       const year = selection.years[0];
       selection.months.forEach(month => {
-        const monthStr = String(month + 1).padStart(2, '0');
+        // month ya está en formato 1-12, no es índice
+        const monthStr = String(month).padStart(2, '0');
         const period = `${year}-${monthStr}`;
-        const label = format(new Date(year, month), "MMMM yyyy", { locale: es });
+        // Para el label, convertir a índice (0-11) para Date
+        const label = format(new Date(year, month - 1), "MMMM yyyy", { locale: es });
         periods.push({ period, label, filterType: "month" });
       });
     } else if (selection.period === "days" && selection.days && selection.days.length > 1) {
       const year = selection.years[0];
-      const month = selection.month !== undefined ? selection.month : 0;
+      // selection.months[0] ya está en formato 1-12
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
       selection.days.forEach(day => {
-        const monthStr = String(month + 1).padStart(2, '0');
+        const monthStr = String(month).padStart(2, '0');
         const dayStr = String(day).padStart(2, '0');
         const period = `${year}-${monthStr}-${dayStr}`;
-        const label = format(new Date(year, month, day), "d 'de' MMMM yyyy", { locale: es });
+        // Para el label, convertir month a índice (0-11) para Date
+        const label = format(new Date(year, month - 1, day), "d 'de' MMMM yyyy", { locale: es });
         periods.push({ period, label, filterType: "day" });
       });
     } else if (selection.years.length > 1 && selection.period === "full-year") {
