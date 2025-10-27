@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, BarChart3, Table2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import ComparativeSegmentChart from "./comparative-segment-chart";
 
 interface SegmentData {
   segment: string;
@@ -11,6 +14,7 @@ interface ComparativeSegmentTableProps {
 }
 
 export default function ComparativeSegmentTable({ periods }: ComparativeSegmentTableProps) {
+  const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
   // Fetch segment data for all periods using useQueries to respect Rules of Hooks
   const segmentQueries = useQueries({
     queries: periods.map(({ period, filterType }) => ({
@@ -79,6 +83,12 @@ export default function ComparativeSegmentTable({ periods }: ComparativeSegmentT
     return colors[year % colors.length];
   };
 
+  // Detect if we have year-over-year comparison
+  const isYearOverYear = periods.length > 1 && (() => {
+    const yearSet = new Set(periods.map(p => p.period.split('-')[0]));
+    return yearSet.size > 1;
+  })();
+
   if (isLoading) {
     return (
       <div className="h-64 bg-gray-100 rounded-lg animate-pulse" />
@@ -91,52 +101,87 @@ export default function ComparativeSegmentTable({ periods }: ComparativeSegmentT
         <div className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-gray-700" />
           <h3 className="font-semibold text-gray-900">Evolución de Ventas por Segmento</h3>
+          {isYearOverYear && (
+            <span className="text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full">
+              Comparación año contra año
+            </span>
+          )}
         </div>
-        <div className="text-sm text-gray-500">
-          Comparación entre períodos seleccionados
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'chart' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('chart')}
+            className="gap-2"
+            data-testid="button-chart-view"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Gráfico
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('table')}
+            className="gap-2"
+            data-testid="button-table-view"
+          >
+            <Table2 className="h-4 w-4" />
+            Tabla
+          </Button>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-3 px-4 font-semibold text-gray-700">Segmento</th>
-              {periods.map((period) => {
-                const year = getYearFromPeriod(period.period);
-                return (
-                  <th key={period.period} className={`text-right py-3 px-4 font-semibold text-gray-700 ${getYearColor(year)}`}>
-                    {period.label}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {allSegments.map((segment) => (
-              <tr key={segment} className="border-b hover:bg-gray-50" data-testid={`segment-row-${segment}`}>
-                <td className="py-3 px-4 font-medium text-gray-900">{segment}</td>
-                {periods.map((period, index) => {
-                  const sales = getSales(segment, index);
-                  const percentage = formatPercentage(sales, totalSalesPerPeriod[index]);
+      {viewMode === 'chart' ? (
+        <ComparativeSegmentChart 
+          periods={periods} 
+          segmentsData={allData.map(data => data.map(item => ({
+            segment: item.segment,
+            totalSales: item.totalSales,
+            percentage: 0
+          })))} 
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Segmento</th>
+                {periods.map((period) => {
                   const year = getYearFromPeriod(period.period);
-                  
                   return (
-                    <td key={period.period} className={`py-3 px-4 text-right ${getYearColor(year)}`}>
-                      <div className="text-gray-900 font-semibold">
-                        {formatCurrency(sales)}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {percentage}
-                      </div>
-                    </td>
+                    <th key={period.period} className={`text-right py-3 px-4 font-semibold text-gray-700 ${getYearColor(year)}`}>
+                      {period.label}
+                    </th>
                   );
                 })}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {allSegments.map((segment) => (
+                <tr key={segment} className="border-b hover:bg-gray-50" data-testid={`segment-row-${segment}`}>
+                  <td className="py-3 px-4 font-medium text-gray-900">{segment}</td>
+                  {periods.map((period, index) => {
+                    const sales = getSales(segment, index);
+                    const percentage = formatPercentage(sales, totalSalesPerPeriod[index]);
+                    const year = getYearFromPeriod(period.period);
+                    
+                    return (
+                      <td key={period.period} className={`py-3 px-4 text-right ${getYearColor(year)}`}>
+                        <div className="text-gray-900 font-semibold">
+                          {formatCurrency(sales)}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {percentage}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
