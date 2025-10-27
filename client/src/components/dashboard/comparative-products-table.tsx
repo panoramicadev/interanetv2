@@ -1,0 +1,147 @@
+import { useQueries } from "@tanstack/react-query";
+import { Package } from "lucide-react";
+
+interface ProductData {
+  productName: string;
+  totalSales: number;
+}
+
+interface TopProductsResponse {
+  items: ProductData[];
+}
+
+interface ComparativeProductsTableProps {
+  periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }>;
+}
+
+export default function ComparativeProductsTable({ periods }: ComparativeProductsTableProps) {
+  // Fetch products data for all periods using useQueries to respect Rules of Hooks
+  const productsQueries = useQueries({
+    queries: periods.map(({ period, filterType }) => ({
+      queryKey: [`/api/sales/top-products?limit=5000&period=${period}&filterType=${filterType}`],
+      queryFn: async () => {
+        const res = await fetch(
+          `/api/sales/top-products?limit=5000&period=${period}&filterType=${filterType}`, 
+          { credentials: "include" }
+        );
+        if (!res.ok) throw new Error('Failed to fetch');
+        return await res.json() as TopProductsResponse;
+      }
+    }))
+  });
+
+  const isLoading = productsQueries.some(q => q.isLoading);
+  const allData = productsQueries.map(q => q.data?.items || []);
+
+  // Get all unique products across all periods
+  const allProducts = Array.from(
+    new Set(allData.flatMap(data => data.map(item => item.productName)))
+  ).sort();
+
+  // Calculate totals for percentage
+  const totalsByPeriod = allData.map(data => 
+    data.reduce((sum, item) => sum + item.totalSales, 0)
+  );
+
+  // Get year from period for color coding
+  const getYearFromPeriod = (period: string): number => {
+    return parseInt(period.split('-')[0]);
+  };
+
+  // Subtle color palette for different years
+  const getYearColor = (year: number): string => {
+    const colors = [
+      'bg-blue-50',
+      'bg-green-50', 
+      'bg-purple-50',
+      'bg-amber-50',
+      'bg-rose-50',
+      'bg-cyan-50',
+      'bg-indigo-50',
+      'bg-teal-50'
+    ];
+    return colors[year % colors.length];
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white border rounded-lg p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Package className="h-5 w-5 text-gray-600" />
+          <h3 className="text-lg font-semibold text-gray-900">Ventas por Producto</h3>
+        </div>
+        <div className="animate-pulse space-y-2">
+          <div className="h-8 bg-gray-200 rounded"></div>
+          <div className="h-24 bg-gray-100 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border rounded-lg p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <Package className="h-5 w-5 text-gray-600" />
+        <h3 className="text-lg font-semibold text-gray-900">Ventas por Producto</h3>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left py-3 px-2 font-semibold text-gray-700 sticky left-0 bg-white">Producto</th>
+              {periods.map(({ period, label }) => {
+                const year = getYearFromPeriod(period);
+                return (
+                  <th key={period} className={`text-right py-3 px-2 font-semibold text-gray-700 ${getYearColor(year)}`}>
+                    <div>{label}</div>
+                    <div className="text-xs font-normal text-gray-500">Ventas / %</div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {allProducts.slice(0, 20).map((productName) => {
+              return (
+                <tr key={productName} className="border-b hover:bg-gray-50">
+                  <td className="py-2 px-2 font-medium text-gray-900 sticky left-0 bg-white">{productName}</td>
+                  {allData.map((data, idx) => {
+                    const item = data.find(d => d.productName === productName);
+                    const sales = item?.totalSales || 0;
+                    const percentage = totalsByPeriod[idx] > 0 
+                      ? (sales / totalsByPeriod[idx] * 100).toFixed(1)
+                      : '0.0';
+                    const year = getYearFromPeriod(periods[idx].period);
+                    
+                    return (
+                      <td key={idx} className={`text-right py-2 px-2 ${getYearColor(year)}`}>
+                        <div className="font-semibold text-gray-900">
+                          ${sales.toLocaleString('es-CL')}
+                        </div>
+                        <div className="text-xs text-gray-500">{percentage}%</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 font-bold">
+              <td className="py-3 px-2 sticky left-0 bg-white">Total</td>
+              {totalsByPeriod.map((total, idx) => {
+                const year = getYearFromPeriod(periods[idx].period);
+                return (
+                  <td key={idx} className={`text-right py-3 px-2 ${getYearColor(year)}`}>
+                    ${total.toLocaleString('es-CL')}
+                  </td>
+                );
+              })}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+}

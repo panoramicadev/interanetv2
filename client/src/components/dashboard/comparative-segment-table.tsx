@@ -59,6 +59,26 @@ export default function ComparativeSegmentTable({ periods }: ComparativeSegmentT
     return item?.totalSales || 0;
   };
 
+  // Get year from period for color coding
+  const getYearFromPeriod = (period: string): number => {
+    return parseInt(period.split('-')[0]);
+  };
+
+  // Subtle color palette for different years
+  const getYearColor = (year: number): string => {
+    const colors = [
+      'bg-blue-50',
+      'bg-green-50', 
+      'bg-purple-50',
+      'bg-amber-50',
+      'bg-rose-50',
+      'bg-cyan-50',
+      'bg-indigo-50',
+      'bg-teal-50'
+    ];
+    return colors[year % colors.length];
+  };
+
   if (isLoading) {
     return (
       <div className="h-64 bg-gray-100 rounded-lg animate-pulse" />
@@ -82,11 +102,14 @@ export default function ComparativeSegmentTable({ periods }: ComparativeSegmentT
           <thead>
             <tr className="border-b">
               <th className="text-left py-3 px-4 font-semibold text-gray-700">Segmento</th>
-              {periods.map((period) => (
-                <th key={period.period} className="text-right py-3 px-4 font-semibold text-gray-700">
-                  {period.label}
-                </th>
-              ))}
+              {periods.map((period) => {
+                const year = getYearFromPeriod(period.period);
+                return (
+                  <th key={period.period} className={`text-right py-3 px-4 font-semibold text-gray-700 ${getYearColor(year)}`}>
+                    {period.label}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -96,9 +119,10 @@ export default function ComparativeSegmentTable({ periods }: ComparativeSegmentT
                 {periods.map((period, index) => {
                   const sales = getSales(segment, index);
                   const percentage = formatPercentage(sales, totalSalesPerPeriod[index]);
+                  const year = getYearFromPeriod(period.period);
                   
                   return (
-                    <td key={period.period} className="py-3 px-4 text-right">
+                    <td key={period.period} className={`py-3 px-4 text-right ${getYearColor(year)}`}>
                       <div className="text-gray-900 font-semibold">
                         {formatCurrency(sales)}
                       </div>
