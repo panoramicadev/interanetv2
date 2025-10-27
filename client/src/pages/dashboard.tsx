@@ -591,15 +591,7 @@ export default function Dashboard() {
                 {/* Period Display */}
                 <div className="flex-1 min-w-0">
                   <Badge variant="secondary" className="w-full justify-center px-3 py-2 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg truncate">
-                    {filterType === "month" 
-                      ? getMonthOptions().find((opt: { value: string; label: string }) => opt.value === selectedPeriod)?.label || selectedPeriod
-                      : filterType === "year"
-                      ? selectedYear.toString()
-                      : filterType === "day"
-                      ? selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar"
-                      : dateRange?.from && dateRange?.to
-                      ? `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`
-                      : "Rango"}
+                    {selection.display}
                   </Badge>
                 </div>
                 
@@ -632,107 +624,11 @@ export default function Dashboard() {
                           <span>Período de tiempo</span>
                         </div>
                         
-                        <div className="space-y-3">
-                          <div>
-                            <label className="text-sm font-medium text-gray-700 block mb-2">Tipo de filtro</label>
-                            <Select value={localFilterType} onValueChange={(value: "day" | "month" | "year" | "range") => setLocalFilterType(value)}>
-                              <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="rounded-xl border-gray-200">
-                                <SelectItem value="day">Día específico</SelectItem>
-                                <SelectItem value="month">Mensual</SelectItem>
-                                <SelectItem value="year">Anual</SelectItem>
-                                <SelectItem value="range">Rango personalizado</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          
-                          <div>
-                            <label className="text-sm font-medium text-gray-700 block mb-2">
-                              {localFilterType === "day" ? "Fecha" : 
-                               localFilterType === "month" ? "Mes" : 
-                               localFilterType === "year" ? "Año" : "Rango de fechas"}
-                            </label>
-                            
-                            {localFilterType === "day" ? (
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    className="h-11 w-full justify-start text-left font-normal rounded-xl border-gray-200"
-                                  >
-                                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                                    <span>
-                                      {localSelectedDate ? format(localSelectedDate, "dd/MM/yyyy") : "Seleccionar fecha"}
-                                    </span>
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                                  <Calendar
-                                    mode="single"
-                                    selected={localSelectedDate}
-                                    onSelect={setLocalSelectedDate}
-                                    initialFocus
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                            ) : localFilterType === "range" ? (
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    className="h-11 w-full justify-start text-left font-normal rounded-xl border-gray-200"
-                                  >
-                                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                                    <span>
-                                      {localDateRange?.from && localDateRange?.to
-                                        ? `${format(localDateRange.from, "dd/MM")} - ${format(localDateRange.to, "dd/MM")}`
-                                        : localDateRange?.from
-                                        ? `${format(localDateRange.from, "dd/MM")} - Seleccionar fin`
-                                        : "Seleccionar rango"}
-                                    </span>
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                                  <Calendar
-                                    mode="range"
-                                    selected={localDateRange}
-                                    onSelect={setLocalDateRange}
-                                    initialFocus
-                                    numberOfMonths={1}
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                            ) : localFilterType === "year" ? (
-                              <Select value={localSelectedYear.toString()} onValueChange={(value) => setLocalSelectedYear(parseInt(value))}>
-                                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl border-gray-200">
-                                  {getYearOptions().map((option: { value: string; label: string }) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Select value={localSelectedPeriod} onValueChange={setLocalSelectedPeriod}>
-                                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl border-gray-200">
-                                  {getMonthOptions().map((option: { value: string; label: string }) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          </div>
-                        </div>
+                        <YearMonthSelector
+                          selection={localSelection}
+                          onSelectionChange={setLocalSelection}
+                          availableYears={availablePeriods?.years?.map((y: any) => parseInt(y.value)) || []}
+                        />
                       </div>
                       
                       <Separator />
@@ -904,111 +800,12 @@ export default function Dashboard() {
           ) : (
             /* Desktop Layout: Single line flex layout */
             <div className="flex flex-wrap items-start gap-4 lg:gap-6 w-full">
-              {/* Filter Type Selector */}
-              <div className="flex items-center justify-between sm:justify-start space-x-3">
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
-                  Filtrar:
-                </label>
-                <Select value={filterType} onValueChange={(value: "day" | "month" | "year" | "range") => setFilterType(value)}>
-                  <SelectTrigger className="h-11 w-28 sm:w-32 lg:w-28 rounded-xl border-gray-200 shadow-sm text-sm" data-testid="select-filter-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-gray-200">
-                    <SelectItem value="day">Día</SelectItem>
-                    <SelectItem value="month">Mes</SelectItem>
-                    <SelectItem value="year">Año</SelectItem>
-                    <SelectItem value="range">Rango</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Period Selector */}
-              <div className="flex items-center justify-between sm:justify-start space-x-3 min-w-0">
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap min-w-0">
-                  Período:
-                </label>
-                
-                {filterType === "day" ? (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="h-11 w-40 sm:w-44 lg:w-52 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm min-w-0"
-                        data-testid="calendar-trigger"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                        <span className="truncate">
-                          {selectedDate ? format(selectedDate, "dd/MM/yyyy") : "Seleccionar fecha"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={setSelectedDate}
-                        initialFocus
-                        data-testid="calendar"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                ) : filterType === "range" ? (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="h-11 w-40 sm:w-44 lg:w-80 justify-start text-left font-normal rounded-xl border-gray-200 shadow-sm text-sm min-w-0"
-                        data-testid="date-range-trigger"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                        <span className="truncate">
-                          {dateRange?.from && dateRange?.to
-                            ? `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`
-                            : dateRange?.from
-                            ? `${format(dateRange.from, "dd/MM")} - Seleccionar fin`
-                            : "Seleccionar rango"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-xl border-gray-200" align="start">
-                      <Calendar
-                        mode="range"
-                        selected={dateRange}
-                        onSelect={setDateRange}
-                        initialFocus
-                        data-testid="date-range-calendar"
-                        numberOfMonths={1}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                ) : filterType === "year" ? (
-                  <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                    <SelectTrigger className="h-11 w-40 sm:w-44 lg:w-52 rounded-xl border-gray-200 shadow-sm text-sm min-w-0" data-testid="select-year">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200">
-                      {getYearOptions().map((option: { value: string; label: string }) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger className="h-11 w-40 sm:w-44 lg:w-52 rounded-xl border-gray-200 shadow-sm text-sm min-w-0" data-testid="select-period">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-gray-200">
-                      {getMonthOptions().map((option: { value: string; label: string }) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+              {/* Period Selector using YearMonthSelector */}
+              <YearMonthSelector
+                selection={selection}
+                onSelectionChange={setSelection}
+                availableYears={availablePeriods?.years?.map((y: any) => parseInt(y.value)) || []}
+              />
 
               {/* Dashboard Filter */}
               <div className="flex items-center justify-between sm:justify-start space-x-3">
