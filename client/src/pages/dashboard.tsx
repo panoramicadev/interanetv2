@@ -226,12 +226,12 @@ export default function Dashboard() {
     const filterParam = params.get('filter');
     if (filterParam === 'segment') {
       setSelectedFilter('segment');
-      setGlobalFilter({ type: 'segment' });
+      setGlobalFilter({ type: 'segment', value: undefined });
     } else if (filterParam === 'salesperson') {
       setSelectedFilter('salesperson');
-      setGlobalFilter({ type: 'salesperson' });
+      setGlobalFilter({ type: 'salesperson', value: undefined });
     }
-  }, [setGlobalFilter]);
+  }, [window.location.search, setGlobalFilter]);
   
   // Update local state when drawer opens
   const handleDrawerOpen = () => {
