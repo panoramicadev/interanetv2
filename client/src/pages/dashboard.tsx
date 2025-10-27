@@ -413,7 +413,7 @@ export default function Dashboard() {
       return {
         years: [date.getFullYear()],
         period: "day",
-        month: date.getMonth(),
+        months: [date.getMonth() + 1], // Convert to 1-12 format for months array
         days: [date.getDate()],
         display: format(date, "dd/MM/yyyy")
       };
@@ -435,12 +435,12 @@ export default function Dashboard() {
       // Parse period format "YYYY-MM"
       const [yearStr, monthStr] = period.split("-");
       const parsedYear = parseInt(yearStr);
-      const parsedMonth = parseInt(monthStr) - 1; // Convert to 0-indexed
+      const parsedMonth = parseInt(monthStr); // Keep as 1-12 format
       return {
         years: [parsedYear],
         period: "month",
-        month: parsedMonth,
-        display: format(new Date(parsedYear, parsedMonth), "MMMM yyyy")
+        months: [parsedMonth], // Use months array in 1-12 format
+        display: format(new Date(parsedYear, parsedMonth - 1), "MMMM yyyy")
       };
     }
     
@@ -449,7 +449,7 @@ export default function Dashboard() {
     return {
       years: [now.getFullYear()],
       period: "month",
-      month: now.getMonth(),
+      months: [now.getMonth() + 1], // Convert to 1-12 format for months array
       display: format(now, "MMMM yyyy")
     };
   };
