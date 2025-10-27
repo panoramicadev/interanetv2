@@ -145,42 +145,53 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
     enabled: Boolean(isComparison && comparisonPeriods.length > 0),
   });
 
-  // Additional dimension comparison: Segments when salesperson is selected
+  // Additional dimension comparison: Segments when salesperson is selected (per period)
   const segmentComparisonQuery = useQuery({
-    queryKey: ['/api/sales/segments-comparison', singlePeriod, globalFilter],
+    queryKey: ['/api/sales/segments-comparison', comparisonPeriods, globalFilter],
     queryFn: async () => {
-      if (!singlePeriod || globalFilter.type !== "salesperson") return null;
+      if (globalFilter.type !== "salesperson") return null;
       
-      const params = new URLSearchParams();
-      params.append('period', singlePeriod);
-      params.append('filterType', filterType);
-      params.append('salesperson', globalFilter.value!);
-      
-      const res = await fetch(`/api/sales/segments?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch segments');
-      return await res.json();
+      const results = await Promise.all(
+        comparisonPeriods.map(async ({ period, label, filterType }) => {
+          const params = new URLSearchParams();
+          params.append('period', period);
+          params.append('filterType', filterType);
+          params.append('salesperson', globalFilter.value!);
+          
+          const res = await fetch(`/api/sales/segments?${params}`, { credentials: "include" });
+          if (!res.ok) throw new Error('Failed to fetch segments');
+          const segments = await res.json();
+          return { period, label, segments };
+        })
+      );
+      return results;
     },
-    enabled: Boolean(isComparison && singlePeriod && globalFilter.type === "salesperson"),
+    enabled: Boolean(isComparison && comparisonPeriods.length > 0 && globalFilter.type === "salesperson"),
   });
 
-  // Additional dimension comparison: Salespeople when segment is selected
+  // Additional dimension comparison: Salespeople when segment is selected (per period)
   const salespeopleComparisonQuery = useQuery({
-    queryKey: ['/api/sales/salespeople-comparison', singlePeriod, globalFilter],
+    queryKey: ['/api/sales/salespeople-comparison', comparisonPeriods, globalFilter],
     queryFn: async () => {
-      if (!singlePeriod || globalFilter.type !== "segment") return null;
+      if (globalFilter.type !== "segment") return null;
       
-      const params = new URLSearchParams();
-      params.append('limit', '20');
-      params.append('period', singlePeriod);
-      params.append('filterType', filterType);
-      params.append('segment', globalFilter.value!);
-      
-      const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch salespeople');
-      const data = await res.json();
-      return data.items || [];
+      const results = await Promise.all(
+        comparisonPeriods.map(async ({ period, label, filterType }) => {
+          const params = new URLSearchParams();
+          params.append('limit', '20');
+          params.append('period', period);
+          params.append('filterType', filterType);
+          params.append('segment', globalFilter.value!);
+          
+          const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: "include" });
+          if (!res.ok) throw new Error('Failed to fetch salespeople');
+          const data = await res.json();
+          return { period, label, salespeople: data.items || [] };
+        })
+      );
+      return results;
     },
-    enabled: Boolean(isComparison && singlePeriod && globalFilter.type === "segment"),
+    enabled: Boolean(isComparison && comparisonPeriods.length > 0 && globalFilter.type === "segment"),
   });
 
   if (!selection) {
