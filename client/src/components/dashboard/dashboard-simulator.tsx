@@ -336,14 +336,17 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
       {/* Sales Team & Client Analytics - Full Width Column */}
       {view !== "goals-only" && (
         <>
-          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-            <TopSalespeoplePanel 
-              selectedPeriod={singlePeriod || ""} 
-              filterType={filterType}
-              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-            />
-          </div>
+          {/* Ocultar panel de vendedores cuando se filtra por vendedor específico */}
+          {globalFilter.type !== "salesperson" && (
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <TopSalespeoplePanel 
+                selectedPeriod={singlePeriod || ""} 
+                filterType={filterType}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+              />
+            </div>
+          )}
           <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
             <TopClientsPanel 
               selectedPeriod={singlePeriod || ""} 
