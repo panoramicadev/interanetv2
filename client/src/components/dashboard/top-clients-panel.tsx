@@ -62,7 +62,12 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
         
         {/* Client Search - AJAX autocomplete */}
         <div className="w-full sm:w-auto sm:flex-1 sm:max-w-xs">
-          <ClientSearch />
+          <ClientSearch 
+            selectedPeriod={selectedPeriod}
+            filterType={filterType}
+            segment={segment}
+            salesperson={salesperson}
+          />
         </div>
         
         <div className="flex items-center gap-2">

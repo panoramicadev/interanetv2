@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { ProductSearch } from "./product-search";
 
 interface TopProduct {
   productName: string;
@@ -45,13 +46,24 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center space-x-2 sm:space-x-3">
           <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
             <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Top Productos</h2>
         </div>
+        
+        {/* Product Search - AJAX autocomplete */}
+        <div className="w-full sm:w-auto sm:flex-1 sm:max-w-xs">
+          <ProductSearch 
+            selectedPeriod={selectedPeriod}
+            filterType={filterType}
+            segment={segment}
+            salesperson={salesperson}
+          />
+        </div>
+        
         <Link href="/metricas-productos">
           <Button
             variant="ghost"
