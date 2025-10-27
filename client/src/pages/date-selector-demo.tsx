@@ -5,8 +5,9 @@ import { Calendar } from "lucide-react";
 
 interface YearMonthSelection {
   years: number[];
-  period: "full-year" | "month" | "custom-range";
+  period: "full-year" | "month" | "months" | "custom-range";
   month?: number;
+  months?: number[];
   startDate?: Date;
   endDate?: Date;
   display: string;
@@ -60,6 +61,7 @@ export default function DateSelectorDemo() {
                     <div className="text-xs text-blue-700 mt-0.5">
                       {selection.period === "full-year" && "Año(s) completo(s)"}
                       {selection.period === "month" && `Mes específico comparado en ${selection.years.length} año(s)`}
+                      {selection.period === "months" && `${selection.months?.length} meses comparados en ${selection.years.length} año(s)`}
                     </div>
                   </div>
                 </div>
@@ -79,13 +81,22 @@ export default function DateSelectorDemo() {
                 <div className="font-medium mb-1">Comparar un mes entre varios años</div>
                 <div className="text-gray-600 text-xs">
                   1. Selecciona años: 2025, 2024, 2023<br />
-                  2. Click "Continuar a meses"<br />
-                  3. Selecciona "Marzo"<br />
+                  2. Selecciona mes: Marzo<br />
+                  3. Click "Aplicar 1 mes"<br />
                   → Compara Marzo 2025 vs Marzo 2024 vs Marzo 2023
                 </div>
               </div>
               <div className="p-3 bg-gray-50 rounded border">
-                <div className="font-medium mb-1">Comparar años completos</div>
+                <div className="font-medium mb-1">Múltiples meses en varios años</div>
+                <div className="text-gray-600 text-xs">
+                  1. Selecciona años: 2025, 2024<br />
+                  2. Selecciona meses: Ene, Feb, Mar<br />
+                  3. Click "Aplicar 3 meses"<br />
+                  → Compara Ene-Mar 2025 vs Ene-Mar 2024
+                </div>
+              </div>
+              <div className="p-3 bg-gray-50 rounded border">
+                <div className="font-medium mb-1">Años completos</div>
                 <div className="text-gray-600 text-xs">
                   1. Selecciona años: 2025, 2024<br />
                   2. Click "Aplicar año completo"<br />
@@ -93,19 +104,11 @@ export default function DateSelectorDemo() {
                 </div>
               </div>
               <div className="p-3 bg-gray-50 rounded border">
-                <div className="font-medium mb-1">Un solo año completo</div>
+                <div className="font-medium mb-1">Un mes en un año</div>
                 <div className="text-gray-600 text-xs">
                   1. Selecciona año: 2025<br />
-                  2. Click "Aplicar año completo"<br />
-                  → Ver datos de 2025
-                </div>
-              </div>
-              <div className="p-3 bg-gray-50 rounded border">
-                <div className="font-medium mb-1">Un mes específico en un año</div>
-                <div className="text-gray-600 text-xs">
-                  1. Selecciona año: 2025<br />
-                  2. Click "Continuar a meses"<br />
-                  3. Selecciona "Octubre"<br />
+                  2. Selecciona mes: Octubre<br />
+                  3. Click "Aplicar 1 mes"<br />
                   → Ver datos de Octubre 2025
                 </div>
               </div>

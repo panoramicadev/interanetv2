@@ -6,8 +6,9 @@ import { Separator } from "@/components/ui/separator";
 
 interface YearMonthSelection {
   years: number[];
-  period: "full-year" | "month" | "custom-range";
+  period: "full-year" | "month" | "months" | "custom-range";
   month?: number; // 1-12
+  months?: number[]; // multiple months 1-12
   startDate?: Date;
   endDate?: Date;
   display: string;
@@ -28,12 +29,21 @@ const YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
 export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   const [open, setOpen] = useState(false);
   const [selectedYears, setSelectedYears] = useState<number[]>(value?.years || []);
+  const [selectedMonths, setSelectedMonths] = useState<number[]>(value?.months || []);
 
   const handleYearToggle = (year: number) => {
     setSelectedYears(prev => 
       prev.includes(year) 
         ? prev.filter(y => y !== year)
         : [...prev, year].sort((a, b) => b - a)
+    );
+  };
+
+  const handleMonthToggle = (monthIndex: number) => {
+    setSelectedMonths(prev => 
+      prev.includes(monthIndex) 
+        ? prev.filter(m => m !== monthIndex)
+        : [...prev, monthIndex].sort((a, b) => a - b)
     );
   };
 
@@ -53,18 +63,28 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     setOpen(false);
   };
 
-  const handleMonthSelect = (monthIndex: number) => {
-    if (selectedYears.length === 0) return;
+  const handleApplyMonths = () => {
+    if (selectedYears.length === 0 || selectedMonths.length === 0) return;
 
-    const monthName = MONTHS[monthIndex];
-    const display = selectedYears.length === 1
-      ? `${monthName} ${selectedYears[0]}`
-      : `${monthName} (${selectedYears.join(", ")})`;
+    const monthNames = selectedMonths.map(idx => MONTHS[idx]);
+    const monthsValue = selectedMonths.map(idx => idx + 1); // Convert to 1-12
+    
+    let display = "";
+    if (selectedMonths.length === 1) {
+      display = selectedYears.length === 1
+        ? `${monthNames[0]} ${selectedYears[0]}`
+        : `${monthNames[0]} (${selectedYears.join(", ")})`;
+    } else {
+      const monthsStr = monthNames.join(", ");
+      display = selectedYears.length === 1
+        ? `${monthsStr} ${selectedYears[0]}`
+        : `${monthsStr} (${selectedYears.join(", ")})`;
+    }
 
     onChange({
       years: selectedYears,
-      period: "month",
-      month: monthIndex + 1,
+      period: selectedMonths.length === 1 ? "month" : "months",
+      months: monthsValue,
       display
     });
 
@@ -74,6 +94,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       setSelectedYears(value?.years || []);
+      setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
     }
     setOpen(newOpen);
   };
@@ -136,22 +157,37 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
             <div className="p-3 border-b">
               <label className="text-xs font-medium text-gray-700 mb-2 block">Meses:</label>
               <div className="grid grid-cols-6 gap-1.5">
-                {MONTHS.map((month, index) => (
-                  <Button
-                    key={month}
-                    variant="outline"
-                    className="h-8 text-[11px] hover:bg-primary hover:text-white px-1"
-                    onClick={() => handleMonthSelect(index)}
-                    data-testid={`month-${index}`}
-                  >
-                    {month.substring(0, 3)}
-                  </Button>
-                ))}
+                {MONTHS.map((month, index) => {
+                  const isSelected = selectedMonths.includes(index);
+                  return (
+                    <Button
+                      key={month}
+                      variant={isSelected ? "default" : "outline"}
+                      className={`h-8 text-[11px] px-1 ${
+                        isSelected ? 'bg-primary text-white' : 'hover:bg-primary hover:text-white'
+                      }`}
+                      onClick={() => handleMonthToggle(index)}
+                      data-testid={`month-${index}`}
+                    >
+                      {month.substring(0, 3)}
+                      {isSelected && <Check className="h-3 w-3 ml-0.5" />}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Botón año completo */}
-            <div className="p-3 bg-gray-50">
+            {/* Botones de acción */}
+            <div className="p-3 bg-gray-50 space-y-2">
+              {selectedMonths.length > 0 && (
+                <Button
+                  className="w-full h-9 text-sm font-medium"
+                  onClick={handleApplyMonths}
+                  data-testid="button-apply-months"
+                >
+                  Aplicar {selectedMonths.length} mes{selectedMonths.length > 1 ? 'es' : ''}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 className="w-full h-9 text-sm font-medium"
