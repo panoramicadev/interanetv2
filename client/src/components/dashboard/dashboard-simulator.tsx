@@ -258,6 +258,17 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
               </table>
             </div>
           </Card>
+
+          {/* Comparison Sales Chart */}
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            <SalesChart 
+              selectedPeriod={comparisonPeriods[0]?.period || ""}
+              filterType={comparisonPeriods[0]?.filterType as any || "month"}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+              comparisonPeriods={comparisonPeriods}
+            />
+          </div>
         </div>
       </div>
     );
@@ -298,7 +309,7 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
       )}
       
       {/* Primary Analytics - Sales Chart Full Width */}
-      {view !== "goals-only" && (
+      {view !== "goals-only" && !isComparison && (
         <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
           <SalesChart 
             selectedPeriod={singlePeriod || ""} 
