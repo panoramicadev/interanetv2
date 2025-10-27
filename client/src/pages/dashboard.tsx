@@ -59,9 +59,9 @@ export default function Dashboard() {
   
   // Derived values from selection for backward compatibility
   const selectedPeriod = (() => {
-    if (selection.period === "month" && selection.month !== undefined) {
+    if ((selection.period === "month" || selection.period === "months") && selection.months && selection.months.length > 0) {
       const year = selection.years[0];
-      const month = selection.month + 1; // Convert to 1-indexed
+      const month = selection.months[0]; // Already in 1-12 format from YearMonthSelector
       return `${year}-${String(month).padStart(2, '0')}`;
     } else if (selection.period === "full-year") {
       return `${selection.years[0]}-01`; // Placeholder for year view

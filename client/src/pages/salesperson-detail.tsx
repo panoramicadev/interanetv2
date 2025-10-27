@@ -126,14 +126,10 @@ export default function SalespersonDetail({
       if (newSelection.period === "custom-range") newFilterType = "range";
       
       let newPeriod = "";
-      if (newSelection.period === "month" && newSelection.month !== undefined) {
+      if ((newSelection.period === "month" || newSelection.period === "months") && newSelection.months && newSelection.months.length > 0) {
+        // For single or multiple months mode, use the first month
         const year = newSelection.years[0];
-        const month = newSelection.month + 1;
-        newPeriod = `${year}-${String(month).padStart(2, '0')}`;
-      } else if (newSelection.period === "months" && newSelection.months && newSelection.months.length > 0) {
-        // For comparative months mode, use the first month
-        const year = newSelection.years[0];
-        const month = newSelection.months[0];
+        const month = newSelection.months[0]; // Already in 1-12 format from YearMonthSelector
         newPeriod = `${year}-${String(month).padStart(2, '0')}`;
       } else if (newSelection.period === "full-year") {
         newPeriod = `${newSelection.years[0]}-01`;
@@ -165,9 +161,9 @@ export default function SalespersonDetail({
   
   // Use dashboard props when embedded, otherwise derive from selection
   const selectedPeriod = embedded && dashboardSelectedPeriod ? dashboardSelectedPeriod : (() => {
-    if (selection.period === "month" && selection.month !== undefined) {
+    if ((selection.period === "month" || selection.period === "months") && selection.months && selection.months.length > 0) {
       const year = selection.years[0];
-      const month = selection.month + 1;
+      const month = selection.months[0]; // Already in 1-12 format
       return `${year}-${String(month).padStart(2, '0')}`;
     } else if (selection.period === "full-year") {
       return `${selection.years[0]}-01`;
