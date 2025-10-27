@@ -74,7 +74,7 @@ export default function SegmentDetail({
   dashboardDateRange
 }: SegmentDetailProps = {}) {
   const { segmentName: paramSegmentName } = useParams();
-  const segmentName = propSegmentName || paramSegmentName;
+  const segmentName = propSegmentName || (paramSegmentName ? decodeURIComponent(paramSegmentName) : undefined);
   const [, setLocation] = useLocation();
   
   // Use global filter context

@@ -102,7 +102,7 @@ export default function SalespersonDetail({
   dashboardDateRange
 }: SalespersonDetailProps = {}) {
   const { salespersonName: paramSalespersonName } = useParams();
-  const salespersonName = propSalespersonName || paramSalespersonName;
+  const salespersonName = propSalespersonName || (paramSalespersonName ? decodeURIComponent(paramSalespersonName) : undefined);
   const [, setLocation] = useLocation();
   
   // Use global filter context
