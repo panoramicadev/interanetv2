@@ -106,13 +106,21 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         : `${monthsStr} (${selectedYears.join(", ")})`;
     }
 
-    onChange({
+    const selection = {
       years: selectedYears,
-      period: selectedMonths.length === 1 ? "month" : "months",
+      period: selectedMonths.length === 1 ? "month" as const : "months" as const,
       months: monthsValue,
       display
+    };
+    
+    console.log("📤 [YearMonthSelector] Enviando selección:", {
+      selectedMonthsLength: selectedMonths.length,
+      monthsValue,
+      period: selection.period,
+      selection
     });
 
+    onChange(selection);
     setOpen(false);
   };
 
