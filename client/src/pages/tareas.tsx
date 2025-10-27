@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -42,7 +43,8 @@ import {
   TrendingDown,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  Trash2
 } from "lucide-react";
 import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks } from "date-fns";
 import { es } from "date-fns/locale";
@@ -1891,6 +1893,33 @@ function EditPromesaDialog({
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('DELETE', `/api/promesas-compra/${promesa.promesa.id}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/promesas-compra/cumplimiento/reporte']
+      });
+      // Force refetch
+      queryClient.refetchQueries({ 
+        queryKey: ['/api/promesas-compra/cumplimiento/reporte']
+      });
+      toast({
+        title: "Promesa eliminada",
+        description: "La promesa se ha eliminado correctamente",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar la promesa",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = () => {
     // Solo admin y supervisor pueden editar
     if (!['admin', 'supervisor'].includes(user?.role || '')) {
@@ -2078,32 +2107,76 @@ function EditPromesaDialog({
         </div>
 
         <DialogFooter className="flex-col gap-3">
-          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end w-full">
-            <Button 
-              variant="outline" 
-              onClick={() => onOpenChange(false)} 
-              className="sm:w-auto"
-              data-testid="button-cerrar"
-            >
-              {canEdit ? 'Cancelar' : 'Cerrar'}
-            </Button>
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-between w-full">
+            {/* Botón de eliminar a la izquierda (solo para admin/supervisor) */}
             {canEdit && (
-              <Button 
-                onClick={handleSubmit} 
-                disabled={updateMutation.isPending}
-                className="sm:w-auto"
-                data-testid="button-actualizar-promesa"
-              >
-                {updateMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Actualizando...
-                  </>
-                ) : (
-                  'Actualizar Promesa'
-                )}
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="destructive" 
+                    className="sm:w-auto"
+                    data-testid="button-eliminar-promesa"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. La promesa de compra será eliminada permanentemente.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => deleteMutation.mutate()}
+                      disabled={deleteMutation.isPending}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {deleteMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Eliminando...
+                        </>
+                      ) : (
+                        'Eliminar'
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
+
+            {/* Botones de acción a la derecha */}
+            <div className="flex flex-col-reverse sm:flex-row gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => onOpenChange(false)} 
+                className="sm:w-auto"
+                data-testid="button-cerrar"
+              >
+                {canEdit ? 'Cancelar' : 'Cerrar'}
+              </Button>
+              {canEdit && (
+                <Button 
+                  onClick={handleSubmit} 
+                  disabled={updateMutation.isPending}
+                  className="sm:w-auto"
+                  data-testid="button-actualizar-promesa"
+                >
+                  {updateMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Actualizando...
+                    </>
+                  ) : (
+                    'Actualizar Promesa'
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>
