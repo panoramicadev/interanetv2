@@ -56,16 +56,6 @@ export default function DateSelectorDemo() {
                 />
               </div>
 
-              {/* Period */}
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-700">Período:</span>
-                <YearMonthSelector
-                  value={selection}
-                  onChange={setSelection}
-                />
-              </div>
-
               {/* Segment/Salesperson selector - shown conditionally */}
               {(view === "by-segment" || view === "by-salesperson") && (
                 <div className="flex items-center gap-2">
@@ -79,6 +69,16 @@ export default function DateSelectorDemo() {
                   />
                 </div>
               )}
+
+              {/* Period */}
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-700">Período:</span>
+                <YearMonthSelector
+                  value={selection}
+                  onChange={setSelection}
+                />
+              </div>
             </div>
 
             {/* Display Selected Filters */}
