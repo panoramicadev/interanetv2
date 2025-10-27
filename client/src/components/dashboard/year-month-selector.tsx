@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar, Check, ChevronRight } from "lucide-react";
@@ -30,6 +30,14 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   const [open, setOpen] = useState(false);
   const [selectedYears, setSelectedYears] = useState<number[]>(value?.years || []);
   const [selectedMonths, setSelectedMonths] = useState<number[]>(value?.months || []);
+  
+  // Sync internal state with external value when it changes
+  useEffect(() => {
+    if (value) {
+      setSelectedYears(value.years || []);
+      setSelectedMonths(value.months || []);
+    }
+  }, [value]);
 
   const handleYearToggle = (year: number) => {
     setSelectedYears(prev => 

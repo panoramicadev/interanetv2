@@ -17,7 +17,23 @@ interface YearMonthSelection {
 }
 
 export default function DateSelectorDemo() {
-  const [selection, setSelection] = useState<YearMonthSelection | null>(null);
+  // Initialize with current month
+  const getCurrentMonthSelection = (): YearMonthSelection => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-11
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    
+    return {
+      years: [currentYear],
+      period: "month",
+      month: currentMonth + 1,
+      months: [currentMonth],
+      display: `${monthNames[currentMonth]} ${currentYear}`
+    };
+  };
+
+  const [selection, setSelection] = useState<YearMonthSelection | null>(getCurrentMonthSelection());
   const [view, setView] = useState<DashboardView>("all");
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
 
