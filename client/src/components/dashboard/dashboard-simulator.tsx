@@ -98,6 +98,51 @@ export function DashboardSimulator({ view, period, filterType, selectedEntity, y
     enabled: view === "by-salesperson" && !!selectedEntity && !!period,
   });
 
+  // Fetch top salespeople
+  const { data: topSalespeople } = useQuery({
+    queryKey: ['/api/sales/top-salespeople', period, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (period) params.append('period', period);
+      if (filterType) params.append('filterType', filterType);
+      params.append('limit', '10');
+      const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error('Failed to fetch');
+      return await res.json();
+    },
+    enabled: view === "all" && !!period,
+  });
+
+  // Fetch top clients
+  const { data: topClients } = useQuery({
+    queryKey: ['/api/sales/top-clients', period, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (period) params.append('period', period);
+      if (filterType) params.append('filterType', filterType);
+      params.append('limit', '10');
+      const res = await fetch(`/api/sales/top-clients?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error('Failed to fetch');
+      return await res.json();
+    },
+    enabled: view === "all" && !!period,
+  });
+
+  // Fetch top products
+  const { data: topProducts } = useQuery({
+    queryKey: ['/api/sales/top-products', period, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (period) params.append('period', period);
+      if (filterType) params.append('filterType', filterType);
+      params.append('limit', '10');
+      const res = await fetch(`/api/sales/top-products?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error('Failed to fetch');
+      return await res.json();
+    },
+    enabled: view === "all" && !!period,
+  });
+
   // Fetch goals progress
   const { data: goalsProgress } = useQuery({
     queryKey: ['/api/goals/progress', period],
@@ -218,23 +263,81 @@ export function DashboardSimulator({ view, period, filterType, selectedEntity, y
 
       {/* View-specific content */}
       {view === "all" && (
-        <Card className="p-3 bg-white shadow-sm">
-          <div className="text-xs font-semibold text-gray-700 mb-3">Ventas por Segmento</div>
-          {segmentsLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              {segments?.slice(0, 5).map((seg: any) => (
-                <div key={seg.segment} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                  <span className="font-medium">{seg.segment}</span>
-                  <span className="text-gray-600">{formatCurrency(seg.totalSales)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        <>
+          <Card className="p-3 bg-white shadow-sm">
+            <div className="text-xs font-semibold text-gray-700 mb-3">Ventas por Segmento</div>
+            {segmentsLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {segments?.slice(0, 5).map((seg: any) => (
+                  <div key={seg.segment} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                    <span className="font-medium">{seg.segment}</span>
+                    <span className="text-gray-600">{formatCurrency(seg.totalSales)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* Top Salespeople */}
+            <Card className="p-3 bg-white shadow-sm">
+              <div className="text-xs font-semibold text-gray-700 mb-3">Top Vendedores</div>
+              <div className="space-y-1.5">
+                {topSalespeople?.slice(0, 5).map((sp: any, idx: number) => (
+                  <div key={sp.salespersonName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
+                        {idx + 1}
+                      </div>
+                      <span className="font-medium">{sp.salespersonName}</span>
+                    </div>
+                    <span className="text-gray-600">{formatCurrency(sp.totalSales)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Top Clients */}
+            <Card className="p-3 bg-white shadow-sm">
+              <div className="text-xs font-semibold text-gray-700 mb-3">Top Clientes</div>
+              <div className="space-y-1.5">
+                {topClients?.slice(0, 5).map((client: any, idx: number) => (
+                  <div key={client.clientName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold">
+                        {idx + 1}
+                      </div>
+                      <span className="font-medium truncate">{client.clientName}</span>
+                    </div>
+                    <span className="text-gray-600 whitespace-nowrap ml-2">{formatCurrency(client.totalSales)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Top Products */}
+            <Card className="p-3 bg-white shadow-sm">
+              <div className="text-xs font-semibold text-gray-700 mb-3">Top Productos</div>
+              <div className="space-y-1.5">
+                {topProducts?.items?.slice(0, 5).map((product: any, idx: number) => (
+                  <div key={product.productName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-[10px] font-bold">
+                        {idx + 1}
+                      </div>
+                      <span className="font-medium truncate">{product.productName}</span>
+                    </div>
+                    <span className="text-gray-600 whitespace-nowrap ml-2">{formatNumber(product.totalUnits)} uds</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </>
       )}
 
       {view === "goals-only" && goalsProgress && goalsProgress.length > 0 && (
