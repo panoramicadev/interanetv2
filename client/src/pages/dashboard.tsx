@@ -922,6 +922,7 @@ export default function Dashboard() {
                   <Select 
                     value={selectedFilter} 
                     onValueChange={(value) => {
+                      console.log('Vista changed to:', value);
                       setSelectedFilter(value);
                       // Clear the value when changing filter type to avoid showing wrong data
                       if (value === "all") {
@@ -961,7 +962,7 @@ export default function Dashboard() {
 
                 {/* Segment/Salesperson selector - shown conditionally */}
                 {(selectedFilter === "segment" || selectedFilter === "salesperson") && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" key={`specific-selector-${selectedFilter}`}>
                     <span className="text-sm font-medium text-gray-700">
                       {selectedFilter === "segment" ? "Segmento:" : "Vendedor:"}
                     </span>
