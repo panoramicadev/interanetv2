@@ -84,6 +84,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
 
   // Persist to localStorage whenever selection changes
   useEffect(() => {
+    console.log("💾 [FilterContext] selection changed, saving to localStorage:", selection);
     try {
       localStorage.setItem(STORAGE_KEY_SELECTION, JSON.stringify(selection));
     } catch (e) {
@@ -101,6 +102,10 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   }, [globalFilter]);
 
   const setSelection = (newSelection: YearMonthSelection) => {
+    console.log("🔧 [FilterContext] setSelection called:", {
+      old: selection,
+      new: newSelection
+    });
     setSelectionState(newSelection);
   };
 
