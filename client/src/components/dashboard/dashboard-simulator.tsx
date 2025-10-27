@@ -284,9 +284,6 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
                 <div key={data.period} className="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
                   <div className="text-xs text-blue-700 font-medium mb-1">{data.label}</div>
                   <div className="text-lg font-bold text-blue-900">{formatCurrency(data.totalSales || 0)}</div>
-                  <div className="text-[10px] text-blue-600 mt-1">
-                    {formatNumber(data.totalUnits || 0)} uds
-                  </div>
                 </div>
               ))}
             </div>
@@ -303,9 +300,6 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
                 <div key={data.period} className="p-3 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
                   <div className="text-xs text-orange-700 font-medium mb-1">{data.label}</div>
                   <div className="text-lg font-bold text-orange-900">{formatNumber(data.totalUnits || 0)}</div>
-                  <div className="text-[10px] text-orange-600 mt-1">
-                    {formatCurrency(data.totalSales || 0)}
-                  </div>
                 </div>
               ))}
             </div>
