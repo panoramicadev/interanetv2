@@ -1447,13 +1447,16 @@ function CreatePromesaDialog({
       return await apiRequest('POST', '/api/promesas-compra', data);
     },
     onSuccess: () => {
+      // Invalidate all promesas queries with exact and partial matches
       queryClient.invalidateQueries({ 
-        queryKey: ['/api/promesas-compra'],
-        refetchType: 'all'
+        queryKey: ['/api/promesas-compra']
       });
       queryClient.invalidateQueries({ 
-        queryKey: ['/api/promesas-compra/cumplimiento/reporte'],
-        refetchType: 'all'
+        queryKey: ['/api/promesas-compra/cumplimiento/reporte']
+      });
+      // Force refetch
+      queryClient.refetchQueries({ 
+        queryKey: ['/api/promesas-compra/cumplimiento/reporte']
       });
       toast({
         title: "Promesa creada",
@@ -1867,8 +1870,11 @@ function EditPromesaDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ 
-        queryKey: ['/api/promesas-compra/cumplimiento/reporte'],
-        refetchType: 'all'
+        queryKey: ['/api/promesas-compra/cumplimiento/reporte']
+      });
+      // Force refetch
+      queryClient.refetchQueries({ 
+        queryKey: ['/api/promesas-compra/cumplimiento/reporte']
       });
       toast({
         title: "Promesa actualizada",
