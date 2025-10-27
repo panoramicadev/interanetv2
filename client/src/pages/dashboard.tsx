@@ -113,36 +113,14 @@ export default function Dashboard() {
   
   // Detect comparative mode (multiple periods selected)
   const isComparativeMode = (() => {
-    console.log("🔍 [Dashboard] Detectando modo comparativo:", {
-      period: selection.period,
-      yearsLength: selection.years.length,
-      monthsLength: selection.months?.length,
-      daysLength: selection.days?.length,
-      selection
-    });
-    
     // Multiple months selected
-    if (selection.period === "months" && selection.months && selection.months.length > 1) {
-      console.log("✅ [Dashboard] Modo comparativo activado: múltiples meses");
-      return true;
-    }
+    if (selection.period === "months" && selection.months && selection.months.length > 1) return true;
     // Multiple years with month(s) selected (mes-a-año comparison)
-    if ((selection.period === "month" || selection.period === "months") && selection.years.length > 1) {
-      console.log("✅ [Dashboard] Modo comparativo activado: múltiples años");
-      return true;
-    }
+    if ((selection.period === "month" || selection.period === "months") && selection.years.length > 1) return true;
     // Multiple days selected
-    if (selection.period === "days" && selection.days && selection.days.length > 1) {
-      console.log("✅ [Dashboard] Modo comparativo activado: múltiples días");
-      return true;
-    }
+    if (selection.period === "days" && selection.days && selection.days.length > 1) return true;
     // Multiple years with full-year view
-    if (selection.years.length > 1 && selection.period === "full-year") {
-      console.log("✅ [Dashboard] Modo comparativo activado: múltiples años completos");
-      return true;
-    }
-    
-    console.log("❌ [Dashboard] Modo comparativo NO activado");
+    if (selection.years.length > 1 && selection.period === "full-year") return true;
     return false;
   })();
   
