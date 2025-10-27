@@ -17,6 +17,7 @@ import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metric
 import PackagingUnitsMetrics from "@/components/dashboard/packaging-units-metrics";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import SegmentDetail from "@/pages/segment-detail";
+import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -29,6 +30,17 @@ import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
 import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp";
+
+interface YearMonthSelection {
+  years: number[];
+  period: "full-year" | "month" | "months" | "day" | "days" | "custom-range";
+  month?: number;
+  months?: number[];
+  days?: number[];
+  startDate?: Date;
+  endDate?: Date;
+  display: string;
+}
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
