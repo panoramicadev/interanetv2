@@ -367,21 +367,12 @@ export default function SalespersonDetail({
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
                 <Select 
                   value="vendedor"
-                  onValueChange={async (value) => {
-                    if (value === "segmento") {
-                      // Fetch segments to navigate to first one
-                      try {
-                        const response = await fetch('/api/analytics/segments');
-                        const data = await response.json();
-                        if (data.items && data.items.length > 0) {
-                          setLocation(`/segment/${encodeURIComponent(data.items[0].segment)}`);
-                        } else {
-                          setLocation('/');
-                        }
-                      } catch (error) {
-                        console.error('Error fetching segments:', error);
-                        setLocation('/');
-                      }
+                  onValueChange={(value) => {
+                    if (value === "all") {
+                      setLocation('/');
+                    } else if (value === "segmento") {
+                      // Navigate to dashboard with segment filter (no value yet)
+                      setLocation('/?filter=segment');
                     }
                   }}
                 >
@@ -389,6 +380,12 @@ export default function SalespersonDetail({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-lg border-gray-200">
+                    <SelectItem value="all">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                        <span>Todo el dashboard</span>
+                      </div>
+                    </SelectItem>
                     <SelectItem value="vendedor">
                       <div className="flex items-center gap-2">
                         <Users className="h-3.5 w-3.5 text-purple-500" />
