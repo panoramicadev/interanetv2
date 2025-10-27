@@ -1208,6 +1208,15 @@ export interface IStorage {
     total: number;
     cantidad: number;
   }>>;
+  getGastosEmpresarialesByDia(filters?: {
+    userId?: string;
+    mes?: number;
+    anio?: number;
+  }): Promise<Array<{
+    dia: string;
+    total: number;
+    cantidad: number;
+  }>>;
 
   // ==================================================================================
   // PROMESAS DE COMPRA operations
@@ -11938,6 +11947,54 @@ export class DatabaseStorage implements IStorage {
     return results.map(r => ({
       userId: r.userId,
       userName: r.userName || 'Usuario Desconocido',
+      total: parseFloat(r.total as any) || 0,
+      cantidad: parseInt(r.cantidad as any) || 0,
+    }));
+  }
+
+  async getGastosEmpresarialesByDia(filters?: {
+    userId?: string;
+    mes?: number;
+    anio?: number;
+  }): Promise<Array<{
+    dia: string;
+    total: number;
+    cantidad: number;
+  }>> {
+    const conditions = [];
+
+    if (filters?.userId) {
+      conditions.push(eq(gastosEmpresariales.userId, filters.userId));
+    }
+
+    if (filters?.mes && filters?.anio) {
+      const startDate = new Date(filters.anio, filters.mes - 1, 1);
+      const endDate = new Date(filters.anio, filters.mes, 0, 23, 59, 59);
+      conditions.push(
+        and(
+          gte(gastosEmpresariales.createdAt, startDate),
+          lte(gastosEmpresariales.createdAt, endDate)
+        )
+      );
+    }
+
+    // Only count approved expenses for analytics
+    conditions.push(eq(gastosEmpresariales.estado, 'aprobado'));
+
+    const results = await db
+      .select({
+        dia: sql<string>`TO_CHAR(${gastosEmpresariales.createdAt}, 'YYYY-MM-DD')`,
+        total: sql<number>`SUM(${gastosEmpresariales.monto})`,
+        cantidad: sql<number>`COUNT(*)`,
+      })
+      .from(gastosEmpresariales)
+      .where(and(...conditions))
+      .groupBy(sql`TO_CHAR(${gastosEmpresariales.createdAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`SUM(${gastosEmpresariales.monto}) DESC`)
+      .limit(10); // Top 10 días más gastados
+
+    return results.map(r => ({
+      dia: r.dia,
       total: parseFloat(r.total as any) || 0,
       cantidad: parseInt(r.cantidad as any) || 0,
     }));
