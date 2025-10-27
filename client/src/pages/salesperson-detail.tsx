@@ -456,15 +456,39 @@ export default function SalespersonDetail({
                 </div>
               )}
 
-              {/* Embedded salesperson selector */}
-              {embedded && onSalespersonChange && allSalespeople && (
-                <div className="flex items-center gap-2">
+              {/* Embedded segment selector - shown when view is segmento */}
+              {embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
+                <div className="flex items-center gap-2" key="embedded-segment-selector">
+                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
+                  <Select 
+                    value=""
+                    onValueChange={(segment) => {
+                      setLocation(`/segment/${encodeURIComponent(segment)}`);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
+                      <SelectValue placeholder="Selecciona segmento" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                      {allSegments.map((segment) => (
+                        <SelectItem key={segment} value={segment}>
+                          {segment}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Embedded salesperson selector - shown when view is vendedor */}
+              {embedded && selectedView === "vendedor" && onSalespersonChange && allSalespeople && (
+                <div className="flex items-center gap-2" key="embedded-salesperson-selector">
                   <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                   <Select value={salespersonName} onValueChange={onSalespersonChange}>
                     <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
                       {allSalespeople.map((sp) => (
                         <SelectItem key={sp.salesperson} value={sp.salesperson}>
                           {sp.salesperson}
