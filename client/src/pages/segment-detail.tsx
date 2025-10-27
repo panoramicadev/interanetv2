@@ -209,16 +209,40 @@ export default function SegmentDetail({
 
   // Fetch all segments for dropdown - always fetch to enable segment switching
   const { data: segmentData } = useQuery<SegmentData[]>({
-    queryKey: [`/api/sales/segments?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: ['/api/sales/segments', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/segments?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
   });
 
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<SegmentClient[]>({
-    queryKey: [`/api/sales/segment/${segmentName}/clients?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: ['/api/sales/segment', segmentName, 'clients', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/segment/${segmentName}/clients?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
     enabled: !!segmentName,
   });
 
   const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<SegmentSalesperson[]>({
-    queryKey: [`/api/sales/segment/${segmentName}/salespeople?period=${selectedPeriod}&filterType=${filterType}`],
+    queryKey: ['/api/sales/segment', segmentName, 'salespeople', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/segment/${segmentName}/salespeople?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
     enabled: !!segmentName,
   });
 
