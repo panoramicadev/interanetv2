@@ -54,6 +54,12 @@ interface GastosByUser {
   count: number;
 }
 
+interface GastosByDia {
+  dia: string;
+  total: number;
+  cantidad: number;
+}
+
 export default function GastosEmpresarialesDashboard() {
   const [, setLocation] = useLocation();
   const currentMonth = new Date().getMonth() + 1;
@@ -101,6 +107,19 @@ export default function GastosEmpresarialesDashboard() {
     }
   });
 
+  // Fetch by day
+  const { data: porDia = [] } = useQuery<GastosByDia[]>({
+    queryKey: ['/api/gastos-empresariales/analytics/por-dia', mes, anio],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/gastos-empresariales/analytics/por-dia?mes=${mes}&anio=${anio}`,
+        { credentials: 'include' }
+      );
+      if (!response.ok) throw new Error('Error al cargar datos por día');
+      return response.json();
+    }
+  });
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -132,6 +151,21 @@ export default function GastosEmpresarialesDashboard() {
       label: 'Gasto por Usuario',
       data: porUsuario.map(u => u.total),
       backgroundColor: 'rgba(59, 130, 246, 0.8)',
+    }]
+  };
+
+  // Chart data for days
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
+  };
+
+  const diaChartData = {
+    labels: porDia.map(d => formatDate(d.dia)),
+    datasets: [{
+      label: 'Gasto por Día',
+      data: porDia.map(d => d.total),
+      backgroundColor: 'rgba(16, 185, 129, 0.8)',
     }]
   };
 
@@ -270,7 +304,7 @@ export default function GastosEmpresarialesDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Gastos por Categoría</CardTitle>
+              <CardTitle>Gastos por Tipo</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
@@ -287,7 +321,7 @@ export default function GastosEmpresarialesDashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Gastos por Usuario</CardTitle>
+              <CardTitle>Gastos por Vendedor</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
@@ -302,6 +336,24 @@ export default function GastosEmpresarialesDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Days Chart - Full width */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Días Más Gastados (Top 10)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              {porDia.length > 0 ? (
+                <Bar data={diaChartData} options={chartOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  No hay datos disponibles
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
   );
 }
