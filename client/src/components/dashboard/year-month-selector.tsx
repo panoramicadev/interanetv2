@@ -36,25 +36,34 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   );
   const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
   
-  // Sync internal state ONLY when the popover is closed AND value actually changed
-  // When open, the user is actively selecting, so don't interfere
+  // Sync internal state when popover opens OR when value changes externally while closed
   useEffect(() => {
-    if (!open && value) {
-      // Only sync if the value actually changed to avoid overwriting fresh updates
+    if (value) {
       const currentMonthsStr = JSON.stringify(selectedMonths.map(m => m + 1).sort());
       const newMonthsStr = JSON.stringify((value.months || []).sort());
       const yearsChanged = JSON.stringify(selectedYears) !== JSON.stringify(value.years);
       const monthsChanged = currentMonthsStr !== newMonthsStr;
       const daysChanged = JSON.stringify(selectedDays) !== JSON.stringify(value.days || []);
       
-      if (yearsChanged || monthsChanged || daysChanged) {
-        console.log("🔄 [YearMonthSelector] Sincronizando con valor externo:", value);
+      // Sync when value changed externally while closed, OR when opening
+      if (!open && (yearsChanged || monthsChanged || daysChanged)) {
+        console.log("🔄 [YearMonthSelector] Sincronizando con valor externo (cerrado):", value);
         setSelectedYears(value.years || []);
         setSelectedMonths(value.months ? value.months.map(m => m - 1) : []);
         setSelectedDays(value.days || []);
       }
     }
   }, [value, open, selectedYears, selectedMonths, selectedDays]);
+  
+  // Load current selection when opening the popover
+  useEffect(() => {
+    if (open && value) {
+      console.log("📂 [YearMonthSelector] Cargando selección al abrir:", value);
+      setSelectedYears(value.years || []);
+      setSelectedMonths(value.months ? value.months.map(m => m - 1) : []);
+      setSelectedDays(value.days || []);
+    }
+  }, [open]); // Only trigger when 'open' changes
 
   const handleYearToggle = (year: number) => {
     setSelectedYears(prev => 
