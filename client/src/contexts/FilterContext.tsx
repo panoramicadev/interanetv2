@@ -50,6 +50,18 @@ export function FilterProvider({ children }: { children: ReactNode }) {
         // Convert date strings back to Date objects
         if (parsed.startDate) parsed.startDate = new Date(parsed.startDate);
         if (parsed.endDate) parsed.endDate = new Date(parsed.endDate);
+        
+        // Migration: convert old format with singular 'month' to 'months' array
+        if (parsed.month !== undefined && !parsed.months) {
+          parsed.months = [parsed.month];
+          delete parsed.month;
+        }
+        
+        // Ensure months is always an array
+        if (parsed.months && !Array.isArray(parsed.months)) {
+          parsed.months = [parsed.months];
+        }
+        
         return parsed;
       }
     } catch (e) {
