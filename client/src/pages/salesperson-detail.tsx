@@ -222,10 +222,9 @@ export default function SalespersonDetail({
     enabled: !!vendedorId,
   });
 
-  // Fetch all salespeople for the selector (only when embedded)
+  // Fetch all salespeople for the selector - always fetch to enable salesperson switching
   const { data: allSalespeopleResponse } = useQuery<TopSalespeopleResponse>({
     queryKey: [`/api/sales/top-salespeople?limit=5000&period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: embedded,
   });
   
   const allSalespeople = allSalespeopleResponse?.items || [];
@@ -313,9 +312,31 @@ export default function SalespersonDetail({
                   <span className="font-medium text-gray-900 truncate">{decodeURIComponent(salespersonName)}</span>
                 </nav>
               )}
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
-                {decodeURIComponent(salespersonName)}
-              </h1>
+              {!embedded && allSalespeople.length > 0 ? (
+                <div className="mb-1">
+                  <Select 
+                    value={salespersonName} 
+                    onValueChange={(newSalesperson) => {
+                      setLocation(`/salesperson/${encodeURIComponent(newSalesperson)}`);
+                    }}
+                  >
+                    <SelectTrigger className="w-64 rounded-xl border-gray-200 shadow-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-gray-200 max-h-80">
+                      {allSalespeople.map((sp) => (
+                        <SelectItem key={sp.salesperson} value={sp.salesperson}>
+                          {sp.salesperson}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
+                  {decodeURIComponent(salespersonName)}
+                </h1>
+              )}
               <p className="text-gray-600 text-sm">
                 {filterType === "day" ? "Análisis diario" : filterType === "month" ? "Análisis mensual" : filterType === "year" ? "Análisis anual" : "Análisis por rango"}
               </p>
