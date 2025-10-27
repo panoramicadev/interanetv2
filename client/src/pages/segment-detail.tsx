@@ -286,6 +286,22 @@ export default function SegmentDetail({
   return (
     <div className="min-h-screen">
       <div className="w-full">
+        {/* Back button - Fixed position, subtle */}
+        {onBack && (
+          <div className="fixed top-4 right-4 z-50">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              className="rounded-full bg-white/80 backdrop-blur-sm border border-gray-200/60 shadow-sm hover:shadow-md hover:bg-white transition-all duration-200 h-9 px-3"
+              onClick={onBack}
+              data-testid="button-back-dashboard"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 mr-1.5 text-gray-600" />
+              <span className="text-xs font-medium text-gray-700">Dashboard</span>
+            </Button>
+          </div>
+        )}
+
         {/* Header - Same as Dashboard */}
         <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 pt-3 pb-2 sm:py-5 lg:py-6 m-2 sm:m-4 rounded-2xl shadow-sm">
           <div className="space-y-4 w-full">
@@ -353,23 +369,6 @@ export default function SegmentDetail({
                   onChange={setSelection}
                 />
               </div>
-
-              {/* Back button */}
-              {onBack && (
-                <div className="ml-auto">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="rounded-lg border-gray-200 h-9"
-                    onClick={onBack}
-                    data-testid="button-back-dashboard"
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    <span className="hidden sm:inline">Volver al Dashboard</span>
-                    <span className="sm:hidden">Volver</span>
-                  </Button>
-                </div>
-              )}
             </div>
 
             {/* Display Selected Filters as chips */}
