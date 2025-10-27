@@ -140,29 +140,55 @@ export default function SegmentDetail({
     
     const periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }> = [];
     
-    if (selection.period === "months" && selection.months && selection.months.length > 1) {
+    // Comparativa mes-a-año: cuando hay múltiples años Y múltiples meses
+    if (selection.period === "months" && selection.months && selection.months.length > 1 && selection.years.length > 1) {
+      // Para cada mes, crear columnas para cada año
+      selection.months.forEach(month => {
+        selection.years.forEach(year => {
+          const monthStr = String(month).padStart(2, '0');
+          const period = `${year}-${monthStr}`;
+          const label = format(new Date(year, month - 1), "MMM yyyy", { locale: es });
+          periods.push({ period, label, filterType: "month" });
+        });
+      });
+    }
+    // Múltiples meses en un solo año
+    else if (selection.period === "months" && selection.months && selection.months.length > 1) {
       const year = selection.years[0];
       selection.months.forEach(month => {
-        // month ya está en formato 1-12, no es índice
         const monthStr = String(month).padStart(2, '0');
         const period = `${year}-${monthStr}`;
-        // Para el label, convertir a índice (0-11) para Date
         const label = format(new Date(year, month - 1), "MMMM yyyy", { locale: es });
         periods.push({ period, label, filterType: "month" });
       });
-    } else if (selection.period === "days" && selection.days && selection.days.length > 1) {
+    }
+    // Comparativa día-a-año: cuando hay múltiples años Y múltiples días
+    else if (selection.period === "days" && selection.days && selection.days.length > 1 && selection.years.length > 1) {
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
+      selection.days.forEach(day => {
+        selection.years.forEach(year => {
+          const monthStr = String(month).padStart(2, '0');
+          const dayStr = String(day).padStart(2, '0');
+          const period = `${year}-${monthStr}-${dayStr}`;
+          const label = format(new Date(year, month - 1, day), "d MMM yyyy", { locale: es });
+          periods.push({ period, label, filterType: "day" });
+        });
+      });
+    }
+    // Múltiples días en un solo año
+    else if (selection.period === "days" && selection.days && selection.days.length > 1) {
       const year = selection.years[0];
-      // selection.months[0] ya está en formato 1-12
       const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
       selection.days.forEach(day => {
         const monthStr = String(month).padStart(2, '0');
         const dayStr = String(day).padStart(2, '0');
         const period = `${year}-${monthStr}-${dayStr}`;
-        // Para el label, convertir month a índice (0-11) para Date
         const label = format(new Date(year, month - 1, day), "d 'de' MMMM yyyy", { locale: es });
         periods.push({ period, label, filterType: "day" });
       });
-    } else if (selection.years.length > 1 && selection.period === "full-year") {
+    }
+    // Comparativa de años completos
+    else if (selection.years.length > 1 && selection.period === "full-year") {
       selection.years.forEach(year => {
         const period = `${year}-01`;
         const label = `${year}`;

@@ -101,6 +101,12 @@ export default function ComparativeSegmentMetrics({ segmentName, periods }: Comp
     return new Intl.NumberFormat('es-CL').format(num);
   };
 
+  // Detect if we have year-over-year comparison (same months across different years)
+  const isYearOverYear = periods.length > 1 && (() => {
+    const yearSet = new Set(periods.map(p => p.period.split('-')[0]));
+    return yearSet.size > 1;
+  })();
+
   if (isLoading) {
     return (
       <div className="bg-white border rounded-lg p-6">
@@ -121,6 +127,11 @@ export default function ComparativeSegmentMetrics({ segmentName, periods }: Comp
       <div className="flex items-center gap-2 mb-4">
         <TrendingUp className="h-5 w-5 text-gray-600" />
         <h3 className="text-lg font-semibold text-gray-900">Métricas del Segmento: {segmentName}</h3>
+        {isYearOverYear && (
+          <span className="ml-auto text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full">
+            Comparación año contra año
+          </span>
+        )}
       </div>
 
       <div className="overflow-x-auto">

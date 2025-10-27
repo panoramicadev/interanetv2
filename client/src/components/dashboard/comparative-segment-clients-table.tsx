@@ -71,6 +71,12 @@ export default function ComparativeSegmentClientsTable({ segmentName, periods }:
     return colors[year % colors.length];
   };
 
+  // Detect if we have year-over-year comparison
+  const isYearOverYear = periods.length > 1 && (() => {
+    const yearSet = new Set(periods.map(p => p.period.split('-')[0]));
+    return yearSet.size > 1;
+  })();
+
   if (isLoading) {
     return (
       <div className="bg-white border rounded-lg p-6">
@@ -91,6 +97,11 @@ export default function ComparativeSegmentClientsTable({ segmentName, periods }:
       <div className="flex items-center gap-2 mb-4">
         <Users className="h-5 w-5 text-gray-600" />
         <h3 className="text-lg font-semibold text-gray-900">Ventas por Cliente - {segmentName}</h3>
+        {isYearOverYear && (
+          <span className="ml-auto text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full">
+            Comparación año contra año
+          </span>
+        )}
       </div>
 
       <div className="overflow-x-auto">
