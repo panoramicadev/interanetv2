@@ -13,9 +13,10 @@ import { TrendingUp, TrendingDown, DollarSign, Package, Users, Calendar } from "
 
 interface YearMonthSelection {
   years: number[];
-  period: "full-year" | "month" | "months" | "custom-range";
+  period: "full-year" | "month" | "months" | "day" | "days" | "custom-range";
   month?: number;
   months?: number[];
+  days?: number[];
   startDate?: Date;
   endDate?: Date;
   display: string;
@@ -31,7 +32,8 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
   // Determine if this is a single period or comparison mode
   const isComparison = selection && (
     selection.years.length > 1 || 
-    (selection.months && selection.months.length > 1)
+    (selection.months && selection.months.length > 1) ||
+    (selection.days && selection.days.length > 1)
   );
 
   // Map view to globalFilter format
@@ -51,6 +53,11 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
     
     if (selection.period === "full-year") {
       return selection.years[0].toString();
+    } else if (selection.period === "day" && selection.months && selection.days && selection.days.length === 1) {
+      const year = selection.years[0];
+      const month = selection.months[0].toString().padStart(2, '0');
+      const day = selection.days[0].toString().padStart(2, '0');
+      return `${year}-${month}-${day}`;
     } else if (selection.period === "month" || selection.period === "months") {
       const year = selection.years[0];
       // months array is 0-indexed, need to convert to 1-indexed for API
@@ -78,6 +85,21 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
           filterType: "year"
         });
       });
+    } else if (selection.period === "days" && selection.days && selection.days.length > 1) {
+      // Multiple days comparison
+      const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+      const year = selection.years[0];
+      const monthIndex = selection.months![0] - 1; // months come as 1-12, convert to 0-11
+      
+      selection.days.forEach(day => {
+        const month = selection.months![0].toString().padStart(2, '0');
+        const dayStr = day.toString().padStart(2, '0');
+        periods.push({
+          period: `${year}-${month}-${dayStr}`,
+          label: `${day} ${monthNames[monthIndex]} ${year}`,
+          filterType: "day"
+        });
+      });
     } else if (selection.months && selection.months.length > 0) {
       // Multiple months comparison
       const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -102,7 +124,9 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
 
   const singlePeriod = getSinglePeriod();
   const comparisonPeriods = getComparisonPeriods();
-  const filterType = selection?.period === "full-year" ? "year" : "month";
+  const filterType = selection?.period === "full-year" ? "year" : 
+                     (selection?.period === "day" || selection?.period === "days") ? "day" : 
+                     "month";
 
   // Fetch goals progress for single period
   const { data: goalsProgress } = useQuery({

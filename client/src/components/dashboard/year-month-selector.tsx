@@ -6,9 +6,10 @@ import { Separator } from "@/components/ui/separator";
 
 interface YearMonthSelection {
   years: number[];
-  period: "full-year" | "month" | "months" | "custom-range";
+  period: "full-year" | "month" | "months" | "day" | "days" | "custom-range";
   month?: number; // 1-12
   months?: number[]; // multiple months 1-12
+  days?: number[]; // days of month 1-31
   startDate?: Date;
   endDate?: Date;
   display: string;
@@ -30,12 +31,14 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   const [open, setOpen] = useState(false);
   const [selectedYears, setSelectedYears] = useState<number[]>(value?.years || []);
   const [selectedMonths, setSelectedMonths] = useState<number[]>(value?.months || []);
+  const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
   
   // Sync internal state with external value when it changes
   useEffect(() => {
     if (value) {
       setSelectedYears(value.years || []);
-      setSelectedMonths(value.months || []);
+      setSelectedMonths(value.months ? value.months.map(m => m - 1) : []);
+      setSelectedDays(value.days || []);
     }
   }, [value]);
 
@@ -52,6 +55,16 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       prev.includes(monthIndex) 
         ? prev.filter(m => m !== monthIndex)
         : [...prev, monthIndex].sort((a, b) => a - b)
+    );
+    // Reset days when months change
+    setSelectedDays([]);
+  };
+
+  const handleDayToggle = (day: number) => {
+    setSelectedDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day)
+        : [...prev, day].sort((a, b) => a - b)
     );
   };
 
@@ -99,12 +112,51 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     setOpen(false);
   };
 
+  const handleApplyDays = () => {
+    if (selectedYears.length === 0 || selectedMonths.length === 0 || selectedDays.length === 0) return;
+
+    const monthNames = selectedMonths.map(idx => MONTHS[idx]);
+    const monthsValue = selectedMonths.map(idx => idx + 1); // Convert to 1-12
+    
+    let display = "";
+    if (selectedDays.length === 1 && selectedMonths.length === 1) {
+      display = selectedYears.length === 1
+        ? `${selectedDays[0]} ${monthNames[0]} ${selectedYears[0]}`
+        : `${selectedDays[0]} ${monthNames[0]} (${selectedYears.join(", ")})`;
+    } else {
+      const daysStr = selectedDays.join(", ");
+      const monthsStr = selectedMonths.length === 1 ? monthNames[0] : monthNames.join(", ");
+      display = selectedYears.length === 1
+        ? `Días ${daysStr} de ${monthsStr} ${selectedYears[0]}`
+        : `Días ${daysStr} de ${monthsStr} (${selectedYears.join(", ")})`;
+    }
+
+    onChange({
+      years: selectedYears,
+      period: selectedDays.length === 1 ? "day" : "days",
+      months: monthsValue,
+      days: selectedDays,
+      display
+    });
+
+    setOpen(false);
+  };
+
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       setSelectedYears(value?.years || []);
       setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
+      setSelectedDays(value?.days || []);
     }
     setOpen(newOpen);
+  };
+
+  // Get number of days in selected month
+  const getDaysInMonth = () => {
+    if (selectedMonths.length !== 1 || selectedYears.length !== 1) return 31;
+    const year = selectedYears[0];
+    const month = selectedMonths[0] + 1; // Convert to 1-12
+    return new Date(year, month, 0).getDate();
   };
 
   const getDisplayText = () => {
@@ -185,8 +237,43 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
               </div>
             </div>
 
+            {/* Selección de días - solo cuando hay exactamente 1 mes seleccionado */}
+            {selectedMonths.length === 1 && (
+              <div className="px-2.5 py-2 border-b">
+                <label className="text-[10px] font-medium text-gray-700 mb-1.5 block">Días:</label>
+                <div className="grid grid-cols-7 gap-1 max-h-32 overflow-y-auto">
+                  {Array.from({ length: getDaysInMonth() }, (_, i) => i + 1).map((day) => {
+                    const isSelected = selectedDays.includes(day);
+                    return (
+                      <Button
+                        key={day}
+                        variant={isSelected ? "default" : "outline"}
+                        className={`h-7 text-[10px] px-1 ${
+                          isSelected ? 'bg-primary text-white' : 'hover:bg-primary hover:text-white'
+                        }`}
+                        onClick={() => handleDayToggle(day)}
+                        data-testid={`day-${day}`}
+                      >
+                        {day}
+                        {isSelected && <Check className="h-2.5 w-2.5 ml-0.5" />}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Botones de acción */}
             <div className="p-2 bg-gray-50 space-y-1.5">
+              {selectedMonths.length === 1 && selectedDays.length > 0 && (
+                <Button
+                  className="w-full h-7 text-xs font-medium"
+                  onClick={handleApplyDays}
+                  data-testid="button-apply-days"
+                >
+                  Aplicar {selectedDays.length} día{selectedDays.length > 1 ? 's' : ''}
+                </Button>
+              )}
               {selectedMonths.length > 0 && (
                 <Button
                   className="w-full h-7 text-xs font-medium"
