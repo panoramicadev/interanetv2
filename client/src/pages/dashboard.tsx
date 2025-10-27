@@ -795,6 +795,7 @@ export default function Dashboard() {
                                 {localSelectedFilter === "segment" ? "Segmento específico" : "Vendedor específico"}
                               </label>
                               <Select 
+                                key={localSelectedFilter}
                                 value={(localGlobalFilter.type === localSelectedFilter && localGlobalFilter.value) ? localGlobalFilter.value : ""} 
                                 onValueChange={(value) => {
                                   if (localSelectedFilter === "segment") {
@@ -952,6 +953,7 @@ export default function Dashboard() {
                       {selectedFilter === "segment" ? "Segmento:" : "Vendedor:"}
                     </span>
                     <Select 
+                      key={selectedFilter}
                       value={(globalFilter.type === selectedFilter && globalFilter.value) ? globalFilter.value : ""} 
                       onValueChange={(value) => {
                         if (selectedFilter === "segment") {
