@@ -12,7 +12,6 @@ import JSZip from "jszip";
 import unzipper from "unzipper";
 import { Readable } from "stream";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { localImageStorage } from "./localImageStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
 import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema, insertHitoMarketingSchema } from "../shared/schema";
@@ -5402,27 +5401,16 @@ export function registerRoutes(app: Express): Server {
         const products = await storage.getEcommerceAdminProducts({ search: sku });
         const product = products.find(p => p.codigo.toUpperCase() === sku);
 
-        // Save image locally
-        const fs = await import('fs/promises');
-        const path = await import('path');
-        
-        // Delete old image if exists
-        if (product && product.imagenUrl && product.imagenUrl.startsWith('/product-images/')) {
-          const oldImagePath = path.join(process.cwd(), 'public', product.imagenUrl);
-          try {
-            await fs.unlink(oldImagePath);
-            console.log(`🗑️ [SINGLE IMAGE] Deleted old image: ${product.imagenUrl}`);
-          } catch (error) {
-            console.log(`⚠️ [SINGLE IMAGE] Could not delete old image: ${product.imagenUrl}`);
-          }
-        }
-        
+        // Upload to Object Storage (permanent storage)
+        const objectStorageService = new ObjectStorageService();
         const imageName = `${sku}_${Date.now()}${fileExt}`;
-        const imagePath = path.join(process.cwd(), 'public', 'product-images', imageName);
+        const publicUrl = await objectStorageService.uploadImage(
+          imageName, 
+          imageBuffer, 
+          req.file.mimetype || 'image/png'
+        );
         
-        await fs.writeFile(imagePath, imageBuffer);
-        
-        const publicUrl = `/product-images/${imageName}`;
+        console.log(`☁️ [SINGLE IMAGE] Uploaded to Object Storage: ${imageName}`);
 
         if (product) {
           // Update product with image URL immediately
@@ -5480,31 +5468,16 @@ export function registerRoutes(app: Express): Server {
       console.log(`📸 [PRODUCT IMAGE] Uploading image for product: ${productCode} (ID: ${productId})`);
 
       try {
-        // Save image locally
-        const fs = await import('fs/promises');
-        const path = await import('path');
-        
-        // Get product to check for old image
-        const products = await storage.getEcommerceAdminProducts({ search: productId });
-        const product = products.find(p => p.id === parseInt(productId));
-        
-        // Delete old image if exists
-        if (product && product.imagenUrl && product.imagenUrl.startsWith('/product-images/')) {
-          const oldImagePath = path.join(process.cwd(), 'public', product.imagenUrl);
-          try {
-            await fs.unlink(oldImagePath);
-            console.log(`🗑️ [PRODUCT IMAGE] Deleted old image: ${product.imagenUrl}`);
-          } catch (error) {
-            console.log(`⚠️ [PRODUCT IMAGE] Could not delete old image: ${product.imagenUrl}`);
-          }
-        }
-        
+        // Upload to Object Storage (permanent storage)
+        const objectStorageService = new ObjectStorageService();
         const imageName = `${productCode}_${Date.now()}${fileExt}`;
-        const imagePath = path.join(process.cwd(), 'public', 'product-images', imageName);
+        const publicUrl = await objectStorageService.uploadImage(
+          imageName, 
+          imageBuffer, 
+          req.file.mimetype || 'image/png'
+        );
         
-        await fs.writeFile(imagePath, imageBuffer);
-        
-        const publicUrl = `/product-images/${imageName}`;
+        console.log(`☁️ [PRODUCT IMAGE] Uploaded to Object Storage: ${imageName}`);
 
         // Update product with image URL immediately
         await storage.updateEcommerceAdminProduct(productId, { imagenUrl: publicUrl });
@@ -6014,20 +5987,11 @@ export function registerRoutes(app: Express): Server {
       const uniqueFileName = `${sku}_${timestamp}${fileExtension}`;
       
       try {
-        // Try ObjectStorage first, fallback to local storage
-        let imageUrl: string;
+        // Upload to Object Storage (permanent storage)
         const objectStorageService = new ObjectStorageService();
-        
-        try {
-          // Organize images in product-images folder by SKU
-          const storageKey = `product-images/${sku}/${uniqueFileName}`;
-          imageUrl = await objectStorageService.uploadImage(storageKey, imageBuffer, getContentType(fileExtension.substring(1)));
-          console.log(`☁️ [ZIP IMPORT] Uploaded to ObjectStorage: ${storageKey}`);
-        } catch (objStorageError) {
-          console.log(`📁 [ZIP IMPORT] ObjectStorage failed, using local storage for ${sku}`);
-          imageUrl = await localImageStorage.uploadImage(uniqueFileName, imageBuffer, getContentType(fileExtension.substring(1)));
-          console.log(`💾 [ZIP IMPORT] Uploaded to local storage: ${uniqueFileName}`);
-        }
+        const storageKey = `product-images/${sku}/${uniqueFileName}`;
+        const imageUrl = await objectStorageService.uploadImage(storageKey, imageBuffer, getContentType(fileExtension.substring(1)));
+        console.log(`☁️ [ZIP IMPORT] Uploaded to ObjectStorage: ${storageKey}`);
 
         // Update product with new image URL
         await db
@@ -8809,17 +8773,11 @@ export function registerRoutes(app: Express): Server {
       const fileExtension = path.extname(file.originalname);
       const fileName = `gasto-evidencia-${timestamp}-${randomId}${fileExtension}`;
 
-      try {
-        // Try to upload to Google Cloud Storage
-        const objectStorageService = new ObjectStorageService();
-        const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
-        res.json({ url: imageUrl });
-      } catch (storageError) {
-        console.error('Error uploading to GCS:', storageError);
-        // Fallback to local storage
-        const imageUrl = await localImageStorage.uploadImage(fileName, file.buffer, file.mimetype);
-        res.json({ url: imageUrl });
-      }
+      // Upload to Object Storage (permanent storage)
+      const objectStorageService = new ObjectStorageService();
+      const imageUrl = await objectStorageService.uploadImage(fileName, file.buffer, file.mimetype);
+      console.log(`☁️ [EVIDENCIA] Uploaded to Object Storage: ${fileName}`);
+      res.json({ url: imageUrl });
     } catch (error: any) {
       console.error('Error uploading evidencia:', error);
       res.status(500).json({ message: 'Error al subir archivo', error: error.message });
