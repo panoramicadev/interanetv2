@@ -220,12 +220,32 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const resolvedComparePeriod = resolveComparisonPeriod(comparePeriod || "", selectedPeriod, filterType);
 
   const { data: metrics, isLoading } = useQuery<SalesMetrics>({
-    queryKey: [`/api/sales/metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: ['/api/sales/metrics', selectedPeriod, filterType, segment, salesperson],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
   });
 
   // Query for comparison data if comparePeriod is set
   const { data: comparisonMetrics } = useQuery<SalesMetrics>({
-    queryKey: [`/api/sales/metrics?period=${resolvedComparePeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: ['/api/sales/metrics', resolvedComparePeriod, filterType, segment, salesperson, 'comparison'],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', resolvedComparePeriod);
+      params.append('filterType', filterType);
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
     enabled: !!resolvedComparePeriod, // Only run if resolved period is set
   });
 
