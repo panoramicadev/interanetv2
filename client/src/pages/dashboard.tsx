@@ -32,7 +32,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye } from "lucide-react";
+import { CalendarIcon, Filter, Target, Building, Users, TrendingUp, Settings2, X, RefreshCw, Eye, AlertCircle, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -193,6 +193,16 @@ export default function Dashboard() {
       return await res.json();
     },
     enabled: filterType === "month", // Only fetch for month view
+  });
+
+  // Query to fetch pending expenses (estado = "pendiente")
+  const { data: pendingExpenses = [] } = useQuery<any[]>({
+    queryKey: ['/api/gastos-empresariales', 'pendiente'],
+    queryFn: async () => {
+      const res = await fetch('/api/gastos-empresariales?estado=pendiente', { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
   });
   
   // Subtle refresh functionality state
@@ -1144,6 +1154,62 @@ export default function Dashboard() {
                     globalFilter={globalFilter}
                     selectedPeriod={selectedPeriod}
                   />
+                </div>
+              )}
+
+              {/* Gastos Pendientes - Solo mostrar cuando hay gastos pendientes */}
+              {pendingExpenses.length > 0 && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-amber-500 rounded-full p-2">
+                        <AlertCircle className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-900">Gastos Pendientes de Aprobación</h2>
+                        <p className="text-sm text-gray-600">{pendingExpenses.length} {pendingExpenses.length === 1 ? 'gasto pendiente' : 'gastos pendientes'}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLocation('/gastos-empresariales')}
+                      data-testid="button-view-all-expenses"
+                    >
+                      Ver todos
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {pendingExpenses.slice(0, 5).map((expense: any) => (
+                      <div
+                        key={expense.id}
+                        className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors cursor-pointer"
+                        onClick={() => setLocation('/gastos-empresariales')}
+                        data-testid={`expense-pending-${expense.id}`}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-amber-600" />
+                            <span className="font-medium text-gray-900">
+                              ${parseFloat(expense.monto).toLocaleString('es-CL')}
+                            </span>
+                            <span className="text-sm text-gray-600">- {expense.categoria}</span>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1">{expense.descripcion}</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
+                            Pendiente
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                    {pendingExpenses.length > 5 && (
+                      <p className="text-sm text-gray-500 text-center pt-2">
+                        +{pendingExpenses.length - 5} más
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
               

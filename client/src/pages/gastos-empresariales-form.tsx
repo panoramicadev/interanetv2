@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload, X, FileText } from "lucide-react";
 
 const formSchema = z.object({
+  userId: z.string().min(1, "Debe seleccionar un vendedor"),
   archivoUrl: z.string().optional(),
   monto: z.string().min(1, "El monto es requerido"),
   descripcion: z.string().min(1, "La descripción es requerida"),
@@ -48,9 +49,15 @@ export default function GastosEmpresarialesForm() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Fetch salespeople
+  const { data: salespeople = [], isLoading: isLoadingSalespeople } = useQuery<any[]>({
+    queryKey: ['/api/users/salespeople'],
+  });
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      userId: "",
       archivoUrl: "",
       monto: "",
       descripcion: "",
@@ -223,6 +230,36 @@ export default function GastosEmpresarialesForm() {
               {/* Basic Info */}
               <div className="space-y-4">
                 <h3 className="font-semibold text-lg">Información Básica</h3>
+                
+                {/* Vendedor Selector */}
+                <FormField
+                  control={form.control}
+                  name="userId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Vendedor *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-vendedor-gasto">
+                            <SelectValue placeholder="Seleccionar vendedor" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {isLoadingSalespeople ? (
+                            <SelectItem value="loading" disabled>Cargando...</SelectItem>
+                          ) : (
+                            salespeople.map((salesperson: any) => (
+                              <SelectItem key={salesperson.id} value={salesperson.id}>
+                                {salesperson.fullName || salesperson.username}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
