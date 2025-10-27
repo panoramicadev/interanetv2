@@ -17,7 +17,7 @@ export default function ComparativeSegmentMetrics({ segmentName, periods }: Comp
   // Fetch segment clients data for all periods
   const clientsQueries = useQueries({
     queries: periods.map(({ period, filterType }) => ({
-      queryKey: [`/api/sales/segment/${segmentName}/clients?period=${period}&filterType=${filterType}`],
+      queryKey: ['/api/sales/segment', segmentName, 'clients', period, filterType],
       queryFn: async () => {
         const res = await fetch(
           `/api/sales/segment/${segmentName}/clients?period=${period}&filterType=${filterType}`,
@@ -31,6 +31,15 @@ export default function ComparativeSegmentMetrics({ segmentName, periods }: Comp
 
   const isLoading = clientsQueries.some(q => q.isLoading);
   const allData = clientsQueries.map(q => q.data || []);
+
+  // Debug: Log the data for each period
+  console.log('🔍 [ComparativeSegmentMetrics] Data by period:', periods.map((p, idx) => ({
+    period: p.period,
+    label: p.label,
+    dataLength: allData[idx]?.length || 0,
+    totalSales: allData[idx]?.reduce((sum, c) => sum + c.totalSales, 0) || 0,
+    sampleClient: allData[idx]?.[0]?.clientName || 'N/A'
+  })));
 
   // Calculate metrics for each period
   const periodMetrics = allData.map(clients => {

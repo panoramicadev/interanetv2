@@ -2914,6 +2914,13 @@ export class DatabaseStorage implements IStorage {
             );
           }
           break;
+        case 'year':
+          // Period format: YYYY or YYYY-MM (extract year only)
+          const yearForFilter = period.split('-')[0];
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`
+          );
+          break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
@@ -3079,6 +3086,13 @@ export class DatabaseStorage implements IStorage {
             );
           }
           break;
+        case 'year':
+          // Period format: YYYY or YYYY-MM (extract year only)
+          const yearForFilter2 = period.split('-')[0];
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter2}`
+          );
+          break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
@@ -3189,6 +3203,13 @@ export class DatabaseStorage implements IStorage {
             );
           }
           break;
+        case 'year':
+          // Period format: YYYY or YYYY-MM (extract year only)
+          const yearForFilter = period.split('-')[0];
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`
+          );
+          break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
@@ -3264,6 +3285,13 @@ export class DatabaseStorage implements IStorage {
             conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`);
           }
           break;
+        case 'year':
+          // Period format: YYYY or YYYY-MM (extract year only)
+          const yearForFilter3 = period.split('-')[0];
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter3}`
+          );
+          break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
@@ -3334,6 +3362,13 @@ export class DatabaseStorage implements IStorage {
               sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
+          break;
+        case 'year':
+          // Period format: YYYY or YYYY-MM (extract year only)
+          const yearForFilter2 = period.split('-')[0];
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter2}`
+          );
           break;
         case 'range':
           if (period.includes('_')) {
@@ -3419,6 +3454,13 @@ export class DatabaseStorage implements IStorage {
               sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
+          break;
+        case 'year':
+          // Period format: YYYY or YYYY-MM (extract year only)
+          const yearForFilter4 = period.split('-')[0];
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter4}`
+          );
           break;
         case 'range':
           if (period.includes('_')) {
