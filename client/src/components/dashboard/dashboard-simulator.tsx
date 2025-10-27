@@ -1,7 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, Users, Package, DollarSign } from "lucide-react";
+import KPICards from "./kpi-cards";
+import GoalsProgress from "./goals-progress";
+import SalesChart from "./sales-chart";
+import SegmentChart from "./segment-chart";
+import TopSalespeoplePanel from "./top-salespeople-panel";
+import TopClientsPanel from "./top-clients-panel";
+import TopProductsChart from "./top-products-chart";
+import PackagingSalesMetrics from "./packaging-sales-metrics";
+import TransactionsTable from "./transactions-table";
 
 interface DashboardSimulatorProps {
   view: "all" | "goals-only" | "by-segment" | "by-salesperson";
@@ -11,169 +17,31 @@ interface DashboardSimulatorProps {
   years?: number[];
 }
 
-export function DashboardSimulator({ view, period, filterType, selectedEntity, years }: DashboardSimulatorProps) {
-  // Fetch metrics
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
-    queryKey: ['/api/sales/metrics', period, filterType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (period) params.append('period', period);
-      if (filterType) params.append('filterType', filterType);
-      const res = await fetch(`/api/sales/metrics?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch metrics');
-      return await res.json();
-    },
-    enabled: !!period,
-  });
-
-  // Fetch segments
-  const { data: segments, isLoading: segmentsLoading } = useQuery({
-    queryKey: ['/api/sales/segments', period, filterType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (period) params.append('period', period);
-      if (filterType) params.append('filterType', filterType);
-      const res = await fetch(`/api/sales/segments?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch segments');
-      return await res.json();
-    },
-    enabled: !!period && view === "all",
-  });
-
-  // Fetch segment salespeople (for by-segment view)
-  const { data: segmentSalespeople } = useQuery({
-    queryKey: ['/api/sales/segment', selectedEntity, 'salespeople', period, filterType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (period) params.append('period', period);
-      if (filterType) params.append('filterType', filterType);
-      const res = await fetch(`/api/sales/segment/${selectedEntity}/salespeople?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch');
-      return await res.json();
-    },
-    enabled: view === "by-segment" && !!selectedEntity && !!period,
-  });
-
-  // Fetch segment clients
-  const { data: segmentClients } = useQuery({
-    queryKey: ['/api/sales/segment', selectedEntity, 'clients', period, filterType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (period) params.append('period', period);
-      if (filterType) params.append('filterType', filterType);
-      const res = await fetch(`/api/sales/segment/${selectedEntity}/clients?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch');
-      return await res.json();
-    },
-    enabled: view === "by-segment" && !!selectedEntity && !!period,
-  });
-
-  // Fetch salesperson clients
-  const { data: salespersonClients } = useQuery({
-    queryKey: ['/api/sales/salesperson', selectedEntity, 'clients', period, filterType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (period) params.append('period', period);
-      if (filterType) params.append('filterType', filterType);
-      const res = await fetch(`/api/sales/salesperson/${selectedEntity}/clients?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch');
-      return await res.json();
-    },
-    enabled: view === "by-salesperson" && !!selectedEntity && !!period,
-  });
-
-  // Fetch top products for salesperson
-  const { data: salespersonProducts } = useQuery({
-    queryKey: ['/api/sales/top-products', period, filterType, selectedEntity],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (period) params.append('period', period);
-      if (filterType) params.append('filterType', filterType);
-      if (selectedEntity) params.append('salesperson', selectedEntity);
-      params.append('limit', '5');
-      const res = await fetch(`/api/sales/top-products?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch');
-      return await res.json();
-    },
-    enabled: view === "by-salesperson" && !!selectedEntity && !!period,
-  });
-
-  // Fetch top salespeople
-  const { data: topSalespeople } = useQuery({
-    queryKey: ['/api/sales/top-salespeople', period, filterType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (period) params.append('period', period);
-      if (filterType) params.append('filterType', filterType);
-      params.append('limit', '10');
-      const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch');
-      return await res.json();
-    },
-    enabled: view === "all" && !!period,
-  });
-
-  // Fetch top clients
-  const { data: topClients } = useQuery({
-    queryKey: ['/api/sales/top-clients', period, filterType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (period) params.append('period', period);
-      if (filterType) params.append('filterType', filterType);
-      params.append('limit', '10');
-      const res = await fetch(`/api/sales/top-clients?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch');
-      return await res.json();
-    },
-    enabled: view === "all" && !!period,
-  });
-
-  // Fetch top products
-  const { data: topProducts } = useQuery({
-    queryKey: ['/api/sales/top-products', period, filterType],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (period) params.append('period', period);
-      if (filterType) params.append('filterType', filterType);
-      params.append('limit', '10');
-      const res = await fetch(`/api/sales/top-products?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch');
-      return await res.json();
-    },
-    enabled: view === "all" && !!period,
-  });
+export function DashboardSimulator({ view, period, filterType, selectedEntity }: DashboardSimulatorProps) {
+  // Map view to globalFilter format
+  const globalFilter = (() => {
+    if (view === "all" || view === "goals-only") {
+      return { type: "all" as const };
+    } else if (view === "by-segment") {
+      return { type: "segment" as const, value: selectedEntity || undefined };
+    } else {
+      return { type: "salesperson" as const, value: selectedEntity || undefined };
+    }
+  })();
 
   // Fetch goals progress
   const { data: goalsProgress } = useQuery({
     queryKey: ['/api/goals/progress', period],
     queryFn: async () => {
+      if (!period) return [];
       const params = new URLSearchParams();
-      if (period) params.append('selectedPeriod', period);
+      params.append('period', period);
       const res = await fetch(`/api/goals/progress?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error('Failed to fetch');
+      if (!res.ok) throw new Error('Failed to fetch goals');
       return await res.json();
     },
-    enabled: view === "goals-only" && !!period,
+    enabled: !!period,
   });
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
-  const formatNumber = (value: number) => {
-    return new Intl.NumberFormat('es-CL').format(value);
-  };
-
-  const getChangeColor = (change: number) => {
-    if (change > 0) return "text-green-600";
-    if (change < 0) return "text-red-600";
-    return "text-gray-600";
-  };
 
   if (!period) {
     return (
@@ -183,255 +51,114 @@ export function DashboardSimulator({ view, period, filterType, selectedEntity, y
     );
   }
 
-  if (metricsLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24" />
-          ))}
-        </div>
-        <Skeleton className="h-64" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card className="p-3 bg-white shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[10px] font-medium text-gray-500 mb-1">VENTAS TOTALES</div>
-              <div className="text-xl font-bold text-gray-900">
-                {formatCurrency(metrics?.totalSales || 0)}
-              </div>
-              {metrics?.previousMonthSales !== undefined && (
-                <div className={`text-[10px] mt-1 flex items-center gap-1 ${getChangeColor(
-                  ((metrics.totalSales - metrics.previousMonthSales) / metrics.previousMonthSales) * 100
-                )}`}>
-                  {metrics.totalSales > metrics.previousMonthSales ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                  {Math.abs(((metrics.totalSales - metrics.previousMonthSales) / metrics.previousMonthSales) * 100).toFixed(1)}% vs anterior
-                </div>
-              )}
-            </div>
-            <DollarSign className="h-8 w-8 text-blue-500 opacity-20" />
-          </div>
-        </Card>
-
-        <Card className="p-3 bg-white shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[10px] font-medium text-gray-500 mb-1">UNIDADES VENDIDAS</div>
-              <div className="text-xl font-bold text-gray-900">
-                {formatNumber(metrics?.totalUnits || 0)}
-              </div>
-              {metrics?.previousMonthUnits !== undefined && (
-                <div className={`text-[10px] mt-1 flex items-center gap-1 ${getChangeColor(
-                  ((metrics.totalUnits - metrics.previousMonthUnits) / metrics.previousMonthUnits) * 100
-                )}`}>
-                  {metrics.totalUnits > metrics.previousMonthUnits ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                  {Math.abs(((metrics.totalUnits - metrics.previousMonthUnits) / metrics.previousMonthUnits) * 100).toFixed(1)}% vs anterior
-                </div>
-              )}
-            </div>
-            <Package className="h-8 w-8 text-orange-500 opacity-20" />
-          </div>
-        </Card>
-
-        <Card className="p-3 bg-white shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[10px] font-medium text-gray-500 mb-1">CLIENTES ACTIVOS</div>
-              <div className="text-xl font-bold text-gray-900">
-                {formatNumber(metrics?.activeCustomers || 0)}
-              </div>
-              {metrics?.previousMonthCustomers !== undefined && (
-                <div className={`text-[10px] mt-1 flex items-center gap-1 ${getChangeColor(
-                  ((metrics.activeCustomers - metrics.previousMonthCustomers) / metrics.previousMonthCustomers) * 100
-                )}`}>
-                  {metrics.activeCustomers > metrics.previousMonthCustomers ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                  {Math.abs(((metrics.activeCustomers - metrics.previousMonthCustomers) / metrics.previousMonthCustomers) * 100).toFixed(1)}% vs anterior
-                </div>
-              )}
-            </div>
-            <Users className="h-8 w-8 text-green-500 opacity-20" />
-          </div>
-        </Card>
+    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+      {/* KPI Cards with Modern Styling */}
+      <div>
+        <KPICards 
+          selectedPeriod={period} 
+          filterType={filterType}
+          segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+          salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+          comparePeriod="none"
+        />
       </div>
+      
+      {/* Goals Progress Dashboard - Solo mostrar para meses completos y cuando hay metas configuradas */}
+      {filterType === "month" && goalsProgress && goalsProgress.length > 0 && view !== "goals-only" && (
+        <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+          <GoalsProgress 
+            globalFilter={globalFilter}
+            selectedPeriod={period}
+          />
+        </div>
+      )}
 
-      {/* View-specific content */}
-      {view === "all" && (
+      {/* Goals-only view */}
+      {view === "goals-only" && (
+        <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+          <GoalsProgress 
+            globalFilter={{ type: "all" }}
+            selectedPeriod={period}
+          />
+        </div>
+      )}
+      
+      {/* Primary Analytics - Sales Chart Full Width - Solo mostrar para meses y rangos */}
+      {filterType !== "day" && view !== "goals-only" && (
+        <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+          <SalesChart 
+            selectedPeriod={period} 
+            filterType={filterType}
+            segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+            salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+          />
+        </div>
+      )}
+
+      {/* Ventas por Segmento - Full Width Chart - Ocultar cuando hay filtro activo */}
+      {globalFilter.type === "all" && view !== "goals-only" && (
+        <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+          <SegmentChart 
+            selectedPeriod={period} 
+            filterType={filterType}
+            onSegmentClick={(segmentName) => {
+              // En el simulador no hacemos nada cuando se hace click
+              console.log("Clicked segment:", segmentName);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Sales Team & Client Analytics - Full Width Column */}
+      {view !== "goals-only" && (
         <>
-          <Card className="p-3 bg-white shadow-sm">
-            <div className="text-xs font-semibold text-gray-700 mb-3">Ventas por Segmento</div>
-            {segmentsLoading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10" />)}
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {segments?.slice(0, 5).map((seg: any) => (
-                  <div key={seg.segment} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                    <span className="font-medium">{seg.segment}</span>
-                    <span className="text-gray-600">{formatCurrency(seg.totalSales)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Top Salespeople */}
-            <Card className="p-3 bg-white shadow-sm">
-              <div className="text-xs font-semibold text-gray-700 mb-3">Top Vendedores</div>
-              <div className="space-y-1.5">
-                {topSalespeople?.slice(0, 5).map((sp: any, idx: number) => (
-                  <div key={sp.salespersonName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
-                        {idx + 1}
-                      </div>
-                      <span className="font-medium">{sp.salespersonName}</span>
-                    </div>
-                    <span className="text-gray-600">{formatCurrency(sp.totalSales)}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* Top Clients */}
-            <Card className="p-3 bg-white shadow-sm">
-              <div className="text-xs font-semibold text-gray-700 mb-3">Top Clientes</div>
-              <div className="space-y-1.5">
-                {topClients?.slice(0, 5).map((client: any, idx: number) => (
-                  <div key={client.clientName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold">
-                        {idx + 1}
-                      </div>
-                      <span className="font-medium truncate">{client.clientName}</span>
-                    </div>
-                    <span className="text-gray-600 whitespace-nowrap ml-2">{formatCurrency(client.totalSales)}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* Top Products */}
-            <Card className="p-3 bg-white shadow-sm">
-              <div className="text-xs font-semibold text-gray-700 mb-3">Top Productos</div>
-              <div className="space-y-1.5">
-                {topProducts?.items?.slice(0, 5).map((product: any, idx: number) => (
-                  <div key={product.productName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-[10px] font-bold">
-                        {idx + 1}
-                      </div>
-                      <span className="font-medium truncate">{product.productName}</span>
-                    </div>
-                    <span className="text-gray-600 whitespace-nowrap ml-2">{formatNumber(product.totalUnits)} uds</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            <TopSalespeoplePanel 
+              selectedPeriod={period} 
+              filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+            />
           </div>
-        </>
-      )}
-
-      {view === "goals-only" && goalsProgress && goalsProgress.length > 0 && (
-        <Card className="p-4 bg-white shadow-sm">
-          <div className="text-xs font-semibold text-gray-700 mb-3">Progreso de Metas</div>
-          <div className="space-y-3">
-            {goalsProgress.map((goal: any) => {
-              const percentage = (goal.currentSales / goal.goalAmount) * 100;
-              return (
-                <div key={goal.id}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="font-medium">{goal.targetName}</span>
-                    <span className="text-gray-600">{percentage.toFixed(1)}% completado</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${percentage >= 100 ? 'bg-green-500' : percentage >= 75 ? 'bg-blue-500' : 'bg-orange-500'}`}
-                      style={{ width: `${Math.min(percentage, 100)}%` }}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-                    <div className="p-2 bg-blue-50 rounded">
-                      <div className="text-gray-600">Meta</div>
-                      <div className="font-bold text-blue-900">{formatCurrency(goal.goalAmount)}</div>
-                    </div>
-                    <div className="p-2 bg-green-50 rounded">
-                      <div className="text-gray-600">Alcanzado</div>
-                      <div className="font-bold text-green-900">{formatCurrency(goal.currentSales)}</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            <TopClientsPanel 
+              selectedPeriod={period} 
+              filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+            />
           </div>
-        </Card>
-      )}
 
-      {view === "by-segment" && selectedEntity && (
-        <>
-          <Card className="p-3 bg-white shadow-sm">
-            <div className="text-xs font-semibold text-gray-700 mb-2">
-              Vendedores del Segmento "{selectedEntity}"
-            </div>
-            <div className="space-y-1.5">
-              {segmentSalespeople?.slice(0, 5).map((sp: any) => (
-                <div key={sp.salespersonName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
-                  <span className="font-medium">{sp.salespersonName}</span>
-                  <span className="text-gray-600">{formatCurrency(sp.totalSales)}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
+          {/* Products Chart */}
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            <TopProductsChart 
+              selectedPeriod={period} 
+              filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+            />
+          </div>
 
-          <Card className="p-3 bg-white shadow-sm">
-            <div className="text-xs font-semibold text-gray-700 mb-2">Clientes del Segmento</div>
-            <div className="space-y-1.5">
-              {segmentClients?.slice(0, 5).map((client: any) => (
-                <div key={client.clientName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
-                  <span className="font-medium">{client.clientName}</span>
-                  <span className="text-gray-600">{formatCurrency(client.totalSales)}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </>
-      )}
+          {/* Packaging Metrics - Full Width */}
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            <PackagingSalesMetrics 
+              selectedPeriod={period} 
+              filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+            />
+          </div>
 
-      {view === "by-salesperson" && selectedEntity && (
-        <>
-          <Card className="p-3 bg-white shadow-sm">
-            <div className="text-xs font-semibold text-gray-700 mb-2">
-              Clientes del Vendedor "{selectedEntity}"
-            </div>
-            <div className="space-y-1.5">
-              {salespersonClients?.slice(0, 5).map((client: any) => (
-                <div key={client.clientName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
-                  <span className="font-medium">{client.clientName}</span>
-                  <span className="text-gray-600">{formatCurrency(client.totalSales)}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="p-3 bg-white shadow-sm">
-            <div className="text-xs font-semibold text-gray-700 mb-2">Productos Más Vendidos</div>
-            <div className="space-y-1.5">
-              {salespersonProducts?.items?.slice(0, 5).map((product: any) => (
-                <div key={product.productName} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
-                  <span className="font-medium">{product.productName}</span>
-                  <span className="text-gray-600">{formatNumber(product.totalUnits)} uds</span>
-                </div>
-              ))}
-            </div>
-          </Card>
+          {/* Transactions - Full Width */}
+          <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+            <TransactionsTable 
+              selectedPeriod={period} 
+              filterType={filterType}
+              segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+              salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+            />
+          </div>
         </>
       )}
     </div>
