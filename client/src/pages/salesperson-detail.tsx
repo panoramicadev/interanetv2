@@ -112,6 +112,57 @@ export default function SalespersonDetail({
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("vendedor");
   
+  // Handler for selection changes that notifies dashboard when embedded
+  const handleSelectionChange = (newSelection: typeof selection) => {
+    setSelection(newSelection);
+    
+    // If embedded and onDateFilterChange is provided, notify the dashboard
+    if (embedded && onDateFilterChange) {
+      // Convert selection to dashboard format
+      let newFilterType: "day" | "month" | "year" | "range" = "month";
+      if (newSelection.period === "day" || newSelection.period === "days") newFilterType = "day";
+      if (newSelection.period === "month" || newSelection.period === "months") newFilterType = "month";
+      if (newSelection.period === "full-year") newFilterType = "year";
+      if (newSelection.period === "custom-range") newFilterType = "range";
+      
+      let newPeriod = "";
+      if (newSelection.period === "month" && newSelection.month !== undefined) {
+        const year = newSelection.years[0];
+        const month = newSelection.month + 1;
+        newPeriod = `${year}-${String(month).padStart(2, '0')}`;
+      } else if (newSelection.period === "months" && newSelection.months && newSelection.months.length > 0) {
+        // For comparative months mode, use the first month
+        const year = newSelection.years[0];
+        const month = newSelection.months[0];
+        newPeriod = `${year}-${String(month).padStart(2, '0')}`;
+      } else if (newSelection.period === "full-year") {
+        newPeriod = `${newSelection.years[0]}-01`;
+      } else if ((newSelection.period === "day" || newSelection.period === "days") && newSelection.days && newSelection.days.length > 0) {
+        const year = newSelection.years[0];
+        const month = newSelection.months && newSelection.months.length > 0 ? newSelection.months[0] : 1;
+        const day = newSelection.days[0];
+        newPeriod = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      } else if (newSelection.period === "custom-range") {
+        newPeriod = "custom-range";
+      } else {
+        // Fallback for any other cases
+        newPeriod = format(new Date(), "yyyy-MM");
+      }
+      
+      const newDate = (newSelection.period === "day" || newSelection.period === "days") && newSelection.days && newSelection.days.length > 0
+        ? new Date(newSelection.years[0], (newSelection.months && newSelection.months.length > 0 ? newSelection.months[0] - 1 : 0), newSelection.days[0])
+        : undefined;
+      
+      const newYear = newSelection.years[0];
+      
+      const newRange = newSelection.period === "custom-range" && newSelection.startDate && newSelection.endDate
+        ? { from: newSelection.startDate, to: newSelection.endDate }
+        : undefined;
+      
+      onDateFilterChange(newFilterType, newPeriod, newDate, newYear, newRange);
+    }
+  };
+  
   // Use dashboard props when embedded, otherwise derive from selection
   const selectedPeriod = embedded && dashboardSelectedPeriod ? dashboardSelectedPeriod : (() => {
     if (selection.period === "month" && selection.month !== undefined) {
@@ -572,7 +623,7 @@ export default function SalespersonDetail({
                   <div className="h-9 px-3 rounded-lg border border-gray-200 bg-white flex items-center">
                     <YearMonthSelector
                       value={selection}
-                      onChange={setSelection}
+                      onChange={handleSelectionChange}
                     />
                   </div>
                 </div>
@@ -585,7 +636,7 @@ export default function SalespersonDetail({
                   <span className="text-sm font-medium text-gray-700">Período:</span>
                   <YearMonthSelector
                     value={selection}
-                    onChange={setSelection}
+                    onChange={handleSelectionChange}
                   />
                 </div>
               )}
