@@ -53,7 +53,11 @@ export function DashboardSimulator({ view, selection, selectedEntity }: Dashboar
       return selection.years[0].toString();
     } else if (selection.period === "month" || selection.period === "months") {
       const year = selection.years[0];
-      const month = (selection.months?.[0] || selection.month || 1).toString().padStart(2, '0');
+      // months array is 0-indexed, need to convert to 1-indexed for API
+      const monthValue = selection.months?.[0] !== undefined 
+        ? selection.months[0] + 1 
+        : selection.month || 1;
+      const month = monthValue.toString().padStart(2, '0');
       return `${year}-${month}`;
     }
     return null;
