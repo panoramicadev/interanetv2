@@ -774,22 +774,7 @@ export default function Dashboard() {
                     </DrawerHeader>
                     
                     <div className="px-6 space-y-6 overflow-y-auto flex-1">
-                      {/* Período Section */}
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
-                          <CalendarIcon className="h-4 w-4" />
-                          <span>Período de tiempo</span>
-                        </div>
-                        
-                        <YearMonthSelector
-                          value={localSelection}
-                          onChange={setLocalSelection}
-                        />
-                      </div>
-                      
-                      <Separator />
-                      
-                      {/* Vista Section */}
+                      {/* Vista Section - PRIMERO */}
                       <div className="space-y-4">
                         <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
                           <Filter className="h-4 w-4" />
@@ -883,27 +868,25 @@ export default function Dashboard() {
                       
                       <Separator />
                       
-                      {/* Comparación Section */}
+                      {/* Período Section - SEGUNDO */}
                       <div className="space-y-4">
                         <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
-                          <TrendingUp className="h-4 w-4" />
-                          <span>Comparación de períodos</span>
+                          <CalendarIcon className="h-4 w-4" />
+                          <span>Período de tiempo</span>
                         </div>
                         
-                        <div>
-                          <label className="text-sm font-medium text-gray-700 block mb-2">Comparar con</label>
-                          <Select value={localComparePeriod} onValueChange={setLocalComparePeriod}>
-                            <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
-                              {generateComparisonOptions().map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <YearMonthSelector
+                          value={localSelection}
+                          onChange={setLocalSelection}
+                        />
+                        
+                        {/* Explicación de cómo funciona */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-xs text-blue-800 leading-relaxed">
+                            <span className="font-semibold block mb-1">¿Cómo funciona?</span>
+                            Selecciona uno o más años, y luego elige el período: un mes específico, varios meses, un día, o el año completo. 
+                            Puedes comparar el mismo período en diferentes años (ej: Enero 2024 vs Enero 2025).
+                          </p>
                         </div>
                       </div>
                     </div>
