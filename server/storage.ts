@@ -9043,6 +9043,156 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getAllNvvGroupedBySalespeople(options?: {
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<Array<{
+    salespersonCode: string;
+    salespersonName: string;
+    totalAmount: number;
+    totalUnits: number;
+    totalOrders: number;
+    records: Array<{
+      id: string;
+      NUDO: string;
+      TIDO: string;
+      FEEMDO: string;
+      ENDO: string;
+      NOKOEN: string;
+      NOKOPR: string;
+      KOPRCT: string;
+      CAPREX2: number;
+      CAPRCO2: number;
+      PPPRNE: number;
+      cantidadPendiente: number;
+      montoPendiente: number;
+    }>;
+  }>> {
+    try {
+      const conditions = [];
+
+      // Add date filters if provided
+      if (options?.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
+        conditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
+      }
+      if (options?.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
+        conditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
+      }
+
+      // Get all NVV records
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      
+      const results = await db
+        .select({
+          id: nvvPendingSales.id,
+          NUDO: nvvPendingSales.NUDO,
+          TIDO: nvvPendingSales.TIDO,
+          FEEMDO: nvvPendingSales.FEEMDO,
+          ENDO: nvvPendingSales.ENDO,
+          NOKOEN: nvvPendingSales.NOKOEN,
+          NOKOPR: nvvPendingSales.NOKOPR,
+          KOPRCT: nvvPendingSales.KOPRCT,
+          KOFULIDO: nvvPendingSales.KOFULIDO,
+          CAPREX2: nvvPendingSales.CAPREX2,
+          CAPRCO2: nvvPendingSales.CAPRCO2,
+          PPPRNE: nvvPendingSales.PPPRNE,
+          cantidadPendiente: sql<number>`
+            GREATEST(
+              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
+              0
+            )`,
+          montoPendiente: sql<number>`
+            GREATEST(
+              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
+              0
+            ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)`
+        })
+        .from(nvvPendingSales)
+        .where(whereClause)
+        .orderBy(desc(nvvPendingSales.FEEMDO));
+
+      // Get salesperson name mapping from sales_transactions
+      const salespersonMapping = await db
+        .select({
+          kofulido: salesTransactions.kofulido,
+          nokofu: salesTransactions.nokofu
+        })
+        .from(salesTransactions)
+        .where(
+          and(
+            isNotNull(salesTransactions.kofulido),
+            isNotNull(salesTransactions.nokofu)
+          )
+        )
+        .groupBy(salesTransactions.kofulido, salesTransactions.nokofu);
+
+      const kofulidoToNameMap = new Map<string, string>();
+      salespersonMapping.forEach(row => {
+        if (row.kofulido && row.nokofu) {
+          const key = row.kofulido.trim().toUpperCase();
+          if (!kofulidoToNameMap.has(key)) {
+            kofulidoToNameMap.set(key, row.nokofu.trim());
+          }
+        }
+      });
+
+      // Group by salesperson (KOFULIDO)
+      const groupedBySalesperson = new Map<string, {
+        salespersonCode: string;
+        salespersonName: string;
+        totalAmount: number;
+        totalUnits: number;
+        totalOrders: number;
+        records: Array<any>;
+      }>();
+
+      results.forEach(row => {
+        const kofulido = row.KOFULIDO?.trim().toUpperCase() || 'SIN_VENDEDOR';
+        const salespersonName = kofulidoToNameMap.get(kofulido) || row.KOFULIDO?.trim() || 'Sin vendedor';
+
+        if (!groupedBySalesperson.has(kofulido)) {
+          groupedBySalesperson.set(kofulido, {
+            salespersonCode: kofulido,
+            salespersonName,
+            totalAmount: 0,
+            totalUnits: 0,
+            totalOrders: 0,
+            records: []
+          });
+        }
+
+        const group = groupedBySalesperson.get(kofulido)!;
+        group.totalAmount += Number(row.montoPendiente) || 0;
+        group.totalUnits += Number(row.cantidadPendiente) || 0;
+        group.totalOrders += 1;
+        group.records.push({
+          id: row.id,
+          NUDO: row.NUDO || '',
+          TIDO: row.TIDO || '',
+          FEEMDO: row.FEEMDO?.toString() || '',
+          ENDO: row.ENDO || '',
+          NOKOEN: row.NOKOEN || '',
+          NOKOPR: row.NOKOPR || '',
+          KOPRCT: row.KOPRCT || '',
+          CAPREX2: Number(row.CAPREX2) || 0,
+          CAPRCO2: Number(row.CAPRCO2) || 0,
+          PPPRNE: Number(row.PPPRNE) || 0,
+          cantidadPendiente: Number(row.cantidadPendiente) || 0,
+          montoPendiente: Number(row.montoPendiente) || 0
+        });
+      });
+
+      // Convert to array and sort by total amount descending
+      return Array.from(groupedBySalesperson.values())
+        .sort((a, b) => b.totalAmount - a.totalAmount);
+    } catch (error) {
+      console.error('Error getting all NVV grouped by salespeople:', error);
+      return [];
+    }
+  }
+
   async getNvvDashboardMetrics(): Promise<{
     totalRecords: number;
     totalSalespeople: number;
