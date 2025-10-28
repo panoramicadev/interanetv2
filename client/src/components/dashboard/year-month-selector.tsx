@@ -44,20 +44,27 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   useEffect(() => {
     if (open && !prevOpenRef.current) {
       // Abriendo el popover - cargar selección actual del prop
-      console.log("📂 [YearMonthSelector] Cargando selección al abrir:", value);
+      console.log("📂 [YearMonthSelector] Cargando selección al abrir:", {
+        value,
+        years: value?.years,
+        months: value?.months,
+        display: value?.display
+      });
       setSelectedYears(value?.years || []);
       setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
       setSelectedDays(value?.days || []);
       appliedRef.current = false; // Reset applied flag
     } else if (!open && prevOpenRef.current && !appliedRef.current) {
       // Cerrando el popover SIN aplicar - revertir a los valores del prop
-      console.log("📂 [YearMonthSelector] Revirtiendo cambios al cerrar sin aplicar");
+      console.log("📂 [YearMonthSelector] Revirtiendo cambios al cerrar sin aplicar (applied flag:", appliedRef.current, ")");
       setSelectedYears(value?.years || []);
       setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
       setSelectedDays(value?.days || []);
+    } else if (!open && prevOpenRef.current && appliedRef.current) {
+      console.log("✅ [YearMonthSelector] Cerrando después de aplicar - NO revertir cambios");
     }
     prevOpenRef.current = open;
-  }, [open, value]);
+  }, [open]); // Solo reaccionar a cambios de open, no de value
 
   const handleYearToggle = (year: number) => {
     setSelectedYears(prev => 
