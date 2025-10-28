@@ -1,5 +1,10 @@
 import { useQueries } from "@tanstack/react-query";
-import { Users } from "lucide-react";
+import { Users, BarChart3 } from "lucide-react";
+import { Bar } from "react-chartjs-2";
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ChartOptions } from 'chart.js';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ChartDataLabels);
 
 interface SalespersonData {
   salesperson: string;
@@ -94,59 +99,123 @@ export default function ComparativeSalespeopleTable({ periods }: ComparativeSale
   const topSalespeople = allSalespeople.filter(salesperson => {
     const maxSales = Math.max(...periods.map((_, index) => getSales(salesperson, index)));
     return maxSales > 0;
-  }).slice(0, 15); // Show top 15
+  }).slice(0, 10); // Show top 10 for better visualization
+
+  // Colors for different years
+  const yearColors = [
+    'rgb(34, 197, 94)',    // green-500
+    'rgb(59, 130, 246)',   // blue-500
+    'rgb(168, 85, 247)',   // purple-500
+    'rgb(251, 146, 60)',   // orange-400
+    'rgb(236, 72, 153)',   // pink-500
+    'rgb(14, 165, 233)',   // sky-500
+    'rgb(139, 92, 246)',   // violet-500
+    'rgb(6, 182, 212)',    // cyan-500
+  ];
+
+  // Prepare chart data - grouped bars by salesperson
+  const chartData = {
+    labels: topSalespeople,
+    datasets: periods.map((period, periodIdx) => ({
+      label: period.label,
+      data: topSalespeople.map(salesperson => getSales(salesperson, periodIdx)),
+      backgroundColor: yearColors[periodIdx % yearColors.length],
+      borderRadius: 6,
+      borderSkipped: false,
+    }))
+  };
+
+  const chartOptions: ChartOptions<'bar'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          padding: 15,
+          usePointStyle: true,
+          font: {
+            size: 12,
+            weight: 'bold',
+          },
+        },
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        padding: 16,
+        titleFont: {
+          size: 14,
+          weight: 'bold',
+        },
+        bodyFont: {
+          size: 12,
+        },
+        callbacks: {
+          label: function(context) {
+            const label = context.dataset.label || '';
+            const value = formatCurrency(context.parsed.y);
+            return `${label}: ${value}`;
+          }
+        }
+      },
+      datalabels: {
+        display: false, // Don't show labels on bars for cleaner look
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(value) {
+            return formatCurrency(Number(value));
+          },
+          font: {
+            size: 11,
+          },
+        },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)',
+        },
+      },
+      x: {
+        grid: {
+          display: false,
+        },
+        ticks: {
+          font: {
+            size: 11,
+          },
+          maxRotation: 45,
+          minRotation: 45,
+        },
+      },
+    },
+  };
 
   return (
     <div className="bg-white border rounded-lg p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Users className="h-5 w-5 text-gray-700" />
+          <BarChart3 className="h-5 w-5 text-gray-700" />
           <h3 className="font-semibold text-gray-900">Evolución de Ventas por Vendedor</h3>
         </div>
         <div className="text-sm text-gray-500">
-          Comparación entre períodos seleccionados
+          Comparación año a año - Top 10 vendedores
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-3 px-4 font-semibold text-gray-700">Vendedor</th>
-              {periods.map((period) => {
-                const year = getYearFromPeriod(period.period);
-                return (
-                  <th key={period.period} className={`text-right py-3 px-4 font-semibold text-gray-700 ${getYearColor(year)}`}>
-                    {period.label}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {topSalespeople.map((salesperson) => (
-              <tr key={salesperson} className="border-b hover:bg-gray-50" data-testid={`salesperson-row-${salesperson}`}>
-                <td className="py-3 px-4 font-medium text-gray-900">{salesperson}</td>
-                {periods.map((period, index) => {
-                  const sales = getSales(salesperson, index);
-                  const percentage = formatPercentage(sales, totalSalesPerPeriod[index]);
-                  const year = getYearFromPeriod(period.period);
-                  
-                  return (
-                    <td key={period.period} className={`py-3 px-4 text-right ${getYearColor(year)}`}>
-                      <div className="text-gray-900 font-semibold">
-                        {formatCurrency(sales)}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {percentage}
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="h-96">
+        <Bar data={chartData} options={chartOptions} />
+      </div>
+      
+      <div className="mt-4 text-center">
+        <p className="text-xs text-gray-600">
+          Cada color representa un período diferente. Las barras muestran las ventas totales de cada vendedor.
+        </p>
       </div>
     </div>
   );
