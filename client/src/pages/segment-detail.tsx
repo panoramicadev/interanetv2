@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home } from "lucide-react";
@@ -214,8 +214,8 @@ export default function SegmentDetail({
     return undefined;
   })();
 
-  // Detect comparative mode (multiple periods selected)
-  const isComparativeMode = (() => {
+  // Detect comparative mode (multiple periods selected) - use useMemo to recalculate when selection changes
+  const isComparativeMode = useMemo(() => {
     console.log("🔍 [segment-detail] Detectando modo comparativo:", {
       period: selection.period,
       monthsLength: selection.months?.length,
@@ -237,10 +237,10 @@ export default function SegmentDetail({
     }
     console.log("❌ NO modo comparativo");
     return false;
-  })();
+  }, [selection]);
 
-  // Generate list of periods for comparative mode
-  const comparativePeriods = (() => {
+  // Generate list of periods for comparative mode - use useMemo to recalculate when dependencies change
+  const comparativePeriods = useMemo(() => {
     if (!isComparativeMode) {
       console.log("⏭️ [segment-detail] NO comparative mode, retornando array vacío");
       return [];
@@ -315,7 +315,7 @@ export default function SegmentDetail({
     
     console.log("✅ [segment-detail] Períodos comparativos generados:", periods);
     return periods;
-  })();
+  }, [selection, isComparativeMode]);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
