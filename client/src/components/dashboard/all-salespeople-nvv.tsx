@@ -27,7 +27,7 @@ interface NVVRecord {
   CAPRCO2: number;
   PPPRNE: number;
   cantidadPendiente: number;
-  montoPendiente: number;
+  totalPendiente: number;
 }
 
 interface SalespersonGroup {
@@ -101,7 +101,7 @@ export default function AllSalespeopleNVV({
         };
       }
       
-      acc[uniqueKey].totalAmount += record.montoPendiente;
+      acc[uniqueKey].totalAmount += record.totalPendiente;
       acc[uniqueKey].totalUnits += record.cantidadPendiente;
       acc[uniqueKey].totalOrders += 1;
       acc[uniqueKey].records.push(record);
@@ -305,7 +305,7 @@ export default function AllSalespeopleNVV({
                                         <div className="text-xs text-gray-500">{record.TIDO}</div>
                                       </div>
                                       <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                                        {formatCurrency(record.montoPendiente)}
+                                        {formatCurrency(record.totalPendiente)}
                                       </Badge>
                                     </div>
                                     <div className="text-xs text-gray-600 space-y-1">

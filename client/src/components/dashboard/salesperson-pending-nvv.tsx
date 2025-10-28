@@ -36,7 +36,7 @@ interface NVVRecord {
   CAPRCO2: number;
   PPPRNE: number;
   cantidadPendiente: number;
-  montoPendiente: number;
+  totalPendiente: number;
 }
 
 interface ClientGroup {
@@ -117,7 +117,7 @@ export default function SalespersonPendingNVV({
           };
         }
         
-        acc[uniqueKey].totalAmount += record.montoPendiente;
+        acc[uniqueKey].totalAmount += record.totalPendiente;
         acc[uniqueKey].totalUnits += record.cantidadPendiente;
         acc[uniqueKey].totalOrders += 1;
         acc[uniqueKey].records.push(record);
@@ -128,7 +128,7 @@ export default function SalespersonPendingNVV({
   : [];
 
   // Calculate global totals
-  const totalPendingAmount = nvvData?.reduce((sum, record) => sum + record.montoPendiente, 0) || 0;
+  const totalPendingAmount = nvvData?.reduce((sum, record) => sum + record.totalPendiente, 0) || 0;
   const totalPendingUnits = nvvData?.reduce((sum, record) => sum + record.cantidadPendiente, 0) || 0;
   const totalOrders = nvvData?.length || 0;
   const totalClients = groupedByClient.length;
@@ -324,7 +324,7 @@ export default function SalespersonPendingNVV({
                               </TableCell>
                               <TableCell className="text-right">
                                 <span className="font-semibold text-amber-700">
-                                  {formatCurrency(record.montoPendiente)}
+                                  {formatCurrency(record.totalPendiente)}
                                 </span>
                               </TableCell>
                             </TableRow>
