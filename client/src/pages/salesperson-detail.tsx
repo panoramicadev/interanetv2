@@ -836,9 +836,9 @@ export default function SalespersonDetail({
           </div>
 
           {/* NVV Pendientes - Sales pending from NVV */}
-          {vendedorId && (
+          {salespersonName && (
             <SalespersonPendingNVV
-              salesperson={salespersonName || ''}
+              salesperson={salespersonName}
               selectedPeriod={selection.period === "months" || selection.period === "month" ? 
                             `${selection.years[0]}-${String(selection.months?.[0] || 1).padStart(2, '0')}` : 
                             selection.period === "full-year" ? `${selection.years[0]}` : 
