@@ -8983,10 +8983,10 @@ export class DatabaseStorage implements IStorage {
       ];
 
       // Add date filters if provided
-      if (options.startDate) {
+      if (options.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
         conditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
       }
-      if (options.endDate) {
+      if (options.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
         conditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
       }
 
