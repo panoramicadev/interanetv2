@@ -50,13 +50,19 @@ const CHART_COLORS = [
 ];
 
 export default function SalesChart({ selectedPeriod, filterType, segment, salesperson, comparisonPeriods }: SalesChartProps) {
-  const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>('weekly');
+  // Auto-set chart period based on main filter type
+  const getDefaultPeriod = (): 'weekly' | 'monthly' | 'daily' => {
+    if (filterType === 'year') return 'monthly'; // Year view → show 12 months
+    if (filterType === 'month') return 'daily';  // Month view → show days
+    return 'weekly'; // Default fallback
+  };
+  
+  const [period, setPeriod] = useState<'weekly' | 'monthly' | 'daily'>(getDefaultPeriod());
   const isComparison = comparisonPeriods && comparisonPeriods.length > 0;
   
+  // Sync chart period when main filter changes
   useEffect(() => {
-    if (filterType === 'year') {
-      setPeriod('monthly');
-    }
+    setPeriod(getDefaultPeriod());
   }, [filterType]);
   
   const chartPeriod = filterType === 'day' ? 'daily' : period;
