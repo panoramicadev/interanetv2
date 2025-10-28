@@ -84,7 +84,8 @@ export default function SegmentDetail({
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("segmento");
   
   // Handler for selection changes that notifies dashboard when embedded
-  const handleSelectionChange = (newSelection: typeof selection) => {
+  const handleSelectionChange = (newSelection: typeof selection | null) => {
+    if (!newSelection) return;
     console.log("🔍 [segment-detail] handleSelectionChange called:", newSelection);
     console.trace("📍 Stack trace de handleSelectionChange");
     setSelection(newSelection);
@@ -636,8 +637,17 @@ export default function SegmentDetail({
         {/* Main Content */}
         <main className="p-3 sm:p-4 lg:p-6 space-y-4 lg:space-y-6">
           {/* Comparative Mode Layout */}
-          {isComparativeMode ? (
+          {(() => {
+            console.log("🎬 [segment-detail] RENDER:", {
+              isComparativeMode,
+              comparativePeriodsLength: comparativePeriods.length,
+              comparativePeriods,
+              selection
+            });
+            return isComparativeMode;
+          })() ? (
             <>
+              {console.log("✅ Renderizando componentes comparativos")}
               {/* Comparative Metrics Table */}
               <ComparativeSegmentMetrics 
                 segmentName={segmentName}
