@@ -25,6 +25,7 @@ import ComparativeSalespeopleTable from "@/components/dashboard/comparative-sale
 import ComparativeProductsTable from "@/components/dashboard/comparative-products-table";
 import ComparativePackagingTable from "@/components/dashboard/comparative-packaging-table";
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
+import AllSalespeopleNVV from "@/components/dashboard/all-salespeople-nvv";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -1258,6 +1259,16 @@ export default function Dashboard() {
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                   <SalespersonPendingNVV
                     salesperson={globalFilter.value}
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                  />
+                </div>
+              )}
+
+              {/* NVV Pendientes - Todos los vendedores (mostrar cuando NO hay vendedor específico seleccionado) */}
+              {globalFilter.type !== "salesperson" && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <AllSalespeopleNVV
                     selectedPeriod={selectedPeriod}
                     filterType={filterType}
                   />

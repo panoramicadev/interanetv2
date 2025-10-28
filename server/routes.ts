@@ -6677,6 +6677,33 @@ export function registerRoutes(app: Express): Server {
     res.json(nvvData);
   }));
 
+  // Get all NVV grouped by salespeople
+  app.get('/api/nvv/all-by-salespeople', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { period, filterType } = req.query;
+
+    // Get date range for filtering if provided
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    
+    if (period && filterType) {
+      const dateRange = getDateRange(period as string, filterType as string);
+      // Convert string dates to Date objects
+      if (dateRange.startDate) {
+        startDate = new Date(dateRange.startDate);
+      }
+      if (dateRange.endDate) {
+        endDate = new Date(dateRange.endDate);
+      }
+    }
+
+    const nvvData = await storage.getAllNvvGroupedBySalespeople({
+      startDate,
+      endDate
+    });
+
+    res.json(nvvData);
+  }));
+
   // Region Management Endpoints
   // Load Comuna-Region mapping from CSV
   app.post('/api/admin/regions/load', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
