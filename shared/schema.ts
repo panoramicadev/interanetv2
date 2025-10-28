@@ -3869,3 +3869,111 @@ export type InsertFactVentas = typeof factVentas.$inferInsert;
 
 // Schema de validación para importación
 export const insertFactVentasSchema = createInsertSchema(factVentas);
+
+// ===== CRM PIPELINE SYSTEM =====
+
+// CRM Leads - Pipeline de ventas
+export const crmLeads = pgTable("crm_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientName: text("client_name").notNull(),
+  clientPhone: varchar("client_phone"),
+  clientEmail: varchar("client_email"),
+  clientCompany: text("client_company"),
+  clientAddress: text("client_address"),
+  
+  // Pipeline stage
+  stage: varchar("stage").notNull().default("lead"), // 'lead', 'contacto', 'visita', 'lista_precio', 'campana', 'primera_venta', 'promesa', 'venta'
+  
+  // Assignment
+  salespersonId: varchar("salesperson_id").notNull(), // FK to salespeopleUsers.id
+  salespersonName: text("salesperson_name"), // Denormalized for performance
+  supervisorId: varchar("supervisor_id"), // FK to salespeopleUsers.id
+  segment: varchar("segment"), // Segment (noruen)
+  
+  // Activity tracking
+  hasCall: boolean("has_call").default(false),
+  hasWhatsapp: boolean("has_whatsapp").default(false),
+  lastContactDate: timestamp("last_contact_date"),
+  
+  // Metadata
+  estimatedValue: numeric("estimated_value", { precision: 15, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  salespersonIdIdx: index("IDX_crm_leads_salesperson_id").on(table.salespersonId),
+  supervisorIdIdx: index("IDX_crm_leads_supervisor_id").on(table.supervisorId),
+  stageIdx: index("IDX_crm_leads_stage").on(table.stage),
+  segmentIdx: index("IDX_crm_leads_segment").on(table.segment),
+}));
+
+// CRM Comments - Comentarios por lead
+export const crmComments = pgTable("crm_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").notNull(), // FK to crmLeads.id
+  userId: varchar("user_id").notNull(), // FK to salespeopleUsers.id (quien escribió)
+  userName: text("user_name"), // Denormalized for performance
+  comment: text("comment").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  leadIdIdx: index("IDX_crm_comments_lead_id").on(table.leadId),
+  userIdIdx: index("IDX_crm_comments_user_id").on(table.userId),
+}));
+
+// Relations
+export const crmLeadsRelations = relations(crmLeads, ({ many, one }) => ({
+  comments: many(crmComments),
+  salesperson: one(salespeopleUsers, {
+    fields: [crmLeads.salespersonId],
+    references: [salespeopleUsers.id],
+  }),
+  supervisor: one(salespeopleUsers, {
+    fields: [crmLeads.supervisorId],
+    references: [salespeopleUsers.id],
+  }),
+}));
+
+export const crmCommentsRelations = relations(crmComments, ({ one }) => ({
+  lead: one(crmLeads, {
+    fields: [crmComments.leadId],
+    references: [crmLeads.id],
+  }),
+  user: one(salespeopleUsers, {
+    fields: [crmComments.userId],
+    references: [salespeopleUsers.id],
+  }),
+}));
+
+// Types
+export type CrmLead = typeof crmLeads.$inferSelect;
+export type InsertCrmLead = typeof crmLeads.$inferInsert;
+export type CrmComment = typeof crmComments.$inferSelect;
+export type InsertCrmComment = typeof crmComments.$inferInsert;
+
+// Validation schemas
+export const insertCrmLeadSchema = createInsertSchema(crmLeads, {
+  clientName: z.string().min(1, "Nombre del cliente es requerido"),
+  clientPhone: z.string().optional().nullable(),
+  clientEmail: z.string().email("Email inválido").optional().nullable().or(z.literal("")),
+  stage: z.enum(["lead", "contacto", "visita", "lista_precio", "campana", "primera_venta", "promesa", "venta"]).default("lead"),
+  salespersonId: z.string().min(1, "Vendedor es requerido"),
+  estimatedValue: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ).optional().nullable(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCrmCommentSchema = createInsertSchema(crmComments, {
+  leadId: z.string().min(1, "Lead ID es requerido"),
+  userId: z.string().min(1, "User ID es requerido"),
+  comment: z.string().min(1, "Comentario es requerido"),
+}).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCrmLeadInput = z.infer<typeof insertCrmLeadSchema>;
+export type InsertCrmCommentInput = z.infer<typeof insertCrmCommentSchema>;
