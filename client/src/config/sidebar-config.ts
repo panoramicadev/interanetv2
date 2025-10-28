@@ -43,6 +43,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
+      href: "/crm",
+      label: "CRM",
+      icon: ClipboardList,
+    },
+    {
       href: "/metas",
       label: "Gestión de Metas",
       icon: Target,
@@ -82,11 +87,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-    },
-    {
-      href: "/crm",
-      label: "CRM Pipeline",
-      icon: ClipboardList,
     },
     {
       href: "/visitas-tecnicas",
@@ -156,6 +156,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
+      href: "/crm",
+      label: "CRM",
+      icon: ClipboardList,
+    },
+    {
       href: "/metas",
       label: "Gestión de Metas",
       icon: Target,
@@ -195,11 +200,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-    },
-    {
-      href: "/crm",
-      label: "CRM Pipeline",
-      icon: ClipboardList,
     },
     {
       href: "/visitas-tecnicas",
@@ -269,6 +269,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
+      href: "/crm",
+      label: "CRM",
+      icon: ClipboardList,
+    },
+    {
       href: "/lista-precios",
       label: "Lista de Precios",
       icon: DollarSign,
@@ -288,11 +293,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/tomador-pedidos",
       label: "Tomador de Pedidos",
       icon: ClipboardCheck,
-    },
-    {
-      href: "/crm",
-      label: "CRM Pipeline",
-      icon: ClipboardList,
     },
     {
       href: "/reclamos-generales",
