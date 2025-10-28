@@ -1616,6 +1616,9 @@ export function registerRoutes(app: Express): Server {
         ? getDateRange(selectedPeriod as string, filterType as string)
         : { startDate: undefined, endDate: undefined };
       
+      console.log('[CHART-DATA DEBUG] Request params:', { period, selectedPeriod, filterType, salesperson, segment });
+      console.log('[CHART-DATA DEBUG] Date range calculated:', dateRange);
+      
       let chartData = await storage.getSalesChartData(
         period as 'weekly' | 'monthly' | 'daily',
         dateRange.startDate,
@@ -1623,6 +1626,8 @@ export function registerRoutes(app: Express): Server {
         salesperson as string, // Filtrar por vendedor específico
         segment as string // Filtrar por segmento específico
       );
+      
+      console.log('[CHART-DATA DEBUG] Result count:', chartData?.length || 0);
 
       // Transformar etiquetas a nombres de meses en español para vista anual mensual
       if (filterType === 'year' && period === 'monthly') {

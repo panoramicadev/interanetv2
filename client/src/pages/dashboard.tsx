@@ -514,10 +514,36 @@ export default function Dashboard() {
     
     if (!option) return undefined;
     
+    // Calculate the actual period based on comparison type
+    let calculatedPeriod = selectedPeriod;
+    let calculatedFilterType = filterType;
+    
+    // For special comparison values, calculate the actual period
+    if (filterType === "month" && comparePeriod === "same-month-last-year") {
+      // e.g., "2025-09" -> "2024-09"
+      if (selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+        const [year, month] = selectedPeriod.split('-');
+        calculatedPeriod = `${parseInt(year) - 1}-${month}`;
+      }
+    } else if (filterType === "month" && comparePeriod === "previous-month") {
+      // e.g., "2025-09" -> "2025-08"
+      if (selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+        const [year, month] = selectedPeriod.split('-').map(Number);
+        const date = new Date(year, month - 1, 1);
+        date.setMonth(date.getMonth() - 1);
+        calculatedPeriod = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      }
+    } else if (filterType === "year" && comparePeriod === "previous-year") {
+      // e.g., "2025" -> "2024"
+      if (selectedPeriod.match(/^\d{4}$/)) {
+        calculatedPeriod = `${parseInt(selectedPeriod) - 1}`;
+      }
+    }
+    
     return [{
-      period: comparePeriod,
+      period: calculatedPeriod,
       label: option.label,
-      filterType: filterType
+      filterType: calculatedFilterType
     }];
   };
 
