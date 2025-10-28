@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { TrendingUp, BarChart3, Table2 } from "lucide-react";
+import { TrendingUp, BarChart3, Table2, Users, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -37,6 +39,7 @@ interface ComparativeSegmentSalespeopleTableProps {
 
 export default function ComparativeSegmentSalespeopleTable({ segmentName, periods }: ComparativeSegmentSalespeopleTableProps) {
   const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
+  const [selectedSalespeople, setSelectedSalespeople] = useState<string[]>([]);
   
   // Fetch salesperson data for all periods using useQueries
   const salespersonQueries = useQueries({
@@ -62,6 +65,29 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
   const allSalespeople = Array.from(
     new Set(allData.flatMap(data => data.map(item => item.salespersonName)))
   ).sort();
+
+  // Calculate total sales for each salesperson across all periods
+  const salespeopleWithTotals = useMemo(() => {
+    return allSalespeople.map(salesperson => {
+      const totalSales = allData.reduce((sum, periodData) => {
+        const spData = periodData.find(sp => sp.salespersonName === salesperson);
+        return sum + (spData?.totalSales || 0);
+      }, 0);
+      return { salesperson, totalSales };
+    }).sort((a, b) => b.totalSales - a.totalSales);
+  }, [allSalespeople, allData]);
+
+  // Get top 5 salespeople by total sales
+  const top5Salespeople = useMemo(() => {
+    return salespeopleWithTotals.slice(0, 5).map(item => item.salesperson);
+  }, [salespeopleWithTotals]);
+
+  // Initialize with top 5 when data is loaded
+  useEffect(() => {
+    if (!isLoading && top5Salespeople.length > 0 && selectedSalespeople.length === 0) {
+      setSelectedSalespeople(top5Salespeople);
+    }
+  }, [isLoading, top5Salespeople, selectedSalespeople.length]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -149,55 +175,59 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
     'rgb(6, 182, 212)',     // cyan-500
   ];
 
-  // Prepare chart data with each salesperson as a dataset (stacked bars)
+  // Prepare chart data with each salesperson as a dataset (stacked bars) - filtered by selection
   const chartData = isYearOverYear ? {
     labels: months.map(m => {
       const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
       return monthNames[parseInt(m) - 1];
     }),
     datasets: years.flatMap((year, yearIdx) => {
-      // Create a dataset for each salesperson in this year
-      return allSalespeople.map((salesperson, spIdx) => {
-        const data = months.map(month => {
-          const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
-          if (periodIndex === -1) return 0;
+      // Create a dataset for each SELECTED salesperson in this year
+      return allSalespeople
+        .filter(salesperson => selectedSalespeople.includes(salesperson))
+        .map((salesperson, spIdx) => {
+          const data = months.map(month => {
+            const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
+            if (periodIndex === -1) return 0;
+            
+            const periodData = allData[periodIndex];
+            const spData = periodData.find(sp => sp.salespersonName === salesperson);
+            return spData?.totalSales || 0;
+          });
+
+          const color = salespersonColors[spIdx % salespersonColors.length];
           
-          const periodData = allData[periodIndex];
+          return {
+            label: `${salesperson} (${year})`,
+            data,
+            backgroundColor: color,
+            stack: year, // Stack by year for grouped comparison
+            borderRadius: 4,
+            borderSkipped: false,
+          };
+        });
+    })
+  } : {
+    // Regular multi-period view - show each SELECTED salesperson as a dataset
+    labels: periods.map(p => p.label),
+    datasets: allSalespeople
+      .filter(salesperson => selectedSalespeople.includes(salesperson))
+      .map((salesperson, idx) => {
+        const data = allData.map(periodData => {
           const spData = periodData.find(sp => sp.salespersonName === salesperson);
           return spData?.totalSales || 0;
         });
-
-        const color = salespersonColors[spIdx % salespersonColors.length];
+        
+        const color = salespersonColors[idx % salespersonColors.length];
         
         return {
-          label: `${salesperson} (${year})`,
+          label: salesperson,
           data,
           backgroundColor: color,
-          stack: year, // Stack by year for grouped comparison
           borderRadius: 4,
           borderSkipped: false,
         };
-      });
-    })
-  } : {
-    // Regular multi-period view - show each salesperson as a dataset
-    labels: periods.map(p => p.label),
-    datasets: allSalespeople.map((salesperson, idx) => {
-      const data = allData.map(periodData => {
-        const spData = periodData.find(sp => sp.salespersonName === salesperson);
-        return spData?.totalSales || 0;
-      });
-      
-      const color = salespersonColors[idx % salespersonColors.length];
-      
-      return {
-        label: salesperson,
-        data,
-        backgroundColor: color,
-        borderRadius: 4,
-        borderSkipped: false,
-      };
-    })
+      })
   };
 
   const chartOptions: ChartOptions<'bar'> = {
@@ -319,6 +349,91 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
 
       {viewMode === 'chart' ? (
         <div className="bg-white rounded-xl p-6 border border-gray-200">
+          {/* Salesperson selector */}
+          <div className="mb-4 flex items-center gap-3 flex-wrap">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2" data-testid="button-select-salespeople">
+                  <Users className="h-4 w-4" />
+                  Vendedores ({selectedSalespeople.length}/{allSalespeople.length})
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 max-h-96 overflow-y-auto" align="start">
+                <div className="space-y-3">
+                  <div className="font-semibold text-sm text-gray-700 border-b pb-2">
+                    Seleccionar Vendedores
+                  </div>
+                  
+                  {/* Quick action buttons */}
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedSalespeople(allSalespeople)}
+                      className="text-xs"
+                      data-testid="button-select-all"
+                    >
+                      <Check className="h-3 w-3 mr-1" />
+                      Todos
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedSalespeople([])}
+                      className="text-xs"
+                      data-testid="button-clear-selection"
+                    >
+                      Limpiar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedSalespeople(top5Salespeople)}
+                      className="text-xs"
+                      data-testid="button-top5"
+                    >
+                      Top 5
+                    </Button>
+                  </div>
+
+                  {/* Salespeople list with checkboxes */}
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {salespeopleWithTotals.map(({ salesperson, totalSales }) => (
+                      <div key={salesperson} className="flex items-center space-x-2 hover:bg-gray-50 p-2 rounded">
+                        <Checkbox
+                          id={`sp-${salesperson}`}
+                          checked={selectedSalespeople.includes(salesperson)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedSalespeople([...selectedSalespeople, salesperson]);
+                            } else {
+                              setSelectedSalespeople(selectedSalespeople.filter(sp => sp !== salesperson));
+                            }
+                          }}
+                          data-testid={`checkbox-salesperson-${salesperson}`}
+                        />
+                        <label
+                          htmlFor={`sp-${salesperson}`}
+                          className="text-sm flex-1 cursor-pointer flex justify-between items-center"
+                        >
+                          <span className="font-medium text-gray-700">{salesperson}</span>
+                          <span className="text-xs text-gray-500">{formatCurrency(totalSales)}</span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Selected count badge */}
+            {selectedSalespeople.length > 0 && (
+              <div className="text-xs text-gray-600">
+                Mostrando: <span className="font-semibold">{selectedSalespeople.join(', ')}</span>
+              </div>
+            )}
+          </div>
+
           <div className="h-96">
             <Bar data={chartData} options={chartOptions} />
           </div>
