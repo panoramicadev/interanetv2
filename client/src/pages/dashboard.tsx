@@ -22,7 +22,6 @@ import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeKPICards from "@/components/dashboard/comparative-kpi-cards";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import ComparativeSalespeopleTable from "@/components/dashboard/comparative-salespeople-table";
-import ComparativeClientsTable from "@/components/dashboard/comparative-clients-table";
 import ComparativeProductsTable from "@/components/dashboard/comparative-products-table";
 import ComparativePackagingTable from "@/components/dashboard/comparative-packaging-table";
 import { Button } from "@/components/ui/button";
@@ -1131,14 +1130,9 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Comparative Salespeople Table */}
+              {/* Comparative Salespeople Chart */}
               {globalFilter.type === "all" && (
                 <ComparativeSalespeopleTable periods={comparativePeriods} />
-              )}
-
-              {/* Comparative Clients Table */}
-              {globalFilter.type === "all" && (
-                <ComparativeClientsTable periods={comparativePeriods} />
               )}
 
               {/* Comparative Products Table */}
