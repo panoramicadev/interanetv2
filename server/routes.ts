@@ -287,7 +287,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -4090,6 +4090,253 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error marking assignment as read:", error);
       res.status(500).json({ message: "Failed to mark assignment as read" });
+    }
+  });
+
+  // ==================================================================================
+  // CRM Pipeline endpoints
+  // ==================================================================================
+
+  // Get all leads with filters
+  app.get('/api/crm/leads', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { stage, segment } = req.query;
+      
+      // Build filters based on user role
+      const filters: any = {};
+      
+      if (stage) {
+        filters.stage = stage as string;
+      }
+      if (segment) {
+        filters.segment = segment as string;
+      }
+      
+      // Role-based filtering
+      if (user.role === 'salesperson') {
+        filters.salespersonId = user.id;
+      } else if (user.role === 'supervisor') {
+        filters.supervisorId = user.id;
+      }
+      // Admin sees all leads (no filter)
+      
+      const leads = await storage.getAllLeads(filters);
+      res.json(leads);
+    } catch (error) {
+      console.error("Error fetching CRM leads:", error);
+      res.status(500).json({ message: "Failed to fetch leads" });
+    }
+  });
+
+  // Get single lead by ID
+  app.get('/api/crm/leads/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const lead = await storage.getLeadById(id);
+      
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      
+      // Check authorization
+      const canView = user.role === 'admin' || 
+                     user.role === 'supervisor' || 
+                     lead.salespersonId === user.id;
+      
+      if (!canView) {
+        return res.status(403).json({ message: "Not authorized to view this lead" });
+      }
+      
+      res.json(lead);
+    } catch (error) {
+      console.error("Error fetching lead:", error);
+      res.status(500).json({ message: "Failed to fetch lead" });
+    }
+  });
+
+  // Create new lead
+  app.post('/api/crm/leads', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Validate request body
+      const validation = insertCrmLeadSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid lead data", 
+          errors: validation.error.issues 
+        });
+      }
+      
+      // Get salesperson info
+      const salesperson = await storage.getSalespersonUser(validation.data.salespersonId);
+      if (!salesperson) {
+        return res.status(400).json({ message: "Salesperson not found" });
+      }
+      
+      const leadData = {
+        ...validation.data,
+        salespersonName: salesperson.salespersonName,
+        supervisorId: salesperson.supervisorId || undefined,
+      };
+      
+      const newLead = await storage.createLead(leadData);
+      res.status(201).json(newLead);
+    } catch (error) {
+      console.error("Error creating lead:", error);
+      res.status(500).json({ message: "Failed to create lead" });
+    }
+  });
+
+  // Update lead (including stage changes, activity tracking)
+  app.put('/api/crm/leads/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const lead = await storage.getLeadById(id);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      
+      // Check authorization
+      const canEdit = user.role === 'admin' || 
+                     user.role === 'supervisor' || 
+                     lead.salespersonId === user.id;
+      
+      if (!canEdit) {
+        return res.status(403).json({ message: "Not authorized to edit this lead" });
+      }
+      
+      const updatedLead = await storage.updateLead(id, req.body);
+      res.json(updatedLead);
+    } catch (error) {
+      console.error("Error updating lead:", error);
+      res.status(500).json({ message: "Failed to update lead" });
+    }
+  });
+
+  // Delete lead
+  app.delete('/api/crm/leads/:id', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const lead = await storage.getLeadById(id);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      
+      // Only admin or supervisor can delete
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Not authorized to delete leads" });
+      }
+      
+      await storage.deleteLead(id);
+      res.json({ message: "Lead deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting lead:", error);
+      res.status(500).json({ message: "Failed to delete lead" });
+    }
+  });
+
+  // Get comments for a lead
+  app.get('/api/crm/leads/:id/comments', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const lead = await storage.getLeadById(id);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      
+      // Check authorization
+      const canView = user.role === 'admin' || 
+                     user.role === 'supervisor' || 
+                     lead.salespersonId === user.id;
+      
+      if (!canView) {
+        return res.status(403).json({ message: "Not authorized to view comments" });
+      }
+      
+      const comments = await storage.getLeadComments(id);
+      res.json(comments);
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+
+  // Create comment for a lead
+  app.post('/api/crm/leads/:id/comments', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      const { comment } = req.body;
+      
+      if (!comment || comment.trim() === '') {
+        return res.status(400).json({ message: "Comment is required" });
+      }
+      
+      const lead = await storage.getLeadById(id);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      
+      // Check authorization
+      const canComment = user.role === 'admin' || 
+                        user.role === 'supervisor' || 
+                        lead.salespersonId === user.id;
+      
+      if (!canComment) {
+        return res.status(403).json({ message: "Not authorized to comment" });
+      }
+      
+      // Get user name
+      const userRecord = await storage.getSalespersonUser(user.id);
+      const userName = userRecord?.salespersonName || user.firstName || 'Usuario';
+      
+      const newComment = await storage.createLeadComment({
+        leadId: id,
+        userId: user.id,
+        userName,
+        comment: comment.trim(),
+      });
+      
+      res.status(201).json(newComment);
+    } catch (error) {
+      console.error("Error creating comment:", error);
+      res.status(500).json({ message: "Failed to create comment" });
+    }
+  });
+
+  // Get CRM statistics
+  app.get('/api/crm/stats', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { startDate, endDate } = req.query;
+      
+      const filters: any = {};
+      
+      if (startDate) filters.startDate = startDate as string;
+      if (endDate) filters.endDate = endDate as string;
+      
+      // Role-based filtering
+      if (user.role === 'salesperson') {
+        filters.salespersonId = user.id;
+      } else if (user.role === 'supervisor') {
+        filters.supervisorId = user.id;
+      }
+      
+      const stats = await storage.getCrmStats(filters);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching CRM stats:", error);
+      res.status(500).json({ message: "Failed to fetch CRM statistics" });
     }
   });
 

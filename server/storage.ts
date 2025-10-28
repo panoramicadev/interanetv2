@@ -21,6 +21,8 @@ import {
   ecommerceProducts,
   nvvPendingSales,
   fileUploads,
+  crmLeads,
+  crmComments,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -73,6 +75,10 @@ import {
   type EcommerceProductFilters,
   type StoreConfig,
   type StoreBanner,
+  type CrmLead,
+  type InsertCrmLead,
+  type CrmComment,
+  type InsertCrmComment,
   type NvvPendingSales,
   type InsertNvvPendingSales,
   type NvvImportResult,
@@ -12207,6 +12213,166 @@ export class DatabaseStorage implements IStorage {
         execution_time_ms = EXTRACT(EPOCH FROM (${now.toISOString()}::timestamp - execution_date)) * 1000
       WHERE id = ${executionId}
     `);
+  }
+
+  // ==================================================================================
+  // CRM Pipeline operations
+  // ==================================================================================
+
+  async getAllLeads(filters?: {
+    salespersonId?: string;
+    supervisorId?: string;
+    segment?: string;
+    stage?: string;
+  }): Promise<CrmLead[]> {
+    let query = db.select().from(crmLeads);
+    const conditions = [];
+    
+    if (filters?.salespersonId) {
+      conditions.push(eq(crmLeads.salespersonId, filters.salespersonId));
+    }
+    if (filters?.supervisorId) {
+      conditions.push(eq(crmLeads.supervisorId, filters.supervisorId));
+    }
+    if (filters?.segment) {
+      conditions.push(eq(crmLeads.segment, filters.segment));
+    }
+    if (filters?.stage) {
+      conditions.push(eq(crmLeads.stage, filters.stage));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    const results = await query.orderBy(desc(crmLeads.createdAt));
+    return results;
+  }
+
+  async getLeadById(id: string): Promise<CrmLead | undefined> {
+    const result = await db.select().from(crmLeads).where(eq(crmLeads.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createLead(lead: InsertCrmLead): Promise<CrmLead> {
+    const [newLead] = await db.insert(crmLeads).values(lead).returning();
+    return newLead;
+  }
+
+  async updateLead(id: string, updates: Partial<InsertCrmLead>): Promise<CrmLead | undefined> {
+    const [updatedLead] = await db
+      .update(crmLeads)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(crmLeads.id, id))
+      .returning();
+    return updatedLead;
+  }
+
+  async deleteLead(id: string): Promise<void> {
+    // First delete all comments
+    await db.delete(crmComments).where(eq(crmComments.leadId, id));
+    // Then delete the lead
+    await db.delete(crmLeads).where(eq(crmLeads.id, id));
+  }
+
+  async getLeadComments(leadId: string): Promise<CrmComment[]> {
+    const results = await db
+      .select()
+      .from(crmComments)
+      .where(eq(crmComments.leadId, leadId))
+      .orderBy(desc(crmComments.createdAt));
+    return results;
+  }
+
+  async createLeadComment(comment: InsertCrmComment): Promise<CrmComment> {
+    const [newComment] = await db.insert(crmComments).values(comment).returning();
+    return newComment;
+  }
+
+  async getCrmStats(filters?: {
+    salespersonId?: string;
+    supervisorId?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    totalLeads: number;
+    newLeads: number;
+    callsCount: number;
+    whatsappCount: number;
+    byStage: Array<{ stage: string; count: number }>;
+  }> {
+    const conditions = [];
+    
+    if (filters?.salespersonId) {
+      conditions.push(eq(crmLeads.salespersonId, filters.salespersonId));
+    }
+    if (filters?.supervisorId) {
+      conditions.push(eq(crmLeads.supervisorId, filters.supervisorId));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(crmLeads.createdAt, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(crmLeads.createdAt, filters.endDate));
+    }
+    
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get total leads
+    const totalResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(crmLeads)
+      .where(whereClause);
+    
+    // Get new leads (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const newLeadsConditions = [...(conditions || [])];
+    newLeadsConditions.push(gte(crmLeads.createdAt, thirtyDaysAgo.toISOString()));
+    
+    const newLeadsResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(crmLeads)
+      .where(and(...newLeadsConditions));
+    
+    // Get calls count
+    const callsConditions = [...(conditions || [])];
+    callsConditions.push(eq(crmLeads.hasCall, true));
+    
+    const callsResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(crmLeads)
+      .where(and(...callsConditions));
+    
+    // Get whatsapp count
+    const whatsappConditions = [...(conditions || [])];
+    whatsappConditions.push(eq(crmLeads.hasWhatsapp, true));
+    
+    const whatsappResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(crmLeads)
+      .where(and(...whatsappConditions));
+    
+    // Get by stage
+    const byStageResult = await db
+      .select({
+        stage: crmLeads.stage,
+        count: sql<number>`count(*)`,
+      })
+      .from(crmLeads)
+      .where(whereClause)
+      .groupBy(crmLeads.stage);
+
+    return {
+      totalLeads: Number(totalResult[0]?.count || 0),
+      newLeads: Number(newLeadsResult[0]?.count || 0),
+      callsCount: Number(callsResult[0]?.count || 0),
+      whatsappCount: Number(whatsappResult[0]?.count || 0),
+      byStage: byStageResult.map(r => ({
+        stage: r.stage || '',
+        count: Number(r.count),
+      })),
+    };
   }
 
 }
