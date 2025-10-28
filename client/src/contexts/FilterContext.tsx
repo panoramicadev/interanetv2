@@ -106,6 +106,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       old: selection,
       new: newSelection
     });
+    console.trace("📍 Stack trace de setSelection");
     
     // Comparación profunda para evitar actualizaciones innecesarias
     const isSame = JSON.stringify(selection) === JSON.stringify(newSelection);
@@ -114,6 +115,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       return;
     }
     
+    console.log("✅ [FilterContext] Actualizando selection state");
     setSelectionState(newSelection);
   };
 
