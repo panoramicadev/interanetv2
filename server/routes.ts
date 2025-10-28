@@ -4094,6 +4094,28 @@ export function registerRoutes(app: Express): Server {
   });
 
   // ==================================================================================
+  // Users endpoint for CRM
+  // ==================================================================================
+  
+  // Get all users (for dropdowns like salesperson assignment)
+  app.get('/api/users', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Only admin, supervisor, and salesperson can view users list
+      if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+      
+      const users = await storage.getSalespeopleUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // ==================================================================================
   // CRM Pipeline endpoints
   // ==================================================================================
 
