@@ -6668,10 +6668,52 @@ export function registerRoutes(app: Express): Server {
     // Get date range for filtering
     const dateRange = getDateRange(period as string, filterType as string);
 
+    // Convert string dates to Date objects
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    
+    if (dateRange.startDate) {
+      startDate = new Date(dateRange.startDate);
+    }
+    if (dateRange.endDate) {
+      endDate = new Date(dateRange.endDate);
+    }
+
     const nvvData = await storage.getNvvBySalesperson({
       salesperson: salesperson as string,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate
+      startDate,
+      endDate
+    });
+
+    res.json(nvvData);
+  }));
+
+  // Get NVV by segment with period filtering
+  app.get('/api/nvv/by-segment', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { segment, period, filterType } = req.query;
+
+    if (!segment) {
+      return res.status(400).json({ message: 'Segment parameter is required' });
+    }
+
+    // Get date range for filtering
+    const dateRange = getDateRange(period as string, filterType as string);
+
+    // Convert string dates to Date objects
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    
+    if (dateRange.startDate) {
+      startDate = new Date(dateRange.startDate);
+    }
+    if (dateRange.endDate) {
+      endDate = new Date(dateRange.endDate);
+    }
+
+    const nvvData = await storage.getNvvBySegment({
+      segment: segment as string,
+      startDate,
+      endDate
     });
 
     res.json(nvvData);

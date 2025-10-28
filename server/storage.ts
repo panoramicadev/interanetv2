@@ -9193,6 +9193,120 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getNvvBySegment(options: {
+    segment: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<Array<{
+    id: string;
+    NUDO: string;
+    TIDO: string;
+    FEEMDO: string;
+    ENDO: string;
+    NOKOEN: string;
+    NOKOPR: string;
+    KOPRCT: string;
+    CAPREX2: number;
+    CAPRCO2: number;
+    PPPRNE: number;
+    cantidadPendiente: number;
+    montoPendiente: number;
+  }>> {
+    try {
+      // First, get all KOFULIDO codes for salespeople in this segment
+      const salespeopleInSegment = await db
+        .select({
+          kofulido: salesTransactions.kofulido
+        })
+        .from(salesTransactions)
+        .where(
+          and(
+            isNotNull(salesTransactions.kofulido),
+            isNotNull(salesTransactions.segment),
+            sql`TRIM(UPPER(${salesTransactions.segment})) = TRIM(UPPER(${options.segment}))`
+          )
+        )
+        .groupBy(salesTransactions.kofulido);
+
+      // If no salespeople found in segment, return empty array
+      if (!salespeopleInSegment || salespeopleInSegment.length === 0) {
+        console.log(`No salespeople found in segment: ${options.segment}`);
+        return [];
+      }
+
+      const kofulidoCodes = salespeopleInSegment
+        .map(sp => sp.kofulido?.trim().toUpperCase())
+        .filter(Boolean) as string[];
+
+      console.log(`Found ${kofulidoCodes.length} salespeople in segment ${options.segment}: ${kofulidoCodes.join(', ')}`);
+
+      // Now filter NVV data using the KOFULIDO codes
+      const conditions = [
+        isNotNull(nvvPendingSales.KOFULIDO),
+        sql`TRIM(UPPER(${nvvPendingSales.KOFULIDO})) IN (${sql.raw(kofulidoCodes.map(k => `'${k}'`).join(','))})`
+      ];
+
+      // Add date filters if provided
+      if (options.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
+        conditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
+      }
+      if (options.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
+        conditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
+      }
+
+      const results = await db
+        .select({
+          id: nvvPendingSales.id,
+          NUDO: nvvPendingSales.NUDO,
+          TIDO: nvvPendingSales.TIDO,
+          FEEMDO: nvvPendingSales.FEEMDO,
+          ENDO: nvvPendingSales.ENDO,
+          NOKOEN: nvvPendingSales.NOKOEN,
+          NOKOPR: nvvPendingSales.NOKOPR,
+          KOPRCT: nvvPendingSales.KOPRCT,
+          CAPREX2: nvvPendingSales.CAPREX2,
+          CAPRCO2: nvvPendingSales.CAPRCO2,
+          PPPRNE: nvvPendingSales.PPPRNE,
+          cantidadPendiente: sql<number>`
+            GREATEST(
+              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
+              0
+            )`,
+          montoPendiente: sql<number>`
+            GREATEST(
+              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
+              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
+              0
+            ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)`
+        })
+        .from(nvvPendingSales)
+        .where(and(...conditions))
+        .orderBy(desc(nvvPendingSales.FEEMDO));
+
+      console.log(`Found ${results.length} NVV records for segment ${options.segment}`);
+
+      return results.map(row => ({
+        id: row.id,
+        NUDO: row.NUDO || '',
+        TIDO: row.TIDO || '',
+        FEEMDO: row.FEEMDO?.toString() || '',
+        ENDO: row.ENDO || '',
+        NOKOEN: row.NOKOEN || '',
+        NOKOPR: row.NOKOPR || '',
+        KOPRCT: row.KOPRCT || '',
+        CAPREX2: Number(row.CAPREX2) || 0,
+        CAPRCO2: Number(row.CAPRCO2) || 0,
+        PPPRNE: Number(row.PPPRNE) || 0,
+        cantidadPendiente: Number(row.cantidadPendiente) || 0,
+        montoPendiente: Number(row.montoPendiente) || 0
+      }));
+    } catch (error) {
+      console.error('Error getting NVV by segment:', error);
+      return [];
+    }
+  }
+
   async getNvvDashboardMetrics(): Promise<{
     totalRecords: number;
     totalSalespeople: number;
