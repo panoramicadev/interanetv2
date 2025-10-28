@@ -207,13 +207,22 @@ export default function SegmentDetail({
 
   // Generate list of periods for comparative mode
   const comparativePeriods = (() => {
-    if (!isComparativeMode) return [];
+    if (!isComparativeMode) {
+      console.log("⏭️ [segment-detail] NO comparative mode, retornando array vacío");
+      return [];
+    }
     
-    console.log("📊 [segment-detail] Generando períodos comparativos...");
+    console.log("📊 [segment-detail] Generando períodos comparativos...", { 
+      period: selection.period,
+      months: selection.months,
+      years: selection.years,
+      isComparativeMode 
+    });
     const periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }> = [];
     
     // Comparativa mes-a-año: cuando hay múltiples años Y múltiples meses
     if (selection.period === "months" && selection.months && selection.months.length > 1 && selection.years.length > 1) {
+      console.log("🔄 Caso: múltiples meses Y múltiples años");
       // Para cada mes, crear columnas para cada año
       selection.months.forEach(month => {
         selection.years.forEach(year => {
@@ -227,7 +236,7 @@ export default function SegmentDetail({
     // Múltiples meses en un solo año
     else if (selection.period === "months" && selection.months && selection.months.length > 1) {
       const year = selection.years[0];
-      console.log("📅 Procesando múltiples meses en un solo año:", { year, months: selection.months });
+      console.log("📅 Caso: múltiples meses en un solo año:", { year, months: selection.months });
       selection.months.forEach(month => {
         const monthStr = String(month).padStart(2, '0');
         const period = `${year}-${monthStr}`;
