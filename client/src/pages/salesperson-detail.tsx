@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
-import ComparativeSalespersonMetrics from "@/components/dashboard/comparative-salesperson-metrics";
+import ComparativeSalespersonTable from "@/components/dashboard/comparative-salesperson-table";
 
 interface GoalProgress {
   id: string;
@@ -684,8 +684,8 @@ export default function SalespersonDetail({
           {/* Comparative Mode Layout */}
           {isComparativeMode ? (
             <>
-              {/* Comparative Metrics Table */}
-              <ComparativeSalespersonMetrics 
+              {/* Comparative Salesperson Chart and Table */}
+              <ComparativeSalespersonTable 
                 salespersonName={salespersonName || ''}
                 periods={comparativePeriods}
               />
