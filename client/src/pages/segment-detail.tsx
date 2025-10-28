@@ -123,47 +123,9 @@ export default function SegmentDetail({
     console.trace("📍 Stack trace de handleSelectionChange");
     setSelection(newSelection);
     
-    // If embedded and onDateFilterChange is provided, notify the dashboard
-    if (embedded && onDateFilterChange) {
-      // Convert selection to dashboard format
-      let newFilterType: "day" | "month" | "year" | "range" = "month";
-      if (newSelection.period === "day" || newSelection.period === "days") newFilterType = "day";
-      if (newSelection.period === "month" || newSelection.period === "months") newFilterType = "month";
-      if (newSelection.period === "full-year") newFilterType = "year";
-      if (newSelection.period === "custom-range") newFilterType = "range";
-      
-      let newPeriod = "";
-      if ((newSelection.period === "month" || newSelection.period === "months") && newSelection.months && newSelection.months.length > 0) {
-        // For single or multiple months mode, use the first month
-        const year = newSelection.years[0];
-        const month = newSelection.months[0]; // Already in 1-12 format from YearMonthSelector
-        newPeriod = `${year}-${String(month).padStart(2, '0')}`;
-      } else if (newSelection.period === "full-year") {
-        newPeriod = `${newSelection.years[0]}-01`;
-      } else if ((newSelection.period === "day" || newSelection.period === "days") && newSelection.days && newSelection.days.length > 0) {
-        const year = newSelection.years[0];
-        const month = newSelection.months && newSelection.months.length > 0 ? newSelection.months[0] : 1;
-        const day = newSelection.days[0];
-        newPeriod = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      } else if (newSelection.period === "custom-range") {
-        newPeriod = "custom-range";
-      } else {
-        // Fallback for any other cases
-        newPeriod = format(new Date(), "yyyy-MM");
-      }
-      
-      const newDate = (newSelection.period === "day" || newSelection.period === "days") && newSelection.days && newSelection.days.length > 0
-        ? new Date(newSelection.years[0], (newSelection.months && newSelection.months.length > 0 ? newSelection.months[0] - 1 : 0), newSelection.days[0])
-        : undefined;
-      
-      const newYear = newSelection.years[0];
-      
-      const newRange = newSelection.period === "custom-range" && newSelection.startDate && newSelection.endDate
-        ? { from: newSelection.startDate, to: newSelection.endDate }
-        : undefined;
-      
-      onDateFilterChange(newFilterType, newPeriod, newDate, newYear, newRange);
-    }
+    // NOTE: We no longer notify dashboard via onDateFilterChange when embedded
+    // because segment-detail now uses FilterContext directly, which is shared with dashboard.
+    // Calling onDateFilterChange would cause a second setSelection call that loses multi-period data.
   };
   
   // Use dashboard props when embedded, otherwise derive from selection
