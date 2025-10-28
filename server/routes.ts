@@ -6688,7 +6688,7 @@ export function registerRoutes(app: Express): Server {
     res.json(nvvData);
   }));
 
-  // Get NVV by segment (sin filtros de fecha para coincidir con módulo NVV)
+  // Get NVV by segment (usando misma lógica que el gráfico del módulo NVV)
   app.get('/api/nvv/by-segment', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { segment } = req.query;
 
@@ -6696,13 +6696,91 @@ export function registerRoutes(app: Express): Server {
       return res.status(400).json({ message: 'Segment parameter is required' });
     }
 
-    // NO aplicar filtros de fecha - retornar TODOS los NVV pendientes del segmento
-    // para coincidir con los montos del gráfico del módulo NVV principal
-    const nvvData = await storage.getNvvBySegment({
-      segment: segment as string
+    // Usar la MISMA lógica que el gráfico del módulo NVV:
+    // 1. Obtener mapping kofulido → segment de sales_transactions
+    // 2. Filtrar NVV por los KOFULIDO que mapean a este segmento
+    
+    // Get kofulido to segment mapping
+    const salespersonSegmentResults = await db
+      .selectDistinct({
+        kofulido: salesTransactions.kofulido,
+        noruen: salesTransactions.noruen,
+      })
+      .from(salesTransactions)
+      .where(
+        and(
+          isNotNull(salesTransactions.kofulido),
+          isNotNull(salesTransactions.noruen),
+          ne(salesTransactions.kofulido, ''),
+          ne(salesTransactions.noruen, '')
+        )
+      );
+
+    const kofulidoToSegment: Record<string, string> = {};
+    salespersonSegmentResults.forEach(result => {
+      if (result.kofulido && result.noruen) {
+        kofulidoToSegment[result.kofulido] = result.noruen;
+      }
     });
 
-    res.json(nvvData);
+    // Find all KOFULIDO codes that map to this segment
+    const kofulidoCodes = Object.entries(kofulidoToSegment)
+      .filter(([_, seg]) => seg.trim().toUpperCase() === segment.toString().trim().toUpperCase())
+      .map(([kofulido, _]) => kofulido.trim().toUpperCase())
+      .filter(Boolean);
+
+    if (kofulidoCodes.length === 0) {
+      console.log(`No salespeople found mapping to segment: ${segment}`);
+      return res.json([]);
+    }
+
+    console.log(`Found ${kofulidoCodes.length} salespeople mapping to segment ${segment}: ${kofulidoCodes.join(', ')}`);
+
+    // Get all NVV for these salespeople (sin filtros de fecha)
+    const nvvData = await db
+      .select({
+        id: nvvPendingSales.id,
+        NUDO: nvvPendingSales.NUDO,
+        TIDO: nvvPendingSales.TIDO,
+        FEEMDO: nvvPendingSales.FEEMDO,
+        ENDO: nvvPendingSales.ENDO,
+        NOKOEN: nvvPendingSales.NOKOEN,
+        NOKOPR: nvvPendingSales.NOKOPR,
+        KOPRCT: nvvPendingSales.KOPRCT,
+        CAPREX2: nvvPendingSales.CAPREX2,
+        CAPRCO2: nvvPendingSales.CAPRCO2,
+        PPPRNE: nvvPendingSales.PPPRNE,
+        cantidadPendiente: nvvPendingSales.cantidadPendiente,
+        totalPendiente: nvvPendingSales.totalPendiente
+      })
+      .from(nvvPendingSales)
+      .where(
+        and(
+          isNotNull(nvvPendingSales.KOFULIDO),
+          sql`TRIM(UPPER(${nvvPendingSales.KOFULIDO})) IN (${sql.raw(kofulidoCodes.map(k => `'${k}'`).join(','))})`
+        )
+      )
+      .orderBy(desc(nvvPendingSales.FEEMDO));
+
+    console.log(`Found ${nvvData.length} NVV records for segment ${segment}`);
+
+    const results = nvvData.map(row => ({
+      id: row.id,
+      NUDO: row.NUDO || '',
+      TIDO: row.TIDO || '',
+      FEEMDO: row.FEEMDO?.toString() || '',
+      ENDO: row.ENDO || '',
+      NOKOEN: row.NOKOEN || '',
+      NOKOPR: row.NOKOPR || '',
+      KOPRCT: row.KOPRCT || '',
+      CAPREX2: Number(row.CAPREX2) || 0,
+      CAPRCO2: Number(row.CAPRCO2) || 0,
+      PPPRNE: Number(row.PPPRNE) || 0,
+      cantidadPendiente: Number(row.cantidadPendiente) || 0,
+      totalPendiente: Number(row.totalPendiente) || 0
+    }));
+
+    res.json(results);
   }));
 
   // Get all NVV grouped by salespeople
