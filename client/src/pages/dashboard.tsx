@@ -228,15 +228,6 @@ export default function Dashboard() {
   const [localGlobalFilter, setLocalGlobalFilter] = useState(globalFilter);
   const [localComparePeriod, setLocalComparePeriod] = useState(comparePeriod);
   
-  // Set default comparison period based on filter type
-  useEffect(() => {
-    if (filterType === "month") {
-      setComparePeriod("same-month-last-year");
-    } else {
-      setComparePeriod("none");
-    }
-  }, [filterType]);
-  
   // Get current location from wouter
   const [currentLocation] = useLocation();
   
