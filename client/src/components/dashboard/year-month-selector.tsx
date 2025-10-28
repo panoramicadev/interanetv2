@@ -39,14 +39,22 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   // Load current selection ONLY when opening the popover
   // Store the previous open state to detect transitions
   const prevOpenRef = useRef(open);
+  const appliedRef = useRef(false); // Flag to know if we closed after applying
   
   useEffect(() => {
-    // Only sync when the popover transitions from closed to open
-    if (open && !prevOpenRef.current && value) {
+    if (open && !prevOpenRef.current) {
+      // Abriendo el popover - cargar selección actual del prop
       console.log("📂 [YearMonthSelector] Cargando selección al abrir:", value);
-      setSelectedYears(value.years || []);
-      setSelectedMonths(value.months ? value.months.map(m => m - 1) : []);
-      setSelectedDays(value.days || []);
+      setSelectedYears(value?.years || []);
+      setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
+      setSelectedDays(value?.days || []);
+      appliedRef.current = false; // Reset applied flag
+    } else if (!open && prevOpenRef.current && !appliedRef.current) {
+      // Cerrando el popover SIN aplicar - revertir a los valores del prop
+      console.log("📂 [YearMonthSelector] Revirtiendo cambios al cerrar sin aplicar");
+      setSelectedYears(value?.years || []);
+      setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
+      setSelectedDays(value?.days || []);
     }
     prevOpenRef.current = open;
   }, [open, value]);
@@ -84,6 +92,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       ? `${selectedYears[0]}`
       : `${selectedYears.join(", ")}`;
 
+    appliedRef.current = true; // Mark as applied
     onChange({
       years: selectedYears,
       period: "full-year",
@@ -125,6 +134,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       selection
     });
 
+    appliedRef.current = true; // Mark as applied
     onChange(selection);
     setOpen(false);
   };
@@ -148,6 +158,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         : `Días ${daysStr} de ${monthsStr} (${selectedYears.join(", ")})`;
     }
 
+    appliedRef.current = true; // Mark as applied
     onChange({
       years: selectedYears,
       period: selectedDays.length === 1 ? "day" : "days",
@@ -160,14 +171,8 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   };
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (newOpen) {
-      // Al abrir, sincronizar con el valor actual
-      setSelectedYears(value?.years || []);
-      setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
-      setSelectedDays(value?.days || []);
-    }
-    // No revertir al cerrar - el estado ya se sincroniza al abrir
     setOpen(newOpen);
+    // La sincronización se maneja en el useEffect cuando se detecta la transición
   };
 
   // Get number of days in selected month
