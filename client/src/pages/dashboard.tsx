@@ -1233,7 +1233,7 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Ventas por Segmento - Full Width Chart - Ocultar cuando hay filtro activo */}
+              {/* Ventas por Segmento - Full Width Chart - Mostrar arriba, solo en dashboard principal */}
               {globalFilter.type === "all" && (
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                   <SegmentChart 
@@ -1247,6 +1247,16 @@ export default function Dashboard() {
                 </div>
               )}
 
+              {/* Products Chart - Mostrar productos antes que vendedores/clientes */}
+              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <TopProductsChart 
+                  selectedPeriod={selectedPeriod} 
+                  filterType={filterType}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                />
+              </div>
+
               {/* Sales Team & Client Analytics - Full Width Column */}
               <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                 <TopSalespeoplePanel 
@@ -1259,16 +1269,6 @@ export default function Dashboard() {
 
               <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                 <TopClientsPanel 
-                  selectedPeriod={selectedPeriod} 
-                  filterType={filterType}
-                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                />
-              </div>
-
-              {/* Products Chart */}
-              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                <TopProductsChart 
                   selectedPeriod={selectedPeriod} 
                   filterType={filterType}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
