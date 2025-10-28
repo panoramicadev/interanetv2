@@ -175,59 +175,60 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
     'rgb(6, 182, 212)',     // cyan-500
   ];
 
-  // Prepare chart data with each salesperson as a dataset (stacked bars) - filtered by selection
+  // Prepare chart data - SIMPLE: show total by period with vendor breakdown in tooltip only
   const chartData = isYearOverYear ? {
+    // For year-over-year: show bars grouped by year (one bar per year-month combination)
     labels: months.map(m => {
       const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
       return monthNames[parseInt(m) - 1];
     }),
-    datasets: years.flatMap((year, yearIdx) => {
-      // Create a dataset for each SELECTED salesperson in this year
-      return allSalespeople
-        .filter(salesperson => selectedSalespeople.includes(salesperson))
-        .map((salesperson, spIdx) => {
-          const data = months.map(month => {
-            const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
-            if (periodIndex === -1) return 0;
-            
-            const periodData = allData[periodIndex];
-            const spData = periodData.find(sp => sp.salespersonName === salesperson);
-            return spData?.totalSales || 0;
-          });
+    datasets: years.map((year, yearIdx) => {
+      const data = months.map(month => {
+        const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
+        if (periodIndex === -1) return 0;
+        
+        const periodData = allData[periodIndex];
+        // Sum only selected salespeople
+        return periodData
+          .filter(sp => selectedSalespeople.includes(sp.salespersonName))
+          .reduce((sum, sp) => sum + sp.totalSales, 0);
+      });
 
-          const color = salespersonColors[spIdx % salespersonColors.length];
-          
-          return {
-            label: `${salesperson} (${year})`,
-            data,
-            backgroundColor: color,
-            stack: year, // Stack by year for grouped comparison
-            borderRadius: 4,
-            borderSkipped: false,
-          };
-        });
+      const color = yearColors[yearIdx % yearColors.length];
+      
+      return {
+        label: year,
+        data,
+        backgroundColor: color,
+        borderRadius: 6,
+        borderSkipped: false,
+        // Store period data for custom tooltips
+        periodData: months.map(month => {
+          const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
+          if (periodIndex === -1) return [];
+          const periodData = allData[periodIndex];
+          return periodData.filter(sp => selectedSalespeople.includes(sp.salespersonName));
+        })
+      };
     })
   } : {
-    // Regular multi-period view - show each SELECTED salesperson as a dataset
+    // Regular multi-period view - simple bars with total
     labels: periods.map(p => p.label),
-    datasets: allSalespeople
-      .filter(salesperson => selectedSalespeople.includes(salesperson))
-      .map((salesperson, idx) => {
-        const data = allData.map(periodData => {
-          const spData = periodData.find(sp => sp.salespersonName === salesperson);
-          return spData?.totalSales || 0;
-        });
-        
-        const color = salespersonColors[idx % salespersonColors.length];
-        
-        return {
-          label: salesperson,
-          data,
-          backgroundColor: color,
-          borderRadius: 4,
-          borderSkipped: false,
-        };
-      })
+    datasets: [{
+      label: 'Ventas Totales',
+      data: allData.map(periodData => 
+        periodData
+          .filter(sp => selectedSalespeople.includes(sp.salespersonName))
+          .reduce((sum, sp) => sum + sp.totalSales, 0)
+      ),
+      backgroundColor: 'rgb(16, 185, 129)',
+      borderRadius: 6,
+      borderSkipped: false,
+      // Store salesperson data for tooltips
+      salespersonData: allData.map(periodData => 
+        periodData.filter(sp => selectedSalespeople.includes(sp.salespersonName))
+      )
+    }]
   };
 
   const chartOptions: ChartOptions<'bar'> = {
@@ -248,36 +249,68 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
         },
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        padding: 12,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        padding: 16,
         titleFont: {
           size: 14,
           weight: 'bold',
         },
         bodyFont: {
-          size: 13,
+          size: 12,
         },
         callbacks: {
           label: function(context) {
-            const label = context.dataset.label || '';
             const value = formatCurrency(context.parsed.y);
-            return `${label}: ${value}`;
+            return `Total: ${value}`;
           },
-          footer: function(tooltipItems) {
-            // Show total for stacked bars
-            const total = tooltipItems.reduce((sum, item) => sum + item.parsed.y, 0);
-            return `Total: ${formatCurrency(total)}`;
+          afterLabel: function(context) {
+            // Show salesperson breakdown
+            const datasetIndex = context.datasetIndex;
+            const dataIndex = context.dataIndex;
+            const dataset: any = context.chart.data.datasets[datasetIndex];
+            
+            // Get salesperson data for this bar
+            let salespersonData: SalespersonData[] = [];
+            if (dataset.periodData) {
+              // Year-over-year mode
+              salespersonData = dataset.periodData[dataIndex] || [];
+            } else if (dataset.salespersonData) {
+              // Regular mode
+              salespersonData = dataset.salespersonData[dataIndex] || [];
+            }
+            
+            if (salespersonData.length === 0) return '';
+            
+            // Format salesperson breakdown
+            const lines = ['\nDesglose por vendedor:'];
+            salespersonData
+              .sort((a, b) => b.totalSales - a.totalSales)
+              .forEach(sp => {
+                lines.push(`  ${sp.salespersonName}: ${formatCurrency(sp.totalSales)}`);
+              });
+            
+            return lines;
           }
         }
       },
       datalabels: {
-        display: false, // Disable individual labels on stacked bars
+        anchor: 'end',
+        align: 'top',
+        formatter: (value: number) => {
+          if (value === 0) return '';
+          // Format in millions with 'M' suffix
+          return `$${(value / 1000000).toFixed(1)}M`;
+        },
+        font: {
+          size: 11,
+          weight: 'bold',
+        },
+        color: '#374151',
       }
     },
     scales: {
       y: {
         beginAtZero: true,
-        stacked: true, // Enable stacking for Y axis
         ticks: {
           callback: function(value) {
             return formatCurrency(Number(value));
@@ -291,7 +324,6 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
         },
       },
       x: {
-        stacked: true, // Enable stacking for X axis
         grid: {
           display: false,
         },
@@ -437,13 +469,15 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
           <div className="h-96">
             <Bar data={chartData} options={chartOptions} />
           </div>
-          {isYearOverYear && (
-            <div className="mt-4 text-center">
-              <p className="text-sm text-gray-600">
-                Comparación de ventas por vendedor en <span className="font-semibold">{segmentName}</span> por mes a través de los años
-              </p>
-            </div>
-          )}
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-600">
+              {isYearOverYear ? (
+                <>Comparación de ventas totales en <span className="font-semibold">{segmentName}</span> por mes a través de los años. Pasa el mouse sobre las barras para ver el desglose por vendedor.</>
+              ) : (
+                <>Ventas totales de vendedores seleccionados en <span className="font-semibold">{segmentName}</span>. Pasa el mouse sobre las barras para ver el desglose.</>
+              )}
+            </p>
+          </div>
         </div>
       ) : (
         <div className="overflow-x-auto">
