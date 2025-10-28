@@ -83,6 +83,16 @@ export default function SegmentDetail({
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("segmento");
   
+  // Debug: Log cuando cambia la selección
+  useEffect(() => {
+    console.log("🔄 [segment-detail] useEffect - selection changed:", {
+      period: selection.period,
+      months: selection.months,
+      years: selection.years,
+      display: selection.display
+    });
+  }, [selection]);
+  
   // Handler for selection changes that notifies dashboard when embedded
   const handleSelectionChange = (newSelection: typeof selection | null) => {
     if (!newSelection) return;
