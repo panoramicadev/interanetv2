@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home } from "lucide-react";
@@ -83,6 +83,10 @@ export default function SegmentDetail({
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("segmento");
   
+  // Ref to store scroll position
+  const scrollPositionRef = useRef<number>(0);
+  const shouldRestoreScrollRef = useRef<boolean>(false);
+  
   // Debug: Log cuando cambia la selección
   useEffect(() => {
     console.log("🔄 [segment-detail] useEffect - selection changed:", {
@@ -91,7 +95,25 @@ export default function SegmentDetail({
       years: selection.years,
       display: selection.display
     });
+    
+    // Save scroll position before re-render
+    scrollPositionRef.current = window.scrollY;
+    shouldRestoreScrollRef.current = true;
   }, [selection]);
+  
+  // Restore scroll position after render
+  useEffect(() => {
+    if (shouldRestoreScrollRef.current) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: scrollPositionRef.current,
+          behavior: 'auto' // instant scroll, no smooth animation
+        });
+        shouldRestoreScrollRef.current = false;
+      });
+    }
+  });
   
   // Handler for selection changes that notifies dashboard when embedded
   const handleSelectionChange = (newSelection: typeof selection | null) => {
