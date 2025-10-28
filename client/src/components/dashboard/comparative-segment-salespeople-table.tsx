@@ -175,60 +175,99 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
     'rgb(6, 182, 212)',     // cyan-500
   ];
 
-  // Prepare chart data - SIMPLE: show total by period with vendor breakdown in tooltip only
+  // Prepare chart data - Show each salesperson in a distinct color (stacked bars)
   const chartData = isYearOverYear ? {
-    // For year-over-year: show bars grouped by year (one bar per year-month combination)
-    labels: months.map(m => {
+    // For year-over-year: group by month, stack salespeople within each year
+    labels: months.flatMap(m => {
       const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-      return monthNames[parseInt(m) - 1];
+      const monthLabel = monthNames[parseInt(m) - 1];
+      // Create a label for each year at this month
+      return years.map(year => `${monthLabel} ${year}`);
     }),
-    datasets: years.map((year, yearIdx) => {
-      const data = months.map(month => {
-        const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
-        if (periodIndex === -1) return 0;
-        
-        const periodData = allData[periodIndex];
-        // Sum only selected salespeople
-        return periodData
-          .filter(sp => selectedSalespeople.includes(sp.salespersonName))
-          .reduce((sum, sp) => sum + sp.totalSales, 0);
-      });
+    datasets: allSalespeople
+      .filter(salesperson => selectedSalespeople.includes(salesperson))
+      .map((salesperson, spIdx) => {
+        const data = months.flatMap(month => {
+          return years.map(year => {
+            const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
+            if (periodIndex === -1) return 0;
+            
+            const periodData = allData[periodIndex];
+            const spData = periodData.find(sp => sp.salespersonName === salesperson);
+            return spData?.totalSales || 0;
+          });
+        });
 
-      const color = yearColors[yearIdx % yearColors.length];
-      
-      return {
-        label: year,
-        data,
-        backgroundColor: color,
-        borderRadius: 6,
-        borderSkipped: false,
-        // Store period data for custom tooltips
-        periodData: months.map(month => {
-          const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
-          if (periodIndex === -1) return [];
-          const periodData = allData[periodIndex];
-          return periodData.filter(sp => selectedSalespeople.includes(sp.salespersonName));
-        })
-      };
-    })
+        const color = salespersonColors[spIdx % salespersonColors.length];
+        
+        return {
+          label: salesperson,
+          data,
+          backgroundColor: color,
+          borderRadius: 4,
+          borderSkipped: false,
+        };
+      })
   } : {
-    // Regular multi-period view - simple bars with total
+    // Regular multi-period view - stack salespeople in each period
     labels: periods.map(p => p.label),
-    datasets: [{
-      label: 'Ventas Totales',
-      data: allData.map(periodData => 
-        periodData
-          .filter(sp => selectedSalespeople.includes(sp.salespersonName))
-          .reduce((sum, sp) => sum + sp.totalSales, 0)
-      ),
-      backgroundColor: 'rgb(16, 185, 129)',
-      borderRadius: 6,
-      borderSkipped: false,
-      // Store salesperson data for tooltips
-      salespersonData: allData.map(periodData => 
-        periodData.filter(sp => selectedSalespeople.includes(sp.salespersonName))
-      )
-    }]
+    datasets: allSalespeople
+      .filter(salesperson => selectedSalespeople.includes(salesperson))
+      .map((salesperson, spIdx) => {
+        const data = allData.map(periodData => {
+          const spData = periodData.find(sp => sp.salespersonName === salesperson);
+          return spData?.totalSales || 0;
+        });
+
+        const color = salespersonColors[spIdx % salespersonColors.length];
+        
+        return {
+          label: salesperson,
+          data,
+          backgroundColor: color,
+          borderRadius: 4,
+          borderSkipped: false,
+        };
+      })
+  };
+
+  // Plugin to show total on top of stacked bars
+  const totalLabelPlugin = {
+    id: 'totalLabel',
+    afterDatasetsDraw(chart: any) {
+      const { ctx, scales: { x, y } } = chart;
+      
+      // Calculate totals for each bar
+      const totals: number[] = [];
+      if (chart.data.datasets.length > 0) {
+        const dataLength = chart.data.datasets[0].data.length;
+        for (let i = 0; i < dataLength; i++) {
+          let sum = 0;
+          chart.data.datasets.forEach((dataset: any) => {
+            sum += dataset.data[i] || 0;
+          });
+          totals.push(sum);
+        }
+      }
+      
+      // Draw labels
+      totals.forEach((total, index) => {
+        if (total === 0) return;
+        
+        const xPos = x.getPixelForValue(index);
+        const yPos = y.getPixelForValue(total);
+        
+        ctx.save();
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillStyle = '#374151';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        
+        const label = `$${(total / 1000000).toFixed(1)}M`;
+        ctx.fillText(label, xPos, yPos - 5);
+        ctx.restore();
+      });
+    }
   };
 
   const chartOptions: ChartOptions<'bar'> = {
@@ -260,57 +299,25 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
         },
         callbacks: {
           label: function(context) {
+            const label = context.dataset.label || '';
             const value = formatCurrency(context.parsed.y);
-            return `Total: ${value}`;
+            return `${label}: ${value}`;
           },
-          afterLabel: function(context) {
-            // Show salesperson breakdown
-            const datasetIndex = context.datasetIndex;
-            const dataIndex = context.dataIndex;
-            const dataset: any = context.chart.data.datasets[datasetIndex];
-            
-            // Get salesperson data for this bar
-            let salespersonData: SalespersonData[] = [];
-            if (dataset.periodData) {
-              // Year-over-year mode
-              salespersonData = dataset.periodData[dataIndex] || [];
-            } else if (dataset.salespersonData) {
-              // Regular mode
-              salespersonData = dataset.salespersonData[dataIndex] || [];
-            }
-            
-            if (salespersonData.length === 0) return '';
-            
-            // Format salesperson breakdown
-            const lines = ['\nDesglose por vendedor:'];
-            salespersonData
-              .sort((a, b) => b.totalSales - a.totalSales)
-              .forEach(sp => {
-                lines.push(`  ${sp.salespersonName}: ${formatCurrency(sp.totalSales)}`);
-              });
-            
-            return lines;
+          footer: function(tooltipItems) {
+            // Show total for stacked bars
+            const total = tooltipItems.reduce((sum, item) => sum + item.parsed.y, 0);
+            return `Total: ${formatCurrency(total)}`;
           }
         }
       },
       datalabels: {
-        anchor: 'end',
-        align: 'top',
-        formatter: (value: number) => {
-          if (value === 0) return '';
-          // Format in millions with 'M' suffix
-          return `$${(value / 1000000).toFixed(1)}M`;
-        },
-        font: {
-          size: 11,
-          weight: 'bold',
-        },
-        color: '#374151',
+        display: false, // Don't show labels on individual segments
       }
     },
     scales: {
       y: {
         beginAtZero: true,
+        stacked: true, // Enable stacking
         ticks: {
           callback: function(value) {
             return formatCurrency(Number(value));
@@ -324,14 +331,16 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
         },
       },
       x: {
+        stacked: true, // Enable stacking
         grid: {
           display: false,
         },
         ticks: {
           font: {
-            size: 12,
-            weight: 'bold',
+            size: 11,
           },
+          maxRotation: 45,
+          minRotation: 45,
         },
       },
     },
@@ -467,14 +476,14 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
           </div>
 
           <div className="h-96">
-            <Bar data={chartData} options={chartOptions} />
+            <Bar data={chartData} options={chartOptions} plugins={[totalLabelPlugin]} />
           </div>
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-600">
               {isYearOverYear ? (
-                <>Comparación de ventas totales en <span className="font-semibold">{segmentName}</span> por mes a través de los años. Pasa el mouse sobre las barras para ver el desglose por vendedor.</>
+                <>Ventas por vendedor en <span className="font-semibold">{segmentName}</span> apiladas por período. Cada color representa un vendedor diferente.</>
               ) : (
-                <>Ventas totales de vendedores seleccionados en <span className="font-semibold">{segmentName}</span>. Pasa el mouse sobre las barras para ver el desglose.</>
+                <>Ventas por vendedor en <span className="font-semibold">{segmentName}</span> apiladas por período. Cada color representa un vendedor diferente.</>
               )}
             </p>
           </div>
