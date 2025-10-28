@@ -84,8 +84,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardCheck,
     },
     {
-      href: "/tareas",
-      label: "Panel de Tareas",
+      href: "/crm",
+      label: "CRM Pipeline",
       icon: ClipboardList,
     },
     {
@@ -197,8 +197,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardCheck,
     },
     {
-      href: "/tareas",
-      label: "Panel de Tareas",
+      href: "/crm",
+      label: "CRM Pipeline",
       icon: ClipboardList,
     },
     {
@@ -290,8 +290,8 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: ClipboardCheck,
     },
     {
-      href: "/tareas",
-      label: "Panel de Tareas",
+      href: "/crm",
+      label: "CRM Pipeline",
       icon: ClipboardList,
     },
     {

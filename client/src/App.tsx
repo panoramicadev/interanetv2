@@ -20,6 +20,7 @@ import ClientsDashboard from "@/pages/clients-dashboard";
 import ClientBuyerDashboard from "@/pages/client-buyer-dashboard";
 import Metas from "@/pages/metas";
 import TareasPage from "@/pages/tareas";
+import CRMPage from "@/pages/crm";
 import NVVPage from "@/pages/nvv";
 import Users from "@/pages/users";
 import Products from "@/pages/products";
@@ -122,6 +123,15 @@ function Router() {
             
             {/* Rutas específicas de admin */}
             <Route path="/nvv" component={NVVPage} />
+            <Route path="/crm" component={() => {
+              // Solo admin, supervisor y salesperson pueden acceder al CRM
+              if (!user?.role || !['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+                window.location.replace('/');
+                return null;
+              }
+              return <CRMPage />;
+            }} />
+            <Route path="/tareas" component={TareasPage} />
             <Route path="/usuarios" component={Users} />
             <Route path="/productos" component={Products} />
             <Route path="/lista-precios" component={ListaPrecios} />
