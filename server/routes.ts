@@ -14,8 +14,8 @@ import { Readable } from "stream";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema, insertHitoMarketingSchema } from "../shared/schema";
-import { eq, and, isNotNull, ne } from "drizzle-orm";
+import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema, insertHitoMarketingSchema, nvvPendingSales } from "../shared/schema";
+import { eq, and, isNotNull, ne, sql, desc } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig } from "./etl-incremental";
 
