@@ -8951,9 +8951,35 @@ export class DatabaseStorage implements IStorage {
     montoPendiente: number;
   }>> {
     try {
+      // First, get the KOFULIDO code for this salesperson from salesTransactions
+      // This is the same approach used by the NVV dashboard
+      const salespersonCodeResult = await db
+        .select({
+          kofulido: salesTransactions.kofulido
+        })
+        .from(salesTransactions)
+        .where(
+          and(
+            isNotNull(salesTransactions.nokofu),
+            isNotNull(salesTransactions.kofulido),
+            sql`TRIM(UPPER(${salesTransactions.nokofu})) = TRIM(UPPER(${options.salesperson}))`
+          )
+        )
+        .limit(1);
+
+      // If no salesperson code found, return empty array
+      if (!salespersonCodeResult || salespersonCodeResult.length === 0 || !salespersonCodeResult[0].kofulido) {
+        console.log(`No KOFULIDO found for salesperson: ${options.salesperson}`);
+        return [];
+      }
+
+      const kofulidoCode = salespersonCodeResult[0].kofulido;
+      console.log(`Found KOFULIDO ${kofulidoCode} for salesperson ${options.salesperson}`);
+
+      // Now filter NVV data using the KOFULIDO code
       const conditions = [
         isNotNull(nvvPendingSales.KOFULIDO),
-        sql`TRIM(UPPER(${nvvPendingSales.KOFULIDO})) = TRIM(UPPER(${options.salesperson}))`
+        sql`TRIM(UPPER(${nvvPendingSales.KOFULIDO})) = TRIM(UPPER(${kofulidoCode}))`
       ];
 
       // Add date filters if provided
@@ -8992,6 +9018,8 @@ export class DatabaseStorage implements IStorage {
         .from(nvvPendingSales)
         .where(and(...conditions))
         .orderBy(desc(nvvPendingSales.FEEMDO));
+
+      console.log(`Found ${results.length} NVV records for ${options.salesperson} (${kofulidoCode})`);
 
       return results.map(row => ({
         id: row.id,
