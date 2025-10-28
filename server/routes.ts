@@ -6688,32 +6688,18 @@ export function registerRoutes(app: Express): Server {
     res.json(nvvData);
   }));
 
-  // Get NVV by segment with period filtering
+  // Get NVV by segment (sin filtros de fecha para coincidir con módulo NVV)
   app.get('/api/nvv/by-segment', requireAuth, asyncHandler(async (req: any, res: any) => {
-    const { segment, period, filterType } = req.query;
+    const { segment } = req.query;
 
     if (!segment) {
       return res.status(400).json({ message: 'Segment parameter is required' });
     }
 
-    // Get date range for filtering
-    const dateRange = getDateRange(period as string, filterType as string);
-
-    // Convert string dates to Date objects
-    let startDate: Date | undefined;
-    let endDate: Date | undefined;
-    
-    if (dateRange.startDate) {
-      startDate = new Date(dateRange.startDate);
-    }
-    if (dateRange.endDate) {
-      endDate = new Date(dateRange.endDate);
-    }
-
+    // NO aplicar filtros de fecha - retornar TODOS los NVV pendientes del segmento
+    // para coincidir con los montos del gráfico del módulo NVV principal
     const nvvData = await storage.getNvvBySegment({
-      segment: segment as string,
-      startDate,
-      endDate
+      segment: segment as string
     });
 
     res.json(nvvData);
