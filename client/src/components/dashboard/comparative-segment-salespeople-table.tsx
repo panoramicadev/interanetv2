@@ -135,43 +135,69 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
     'rgb(239, 68, 68)',    // red-500
   ];
 
-  // Prepare chart data for year-over-year comparison
+  // Color palette for salespeople - diverse colors for easy distinction
+  const salespersonColors = [
+    'rgb(59, 130, 246)',    // blue-500
+    'rgb(16, 185, 129)',    // emerald-500
+    'rgb(245, 158, 11)',    // amber-500
+    'rgb(168, 85, 247)',    // purple-500
+    'rgb(236, 72, 153)',    // pink-500
+    'rgb(239, 68, 68)',     // red-500
+    'rgb(34, 197, 94)',     // green-500
+    'rgb(251, 146, 60)',    // orange-500
+    'rgb(139, 92, 246)',    // violet-500
+    'rgb(6, 182, 212)',     // cyan-500
+  ];
+
+  // Prepare chart data with each salesperson as a dataset (stacked bars)
   const chartData = isYearOverYear ? {
     labels: months.map(m => {
       const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
       return monthNames[parseInt(m) - 1];
     }),
-    datasets: years.map((year, yearIdx) => {
-      const data = months.map(month => {
-        const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
-        if (periodIndex === -1) return 0;
-        
-        const periodData = allData[periodIndex];
-        return periodData.reduce((sum, salesperson) => sum + salesperson.totalSales, 0);
-      });
+    datasets: years.flatMap((year, yearIdx) => {
+      // Create a dataset for each salesperson in this year
+      return allSalespeople.map((salesperson, spIdx) => {
+        const data = months.map(month => {
+          const periodIndex = periods.findIndex(p => p.period === `${year}-${month}`);
+          if (periodIndex === -1) return 0;
+          
+          const periodData = allData[periodIndex];
+          const spData = periodData.find(sp => sp.salespersonName === salesperson);
+          return spData?.totalSales || 0;
+        });
 
-      const color = yearColors[yearIdx % yearColors.length];
+        const color = salespersonColors[spIdx % salespersonColors.length];
+        
+        return {
+          label: `${salesperson} (${year})`,
+          data,
+          backgroundColor: color,
+          stack: year, // Stack by year for grouped comparison
+          borderRadius: 4,
+          borderSkipped: false,
+        };
+      });
+    })
+  } : {
+    // Regular multi-period view - show each salesperson as a dataset
+    labels: periods.map(p => p.label),
+    datasets: allSalespeople.map((salesperson, idx) => {
+      const data = allData.map(periodData => {
+        const spData = periodData.find(sp => sp.salespersonName === salesperson);
+        return spData?.totalSales || 0;
+      });
+      
+      const color = salespersonColors[idx % salespersonColors.length];
       
       return {
-        label: year,
+        label: salesperson,
         data,
         backgroundColor: color,
-        borderRadius: 6,
+        borderRadius: 4,
         borderSkipped: false,
       };
     })
-  } : {
-    // Regular multi-period view (same year, different months/days)
-    labels: periods.map(p => p.label),
-    datasets: [{
-      label: 'Ventas Totales',
-      data: allData.map(periodData => 
-        periodData.reduce((sum, salesperson) => sum + salesperson.totalSales, 0)
-      ),
-      backgroundColor: 'rgb(16, 185, 129)',
-      borderRadius: 6,
-      borderSkipped: false,
-    }]
   };
 
   const chartOptions: ChartOptions<'bar'> = {
@@ -184,9 +210,9 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
         labels: {
           usePointStyle: true,
           pointStyle: 'circle',
-          padding: 20,
+          padding: 15,
           font: {
-            size: 13,
+            size: 11,
             weight: 'bold',
           },
         },
@@ -206,27 +232,22 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
             const label = context.dataset.label || '';
             const value = formatCurrency(context.parsed.y);
             return `${label}: ${value}`;
+          },
+          footer: function(tooltipItems) {
+            // Show total for stacked bars
+            const total = tooltipItems.reduce((sum, item) => sum + item.parsed.y, 0);
+            return `Total: ${formatCurrency(total)}`;
           }
         }
       },
       datalabels: {
-        anchor: 'end',
-        align: 'top',
-        formatter: (value: number) => {
-          if (value === 0) return '';
-          // Format in millions with 'M' suffix
-          return `$${(value / 1000000).toFixed(1)}M`;
-        },
-        font: {
-          size: 10,
-          weight: 'bold',
-        },
-        color: '#374151',
+        display: false, // Disable individual labels on stacked bars
       }
     },
     scales: {
       y: {
         beginAtZero: true,
+        stacked: true, // Enable stacking for Y axis
         ticks: {
           callback: function(value) {
             return formatCurrency(Number(value));
@@ -240,6 +261,7 @@ export default function ComparativeSegmentSalespeopleTable({ segmentName, period
         },
       },
       x: {
+        stacked: true, // Enable stacking for X axis
         grid: {
           display: false,
         },
