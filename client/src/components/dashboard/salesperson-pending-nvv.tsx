@@ -39,6 +39,20 @@ export default function SalespersonPendingNVV({
 }: SalespersonPendingNVVProps) {
   const { data: nvvData, isLoading } = useQuery<NVVRecord[]>({
     queryKey: [`/api/nvv/by-salesperson`, salesperson, selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        salesperson,
+        period: selectedPeriod,
+        filterType
+      });
+      const response = await fetch(`/api/nvv/by-salesperson?${params}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Error al cargar NVV pendientes');
+      }
+      return response.json();
+    },
     enabled: !!salesperson
   });
 
