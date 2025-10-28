@@ -13,6 +13,7 @@ import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
+import SegmentPendingNVV from "@/components/dashboard/segment-pending-nvv";
 
 interface SegmentClient {
   clientName: string;
@@ -865,6 +866,22 @@ export default function SegmentDetail({
                 </div>
               </div>
               </div>
+            )}
+
+            {/* NVV Pendientes - Notas de Venta Pendientes by Segment */}
+            {segmentName && (
+              <SegmentPendingNVV
+                segment={segmentName}
+                selectedPeriod={selection.period === "months" || selection.period === "month" ? 
+                              `${selection.years[0]}-${String(selection.months?.[0] || 1).padStart(2, '0')}` : 
+                              selection.period === "full-year" ? `${selection.years[0]}` : 
+                              selection.period === "days" && selection.startDate && selection.endDate ? 
+                                `${format(selection.startDate, 'yyyy-MM-dd')}_${format(selection.endDate, 'yyyy-MM-dd')}` : 
+                              `${selection.years[0]}-${String(selection.months?.[0] || 1).padStart(2, '0')}`}
+                filterType={selection.period === "days" || selection.period === "day" || selection.period === "custom-range" ? "day" : 
+                           selection.period === "months" || selection.period === "month" ? "month" : 
+                           selection.period === "full-year" ? "year" : "month"}
+              />
             )}
             </>
           )}
