@@ -525,12 +525,30 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {kpi.value}
             </p>
-            <div className="flex items-baseline gap-1.5">
-              <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
-                {kpi.comparison ? kpi.comparison.text : kpi.change.percentage}
-              </span>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                {/* Mostrar el monto del cambio si existe */}
+                {kpi.comparison && (
+                  <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison.color}`}>
+                    {kpi.comparison.text}
+                  </span>
+                )}
+                {/* Siempre mostrar el porcentaje si hay datos */}
+                {kpi.change.percentage !== "Sin datos previos" && (
+                  <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                    {kpi.comparison ? `(${kpi.change.percentage})` : kpi.change.percentage}
+                  </span>
+                )}
+                {/* Mostrar "Sin datos previos" si no hay comparación */}
+                {kpi.change.percentage === "Sin datos previos" && (
+                  <span className="text-xs sm:text-sm font-semibold text-gray-500">
+                    Sin datos previos
+                  </span>
+                )}
+              </div>
+              {/* Texto de comparación debajo */}
               {kpi.change.comparisonText && (
-                <span className="text-[10px] text-gray-500">
+                <span className="text-[9px] sm:text-[10px] text-gray-500">
                   {kpi.change.comparisonText}
                 </span>
               )}
@@ -572,12 +590,30 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
             >
               {kpi.value}
             </p>
-            <div className="flex items-baseline gap-1.5">
-              <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison ? kpi.comparison.color : kpi.changeColor}`}>
-                {kpi.comparison ? kpi.comparison.text : kpi.change.percentage}
-              </span>
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                {/* Mostrar el monto del cambio si existe */}
+                {kpi.comparison && (
+                  <span className={`text-xs sm:text-sm font-semibold ${kpi.comparison.color}`}>
+                    {kpi.comparison.text}
+                  </span>
+                )}
+                {/* Siempre mostrar el porcentaje si hay datos */}
+                {kpi.change.percentage !== "Sin datos previos" && (
+                  <span className={`text-xs sm:text-sm font-semibold ${kpi.changeColor}`}>
+                    {kpi.comparison ? `(${kpi.change.percentage})` : kpi.change.percentage}
+                  </span>
+                )}
+                {/* Mostrar "Sin datos previos" si no hay comparación */}
+                {kpi.change.percentage === "Sin datos previos" && (
+                  <span className="text-xs sm:text-sm font-semibold text-gray-500">
+                    Sin datos previos
+                  </span>
+                )}
+              </div>
+              {/* Texto de comparación debajo */}
               {kpi.change.comparisonText && (
-                <span className="text-[10px] text-gray-500">
+                <span className="text-[9px] sm:text-[10px] text-gray-500">
                   {kpi.change.comparisonText}
                 </span>
               )}
