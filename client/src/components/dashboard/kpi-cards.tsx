@@ -327,19 +327,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
 
   // Calculate percentage changes vs same period in previous year (year-over-year)
   const calculateChange = (current: number, previous: number | undefined) => {
-    if (previous === undefined || previous === null || previous === 0) {
-      return { 
-        percentage: "Sin datos previos", 
-        comparisonText: "",
-        color: "text-gray-500" 
-      };
-    }
-    
-    const change = ((current - previous) / previous) * 100;
-    const sign = change >= 0 ? "+" : "";
-    const color = change >= 0 ? "text-green-600" : "text-red-600";
-    
-    // Generate year-over-year comparison text based on filter type
+    // Generate year-over-year comparison text based on filter type (always show this)
     let comparisonText = "";
     
     if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
@@ -363,6 +351,19 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       // Default fallback
       comparisonText = "vs año anterior";
     }
+    
+    // Check if we have previous data
+    if (previous === undefined || previous === null || previous === 0) {
+      return { 
+        percentage: "Sin datos previos", 
+        comparisonText: comparisonText, // Always return comparison text
+        color: "text-gray-500" 
+      };
+    }
+    
+    const change = ((current - previous) / previous) * 100;
+    const sign = change >= 0 ? "+" : "";
+    const color = change >= 0 ? "text-green-600" : "text-red-600";
     
     return {
       percentage: `${sign}${change.toFixed(1)}%`,
