@@ -8941,6 +8941,7 @@ export class DatabaseStorage implements IStorage {
     NUDO: string;
     TIDO: string;
     FEEMDO: string;
+    ENDO: string;
     NOKOEN: string;
     NOKOPR: string;
     KOPRCT: string;
@@ -8948,7 +8949,7 @@ export class DatabaseStorage implements IStorage {
     CAPRCO2: number;
     PPPRNE: number;
     cantidadPendiente: number;
-    montoPendiente: number;
+    totalPendiente: number;
   }>> {
     try {
       // First, get the KOFULIDO code for this salesperson from salesTransactions
@@ -9003,18 +9004,8 @@ export class DatabaseStorage implements IStorage {
           CAPREX2: nvvPendingSales.CAPREX2,
           CAPRCO2: nvvPendingSales.CAPRCO2,
           PPPRNE: nvvPendingSales.PPPRNE,
-          cantidadPendiente: sql<number>`
-            GREATEST(
-              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-              0
-            )`,
-          montoPendiente: sql<number>`
-            GREATEST(
-              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-              0
-            ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)`
+          cantidadPendiente: nvvPendingSales.cantidadPendiente,
+          totalPendiente: nvvPendingSales.totalPendiente
         })
         .from(nvvPendingSales)
         .where(and(...conditions))
@@ -9035,7 +9026,7 @@ export class DatabaseStorage implements IStorage {
         CAPRCO2: Number(row.CAPRCO2) || 0,
         PPPRNE: Number(row.PPPRNE) || 0,
         cantidadPendiente: Number(row.cantidadPendiente) || 0,
-        montoPendiente: Number(row.montoPendiente) || 0
+        totalPendiente: Number(row.totalPendiente) || 0
       }));
     } catch (error) {
       console.error('Error getting NVV by salesperson:', error);
@@ -9065,7 +9056,7 @@ export class DatabaseStorage implements IStorage {
       CAPRCO2: number;
       PPPRNE: number;
       cantidadPendiente: number;
-      montoPendiente: number;
+      totalPendiente: number;
     }>;
   }>> {
     try {
@@ -9096,18 +9087,8 @@ export class DatabaseStorage implements IStorage {
           CAPREX2: nvvPendingSales.CAPREX2,
           CAPRCO2: nvvPendingSales.CAPRCO2,
           PPPRNE: nvvPendingSales.PPPRNE,
-          cantidadPendiente: sql<number>`
-            GREATEST(
-              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-              0
-            )`,
-          montoPendiente: sql<number>`
-            GREATEST(
-              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-              0
-            ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)`
+          cantidadPendiente: nvvPendingSales.cantidadPendiente,
+          totalPendiente: nvvPendingSales.totalPendiente
         })
         .from(nvvPendingSales)
         .where(whereClause)
@@ -9180,7 +9161,7 @@ export class DatabaseStorage implements IStorage {
           CAPRCO2: Number(row.CAPRCO2) || 0,
           PPPRNE: Number(row.PPPRNE) || 0,
           cantidadPendiente: Number(row.cantidadPendiente) || 0,
-          montoPendiente: Number(row.montoPendiente) || 0
+          totalPendiente: Number(row.totalPendiente) || 0
         });
       });
 
@@ -9210,7 +9191,7 @@ export class DatabaseStorage implements IStorage {
     CAPRCO2: number;
     PPPRNE: number;
     cantidadPendiente: number;
-    montoPendiente: number;
+    totalPendiente: number;
   }>> {
     try {
       // First, get all KOFULIDO codes for salespeople in this segment
@@ -9267,18 +9248,8 @@ export class DatabaseStorage implements IStorage {
           CAPREX2: nvvPendingSales.CAPREX2,
           CAPRCO2: nvvPendingSales.CAPRCO2,
           PPPRNE: nvvPendingSales.PPPRNE,
-          cantidadPendiente: sql<number>`
-            GREATEST(
-              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-              0
-            )`,
-          montoPendiente: sql<number>`
-            GREATEST(
-              CAST(COALESCE(${nvvPendingSales.CAPRCO2}, '0') AS NUMERIC) - 
-              CAST(COALESCE(${nvvPendingSales.CAPREX2}, '0') AS NUMERIC),
-              0
-            ) * CAST(COALESCE(${nvvPendingSales.PPPRNE}, '0') AS NUMERIC)`
+          cantidadPendiente: nvvPendingSales.cantidadPendiente,
+          totalPendiente: nvvPendingSales.totalPendiente
         })
         .from(nvvPendingSales)
         .where(and(...conditions))
@@ -9299,7 +9270,7 @@ export class DatabaseStorage implements IStorage {
         CAPRCO2: Number(row.CAPRCO2) || 0,
         PPPRNE: Number(row.PPPRNE) || 0,
         cantidadPendiente: Number(row.cantidadPendiente) || 0,
-        montoPendiente: Number(row.montoPendiente) || 0
+        totalPendiente: Number(row.totalPendiente) || 0
       }));
     } catch (error) {
       console.error('Error getting NVV by segment:', error);
