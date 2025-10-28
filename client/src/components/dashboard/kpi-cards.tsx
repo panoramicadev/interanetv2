@@ -325,7 +325,7 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     return period;
   };
 
-  // Calculate percentage changes vs previous period
+  // Calculate percentage changes vs same period in previous year (year-over-year)
   const calculateChange = (current: number, previous: number | undefined) => {
     if (previous === undefined || previous === null || previous === 0) {
       return { 
@@ -339,26 +339,29 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     const sign = change >= 0 ? "+" : "";
     const color = change >= 0 ? "text-green-600" : "text-red-600";
     
-    // Get period labels for display
-    const now = new Date();
-    let comparisonText = "vs mes anterior";
+    // Generate year-over-year comparison text based on filter type
+    let comparisonText = "";
     
     if (filterType === "month" && selectedPeriod.match(/^\d{4}-\d{2}$/)) {
+      // Month comparison: "vs Oct 2024"
       const [year, month] = selectedPeriod.split('-').map(Number);
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth() + 1;
-      
-      // Only show date range comparison if it's the current month
-      if (year === currentYear && month === currentMonth) {
-        const currentDay = now.getDate();
-        const currentMonthName = format(new Date(year, month - 1, 1), 'MMM');
-        
-        // Calculate previous month
-        const prevMonthDate = new Date(year, month - 2, 1); // month-2 because 0-indexed
-        const prevMonthName = format(prevMonthDate, 'MMM');
-        
-        comparisonText = `vs ${prevMonthName} 1-${currentDay}`;
-      }
+      const previousYear = year - 1;
+      const monthName = format(new Date(year, month - 1, 1), 'MMM');
+      comparisonText = `vs ${monthName} ${previousYear}`;
+    } else if (filterType === "day" && selectedPeriod.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Day comparison: "vs 28 Oct 2024"
+      const [year, month, day] = selectedPeriod.split('-').map(Number);
+      const previousYear = year - 1;
+      const dayFormatted = format(new Date(year, month - 1, day), 'd MMM');
+      comparisonText = `vs ${dayFormatted} ${previousYear}`;
+    } else if (filterType === "year") {
+      // Year comparison: "vs 2024"
+      const year = parseInt(selectedPeriod.split('-')[0]);
+      const previousYear = year - 1;
+      comparisonText = `vs ${previousYear}`;
+    } else {
+      // Default fallback
+      comparisonText = "vs año anterior";
     }
     
     return {

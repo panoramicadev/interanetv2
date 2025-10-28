@@ -338,33 +338,37 @@ export function registerRoutes(app: Express): Server {
       const currentStartDate = (startDate as string) || dateRange.startDate;
       const currentEndDate = (endDate as string) || dateRange.endDate;
       
-      // Calculate previous period dates - exactly same period but one month before
+      // Calculate previous year dates - exactly same period but one year before (year-over-year comparison)
       const currentStart = new Date(currentStartDate!);
       const currentEnd = new Date(currentEndDate!);
       
-      // Clone the dates and move them back by exactly one month
+      // Clone the dates and move them back by exactly one year
       const previousStart = new Date(currentStart);
       const previousEnd = new Date(currentEnd);
       
-      // Move to previous month keeping the exact same day pattern
-      previousStart.setMonth(previousStart.getMonth() - 1);
-      previousEnd.setMonth(previousEnd.getMonth() - 1);
+      // Move to same period in previous year (year-over-year)
+      previousStart.setFullYear(previousStart.getFullYear() - 1);
+      previousEnd.setFullYear(previousEnd.getFullYear() - 1);
       
-      // Handle edge cases where the day doesn't exist in previous month
-      if (previousStart.getMonth() === currentStart.getMonth()) {
-        // Day doesn't exist (e.g., Jan 31 -> Feb), go to last day of target month
-        previousStart.setDate(0);
+      // Handle edge case for Feb 29 in leap years
+      if (currentStart.getMonth() === 1 && currentStart.getDate() === 29) {
+        // If current is Feb 29 and previous year is not a leap year, use Feb 28
+        if (previousStart.getMonth() !== 1) {
+          previousStart.setMonth(1, 28);
+        }
       }
-      if (previousEnd.getMonth() === currentEnd.getMonth()) {
-        // Day doesn't exist (e.g., Jan 31 -> Feb), go to last day of target month  
-        previousEnd.setDate(0);
+      if (currentEnd.getMonth() === 1 && currentEnd.getDate() === 29) {
+        // If current is Feb 29 and previous year is not a leap year, use Feb 28
+        if (previousEnd.getMonth() !== 1) {
+          previousEnd.setMonth(1, 28);
+        }
       }
       
       const previousStartFormatted = formatDateLocal(previousStart);
       const previousEndFormatted = formatDateLocal(previousEnd);
       
       console.log(`[DEBUG] Periodo actual: ${currentStartDate} a ${currentEndDate}`);
-      console.log(`[DEBUG] Periodo anterior: ${previousStartFormatted} a ${previousEndFormatted}`);
+      console.log(`[DEBUG] Periodo año anterior: ${previousStartFormatted} a ${previousEndFormatted}`);
       
       // Get current period metrics
       const metrics = await storage.getSalesMetrics({
@@ -376,7 +380,7 @@ export function registerRoutes(app: Express): Server {
         supplier: supplier as string,
       });
       
-      // Get previous period metrics for comparison (same period in previous month)
+      // Get previous year metrics for comparison (same period in previous year - year-over-year)
       const previousMetrics = await storage.getSalesMetrics({
         startDate: previousStartFormatted,
         endDate: previousEndFormatted,
@@ -387,10 +391,10 @@ export function registerRoutes(app: Express): Server {
       });
       
       console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);
-      console.log(`[DEBUG] Métricas anteriores: Ventas=${previousMetrics.totalSales}, Transacciones=${previousMetrics.totalTransactions}`);
+      console.log(`[DEBUG] Métricas año anterior: Ventas=${previousMetrics.totalSales}, Transacciones=${previousMetrics.totalTransactions}`);
       
-      // Add previous period data for comparison - only include if there's actual transaction data
-      // This ensures we show "Sin datos previos" when there were no transactions in the previous period
+      // Add previous year data for comparison (year-over-year) - only include if there's actual transaction data
+      // This ensures we show "Sin datos previos" when there were no transactions in the previous year period
       const metricsWithComparison = {
         ...metrics,
         previousMonthSales: previousMetrics.totalTransactions > 0 ? previousMetrics.totalSales : undefined,
