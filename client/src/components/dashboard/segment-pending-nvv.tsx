@@ -19,8 +19,6 @@ import {
 
 interface SegmentPendingNVVProps {
   segment: string;
-  selectedPeriod: string;
-  filterType: "day" | "month" | "year";
 }
 
 interface NVVRecord {
@@ -50,17 +48,13 @@ interface ClientGroup {
 }
 
 export default function SegmentPendingNVV({
-  segment,
-  selectedPeriod,
-  filterType
+  segment
 }: SegmentPendingNVVProps) {
   const { data: nvvData, isLoading } = useQuery<NVVRecord[]>({
-    queryKey: [`/api/nvv/by-segment`, segment, selectedPeriod, filterType],
+    queryKey: [`/api/nvv/by-segment`, segment],
     queryFn: async () => {
       const params = new URLSearchParams({
-        segment,
-        period: selectedPeriod,
-        filterType
+        segment
       });
       const response = await fetch(`/api/nvv/by-segment?${params}`, {
         credentials: 'include'
@@ -162,7 +156,7 @@ export default function SegmentPendingNVV({
           <div className="text-center py-8">
             <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
             <p className="text-sm text-gray-500">
-              No hay notas de venta pendientes en este período para el segmento {segment}
+              No hay notas de venta pendientes para el segmento {segment}
             </p>
           </div>
         </CardContent>
