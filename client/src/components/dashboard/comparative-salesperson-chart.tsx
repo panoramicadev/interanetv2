@@ -35,17 +35,10 @@ interface ComparativeSalespersonChartProps {
 }
 
 export default function ComparativeSalespersonChart({ salespersonName, periods, periodMetrics }: ComparativeSalespersonChartProps) {
-  // Detect if we have TRUE year-over-year comparison (same month/period across different years)
+  // Detect if we have year-over-year comparison (multiple years in comparison)
   const isYearOverYear = periods.length > 1 && (() => {
     const yearSet = new Set(periods.map(p => p.period.split('-')[0]));
-    if (yearSet.size <= 1) return false; // Same year, not year-over-year
-    
-    // Check if all periods have the same month/day (true year-over-year)
-    const monthDayParts = periods.map(p => p.period.substring(5)); // Get everything after year (MM or MM-DD)
-    const monthDaySet = new Set(monthDayParts);
-    
-    // Only true year-over-year if same month/day across different years
-    return monthDaySet.size === 1;
+    return yearSet.size > 1; // Multiple years = year-over-year comparison
   })();
 
   // Extract unique years and months for year-over-year view
@@ -58,7 +51,7 @@ export default function ComparativeSalespersonChart({ salespersonName, periods, 
     periods.forEach(p => {
       const [year, month] = p.period.split('-');
       yearsSet.add(year);
-      monthsSet.add(month);
+      if (month) monthsSet.add(month);
     });
     
     return {
