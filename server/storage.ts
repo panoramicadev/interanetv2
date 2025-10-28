@@ -9222,8 +9222,8 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             isNotNull(salesTransactions.kofulido),
-            isNotNull(salesTransactions.segment),
-            sql`TRIM(UPPER(${salesTransactions.segment})) = TRIM(UPPER(${options.segment}))`
+            isNotNull(salesTransactions.noruen),
+            sql`TRIM(UPPER(${salesTransactions.noruen})) = TRIM(UPPER(${options.segment}))`
           )
         )
         .groupBy(salesTransactions.kofulido);
