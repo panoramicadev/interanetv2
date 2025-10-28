@@ -1,7 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { ShoppingCart, Package, Calendar, DollarSign } from "lucide-react";
+import { ShoppingCart, Package, Calendar, DollarSign, ChevronDown, FileText, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Table,
   TableBody,
@@ -22,6 +28,7 @@ interface NVVRecord {
   NUDO: string;
   TIDO: string;
   FEEMDO: string;
+  ENDO: string;
   NOKOEN: string;
   NOKOPR: string;
   KOPRCT: string;
@@ -30,6 +37,16 @@ interface NVVRecord {
   PPPRNE: number;
   cantidadPendiente: number;
   montoPendiente: number;
+}
+
+interface ClientGroup {
+  uniqueKey: string;
+  clientCode: string;
+  clientName: string;
+  totalAmount: number;
+  totalUnits: number;
+  totalOrders: number;
+  records: NVVRecord[];
 }
 
 export default function SalespersonPendingNVV({
@@ -75,10 +92,46 @@ export default function SalespersonPendingNVV({
     });
   };
 
-  // Calculate totals
+  // Group data by client using ENDO (client code) as unique identifier
+  const groupedByClient: ClientGroup[] = nvvData ? 
+    Object.values(
+      nvvData.reduce((acc, record) => {
+        // Normalize ENDO and NOKOEN for grouping
+        const normalizedEndo = record.ENDO?.trim().toUpperCase() || '';
+        const normalizedNokoen = record.NOKOEN?.trim().toUpperCase() || '';
+        
+        // Use ENDO as primary key, only fall back to NOKOEN if ENDO is empty
+        const uniqueKey = normalizedEndo || normalizedNokoen || 'SIN_CODIGO';
+        const displayCode = record.ENDO?.trim() || record.NOKOEN?.trim() || 'Sin código';
+        const displayName = record.NOKOEN?.trim() || 'Cliente sin nombre';
+        
+        if (!acc[uniqueKey]) {
+          acc[uniqueKey] = {
+            uniqueKey,
+            clientCode: displayCode,
+            clientName: displayName,
+            totalAmount: 0,
+            totalUnits: 0,
+            totalOrders: 0,
+            records: []
+          };
+        }
+        
+        acc[uniqueKey].totalAmount += record.montoPendiente;
+        acc[uniqueKey].totalUnits += record.cantidadPendiente;
+        acc[uniqueKey].totalOrders += 1;
+        acc[uniqueKey].records.push(record);
+        
+        return acc;
+      }, {} as Record<string, ClientGroup>)
+    ).sort((a, b) => b.totalAmount - a.totalAmount) // Sort by total amount descending
+  : [];
+
+  // Calculate global totals
   const totalPendingAmount = nvvData?.reduce((sum, record) => sum + record.montoPendiente, 0) || 0;
   const totalPendingUnits = nvvData?.reduce((sum, record) => sum + record.cantidadPendiente, 0) || 0;
   const totalOrders = nvvData?.length || 0;
+  const totalClients = groupedByClient.length;
 
   if (isLoading) {
     return (
@@ -125,9 +178,14 @@ export default function SalespersonPendingNVV({
             <ShoppingCart className="h-5 w-5" />
             Notas de Venta Pendientes
           </CardTitle>
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-            {totalOrders} {totalOrders === 1 ? 'pedido' : 'pedidos'}
-          </Badge>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              {totalClients} {totalClients === 1 ? 'cliente' : 'clientes'}
+            </Badge>
+            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+              {totalOrders} {totalOrders === 1 ? 'pedido' : 'pedidos'}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -162,75 +220,123 @@ export default function SalespersonPendingNVV({
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Documento</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Producto</TableHead>
-                <TableHead className="text-right">Cant. Requerida</TableHead>
-                <TableHead className="text-right">Cant. Confirmada</TableHead>
-                <TableHead className="text-right">Cant. Pendiente</TableHead>
-                <TableHead className="text-right">Precio Unit.</TableHead>
-                <TableHead className="text-right">Monto Pendiente</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {nvvData.map((record) => (
-                <TableRow key={record.id} data-testid={`nvv-row-${record.id}`}>
-                  <TableCell className="font-medium">
-                    <div>
-                      <div className="font-semibold">{record.NUDO}</div>
-                      <div className="text-xs text-gray-500">{record.TIDO}</div>
+        {/* Grouped by Client with Accordion */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Por Cliente</h3>
+          <Accordion type="single" collapsible className="space-y-2">
+            {groupedByClient.map((clientGroup, index) => (
+              <AccordionItem 
+                key={clientGroup.uniqueKey} 
+                value={clientGroup.uniqueKey}
+                className="border rounded-lg overflow-hidden"
+                data-testid={`client-group-${clientGroup.uniqueKey}`}
+              >
+                <AccordionTrigger 
+                  className="px-4 py-3 hover:bg-gray-50 hover:no-underline"
+                  data-testid={`client-trigger-${clientGroup.uniqueKey}`}
+                >
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-blue-100 p-2 rounded-lg">
+                        <User className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-semibold text-gray-900">{clientGroup.clientName}</div>
+                        <div className="text-xs text-gray-500">
+                          {clientGroup.totalOrders} {clientGroup.totalOrders === 1 ? 'documento' : 'documentos'}
+                        </div>
+                      </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1 text-sm">
-                      <Calendar className="h-3 w-3 text-gray-400" />
-                      {formatDate(record.FEEMDO)}
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500">Unidades</div>
+                        <div className="font-semibold text-purple-700">
+                          {clientGroup.totalUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500">Monto Total</div>
+                        <div className="font-bold text-amber-700">
+                          {formatCurrency(clientGroup.totalAmount)}
+                        </div>
+                      </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="max-w-xs">
-                      <div className="font-medium text-sm truncate">{record.NOKOEN}</div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="bg-gray-50 rounded-lg p-4 mt-2">
+                    <div className="flex items-center gap-2 mb-3 text-gray-700">
+                      <FileText className="h-4 w-4" />
+                      <span className="text-sm font-medium">Documentos</span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="max-w-xs">
-                      <div className="font-medium text-sm truncate">{record.NOKOPR}</div>
-                      <div className="text-xs text-gray-500">{record.KOPRCT}</div>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Documento</TableHead>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead>Producto</TableHead>
+                            <TableHead className="text-right">Cant. Req.</TableHead>
+                            <TableHead className="text-right">Cant. Conf.</TableHead>
+                            <TableHead className="text-right">Cant. Pend.</TableHead>
+                            <TableHead className="text-right">Precio Unit.</TableHead>
+                            <TableHead className="text-right">Monto Pend.</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {clientGroup.records.map((record) => (
+                            <TableRow key={record.id} data-testid={`nvv-detail-${record.id}`}>
+                              <TableCell className="font-medium">
+                                <div>
+                                  <div className="font-semibold">{record.NUDO}</div>
+                                  <div className="text-xs text-gray-500">{record.TIDO}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1 text-sm">
+                                  <Calendar className="h-3 w-3 text-gray-400" />
+                                  {formatDate(record.FEEMDO)}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="max-w-xs">
+                                  <div className="font-medium text-sm truncate">{record.NOKOPR}</div>
+                                  <div className="text-xs text-gray-500">{record.KOPRCT}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className="text-sm">
+                                  {record.CAPREX2.toLocaleString('es-CL', { maximumFractionDigits: 2 })}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className="text-sm text-blue-600 font-medium">
+                                  {record.CAPRCO2.toLocaleString('es-CL', { maximumFractionDigits: 2 })}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                  {record.cantidadPendiente.toLocaleString('es-CL', { maximumFractionDigits: 2 })}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right text-sm text-gray-600">
+                                {formatCurrency(record.PPPRNE)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className="font-semibold text-amber-700">
+                                  {formatCurrency(record.montoPendiente)}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="text-sm font-medium">
-                      {record.CAPREX2.toLocaleString('es-CL', { maximumFractionDigits: 2 })}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="text-sm font-medium text-blue-600">
-                      {record.CAPRCO2.toLocaleString('es-CL', { maximumFractionDigits: 2 })}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                      {record.cantidadPendiente.toLocaleString('es-CL', { maximumFractionDigits: 2 })}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right text-sm text-gray-600">
-                    {formatCurrency(record.PPPRNE)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="font-semibold text-amber-700">
-                      {formatCurrency(record.montoPendiente)}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       </CardContent>
     </Card>
