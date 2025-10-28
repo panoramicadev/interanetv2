@@ -875,18 +875,29 @@ export default function Dashboard() {
                           <span>Período de tiempo</span>
                         </div>
                         
-                        <YearMonthSelector
-                          value={localSelection}
-                          onChange={setLocalSelection}
-                        />
-                        
-                        {/* Explicación de cómo funciona */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <p className="text-xs text-blue-800 leading-relaxed">
-                            <span className="font-semibold block mb-1">¿Cómo funciona?</span>
-                            Selecciona uno o más años, y luego elige el período: un mes específico, varios meses, un día, o el año completo. 
-                            Puedes comparar el mismo período en diferentes años (ej: Enero 2024 vs Enero 2025).
-                          </p>
+                        <div className="space-y-3">
+                          <YearMonthSelector
+                            value={localSelection}
+                            onChange={setLocalSelection}
+                          />
+                          
+                          {/* Explicación de cómo funciona - Fuera del selector */}
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                            <div className="flex items-start space-x-2">
+                              <div className="flex-shrink-0 mt-0.5">
+                                <div className="h-4 w-4 rounded-full bg-blue-500 flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">?</span>
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs text-blue-900 font-semibold mb-1">¿Cómo funciona?</p>
+                                <p className="text-xs text-blue-800 leading-relaxed">
+                                  Selecciona uno o más años, luego elige el período: mes específico, varios meses, un día, o año completo. 
+                                  Puedes comparar el mismo período en diferentes años.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
