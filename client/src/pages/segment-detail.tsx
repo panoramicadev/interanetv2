@@ -11,7 +11,6 @@ import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
-import ComparativeSegmentMetrics from "@/components/dashboard/comparative-segment-metrics";
 import ComparativeSegmentClientsTable from "@/components/dashboard/comparative-segment-clients-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 
@@ -645,12 +644,6 @@ export default function SegmentDetail({
               {console.log("✅ Renderizando componentes comparativos")}
               {/* Comparative Segment Chart - Always show at the top */}
               <ComparativeSegmentTable 
-                periods={comparativePeriods}
-              />
-              
-              {/* Comparative Metrics Table */}
-              <ComparativeSegmentMetrics 
-                segmentName={segmentName}
                 periods={comparativePeriods}
               />
 
