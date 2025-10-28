@@ -1,0 +1,121 @@
+10transactions-table.tsx:252 Warning: Invalid prop `data-replit-metadata` supplied to `React.Fragment`. React.Fragment can only have `key` and `children` props.
+    at TransactionsTable (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/components/dashboard/transactions-table.tsx:32:45)
+    at div
+    at main
+    at div
+    at Dashboard (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/pages/dashboard.tsx:53:27)
+    at component
+    at Route (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=845ea3bd:323:16)
+    at Switch (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=845ea3bd:379:17)
+    at div
+    at div
+    at DashboardLayout (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/components/layout/dashboard-layout.tsx:33:43)
+    at Switch (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=845ea3bd:379:17)
+    at Router (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/App.tsx?v=7QD4UIB6bQ0uYP8CdUbpK:69:31)
+    at Provider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-XOUBXFGS.js?v=845ea3bd:38:15)
+    at TooltipProvider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=845ea3bd:63:5)
+    at CartProvider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/contexts/CartContext.tsx:305:32)
+    at FilterProvider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/src/contexts/FilterContext.tsx:34:34)
+    at QueryClientProvider (https://26dd0160-a4a9-4841-9137-15dd3633f175-00-13kmeaucpj55o.worf.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=845ea3bd:2805:3)
+    at App
+printWarning @ react_jsx-dev-runtime.js?v=845ea3bd:64
+error @ react_jsx-dev-runtime.js?v=845ea3bd:48
+validateFragmentProps @ react_jsx-dev-runtime.js?v=845ea3bd:796
+jsxWithValidation @ react_jsx-dev-runtime.js?v=845ea3bd:874
+(anonymous) @ transactions-table.tsx:252
+TransactionsTable @ transactions-table.tsx:246
+renderWithHooks @ chunk-NFC5BX5N.js?v=845ea3bd:11548
+updateFunctionComponent @ chunk-NFC5BX5N.js?v=845ea3bd:14582
+beginWork @ chunk-NFC5BX5N.js?v=845ea3bd:15924
+beginWork$1 @ chunk-NFC5BX5N.js?v=845ea3bd:19753
+performUnitOfWork @ chunk-NFC5BX5N.js?v=845ea3bd:19198
+workLoopSync @ chunk-NFC5BX5N.js?v=845ea3bd:19137
+renderRootSync @ chunk-NFC5BX5N.js?v=845ea3bd:19116
+performSyncWorkOnRoot @ chunk-NFC5BX5N.js?v=845ea3bd:18874
+flushSyncCallbacks @ chunk-NFC5BX5N.js?v=845ea3bd:9119
+(anonymous) @ chunk-NFC5BX5N.js?v=845ea3bd:18627Understand this error
+segment-detail.tsx:219 🔍 [segment-detail] Detectando modo comparativo: {period: 'full-year', monthsLength: undefined, daysLength: undefined, yearsLength: 1, selection: {…}}
+segment-detail.tsx:238 ❌ NO modo comparativo
+segment-detail.tsx:245 ⏭️ [segment-detail] NO comparative mode, retornando array vacío
+segment-detail.tsx:674 🎬 [segment-detail] RENDER: {isComparativeMode: false, comparativePeriodsLength: 0, comparativePeriods: Array(0), selection: {…}}
+segment-detail.tsx:93 🔄 [segment-detail] useEffect - selection changed: {period: 'full-year', months: undefined, years: Array(1), display: '2025'}
+segment-detail.tsx:674 🎬 [segment-detail] RENDER: {isComparativeMode: false, comparativePeriodsLength: 0, comparativePeriods: Array(0), selection: {…}}
+segment-detail.tsx:674 🎬 [segment-detail] RENDER: {isComparativeMode: false, comparativePeriodsLength: 0, comparativePeriods: Array(0), selection: {…}}
+year-month-selector.tsx:46 📂 [YearMonthSelector] Cargando selección al abrir: {years: Array(1), period: 'full-year', display: '2025'}
+year-month-selector.tsx:121 📤 [YearMonthSelector] Enviando selección: {selectedMonthsLength: 2, monthsValue: Array(2), period: 'months', selection: {…}}
+segment-detail.tsx:122 🔍 [segment-detail] handleSelectionChange called: {years: Array(1), period: 'months', months: Array(2), display: 'Agosto, Septiembre 2025'}
+segment-detail.tsx:123 📍 Stack trace de handleSelectionChange
+handleSelectionChange @ segment-detail.tsx:123
+handleApplyMonths @ year-month-selector.tsx:128
+onClick @ year-month-selector.tsx:295
+callCallback2 @ chunk-NFC5BX5N.js?v=845ea3bd:3674
+invokeGuardedCallbackDev @ chunk-NFC5BX5N.js?v=845ea3bd:3699
+invokeGuardedCallback @ chunk-NFC5BX5N.js?v=845ea3bd:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-NFC5BX5N.js?v=845ea3bd:3736
+executeDispatch @ chunk-NFC5BX5N.js?v=845ea3bd:7014
+processDispatchQueueItemsInOrder @ chunk-NFC5BX5N.js?v=845ea3bd:7034
+processDispatchQueue @ chunk-NFC5BX5N.js?v=845ea3bd:7043
+dispatchEventsForPlugins @ chunk-NFC5BX5N.js?v=845ea3bd:7051
+(anonymous) @ chunk-NFC5BX5N.js?v=845ea3bd:7174
+batchedUpdates$1 @ chunk-NFC5BX5N.js?v=845ea3bd:18913
+batchedUpdates @ chunk-NFC5BX5N.js?v=845ea3bd:3579
+dispatchEventForPluginEventSystem @ chunk-NFC5BX5N.js?v=845ea3bd:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-NFC5BX5N.js?v=845ea3bd:5478
+dispatchEvent @ chunk-NFC5BX5N.js?v=845ea3bd:5472
+dispatchDiscreteEvent @ chunk-NFC5BX5N.js?v=845ea3bd:5449
+FilterContext.tsx:105 🔧 [FilterContext] setSelection called: {old: {…}, new: {…}}
+FilterContext.tsx:109 📍 Stack trace de setSelection
+setSelection @ FilterContext.tsx:109
+handleSelectionChange @ segment-detail.tsx:124
+handleApplyMonths @ year-month-selector.tsx:128
+onClick @ year-month-selector.tsx:295
+callCallback2 @ chunk-NFC5BX5N.js?v=845ea3bd:3674
+invokeGuardedCallbackDev @ chunk-NFC5BX5N.js?v=845ea3bd:3699
+invokeGuardedCallback @ chunk-NFC5BX5N.js?v=845ea3bd:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-NFC5BX5N.js?v=845ea3bd:3736
+executeDispatch @ chunk-NFC5BX5N.js?v=845ea3bd:7014
+processDispatchQueueItemsInOrder @ chunk-NFC5BX5N.js?v=845ea3bd:7034
+processDispatchQueue @ chunk-NFC5BX5N.js?v=845ea3bd:7043
+dispatchEventsForPlugins @ chunk-NFC5BX5N.js?v=845ea3bd:7051
+(anonymous) @ chunk-NFC5BX5N.js?v=845ea3bd:7174
+batchedUpdates$1 @ chunk-NFC5BX5N.js?v=845ea3bd:18913
+batchedUpdates @ chunk-NFC5BX5N.js?v=845ea3bd:3579
+dispatchEventForPluginEventSystem @ chunk-NFC5BX5N.js?v=845ea3bd:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-NFC5BX5N.js?v=845ea3bd:5478
+dispatchEvent @ chunk-NFC5BX5N.js?v=845ea3bd:5472
+dispatchDiscreteEvent @ chunk-NFC5BX5N.js?v=845ea3bd:5449
+FilterContext.tsx:118 ✅ [FilterContext] Actualizando selection state
+FilterContext.tsx:105 🔧 [FilterContext] setSelection called: {old: {…}, new: {…}}
+FilterContext.tsx:109 📍 Stack trace de setSelection
+setSelection @ FilterContext.tsx:109
+handleDateFilterChange @ dashboard.tsx:656
+handleSelectionChange @ segment-detail.tsx:165
+handleApplyMonths @ year-month-selector.tsx:128
+onClick @ year-month-selector.tsx:295
+callCallback2 @ chunk-NFC5BX5N.js?v=845ea3bd:3674
+invokeGuardedCallbackDev @ chunk-NFC5BX5N.js?v=845ea3bd:3699
+invokeGuardedCallback @ chunk-NFC5BX5N.js?v=845ea3bd:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-NFC5BX5N.js?v=845ea3bd:3736
+executeDispatch @ chunk-NFC5BX5N.js?v=845ea3bd:7014
+processDispatchQueueItemsInOrder @ chunk-NFC5BX5N.js?v=845ea3bd:7034
+processDispatchQueue @ chunk-NFC5BX5N.js?v=845ea3bd:7043
+dispatchEventsForPlugins @ chunk-NFC5BX5N.js?v=845ea3bd:7051
+(anonymous) @ chunk-NFC5BX5N.js?v=845ea3bd:7174
+batchedUpdates$1 @ chunk-NFC5BX5N.js?v=845ea3bd:18913
+batchedUpdates @ chunk-NFC5BX5N.js?v=845ea3bd:3579
+dispatchEventForPluginEventSystem @ chunk-NFC5BX5N.js?v=845ea3bd:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-NFC5BX5N.js?v=845ea3bd:5478
+dispatchEvent @ chunk-NFC5BX5N.js?v=845ea3bd:5472
+dispatchDiscreteEvent @ chunk-NFC5BX5N.js?v=845ea3bd:5449
+FilterContext.tsx:118 ✅ [FilterContext] Actualizando selection state
+segment-detail.tsx:219 🔍 [segment-detail] Detectando modo comparativo: {period: 'month', monthsLength: 1, daysLength: undefined, yearsLength: 1, selection: {…}}
+segment-detail.tsx:238 ❌ NO modo comparativo
+segment-detail.tsx:245 ⏭️ [segment-detail] NO comparative mode, retornando array vacío
+segment-detail.tsx:674 🎬 [segment-detail] RENDER: {isComparativeMode: false, comparativePeriodsLength: 0, comparativePeriods: Array(0), selection: {…}}
+segment-detail.tsx:93 🔄 [segment-detail] useEffect - selection changed: {period: 'month', months: Array(1), years: Array(1), display: 'August 2025'}
+FilterContext.tsx:87 💾 [FilterContext] selection changed, saving to localStorage: {years: Array(1), period: 'month', months: Array(1), display: 'August 2025'}
+segment-detail.tsx:674 🎬 [segment-detail] RENDER: {isComparativeMode: false, comparativePeriodsLength: 0, comparativePeriods: Array(0), selection: {…}}
+segment-detail.tsx:674 🎬 [segment-detail] RENDER: {isComparativeMode: false, comparativePeriodsLength: 0, comparativePeriods: Array(0), selection: {…}}
+segment-detail.tsx:674 🎬 [segment-detail] RENDER: {isComparativeMode: false, comparativePeriodsLength: 0, comparativePeriods: Array(0), selection: {…}}
+segment-detail.tsx:674 🎬 [segment-detail] RENDER: {isComparativeMode: false, comparativePeriodsLength: 0, comparativePeriods: Array(0), selection: {…}}
+segment-detail.tsx:674 🎬 [segment-detail] RENDER: {isComparativeMode: false, comparativePeriodsLength: 0, comparativePeriods: Array(0), selection: {…}}
