@@ -1738,6 +1738,27 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Salesperson metrics endpoint (for comparative charts)
+  app.get("/api/sales/salesperson/:salespersonName/metrics", requireAuth, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const details = await storage.getSalespersonDetails(salespersonName, period as string, filterType as string);
+      
+      // Return only the metrics needed for comparative charts
+      res.json({
+        totalSales: details.totalSales,
+        totalClients: details.totalClients,
+        totalTransactions: details.transactionCount,
+        averageTicket: details.averageTicket
+      });
+    } catch (error) {
+      console.error("Error fetching salesperson metrics:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson metrics" });
+    }
+  });
+
   app.get("/api/sales/salesperson/:salespersonName/clients", requireAuth, async (req, res) => {
     try {
       const { salespersonName } = req.params;
