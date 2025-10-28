@@ -165,12 +165,8 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       setSelectedYears(value?.years || []);
       setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
       setSelectedDays(value?.days || []);
-    } else {
-      // Al cerrar sin aplicar, revertir a los valores guardados
-      setSelectedYears(value?.years || []);
-      setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
-      setSelectedDays(value?.days || []);
     }
+    // No revertir al cerrar - el estado ya se sincroniza al abrir
     setOpen(newOpen);
   };
 
