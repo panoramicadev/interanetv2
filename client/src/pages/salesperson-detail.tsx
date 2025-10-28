@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSalespersonTable from "@/components/dashboard/comparative-salesperson-table";
+import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
 
 interface GoalProgress {
   id: string;
@@ -833,6 +834,22 @@ export default function SalespersonDetail({
               </CardContent>
             </Card>
           </div>
+
+          {/* NVV Pendientes - Sales pending from NVV */}
+          {vendedorId && (
+            <SalespersonPendingNVV
+              salesperson={salespersonName || ''}
+              selectedPeriod={selection.period === "months" || selection.period === "month" ? 
+                            `${selection.years[0]}-${String(selection.months?.[0] || 1).padStart(2, '0')}` : 
+                            selection.period === "full-year" ? `${selection.years[0]}` : 
+                            selection.period === "days" && selection.startDate && selection.endDate ? 
+                              `${format(selection.startDate, 'yyyy-MM-dd')}_${format(selection.endDate, 'yyyy-MM-dd')}` : 
+                            `${selection.years[0]}-${String(selection.months?.[0] || 1).padStart(2, '0')}`}
+              filterType={selection.period === "days" || selection.period === "day" || selection.period === "custom-range" ? "day" : 
+                         selection.period === "months" || selection.period === "month" ? "month" : 
+                         selection.period === "full-year" ? "year" : "month"}
+            />
+          )}
 
           {/* Promesas de Compra - Always show for salespeople */}
           {vendedorId && (
