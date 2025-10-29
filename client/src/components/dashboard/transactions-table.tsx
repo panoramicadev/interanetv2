@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import React from "react";
 import { Link } from "wouter";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import TransactionDetailModal from "./transaction-detail-modal";
 
 interface Transaction {
@@ -50,10 +51,10 @@ interface TransactionsTableProps {
 }
 
 export default function TransactionsTable({ selectedPeriod, filterType, segment, salesperson }: TransactionsTableProps) {
-  const [limit] = useState(10);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedSales, setExpandedSales] = useState<Set<string>>(new Set());
+  const [isOrdersExpanded, setIsOrdersExpanded] = useState(false);
 
   const handleTransactionClick = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
@@ -106,7 +107,7 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
 
 
   const allGroupedSales = allTransactions ? groupTransactionsByNudo(allTransactions) : [];
-  const groupedSales = allGroupedSales.slice(0, limit);
+  const groupedSales = isOrdersExpanded ? allGroupedSales : allGroupedSales.slice(0, 5);
 
   // Removed artificial salesperson assignment - now using real data from transactions
 
@@ -333,6 +334,31 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
               </TableBody>
             </Table>
           </div>
+          
+          {/* Ver más button - only show if more than 5 orders */}
+          {allGroupedSales.length > 5 && (
+            <div className="p-4 border-t border-gray-200">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsOrdersExpanded(!isOrdersExpanded)}
+                className="w-full"
+                data-testid="button-toggle-orders"
+              >
+                {isOrdersExpanded ? (
+                  <>
+                    Ver menos
+                    <ChevronUp className="ml-2 h-4 w-4" />
+                  </>
+                ) : (
+                  <>
+                    Ver más ({allGroupedSales.length - 5} órdenes adicionales)
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
       </div>
 
       {/* Modal de Detalles */}
