@@ -1171,6 +1171,27 @@ export default function Dashboard() {
                 </div>
               )}
 
+              {/* NVV Pendientes - Solo mostrar cuando hay un vendedor seleccionado */}
+              {globalFilter.type === "salesperson" && globalFilter.value && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <SalespersonPendingNVV
+                    salesperson={globalFilter.value}
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                  />
+                </div>
+              )}
+
+              {/* NVV Pendientes - Todos los vendedores (mostrar cuando NO hay vendedor específico seleccionado) */}
+              {globalFilter.type !== "salesperson" && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <AllSalespeopleNVV
+                    selectedPeriod={selectedPeriod}
+                    filterType={filterType}
+                  />
+                </div>
+              )}
+
               {/* Gastos Pendientes - Solo mostrar cuando hay gastos pendientes */}
               {pendingExpenses.length > 0 && (
                 <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
@@ -1250,27 +1271,6 @@ export default function Dashboard() {
                       setGlobalFilter({ type: "segment", value: segmentName });
                       setSelectedFilter("segment");
                     }}
-                  />
-                </div>
-              )}
-
-              {/* NVV Pendientes - Solo mostrar cuando hay un vendedor seleccionado */}
-              {globalFilter.type === "salesperson" && globalFilter.value && (
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <SalespersonPendingNVV
-                    salesperson={globalFilter.value}
-                    selectedPeriod={selectedPeriod}
-                    filterType={filterType}
-                  />
-                </div>
-              )}
-
-              {/* NVV Pendientes - Todos los vendedores (mostrar cuando NO hay vendedor específico seleccionado) */}
-              {globalFilter.type !== "salesperson" && (
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                  <AllSalespeopleNVV
-                    selectedPeriod={selectedPeriod}
-                    filterType={filterType}
                   />
                 </div>
               )}
