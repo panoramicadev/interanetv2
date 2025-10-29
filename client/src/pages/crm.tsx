@@ -58,6 +58,7 @@ export default function CRMPage() {
   const [segmentFilter, setSegmentFilter] = useState('all');
   const [vendedorFilter, setVendedorFilter] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   
   const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isAdmin = currentUser?.role === 'admin';
@@ -263,6 +264,36 @@ export default function CRMPage() {
                   bgColor: stage.color, 
                   textColor: 'text-gray-700 dark:text-gray-300' 
                 };
+
+                const handleDragOver = (e: React.DragEvent) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                };
+
+                const handleDragEnter = (e: React.DragEvent) => {
+                  e.preventDefault();
+                  setDragOverStage(stage.stageKey);
+                };
+
+                const handleDragLeave = (e: React.DragEvent) => {
+                  if (e.currentTarget === e.target) {
+                    setDragOverStage(null);
+                  }
+                };
+
+                const handleDrop = (e: React.DragEvent) => {
+                  e.preventDefault();
+                  const leadId = e.dataTransfer.getData('leadId');
+                  const currentStage = e.dataTransfer.getData('currentStage');
+                  
+                  setDragOverStage(null);
+                  
+                  if (currentStage !== stage.stageKey && leadId) {
+                    updateStageMutation.mutate({ id: leadId, stage: stage.stageKey });
+                  }
+                };
+                
+                const isDropTarget = dragOverStage === stage.stageKey;
                 
                 return (
                   <div 
@@ -270,8 +301,12 @@ export default function CRMPage() {
                     className="flex-shrink-0" 
                     style={{ width: '320px' }}
                     ref={(el) => { columnRefs.current[stage.stageKey] = el; }}
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
                   >
-                    <Card className="h-full">
+                    <Card className={`h-full transition-all ${isDropTarget ? 'ring-2 ring-blue-400 bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
                       <CardContent className="p-4">
                         {/* Encabezado de columna */}
                         <div className="mb-4">
@@ -287,10 +322,10 @@ export default function CRMPage() {
                         </div>
 
                         {/* Leads en esta columna */}
-                        <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                        <div className="space-y-3 max-h-[600px] overflow-y-auto min-h-[100px]">
                           {stageLeads.length === 0 ? (
                             <div className="text-center py-8 text-gray-400 text-sm">
-                              Sin leads
+                              {isDropTarget ? 'Suelta aquí' : 'Sin leads'}
                             </div>
                           ) : (
                             stageLeads.map((lead) => (
@@ -340,6 +375,7 @@ function LeadCard({
   currentUser: any;
 }) {
   const [showComments, setShowComments] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
   const isAdmin = currentUser?.role === 'admin';
   
@@ -362,8 +398,44 @@ function LeadCard({
   ];
   const avatarColor = avatarColors[lead.id.charCodeAt(0) % avatarColors.length];
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('leadId', lead.id);
+    e.dataTransfer.setData('currentStage', lead.stage);
+    e.dataTransfer.effectAllowed = 'move';
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleCall = () => {
+    if (lead.clientPhone) {
+      window.location.href = `tel:${lead.clientPhone}`;
+    }
+  };
+
+  const handleEmail = () => {
+    if (lead.clientEmail) {
+      window.location.href = `mailto:${lead.clientEmail}`;
+    }
+  };
+
+  const handleWhatsApp = () => {
+    if (lead.clientPhone) {
+      const cleanPhone = lead.clientPhone.replace(/\D/g, '');
+      window.open(`https://wa.me/${cleanPhone}`, '_blank');
+    }
+  };
+
   return (
-    <Card className="hover:shadow-md transition-shadow bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800" data-testid={`card-lead-${lead.id}`}>
+    <Card 
+      className={`hover:shadow-md transition-all bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-move ${isDragging ? 'opacity-50' : ''}`} 
+      data-testid={`card-lead-${lead.id}`}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
       <CardContent className="p-5 space-y-4">
         {/* Header con avatar y acciones */}
         <div className="flex items-start justify-between">
@@ -405,7 +477,7 @@ function LeadCard({
         </div>
 
         {/* Información de contacto */}
-        <div className="space-y-2.5 text-sm">
+        <div className="space-y-2 text-sm">
           {lead.clientPhone && (
             <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
               <Phone className="w-4 h-4 flex-shrink-0" />
@@ -424,6 +496,43 @@ function LeadCard({
               <span className="truncate">{lead.clientCompany}</span>
             </div>
           )}
+        </div>
+
+        {/* Botones de acción grandes */}
+        <div className="flex items-center gap-2 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-10"
+            onClick={handleCall}
+            disabled={!lead.clientPhone}
+            data-testid={`button-call-${lead.id}`}
+          >
+            <Phone className="w-5 h-5 mr-1.5" />
+            Llamar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-10"
+            onClick={handleWhatsApp}
+            disabled={!lead.clientPhone}
+            data-testid={`button-whatsapp-${lead.id}`}
+          >
+            <MessageSquare className="w-5 h-5 mr-1.5" />
+            WhatsApp
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-10"
+            onClick={handleEmail}
+            disabled={!lead.clientEmail}
+            data-testid={`button-email-${lead.id}`}
+          >
+            <Mail className="w-5 h-5 mr-1.5" />
+            Email
+          </Button>
         </div>
 
         {/* Selector de etapa */}
