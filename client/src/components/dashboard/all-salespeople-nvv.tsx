@@ -231,28 +231,30 @@ export default function AllSalespeopleNVV({
                     className="px-2 sm:px-4 py-2 sm:py-3 hover:bg-gray-50 dark:hover:bg-gray-800 hover:no-underline"
                     data-testid={`salesperson-trigger-${salespersonGroup.salespersonCode}`}
                   >
-                    <div className="flex items-center justify-between w-full pr-2 sm:pr-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 sm:pr-4 gap-2">
+                      {/* Mobile: Vertical layout, Desktop: Horizontal */}
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                         <div className="bg-green-100 dark:bg-green-900/30 p-1.5 sm:p-2 rounded-lg shrink-0">
                           <Users className="h-3 w-3 sm:h-4 sm:w-4 text-green-600 dark:text-green-400" />
                         </div>
                         <div className="text-left min-w-0 flex-1">
-                          <div className="font-semibold text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">{salespersonGroup.salespersonName}</div>
+                          <div className="font-semibold text-sm sm:text-base text-gray-900 dark:text-gray-100 break-words line-clamp-2 sm:truncate">{salespersonGroup.salespersonName}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {clientGroups.length} {clientGroups.length === 1 ? 'cliente' : 'clientes'} • {salespersonGroup.totalOrders} {salespersonGroup.totalOrders === 1 ? 'doc' : 'documentos'}
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-                        <div className="text-right">
+                      {/* Stats grid - 2 columns on mobile, row on desktop */}
+                      <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center sm:gap-4 shrink-0 w-full sm:w-auto">
+                        <div className="text-left sm:text-right">
                           <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Unidades</div>
-                          <div className="font-semibold text-xs sm:text-base text-purple-700 dark:text-purple-300">
+                          <div className="font-semibold text-sm sm:text-base text-purple-700 dark:text-purple-300">
                             {salespersonGroup.totalUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-left sm:text-right">
                           <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Monto Total</div>
-                          <div className="font-bold text-xs sm:text-base text-amber-700 dark:text-amber-300">
+                          <div className="font-bold text-sm sm:text-base text-amber-700 dark:text-amber-300">
                             {formatCurrency(salespersonGroup.totalAmount)}
                           </div>
                         </div>
@@ -276,23 +278,25 @@ export default function AllSalespeopleNVV({
                             data-testid={`client-group-${clientGroup.uniqueKey}`}
                           >
                             <AccordionTrigger className="px-2 sm:px-3 py-1.5 sm:py-2 hover:bg-gray-50 dark:hover:bg-gray-800">
-                              <div className="flex items-center justify-between w-full pr-2 sm:pr-4">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full pr-2 sm:pr-4 gap-2">
+                                {/* Client name and documents */}
                                 <div className="text-left min-w-0 flex-1">
-                                  <div className="font-medium text-xs sm:text-sm text-gray-900 dark:text-gray-100 truncate">{clientGroup.clientName}</div>
+                                  <div className="font-medium text-xs sm:text-sm text-gray-900 dark:text-gray-100 break-words line-clamp-2 sm:truncate">{clientGroup.clientName}</div>
                                   <div className="text-xs text-gray-500 dark:text-gray-400">
                                     {clientGroup.totalOrders} {clientGroup.totalOrders === 1 ? 'doc' : 'documentos'}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                                  <div className="text-right">
+                                {/* Stats grid - 2 columns on mobile, row on desktop */}
+                                <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3 shrink-0 w-full sm:w-auto">
+                                  <div className="text-left sm:text-right">
                                     <div className="text-xs text-gray-500 dark:text-gray-400">Unidades</div>
-                                    <div className="text-xs sm:text-sm font-semibold text-purple-700 dark:text-purple-300">
+                                    <div className="text-sm font-semibold text-purple-700 dark:text-purple-300">
                                       {clientGroup.totalUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
                                     </div>
                                   </div>
-                                  <div className="text-right">
+                                  <div className="text-left sm:text-right">
                                     <div className="text-xs text-gray-500 dark:text-gray-400">Monto</div>
-                                    <div className="text-xs sm:text-sm font-bold text-amber-700 dark:text-amber-300">
+                                    <div className="text-sm font-bold text-amber-700 dark:text-amber-300">
                                       {formatCurrency(clientGroup.totalAmount)}
                                     </div>
                                   </div>
