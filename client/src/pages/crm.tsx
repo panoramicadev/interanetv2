@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,40 +12,41 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { CrmLead } from "@shared/schema";
+import type { CrmLead, InsertCrmLeadInput } from "@shared/schema";
 import { insertCrmLeadSchema } from "@shared/schema";
 import PromesasCompraPage from "./promesas-compra";
 
 const PIPELINE_STAGES = [
   { id: 'all', name: 'Todos', color: 'bg-gray-100 dark:bg-gray-800' },
-  { id: 'lead', name: 'Nuevo', color: 'bg-blue-100 dark:bg-blue-900' },
-  { id: 'contacto', name: 'Abierto', color: 'bg-purple-100 dark:bg-purple-900' },
-  { id: 'visita', name: 'En Progreso', color: 'bg-amber-100 dark:bg-amber-900' },
-  { id: 'lista_precio', name: 'Lista Precio', color: 'bg-orange-100 dark:bg-orange-900' },
-  { id: 'campana', name: 'Campaña', color: 'bg-teal-100 dark:bg-teal-900' },
-  { id: 'primera_venta', name: 'Primera Venta', color: 'bg-green-100 dark:bg-green-900' },
+  { id: 'lead', name: 'Nuevo', color: 'bg-orange-100 dark:bg-orange-900' },
+  { id: 'contacto', name: 'Contacto', color: 'bg-blue-100 dark:bg-blue-900' },
+  { id: 'visita', name: 'Visita', color: 'bg-amber-100 dark:bg-amber-900' },
+  { id: 'lista_precio', name: 'Lista Precio', color: 'bg-cyan-100 dark:bg-cyan-900' },
+  { id: 'campana', name: 'Campaña', color: 'bg-purple-100 dark:bg-purple-900' },
+  { id: 'primera_venta', name: 'Primera Venta', color: 'bg-indigo-100 dark:bg-indigo-900' },
   { id: 'promesa', name: 'Promesa', color: 'bg-emerald-100 dark:bg-emerald-900' },
   { id: 'venta', name: 'Venta', color: 'bg-green-100 dark:bg-green-900' },
 ] as const;
 
-const STAGE_BADGE_MAP: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  lead: { label: 'Nuevo', variant: 'default' },
-  contacto: { label: 'Abierto', variant: 'outline' },
-  visita: { label: 'En Progreso', variant: 'secondary' },
-  lista_precio: { label: 'Lista Precio', variant: 'outline' },
-  campana: { label: 'Campaña', variant: 'secondary' },
-  primera_venta: { label: 'Primera Venta', variant: 'default' },
-  promesa: { label: 'Promesa', variant: 'default' },
-  venta: { label: 'Venta', variant: 'default' },
+const STAGE_BADGE_MAP: Record<string, { label: string; bgColor: string; textColor: string }> = {
+  lead: { label: 'Nuevo', bgColor: 'bg-orange-100 dark:bg-orange-900/30', textColor: 'text-orange-700 dark:text-orange-300' },
+  contacto: { label: 'Contacto', bgColor: 'bg-blue-100 dark:bg-blue-900/30', textColor: 'text-blue-700 dark:text-blue-300' },
+  visita: { label: 'Visita', bgColor: 'bg-amber-100 dark:bg-amber-900/30', textColor: 'text-amber-700 dark:text-amber-300' },
+  lista_precio: { label: 'Lista Precio', bgColor: 'bg-cyan-100 dark:bg-cyan-900/30', textColor: 'text-cyan-700 dark:text-cyan-300' },
+  campana: { label: 'Campaña', bgColor: 'bg-purple-100 dark:bg-purple-900/30', textColor: 'text-purple-700 dark:text-purple-300' },
+  primera_venta: { label: 'Primera Venta', bgColor: 'bg-indigo-100 dark:bg-indigo-900/30', textColor: 'text-indigo-700 dark:text-indigo-300' },
+  promesa: { label: 'Promesa', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30', textColor: 'text-emerald-700 dark:text-emerald-300' },
+  venta: { label: 'Venta', bgColor: 'bg-green-100 dark:bg-green-900/30', textColor: 'text-green-700 dark:text-green-300' },
 };
 
 export default function CRMPage() {
@@ -55,6 +56,22 @@ export default function CRMPage() {
   const [segmentFilter, setSegmentFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  
+  // Auto-detect mobile and force list view
+  const [isMobile, setIsMobile] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Detect mobile on mount and window resize
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 640; // sm breakpoint
+      setIsMobile(mobile);
+      if (mobile) setViewMode('list');
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const { data: leads = [], isLoading } = useQuery<CrmLead[]>({
     queryKey: ['/api/crm/leads', segmentFilter],
@@ -63,7 +80,11 @@ export default function CRMPage() {
       if (segmentFilter !== 'all') {
         params.append('segment', segmentFilter);
       }
-      return fetch(`/api/crm/leads?${params}`).then(r => r.json());
+      const response = await fetch(`/api/crm/leads?${params}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch leads');
+      }
+      return response.json();
     },
   });
 
@@ -110,8 +131,8 @@ export default function CRMPage() {
     const matchesStage = selectedStage === 'all' || lead.stage === selectedStage;
     const matchesSearch = !searchQuery || 
       lead.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lead.clientEmail?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lead.clientPhone?.toLowerCase().includes(searchQuery.toLowerCase());
+      (lead.clientEmail || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lead.clientPhone || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStage && matchesSearch;
   });
 
@@ -132,28 +153,28 @@ export default function CRMPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">CRM</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">Leads</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             Gestión de clientes y promesas de compra
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" data-testid="button-filter">
-            <Filter className="w-4 h-4 mr-2" />
-            Filtrar
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button variant="outline" size="sm" data-testid="button-export">
+            <Download className="w-4 h-4 mr-2" />
+            Export
           </Button>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-create-lead">
+              <Button size="sm" data-testid="button-create-lead">
                 <Plus className="w-4 h-4 mr-2" />
                 Nuevo Lead
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Crear Nuevo Lead</DialogTitle>
               </DialogHeader>
@@ -173,71 +194,120 @@ export default function CRMPage() {
         {/* Tab de Leads */}
         <TabsContent value="leads" className="space-y-4">
           {/* Filtros superiores */}
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <Input
-                placeholder="Buscar por nombre, email o teléfono..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="max-w-md"
-                data-testid="input-search-leads"
-              />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 w-full">
+              <Select value={selectedStage} onValueChange={setSelectedStage}>
+                <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-status-filter">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  {PIPELINE_STAGES.filter(s => s.id !== 'all').map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-segment-filter">
+                  <SelectValue placeholder="All Sources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  {segments.map((segment) => (
+                    <SelectItem key={segment} value={segment}>{segment}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button variant="outline" size="sm" data-testid="button-filter">
+                <Filter className="w-4 h-4 mr-2" />
+                Filter
+              </Button>
             </div>
-            <Select value={segmentFilter} onValueChange={setSegmentFilter}>
-              <SelectTrigger className="w-[200px]" data-testid="select-segment-filter">
-                <SelectValue placeholder="Todos los segmentos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los segmentos</SelectItem>
-                {segments.map((segment) => (
-                  <SelectItem key={segment} value={segment}>{segment}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            {/* View mode toggle - desktop only, disabled on mobile */}
+            {!isMobile && (
+              <div className="hidden sm:block">
+                <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'grid' | 'list')}>
+                  <ToggleGroupItem value="grid" aria-label="Grid view" data-testid="toggle-grid-view">
+                    <Grid3x3 className="w-4 h-4" />
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="list" aria-label="List view" data-testid="toggle-list-view">
+                    <List className="w-4 h-4" />
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+            )}
           </div>
 
-          {/* Tabs de estado */}
-          <Tabs value={selectedStage} onValueChange={setSelectedStage}>
-            <TabsList className="grid grid-cols-9 w-full">
-              {PIPELINE_STAGES.map((stage) => (
-                <TabsTrigger 
-                  key={stage.id} 
-                  value={stage.id}
-                  data-testid={`tab-stage-${stage.id}`}
-                  className="flex flex-col items-center gap-1"
-                >
-                  <span className="text-sm">{stage.name}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {getLeadCountByStage(stage.id)}
-                  </Badge>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          {/* Status Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {PIPELINE_STAGES.filter(s => s.id !== 'all').slice(0, 4).map((stage) => {
+              const count = getLeadCountByStage(stage.id);
+              const stageBadge = STAGE_BADGE_MAP[stage.id];
+              return (
+                <Card key={stage.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => setSelectedStage(stage.id)}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className={`w-2 h-2 rounded-full ${stageBadge.bgColor}`} />
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{count} Leads</span>
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{stage.name}</div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
 
-            {/* Grid de leads */}
-            <div className="mt-6">
-              {filteredLeads.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-500 dark:text-gray-400">No se encontraron leads</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {filteredLeads.map((lead) => (
-                    <LeadCard
-                      key={lead.id}
-                      lead={lead}
-                      onToggleActivity={(field) => {
-                        const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
-                        toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
-                      }}
-                      onChangeStage={(stage) => updateStageMutation.mutate({ id: lead.id, stage })}
-                      onDelete={() => deleteLeadMutation.mutate(lead.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </Tabs>
+          {/* Search */}
+          <div className="flex-1 max-w-md">
+            <Input
+              placeholder="Buscar por nombre, email o teléfono..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              data-testid="input-search-leads"
+            />
+          </div>
+
+          {/* Grid/List de leads */}
+          <div className="mt-6">
+            {filteredLeads.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500 dark:text-gray-400">No se encontraron leads</p>
+              </div>
+            ) : viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredLeads.map((lead) => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    onToggleActivity={(field) => {
+                      const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
+                      toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
+                    }}
+                    onChangeStage={(stage) => updateStageMutation.mutate({ id: lead.id, stage })}
+                    onDelete={() => deleteLeadMutation.mutate(lead.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredLeads.map((lead) => (
+                  <ListLeadRow
+                    key={lead.id}
+                    lead={lead}
+                    onToggleActivity={(field) => {
+                      const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
+                      toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
+                    }}
+                    onChangeStage={(stage) => updateStageMutation.mutate({ id: lead.id, stage })}
+                    onDelete={() => deleteLeadMutation.mutate(lead.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         {/* Tab de Promesas */}
@@ -261,23 +331,42 @@ function LeadCard({
   onDelete: () => void;
 }) {
   const [showComments, setShowComments] = useState(false);
-  const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, variant: 'outline' as const };
+  const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
+  
+  // Get initials for avatar
+  const initials = lead.clientName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  // Avatar background colors (cycling through palette)
+  const avatarColors = [
+    'bg-gradient-to-br from-blue-400 to-blue-600',
+    'bg-gradient-to-br from-purple-400 to-purple-600',
+    'bg-gradient-to-br from-pink-400 to-pink-600',
+    'bg-gradient-to-br from-green-400 to-green-600',
+    'bg-gradient-to-br from-orange-400 to-orange-600',
+    'bg-gradient-to-br from-teal-400 to-teal-600',
+  ];
+  const avatarColor = avatarColors[lead.id.charCodeAt(0) % avatarColors.length];
 
   return (
-    <Card className="hover:shadow-lg transition-shadow" data-testid={`card-lead-${lead.id}`}>
-      <CardContent className="p-4 space-y-3">
-        {/* Header con nombre y menú */}
+    <Card className="hover:shadow-md transition-shadow bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800" data-testid={`card-lead-${lead.id}`}>
+      <CardContent className="p-5 space-y-4">
+        {/* Header con avatar y menú */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3 flex-1">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold">
-              {lead.clientName.charAt(0).toUpperCase()}
+            <div className={`w-12 h-12 rounded-full ${avatarColor} flex items-center justify-center text-white font-semibold text-sm shadow-md flex-shrink-0`}>
+              {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">
+              <h4 className="font-semibold text-base text-gray-900 dark:text-gray-100 truncate">
                 {lead.clientName}
               </h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {lead.salespersonName}
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Today {lead.createdAt ? new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''}
               </p>
             </div>
           </div>
@@ -298,80 +387,156 @@ function LeadCard({
           </DropdownMenu>
         </div>
 
-        {/* Selector de etapa */}
-        <div>
-          <Label className="text-xs text-gray-600 dark:text-gray-400">Etapa</Label>
-          <Select value={lead.stage} onValueChange={onChangeStage}>
-            <SelectTrigger className="w-full h-8 text-xs" data-testid={`select-stage-${lead.id}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PIPELINE_STAGES.filter(s => s.id !== 'all').map((stage) => (
-                <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         {/* Información de contacto */}
-        <div className="space-y-2 text-xs">
+        <div className="space-y-2.5 text-sm">
           {lead.clientPhone && (
             <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-              <Phone className="w-3 h-3" />
+              <Phone className="w-4 h-4 flex-shrink-0" />
               <span>{lead.clientPhone}</span>
             </div>
           )}
           {lead.clientEmail && (
             <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 truncate">
-              <Mail className="w-3 h-3" />
+              <Mail className="w-4 h-4 flex-shrink-0" />
               <span className="truncate">{lead.clientEmail}</span>
             </div>
           )}
           {lead.clientCompany && (
             <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-              <Building2 className="w-3 h-3" />
+              <Building2 className="w-4 h-4 flex-shrink-0" />
               <span className="truncate">{lead.clientCompany}</span>
             </div>
           )}
         </div>
 
-        {/* Badge de estado y actividades */}
-        <div className="flex items-center justify-between pt-2 border-t">
-          <Badge variant={stageBadge.variant} className="text-xs">
+        {/* Badge de estado */}
+        <div className="flex items-center justify-center pt-3">
+          <Badge className={`${stageBadge.bgColor} ${stageBadge.textColor} border-0 px-4 py-1.5 text-xs font-medium`}>
             {stageBadge.label}
           </Badge>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-7 w-7 p-0 ${
-                lead.hasCall ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : ''
-              }`}
-              onClick={() => onToggleActivity('hasCall')}
-              data-testid={`checkbox-llamada-${lead.id}`}
-            >
-              <Phone className="w-3 h-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-7 w-7 p-0 ${
-                lead.hasWhatsapp ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : ''
-              }`}
-              onClick={() => onToggleActivity('hasWhatsapp')}
-              data-testid={`checkbox-whatsapp-${lead.id}`}
-            >
-              <MessageSquare className="w-3 h-3" />
-            </Button>
-          </div>
         </div>
 
         {/* Comentarios colapsables */}
         {showComments && (
-          <div className="pt-2 border-t">
+          <div className="pt-3 border-t border-gray-200 dark:border-gray-800">
             <LeadComments leadId={lead.id} />
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ListLeadRow({ 
+  lead, 
+  onToggleActivity,
+  onChangeStage,
+  onDelete
+}: { 
+  lead: CrmLead; 
+  onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
+  onChangeStage: (stage: string) => void;
+  onDelete: () => void;
+}) {
+  const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
+  
+  const initials = lead.clientName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const avatarColors = [
+    'bg-gradient-to-br from-blue-400 to-blue-600',
+    'bg-gradient-to-br from-purple-400 to-purple-600',
+    'bg-gradient-to-br from-pink-400 to-pink-600',
+    'bg-gradient-to-br from-green-400 to-green-600',
+    'bg-gradient-to-br from-orange-400 to-orange-600',
+    'bg-gradient-to-br from-teal-400 to-teal-600',
+  ];
+  const avatarColor = avatarColors[lead.id.charCodeAt(0) % avatarColors.length];
+
+  return (
+    <Card className="hover:shadow-sm transition-shadow bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800" data-testid={`row-lead-${lead.id}`}>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-4">
+          {/* Avatar */}
+          <div className={`w-10 h-10 rounded-full ${avatarColor} flex items-center justify-center text-white font-semibold text-sm shadow-md flex-shrink-0`}>
+            {initials}
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4">
+            <div className="min-w-0">
+              <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">
+                {lead.clientName}
+              </h4>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('es-CL') : ''}
+              </p>
+            </div>
+            
+            <div className="min-w-0">
+              {lead.clientPhone && (
+                <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+                  <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate">{lead.clientPhone}</span>
+                </div>
+              )}
+              {lead.clientEmail && (
+                <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 mt-1">
+                  <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate">{lead.clientEmail}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center">
+              <Badge className={`${stageBadge.bgColor} ${stageBadge.textColor} border-0 px-3 py-1 text-xs font-medium`}>
+                {stageBadge.label}
+              </Badge>
+            </div>
+
+            <div className="flex items-center gap-2 justify-start sm:justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-8 w-8 p-0 ${
+                  lead.hasCall ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : ''
+                }`}
+                onClick={() => onToggleActivity('hasCall')}
+                data-testid={`checkbox-llamada-${lead.id}`}
+              >
+                <Phone className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-8 w-8 p-0 ${
+                  lead.hasWhatsapp ? 'text-green-600 bg-green-50 dark:bg-green-900/20' : ''
+                }`}
+                onClick={() => onToggleActivity('hasWhatsapp')}
+                data-testid={`checkbox-whatsapp-${lead.id}`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+              </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={onDelete} className="text-red-600">
+                    Eliminar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -448,44 +613,56 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
     queryKey: ['/api/users'],
   });
 
-  const form = useForm({
-    resolver: zodResolver(insertCrmLeadSchema.partial({
-      clientPhone: true,
-      clientEmail: true,
-      clientCompany: true,
-      clientAddress: true,
-      salespersonName: true,
-      supervisorId: true,
-      segment: true,
-      hasCall: true,
-      hasWhatsapp: true,
-      lastContactDate: true,
-      estimatedValue: true,
-      notes: true,
-      stage: true,
-    })),
+  const formSchema = insertCrmLeadSchema.omit({ 
+    id: true, 
+    createdAt: true, 
+    updatedAt: true,
+    salespersonName: true,
+    supervisorId: true,
+  });
+
+  type FormValues = Omit<InsertCrmLeadInput, 'id' | 'createdAt' | 'updatedAt' | 'salespersonName' | 'supervisorId'> & {
+    // Override nullable fields to string for form compatibility
+    clientPhone: string;
+    clientEmail: string;
+    clientCompany: string;
+    clientAddress: string;
+    segment: string;
+    notes: string;
+  };
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       clientName: '',
-      clientPhone: null,
-      clientEmail: null,
-      clientCompany: null,
-      clientAddress: null,
-      segment: null,
+      clientPhone: '',
+      clientEmail: '',
+      clientCompany: '',
+      clientAddress: '',
+      segment: '',
       salespersonId: '',
-      notes: null,
-      salespersonName: null,
-      supervisorId: null,
-      hasCall: false,
-      hasWhatsapp: false,
-      lastContactDate: null,
-      estimatedValue: null,
-      stage: 'lead',
+      notes: '',
+      stage: 'lead' as const,
     },
   });
 
   const createLeadMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiRequest('/api/crm/leads', 'POST', data);
+    mutationFn: async (data: FormValues): Promise<CrmLead> => {
+      // Clean up empty strings to null for optional fields
+      const cleanData: InsertCrmLeadInput = {
+        ...data,
+        clientPhone: data.clientPhone || null,
+        clientEmail: data.clientEmail || null,
+        clientCompany: data.clientCompany || null,
+        clientAddress: data.clientAddress || null,
+        segment: data.segment || null,
+        notes: data.notes || null,
+        estimatedValue: data.estimatedValue || null,
+        lastContactDate: data.lastContactDate || null,
+      };
+      
+      const response = await apiRequest('/api/crm/leads', 'POST', cleanData);
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/crm/leads'] });
@@ -493,9 +670,11 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
         title: "Lead creado",
         description: "El lead ha sido creado exitosamente",
       });
+      form.reset();
       onSuccess();
     },
     onError: (error: any) => {
+      console.error('Error creating lead:', error);
       toast({
         title: "Error",
         description: error.message || "No se pudo crear el lead",
@@ -504,14 +683,16 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
-  const onSubmit = (data: any) => {
+  const onSubmit = (data: FormValues) => {
+    console.log('Form data:', data);
+    console.log('Form errors:', form.formState.errors);
     createLeadMutation.mutate(data);
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="clientName"
@@ -519,7 +700,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
               <FormItem>
                 <FormLabel>Nombre del Cliente *</FormLabel>
                 <FormControl>
-                  <Input {...field} data-testid="input-client-name" />
+                  <Input {...field} data-testid="input-client-name" placeholder="Juan Pérez" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -532,7 +713,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
               <FormItem>
                 <FormLabel>Empresa</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value || ''} data-testid="input-company-name" />
+                  <Input {...field} data-testid="input-company-name" placeholder="Empresa S.A." />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -540,7 +721,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="clientPhone"
@@ -548,7 +729,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
               <FormItem>
                 <FormLabel>Teléfono</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value || ''} data-testid="input-phone" />
+                  <Input {...field} data-testid="input-phone" placeholder="+56 9 1234 5678" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -561,7 +742,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value || ''} type="email" data-testid="input-email" />
+                  <Input {...field} type="email" data-testid="input-email" placeholder="correo@ejemplo.com" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -569,14 +750,14 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="segment"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Segmento *</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value || ''}>
+                <FormLabel>Segmento</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger data-testid="select-segment">
                       <SelectValue placeholder="Selecciona segmento" />
@@ -598,7 +779,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Vendedor Asignado *</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger data-testid="select-salesperson">
                       <SelectValue placeholder="Selecciona vendedor" />
@@ -627,7 +808,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
             <FormItem>
               <FormLabel>Dirección</FormLabel>
               <FormControl>
-                <Input {...field} value={field.value || ''} data-testid="input-address" />
+                <Input {...field} data-testid="input-address" placeholder="Av. Principal 123, Santiago" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -641,14 +822,14 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
             <FormItem>
               <FormLabel>Notas</FormLabel>
               <FormControl>
-                <Textarea {...field} value={field.value || ''} rows={3} data-testid="textarea-notes" />
+                <Textarea {...field} rows={3} data-testid="textarea-notes" placeholder="Notas adicionales..." />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 pt-4">
           <Button type="submit" disabled={createLeadMutation.isPending} data-testid="button-submit-lead">
             {createLeadMutation.isPending ? 'Creando...' : 'Crear Lead'}
           </Button>
