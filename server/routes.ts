@@ -4396,6 +4396,92 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ==================================================================================
+  // CRM Stages Management
+  // ==================================================================================
+
+  // Get all stages
+  app.get('/api/crm/stages', requireAuth, async (req: any, res) => {
+    try {
+      const stages = await storage.getAllStages();
+      res.json(stages);
+    } catch (error) {
+      console.error("Error fetching stages:", error);
+      res.status(500).json({ message: "Failed to fetch stages" });
+    }
+  });
+
+  // Create new stage (admin only)
+  app.post('/api/crm/stages', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: "Only admins can create stages" });
+      }
+      
+      const newStage = await storage.createStage(req.body);
+      res.status(201).json(newStage);
+    } catch (error) {
+      console.error("Error creating stage:", error);
+      res.status(500).json({ message: "Failed to create stage" });
+    }
+  });
+
+  // Update stage (admin only)
+  app.put('/api/crm/stages/:id', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { id } = req.params;
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: "Only admins can update stages" });
+      }
+      
+      const updated = await storage.updateStage(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating stage:", error);
+      res.status(500).json({ message: "Failed to update stage" });
+    }
+  });
+
+  // Delete stage (admin only)
+  app.delete('/api/crm/stages/:id', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { id } = req.params;
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: "Only admins can delete stages" });
+      }
+      
+      await storage.deleteStage(id);
+      res.json({ message: "Stage deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting stage:", error);
+      res.status(500).json({ message: "Failed to delete stage" });
+    }
+  });
+
+  // Reorder stages (admin only)
+  app.post('/api/crm/stages/reorder', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: "Only admins can reorder stages" });
+      }
+      
+      const { stageOrders } = req.body;
+      await storage.reorderStages(stageOrders);
+      res.json({ message: "Stages reordered successfully" });
+    } catch (error) {
+      console.error("Error reordering stages:", error);
+      res.status(500).json({ message: "Failed to reorder stages" });
+    }
+  });
+
   // Order management endpoints
   app.get('/api/orders', requireAuth, async (req: any, res) => {
     try {

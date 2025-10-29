@@ -16,14 +16,14 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2 } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { CrmLead, InsertCrmLeadInput } from "@shared/schema";
+import type { CrmLead, CrmStage, InsertCrmLeadInput } from "@shared/schema";
 import { insertCrmLeadSchema } from "@shared/schema";
 import PromesasCompraPage from "./promesas-compra";
 
@@ -54,40 +54,18 @@ export default function CRMPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'leads' | 'promesas'>('leads');
-  const [selectedStage, setSelectedStage] = useState<string>('all');
-  const [segmentFilter, setSegmentFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   
-  // Auto-detect mobile and force list view
-  const [isMobile, setIsMobile] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const isAdmin = currentUser?.role === 'admin';
 
-  // Detect mobile on mount and window resize
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 640; // sm breakpoint
-      setIsMobile(mobile);
-      if (mobile) setViewMode('list');
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  // Load custom stages from database
+  const { data: stages = [] } = useQuery<CrmStage[]>({
+    queryKey: ['/api/crm/stages'],
+  });
 
   const { data: leads = [], isLoading } = useQuery<CrmLead[]>({
-    queryKey: ['/api/crm/leads', segmentFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (segmentFilter !== 'all') {
-        params.append('segment', segmentFilter);
-      }
-      const response = await fetch(`/api/crm/leads?${params}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch leads');
-      }
-      return response.json();
-    },
+    queryKey: ['/api/crm/leads'],
   });
 
   const { data: segments = [] } = useQuery<string[]>({
@@ -137,19 +115,20 @@ export default function CRMPage() {
     },
   });
 
-  const filteredLeads = leads.filter(lead => {
-    const matchesStage = selectedStage === 'all' || lead.stage === selectedStage;
-    const matchesSearch = !searchQuery || 
-      lead.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (lead.clientEmail || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (lead.clientPhone || '').toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStage && matchesSearch;
-  });
+  // Filter leads by search query only
+  const filteredLeads = searchQuery
+    ? leads.filter(lead => 
+        lead.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (lead.clientEmail || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (lead.clientPhone || '').toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : leads;
 
-  const getLeadCountByStage = (stage: string) => {
-    if (stage === 'all') return leads.length;
-    return leads.filter(l => l.stage === stage).length;
-  };
+  // Group leads by stage
+  const leadsByStage = stages.reduce((acc, stage) => {
+    acc[stage.stageKey] = filteredLeads.filter(lead => lead.stage === stage.stageKey);
+    return acc;
+  }, {} as Record<string, CrmLead[]>);
 
   if (isLoading) {
     return (
@@ -203,122 +182,80 @@ export default function CRMPage() {
 
         {/* Tab de Leads */}
         <TabsContent value="leads" className="space-y-4">
-          {/* Filtros superiores */}
+          {/* Barra de búsqueda y acciones */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 w-full">
-              <Select value={selectedStage} onValueChange={setSelectedStage}>
-                <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-status-filter">
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  {PIPELINE_STAGES.filter(s => s.id !== 'all').map((stage) => (
-                    <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Select value={segmentFilter} onValueChange={setSegmentFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-segment-filter">
-                  <SelectValue placeholder="All Sources" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sources</SelectItem>
-                  {segments.map((segment) => (
-                    <SelectItem key={segment} value={segment}>{segment}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Button variant="outline" size="sm" data-testid="button-filter">
-                <Filter className="w-4 h-4 mr-2" />
-                Filter
-              </Button>
-
-              {/* Search field inline with filters */}
-              <div className="flex-1 min-w-[200px]">
-                <Input
-                  placeholder="Buscar por nombre, email o teléfono..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  data-testid="input-search-leads"
-                />
-              </div>
+            <div className="flex-1 w-full">
+              <Input
+                placeholder="Buscar por nombre, email o teléfono..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                data-testid="input-search-leads"
+              />
             </div>
-
-            {/* View mode toggle - desktop only, disabled on mobile */}
-            {!isMobile && (
-              <div className="hidden sm:block">
-                <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'grid' | 'list')}>
-                  <ToggleGroupItem value="grid" aria-label="Grid view" data-testid="toggle-grid-view">
-                    <Grid3x3 className="w-4 h-4" />
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="list" aria-label="List view" data-testid="toggle-list-view">
-                    <List className="w-4 h-4" />
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </div>
+            {isAdmin && (
+              <Button variant="outline" size="sm" data-testid="button-manage-stages">
+                <Settings className="w-4 h-4 mr-2" />
+                Administrar Etapas
+              </Button>
             )}
           </div>
 
-          {/* Status Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {PIPELINE_STAGES.filter(s => s.id !== 'all').slice(0, 4).map((stage) => {
-              const count = getLeadCountByStage(stage.id);
-              const stageBadge = STAGE_BADGE_MAP[stage.id];
-              return (
-                <Card key={stage.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => setSelectedStage(stage.id)}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className={`w-2 h-2 rounded-full ${stageBadge.bgColor}`} />
-                      <span className="text-xs text-gray-500 dark:text-gray-400">{count} Leads</span>
-                    </div>
-                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">{stage.name}</div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {/* Vista Kanban - Columnas por etapa */}
+          <div className="overflow-x-auto pb-4">
+            <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
+              {stages.map((stage) => {
+                const stageLeads = leadsByStage[stage.stageKey] || [];
+                const stageBadge = STAGE_BADGE_MAP[stage.stageKey] || { 
+                  label: stage.name, 
+                  bgColor: stage.color, 
+                  textColor: 'text-gray-700 dark:text-gray-300' 
+                };
+                
+                return (
+                  <div key={stage.id} className="flex-shrink-0" style={{ width: '320px' }}>
+                    <Card className="h-full">
+                      <CardContent className="p-4">
+                        {/* Encabezado de columna */}
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                              {stage.name}
+                            </h3>
+                            <Badge variant="secondary" className="text-xs">
+                              {stageLeads.length} Leads
+                            </Badge>
+                          </div>
+                          <div className={`h-1 rounded-full ${stageBadge.bgColor}`} />
+                        </div>
 
-          {/* Grid/List de leads */}
-          <div className="mt-6">
-            {filteredLeads.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400">No se encontraron leads</p>
-              </div>
-            ) : viewMode === 'grid' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredLeads.map((lead) => (
-                  <LeadCard
-                    key={lead.id}
-                    lead={lead}
-                    currentUser={currentUser}
-                    onToggleActivity={(field) => {
-                      const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
-                      toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
-                    }}
-                    onChangeStage={(stage) => updateStageMutation.mutate({ id: lead.id, stage })}
-                    onDelete={() => deleteLeadMutation.mutate(lead.id)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredLeads.map((lead) => (
-                  <ListLeadRow
-                    key={lead.id}
-                    lead={lead}
-                    currentUser={currentUser}
-                    onToggleActivity={(field) => {
-                      const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
-                      toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
-                    }}
-                    onChangeStage={(stage) => updateStageMutation.mutate({ id: lead.id, stage })}
-                    onDelete={() => deleteLeadMutation.mutate(lead.id)}
-                  />
-                ))}
-              </div>
-            )}
+                        {/* Leads en esta columna */}
+                        <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                          {stageLeads.length === 0 ? (
+                            <div className="text-center py-8 text-gray-400 text-sm">
+                              Sin leads
+                            </div>
+                          ) : (
+                            stageLeads.map((lead) => (
+                              <LeadCard
+                                key={lead.id}
+                                lead={lead}
+                                currentUser={currentUser}
+                                onToggleActivity={(field) => {
+                                  const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
+                                  toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
+                                }}
+                                onChangeStage={(newStage) => updateStageMutation.mutate({ id: lead.id, stage: newStage })}
+                                onDelete={() => deleteLeadMutation.mutate(lead.id)}
+                              />
+                            ))
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </TabsContent>
 

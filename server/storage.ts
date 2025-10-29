@@ -23,6 +23,7 @@ import {
   fileUploads,
   crmLeads,
   crmComments,
+  crmStages,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -79,6 +80,8 @@ import {
   type InsertCrmLead,
   type CrmComment,
   type InsertCrmComment,
+  type CrmStage,
+  type InsertCrmStage,
   type NvvPendingSales,
   type InsertNvvPendingSales,
   type NvvImportResult,
@@ -12655,6 +12658,54 @@ export class DatabaseStorage implements IStorage {
   async createLeadComment(comment: InsertCrmComment): Promise<CrmComment> {
     const [newComment] = await db.insert(crmComments).values(comment).returning();
     return newComment;
+  }
+
+  // CRM Stages Management
+  async getAllStages(): Promise<CrmStage[]> {
+    const results = await db
+      .select()
+      .from(crmStages)
+      .where(eq(crmStages.isActive, true))
+      .orderBy(asc(crmStages.order));
+    return results;
+  }
+
+  async getStageById(id: string): Promise<CrmStage | undefined> {
+    const [result] = await db
+      .select()
+      .from(crmStages)
+      .where(eq(crmStages.id, id));
+    return result;
+  }
+
+  async createStage(stage: InsertCrmStage): Promise<CrmStage> {
+    const [newStage] = await db.insert(crmStages).values(stage).returning();
+    return newStage;
+  }
+
+  async updateStage(id: string, stage: Partial<InsertCrmStage>): Promise<CrmStage | undefined> {
+    const [updated] = await db
+      .update(crmStages)
+      .set({ ...stage, updatedAt: new Date() })
+      .where(eq(crmStages.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteStage(id: string): Promise<void> {
+    await db
+      .update(crmStages)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(crmStages.id, id));
+  }
+
+  async reorderStages(stageOrders: { id: string; order: number }[]): Promise<void> {
+    for (const { id, order } of stageOrders) {
+      await db
+        .update(crmStages)
+        .set({ order, updatedAt: new Date() })
+        .where(eq(crmStages.id, id));
+    }
   }
 
   async getCrmStats(filters?: {
