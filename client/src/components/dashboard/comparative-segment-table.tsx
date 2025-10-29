@@ -98,18 +98,43 @@ export default function ComparativeSegmentTable({ periods, segment }: Comparativ
     );
   }
 
+  // Calculate total sales across all periods
+  const totalSalesAllPeriods = totalSalesPerPeriod.reduce((sum, periodTotal) => sum + periodTotal, 0);
+  const isMultipleDays = periods.length > 1 && periods[0].filterType === 'day';
+
   return (
-    <div className="bg-white border rounded-lg p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-gray-700" />
-          <h3 className="font-semibold text-gray-900">Evolución de Ventas por Segmento</h3>
-          {isYearOverYear && (
-            <span className="text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full">
-              Comparación año contra año
-            </span>
-          )}
+    <>
+      {/* Summary Card for Day Range Selection */}
+      {isMultipleDays && (
+        <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-lg p-6 mb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-emerald-700 mb-1">Ventas Totales del Período</p>
+              <p className="text-3xl font-bold text-emerald-900" data-testid="text-total-period-sales">
+                {formatCurrency(totalSalesAllPeriods)}
+              </p>
+              <p className="text-sm text-emerald-600 mt-1">
+                {periods.length} {periods.length === 1 ? 'día' : 'días'} seleccionados
+              </p>
+            </div>
+            <div className="bg-emerald-100 rounded-full p-4">
+              <TrendingUp className="h-8 w-8 text-emerald-600" />
+            </div>
+          </div>
         </div>
+      )}
+
+      <div className="bg-white border rounded-lg p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-gray-700" />
+            <h3 className="font-semibold text-gray-900">Evolución de Ventas por Segmento</h3>
+            {isYearOverYear && (
+              <span className="text-xs text-gray-500 bg-blue-50 px-3 py-1 rounded-full">
+                Comparación año contra año
+              </span>
+            )}
+          </div>
         <div className="flex items-center gap-2">
           <Button
             variant={viewMode === 'chart' ? 'default' : 'outline'}
@@ -186,5 +211,6 @@ export default function ComparativeSegmentTable({ periods, segment }: Comparativ
         </div>
       )}
     </div>
+    </>
   );
 }

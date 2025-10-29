@@ -162,8 +162,13 @@ export default function ComparativeSegmentChart({ periods, segmentsData }: Compa
         align: 'top',
         formatter: (value: number) => {
           if (value === 0) return '';
-          // Format in millions with 'M' suffix
-          return `$${(value / 1000000).toFixed(1)}M`;
+          // Format as Chilean pesos with thousand separators
+          return new Intl.NumberFormat('es-CL', {
+            style: 'currency',
+            currency: 'CLP',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          }).format(value);
         },
         font: {
           size: 10,
