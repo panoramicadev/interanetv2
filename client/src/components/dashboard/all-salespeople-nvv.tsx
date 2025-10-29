@@ -208,8 +208,9 @@ export default function AllSalespeopleNVV({
         {/* Grouped by Salesperson with nested Client Accordion */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Por Vendedor</h3>
-          <Accordion type="single" collapsible className="space-y-2">
-            {salespeopleData.map((salespersonGroup) => {
+          <div className="max-h-[240px] overflow-y-auto">
+            <Accordion type="single" collapsible className="space-y-2">
+              {salespeopleData.map((salespersonGroup) => {
               const clientGroups = groupRecordsByClient(salespersonGroup.records);
               
               return (
@@ -327,8 +328,9 @@ export default function AllSalespeopleNVV({
                   </AccordionContent>
                 </AccordionItem>
               );
-            })}
-          </Accordion>
+              })}
+            </Accordion>
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -6810,6 +6810,12 @@ export function registerRoutes(app: Express): Server {
     res.json(nvvData);
   }));
 
+  // Get total pending NVV amount
+  app.get('/api/nvv/total-pending', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const total = await storage.getTotalPendingNVV();
+    res.json({ total });
+  }));
+
   // Region Management Endpoints
   // Load Comuna-Region mapping from CSV
   app.post('/api/admin/regions/load', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
