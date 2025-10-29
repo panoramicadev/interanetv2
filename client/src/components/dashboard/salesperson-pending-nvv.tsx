@@ -178,55 +178,56 @@ export default function SalespersonPendingNVV({
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            Notas de Venta Pendientes
+          <CardTitle className="flex items-center gap-2 text-base sm:text-xl">
+            <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">Notas de Venta Pendientes</span>
+            <span className="sm:hidden">Pendientes</span>
           </CardTitle>
-          <div className="flex gap-2">
-            <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
+          <div className="flex gap-1 sm:gap-2">
+            <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 text-xs px-1.5 sm:px-2.5">
               {totalClients} {totalClients === 1 ? 'cliente' : 'clientes'}
             </Badge>
-            <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
-              {totalOrders} {totalOrders === 1 ? 'pedido' : 'pedidos'}
+            <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700 text-xs px-1.5 sm:px-2.5">
+              {totalOrders} pedidos
             </Badge>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 shadow-sm">
             <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500 mb-1">
-              <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                <DollarSign className="h-4 w-4" />
+              <div className="p-1 sm:p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
               </div>
               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Monto Pendiente</span>
             </div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <div className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
               {formatCurrency(totalPendingAmount)}
             </div>
           </div>
           
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 shadow-sm">
             <div className="flex items-center gap-2 text-purple-600 dark:text-purple-500 mb-1">
-              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                <Package className="h-4 w-4" />
+              <div className="p-1 sm:p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Package className="h-3 w-3 sm:h-4 sm:w-4" />
               </div>
               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Unidades Pendientes</span>
             </div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <div className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
               {totalPendingUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
             </div>
           </div>
           
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 sm:p-4 shadow-sm">
             <div className="flex items-center gap-2 text-blue-600 dark:text-blue-500 mb-1">
-              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <ShoppingCart className="h-4 w-4" />
+              <div className="p-1 sm:p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
               </div>
               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Total Pedidos</span>
             </div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalOrders}</div>
+            <div className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-gray-100">{totalOrders}</div>
           </div>
         </div>
 
@@ -243,31 +244,31 @@ export default function SalespersonPendingNVV({
                 data-testid={`client-group-${clientGroup.uniqueKey}`}
               >
                 <AccordionTrigger 
-                  className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 hover:no-underline"
+                  className="px-2 sm:px-4 py-2 sm:py-3 hover:bg-gray-50 dark:hover:bg-gray-800 hover:no-underline"
                   data-testid={`client-trigger-${clientGroup.uniqueKey}`}
                 >
-                  <div className="flex items-center justify-between w-full pr-4">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-                        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <div className="flex items-center justify-between w-full pr-2 sm:pr-4">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                      <div className="bg-blue-100 dark:bg-blue-900/30 p-1.5 sm:p-2 rounded-lg shrink-0">
+                        <User className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600 dark:text-blue-400" />
                       </div>
-                      <div className="text-left">
-                        <div className="font-semibold text-gray-900 dark:text-gray-100">{clientGroup.clientName}</div>
+                      <div className="text-left min-w-0 flex-1">
+                        <div className="font-semibold text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">{clientGroup.clientName}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {clientGroup.totalOrders} {clientGroup.totalOrders === 1 ? 'documento' : 'documentos'}
+                          {clientGroup.totalOrders} {clientGroup.totalOrders === 1 ? 'doc' : 'documentos'}
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                       <div className="text-right">
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Unidades</div>
-                        <div className="font-semibold text-purple-700 dark:text-purple-300">
+                        <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Unidades</div>
+                        <div className="font-semibold text-xs sm:text-base text-purple-700 dark:text-purple-300">
                           {clientGroup.totalUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm text-gray-500 dark:text-gray-400">Monto Total</div>
-                        <div className="font-bold text-amber-700 dark:text-amber-300">
+                        <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Monto Total</div>
+                        <div className="font-bold text-xs sm:text-base text-amber-700 dark:text-amber-300">
                           {formatCurrency(clientGroup.totalAmount)}
                         </div>
                       </div>
