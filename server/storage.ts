@@ -9145,7 +9145,7 @@ export class DatabaseStorage implements IStorage {
         }
 
         const group = groupedBySalesperson.get(kofulido)!;
-        group.totalAmount += Number(row.montoPendiente) || 0;
+        group.totalAmount += Number(row.totalPendiente) || 0;
         group.totalUnits += Number(row.cantidadPendiente) || 0;
         group.totalOrders += 1;
         group.records.push({
@@ -9171,6 +9171,22 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error getting all NVV grouped by salespeople:', error);
       return [];
+    }
+  }
+
+  async getTotalPendingNVV(): Promise<number> {
+    try {
+      const result = await db
+        .select({
+          total: sql<number>`COALESCE(SUM(CAST(${nvvPendingSales.totalPendiente} AS DECIMAL)), 0)`
+        })
+        .from(nvvPendingSales)
+        .execute();
+
+      return Number(result[0]?.total || 0);
+    } catch (error) {
+      console.error('Error getting total pending NVV:', error);
+      return 0;
     }
   }
 
