@@ -108,11 +108,11 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
                   data-testid={`salesperson-${index}`}
                 >
                   {/* Nombre del vendedor y monto - Mobile */}
-                  <div className="flex justify-between items-center sm:hidden">
-                    <p className="text-sm text-gray-700 font-medium truncate flex-1 min-w-0 pr-2">
+                  <div className="flex flex-col gap-2 sm:hidden">
+                    <p className="text-sm text-gray-700 font-medium break-words line-clamp-2">
                       {salesperson.salesperson}
                     </p>
-                    <div className="flex items-center space-x-2 shrink-0">
+                    <div className="flex items-center justify-between">
                       <span className="text-xs text-gray-600">
                         {salesperson.percentage.toFixed(1)}%
                       </span>
@@ -196,11 +196,11 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
                   data-testid="salespeople-total"
                 >
                   {/* Total Mobile */}
-                  <div className="flex justify-between items-center sm:hidden">
+                  <div className="flex flex-col gap-2 sm:hidden">
                     <p className="text-sm text-green-900 font-bold">
                       TOTAL ({salespeopleWithPercentage.length} vendedores)
                     </p>
-                    <div className="flex items-center space-x-2 shrink-0">
+                    <div className="flex items-center justify-between">
                       <span className="text-xs text-green-700">
                         100.0%
                       </span>
