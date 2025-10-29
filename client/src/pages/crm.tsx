@@ -925,13 +925,14 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
 
   // Función para auto-rellenar el formulario cuando se selecciona un cliente
   const handleClientSelect = (clientId: string) => {
-    setSelectedClientId(clientId);
-    if (clientId === '') {
+    if (clientId === 'none') {
       // Limpiar el formulario si se deselecciona
+      setSelectedClientId('');
       form.reset();
       return;
     }
     
+    setSelectedClientId(clientId);
     const client = clients.find(c => c.id === clientId);
     if (client) {
       // Rellenar con datos de cliente de ventas (nokoen, koen, rten, etc)
@@ -1012,12 +1013,12 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Seleccionar Cliente Existente (opcional)
           </label>
-          <Select value={selectedClientId} onValueChange={handleClientSelect}>
+          <Select value={selectedClientId || "none"} onValueChange={handleClientSelect}>
             <SelectTrigger className="w-full" data-testid="select-existing-client">
               <SelectValue placeholder="Buscar cliente existente..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Crear nuevo lead sin cliente existente</SelectItem>
+              <SelectItem value="none">Crear nuevo lead sin cliente existente</SelectItem>
               {clients.map((client) => (
                 <SelectItem key={client.id} value={client.id}>
                   {client.nokoen} {client.rten ? `- ${client.rten}` : ''}
