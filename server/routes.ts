@@ -1515,13 +1515,14 @@ export function registerRoutes(app: Express): Server {
   // Segment analysis endpoint
   app.get('/api/sales/segments', requireAuth, async (req, res) => {
     try {
-      const { period, filterType, salesperson } = req.query;
+      const { period, filterType, salesperson, segment } = req.query;
       const dateRange = getDateRange(period as string, filterType as string);
       
       const segmentAnalysis = await storage.getSegmentAnalysis(
         dateRange.startDate,
         dateRange.endDate,
-        salesperson as string
+        salesperson as string,
+        segment as string
       );
       res.json(segmentAnalysis);
     } catch (error) {
