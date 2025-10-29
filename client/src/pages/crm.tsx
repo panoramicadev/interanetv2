@@ -16,7 +16,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,6 +58,7 @@ export default function CRMPage() {
   const [segmentFilter, setSegmentFilter] = useState('all');
   const [vendedorFilter, setVendedorFilter] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isStageManagementOpen, setIsStageManagementOpen] = useState(false);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   
@@ -84,6 +85,19 @@ export default function CRMPage() {
   const { data: stages = [] } = useQuery<CrmStage[]>({
     queryKey: ['/api/crm/stages'],
   });
+
+  // Create dynamic stage badge map from database stages
+  const dynamicStageBadgeMap = stages.reduce((acc, stage) => {
+    acc[stage.stageKey] = {
+      label: stage.name,
+      bgColor: stage.color,
+      textColor: 'text-gray-700 dark:text-gray-300'
+    };
+    return acc;
+  }, {} as Record<string, { label: string; bgColor: string; textColor: string }>);
+
+  // Merge with static map as fallback
+  const stageBadgeMap = { ...STAGE_BADGE_MAP, ...dynamicStageBadgeMap };
 
   const { data: leads = [], isLoading } = useQuery<CrmLead[]>({
     queryKey: ['/api/crm/leads'],
@@ -259,7 +273,13 @@ export default function CRMPage() {
               
               {/* Botón Administrar Etapas en desktop */}
               {isAdmin && (
-                <Button variant="outline" size="sm" className="h-8 sm:h-9 hidden lg:flex" data-testid="button-manage-stages">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 sm:h-9 hidden lg:flex" 
+                  onClick={() => setIsStageManagementOpen(true)}
+                  data-testid="button-manage-stages"
+                >
                   <Settings className="w-4 h-4 mr-2" />
                   Administrar Etapas
                 </Button>
@@ -284,7 +304,7 @@ export default function CRMPage() {
               <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
               {stages.map((stage) => {
                 const stageLeads = leadsByStage[stage.stageKey] || [];
-                const stageBadge = STAGE_BADGE_MAP[stage.stageKey] || { 
+                const stageBadge = stageBadgeMap[stage.stageKey] || { 
                   label: stage.name, 
                   bgColor: stage.color, 
                   textColor: 'text-gray-700 dark:text-gray-300' 
@@ -343,7 +363,10 @@ export default function CRMPage() {
                               {stageLeads.length} Leads
                             </Badge>
                           </div>
-                          <div className={`h-1 rounded-full ${stageBadge.bgColor}`} />
+                          <div 
+                            className={`h-1 rounded-full ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''}`}
+                            style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
+                          />
                         </div>
 
                         {/* Leads en esta columna */}
@@ -359,6 +382,7 @@ export default function CRMPage() {
                                 lead={lead}
                                 currentUser={currentUser}
                                 isMobile={false}
+                                stageBadgeMap={stageBadgeMap}
                                 onToggleActivity={(field) => {
                                   const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
                                   toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
@@ -381,7 +405,7 @@ export default function CRMPage() {
             <div className="space-y-2">
               {stages.map((stage) => {
                 const stageLeads = leadsByStage[stage.stageKey] || [];
-                const stageBadge = STAGE_BADGE_MAP[stage.stageKey] || { 
+                const stageBadge = stageBadgeMap[stage.stageKey] || { 
                   label: stage.name, 
                   bgColor: stage.color, 
                   textColor: 'text-gray-700 dark:text-gray-300' 
@@ -394,7 +418,10 @@ export default function CRMPage() {
                     {/* Encabezado de sección */}
                     <div className="flex items-center justify-between px-0.5">
                       <div className="flex items-center gap-1.5">
-                        <div className={`h-2.5 w-0.5 rounded-full ${stageBadge.bgColor}`} />
+                        <div 
+                          className={`h-2.5 w-0.5 rounded-full ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''}`}
+                          style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
+                        />
                         <h3 className="font-semibold text-xs text-gray-900 dark:text-gray-100">
                           {stage.name}
                         </h3>
@@ -412,6 +439,7 @@ export default function CRMPage() {
                           lead={lead}
                           currentUser={currentUser}
                           isMobile={true}
+                          stageBadgeMap={stageBadgeMap}
                           onToggleActivity={(field) => {
                             const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
                             toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
@@ -433,6 +461,12 @@ export default function CRMPage() {
           <PromesasCompraPage />
         </TabsContent>
       </Tabs>
+
+      {/* Diálogo de Administración de Etapas */}
+      <StageManagementDialog 
+        open={isStageManagementOpen}
+        onOpenChange={setIsStageManagementOpen}
+      />
     </div>
   );
 }
@@ -443,7 +477,8 @@ function LeadCard({
   onChangeStage,
   onDelete,
   currentUser,
-  isMobile = false
+  isMobile = false,
+  stageBadgeMap
 }: { 
   lead: CrmLead; 
   onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
@@ -451,10 +486,11 @@ function LeadCard({
   onDelete: () => void;
   currentUser: any;
   isMobile?: boolean;
+  stageBadgeMap: Record<string, { label: string; bgColor: string; textColor: string }>;
 }) {
   const [showComments, setShowComments] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
+  const stageBadge = stageBadgeMap[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
   const isAdmin = currentUser?.role === 'admin';
   
   // Get initials for avatar
@@ -610,15 +646,22 @@ function LeadCard({
         {/* Selector de etapa */}
         <div className={isMobile ? "pt-1.5" : "pt-3"}>
           <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
-            <SelectTrigger className={`w-full font-medium ${stageBadge.bgColor} ${stageBadge.textColor} border-0 ${isMobile ? 'h-7 text-[10px]' : 'h-9 text-xs'}`}>
+            <SelectTrigger 
+              className={`w-full font-medium ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''} ${stageBadge.textColor} border-0 ${isMobile ? 'h-7 text-[10px]' : 'h-9 text-xs'}`}
+              style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PIPELINE_STAGES.filter(s => s.id !== 'all').map((stage) => {
-                const badge = STAGE_BADGE_MAP[stage.id];
+              {stages.map((stage) => {
+                const badge = stageBadgeMap[stage.stageKey] || { label: stage.name, bgColor: stage.color, textColor: 'text-gray-700 dark:text-gray-300' };
+                const isHexColor = !badge.bgColor.startsWith('bg-');
                 return (
-                  <SelectItem key={stage.id} value={stage.id}>
-                    <span className={`inline-block px-2 py-0.5 rounded ${badge.bgColor} ${badge.textColor}`}>
+                  <SelectItem key={stage.id} value={stage.stageKey}>
+                    <span 
+                      className={`inline-block px-2 py-0.5 rounded ${isHexColor ? '' : badge.bgColor} ${badge.textColor}`}
+                      style={isHexColor ? { backgroundColor: badge.bgColor } : undefined}
+                    >
                       {badge.label}
                     </span>
                   </SelectItem>
@@ -644,15 +687,17 @@ function ListLeadRow({
   onToggleActivity,
   onChangeStage,
   onDelete,
-  currentUser
+  currentUser,
+  stageBadgeMap
 }: { 
   lead: CrmLead; 
   onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
   onChangeStage: (stage: string) => void;
   onDelete: () => void;
   currentUser: any;
+  stageBadgeMap: Record<string, { label: string; bgColor: string; textColor: string }>;
 }) {
-  const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
+  const stageBadge = stageBadgeMap[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
   const isAdmin = currentUser?.role === 'admin';
   
   const initials = lead.clientName
@@ -709,12 +754,15 @@ function ListLeadRow({
 
             <div className="flex items-center min-w-[140px]">
               <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
-                <SelectTrigger className={`w-full h-8 text-xs font-medium ${stageBadge.bgColor} ${stageBadge.textColor} border-0`}>
+                <SelectTrigger 
+                  className={`w-full h-8 text-xs font-medium ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''} ${stageBadge.textColor} border-0`}
+                  style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {PIPELINE_STAGES.filter(s => s.id !== 'all').map((stage) => {
-                    const badge = STAGE_BADGE_MAP[stage.id];
+                    const badge = stageBadgeMap[stage.id] || { label: stage.name, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
                     return (
                       <SelectItem key={stage.id} value={stage.id}>
                         <span className={`inline-block px-2 py-0.5 rounded ${badge.bgColor} ${badge.textColor}`}>
@@ -1116,5 +1164,211 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
       </form>
     </Form>
+  );
+}
+
+function StageManagementDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { toast } = useToast();
+  const [editingStage, setEditingStage] = useState<CrmStage | null>(null);
+  const [newStageName, setNewStageName] = useState('');
+  const [newStageColor, setNewStageColor] = useState('#e5e7eb');
+
+  const { data: stages = [], isLoading } = useQuery<CrmStage[]>({
+    queryKey: ['/api/crm/stages'],
+  });
+
+  const createStageMutation = useMutation({
+    mutationFn: async (data: { name: string; color: string }) => {
+      return apiRequest('/api/crm/stages', {
+        method: 'POST',
+        data: {
+          name: data.name,
+          stageKey: data.name.toLowerCase().replace(/\s+/g, '_'),
+          color: data.color,
+          order: stages.length
+        }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/stages'] });
+      toast({ title: "Etapa creada", description: "La etapa ha sido creada exitosamente" });
+      setNewStageName('');
+      setNewStageColor('#e5e7eb');
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo crear la etapa", variant: "destructive" });
+    },
+  });
+
+  const updateStageMutation = useMutation({
+    mutationFn: async ({ id, name, color }: { id: string; name: string; color: string }) => {
+      return apiRequest(`/api/crm/stages/${id}`, {
+        method: 'PUT',
+        data: { name, color }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/stages'] });
+      toast({ title: "Etapa actualizada", description: "La etapa ha sido actualizada exitosamente" });
+      setEditingStage(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo actualizar la etapa", variant: "destructive" });
+    },
+  });
+
+  const deleteStageMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest(`/api/crm/stages/${id}`, {
+        method: 'DELETE'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/stages'] });
+      toast({ title: "Etapa eliminada", description: "La etapa ha sido eliminada exitosamente" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudo eliminar la etapa", variant: "destructive" });
+    },
+  });
+
+  const handleCreate = () => {
+    if (!newStageName.trim()) {
+      toast({ title: "Error", description: "El nombre de la etapa es requerido", variant: "destructive" });
+      return;
+    }
+    createStageMutation.mutate({ name: newStageName, color: newStageColor });
+  };
+
+  const handleUpdate = () => {
+    if (!editingStage || !editingStage.name.trim()) {
+      toast({ title: "Error", description: "El nombre de la etapa es requerido", variant: "destructive" });
+      return;
+    }
+    updateStageMutation.mutate({ id: editingStage.id, name: editingStage.name, color: editingStage.color });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Administrar Etapas del Pipeline</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Crear Nueva Etapa */}
+          <div className="p-4 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
+            <h3 className="font-medium mb-3">Crear Nueva Etapa</h3>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nombre de la etapa"
+                value={newStageName}
+                onChange={(e) => setNewStageName(e.target.value)}
+                className="flex-1"
+                data-testid="input-new-stage-name"
+              />
+              <input
+                type="color"
+                value={newStageColor}
+                onChange={(e) => setNewStageColor(e.target.value)}
+                className="w-12 h-10 rounded cursor-pointer"
+                title="Color de la etapa"
+              />
+              <Button 
+                onClick={handleCreate}
+                disabled={createStageMutation.isPending}
+                data-testid="button-create-stage"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Crear
+              </Button>
+            </div>
+          </div>
+
+          {/* Lista de Etapas Existentes */}
+          <div>
+            <h3 className="font-medium mb-3">Etapas Existentes</h3>
+            {isLoading ? (
+              <div className="text-center py-4 text-gray-500">Cargando...</div>
+            ) : stages.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">No hay etapas creadas</div>
+            ) : (
+              <div className="space-y-2">
+                {stages.map((stage) => (
+                  <div
+                    key={stage.id}
+                    className="flex items-center gap-2 p-3 border border-gray-200 dark:border-gray-800 rounded-lg"
+                    data-testid={`stage-item-${stage.id}`}
+                  >
+                    {editingStage?.id === stage.id ? (
+                      <>
+                        <Input
+                          value={editingStage.name}
+                          onChange={(e) => setEditingStage({ ...editingStage, name: e.target.value })}
+                          className="flex-1"
+                          data-testid={`input-edit-stage-${stage.id}`}
+                        />
+                        <input
+                          type="color"
+                          value={editingStage.color}
+                          onChange={(e) => setEditingStage({ ...editingStage, color: e.target.value })}
+                          className="w-12 h-10 rounded cursor-pointer"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleUpdate}
+                          disabled={updateStageMutation.isPending}
+                          data-testid={`button-save-stage-${stage.id}`}
+                        >
+                          Guardar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditingStage(null)}
+                          data-testid={`button-cancel-edit-${stage.id}`}
+                        >
+                          Cancelar
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div
+                          className="w-8 h-8 rounded flex-shrink-0"
+                          style={{ backgroundColor: stage.color }}
+                        />
+                        <span className="flex-1 font-medium">{stage.name}</span>
+                        <span className="text-xs text-gray-500">({stage.stageKey})</span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditingStage(stage)}
+                          data-testid={`button-edit-stage-${stage.id}`}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (confirm(`¿Estás seguro de eliminar la etapa "${stage.name}"?`)) {
+                              deleteStageMutation.mutate(stage.id);
+                            }
+                          }}
+                          disabled={deleteStageMutation.isPending}
+                          data-testid={`button-delete-stage-${stage.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
