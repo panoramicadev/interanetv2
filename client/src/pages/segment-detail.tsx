@@ -657,6 +657,68 @@ export default function SegmentDetail({
             </>
           ) : (
             <>
+              {/* Goal Progress Section - Only show for monthly view */}
+              {filterType === 'month' && goalData && (
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Target className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">Meta del Segmento</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Objetivo para {selectedPeriod ? format(new Date(selectedPeriod + '-01'), 'MMMM yyyy', { locale: es }) : ''}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 p-4 rounded-xl">
+                      <p className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
+                      <p className="text-2xl font-bold text-purple-900 dark:text-purple-100" data-testid="text-goal-target">
+                        {formatCurrency(Number(goalData.targetAmount))}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 p-4 rounded-xl">
+                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
+                      <p className="text-2xl font-bold text-blue-900 dark:text-blue-100" data-testid="text-goal-current">
+                        {formatCurrency(Number(goalData.currentSales))}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 p-4 rounded-xl">
+                      <p className="text-sm font-medium text-green-700 dark:text-green-300 mb-1">Progreso</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-2xl font-bold text-green-900 dark:text-green-100" data-testid="text-goal-percentage">
+                          {goalData.percentage.toFixed(1)}%
+                        </p>
+                        <Badge 
+                          variant={goalData.percentage >= 100 ? "default" : "secondary"}
+                          className={goalData.percentage >= 100 ? "bg-green-600" : ""}
+                        >
+                          {goalData.percentage >= 100 ? "¡Cumplida!" : "En progreso"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  <div className="mt-4">
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-500 ${
+                          goalData.percentage >= 100 
+                            ? 'bg-gradient-to-r from-green-500 to-green-600' 
+                            : 'bg-gradient-to-r from-purple-500 to-purple-600'
+                        }`}
+                        style={{ width: `${Math.min(100, goalData.percentage)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* KPI Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
@@ -722,68 +784,6 @@ export default function SegmentDetail({
               segment={segmentName}
             />
           )}
-
-          {/* Goal Progress Section - Only show for monthly view */}
-          {filterType === 'month' && goalData && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Target className="w-6 h-6 text-purple-600" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Meta del Segmento</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Objetivo para {selectedPeriod ? format(new Date(selectedPeriod + '-01'), 'MMMM yyyy', { locale: es }) : ''}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 p-4 rounded-xl">
-                  <p className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
-                  <p className="text-2xl font-bold text-purple-900 dark:text-purple-100" data-testid="text-goal-target">
-                    {formatCurrency(Number(goalData.targetAmount))}
-                  </p>
-                </div>
-                
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 p-4 rounded-xl">
-                  <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100" data-testid="text-goal-current">
-                    {formatCurrency(Number(goalData.currentSales))}
-                  </p>
-                </div>
-                
-                <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 p-4 rounded-xl">
-                  <p className="text-sm font-medium text-green-700 dark:text-green-300 mb-1">Progreso</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-2xl font-bold text-green-900 dark:text-green-100" data-testid="text-goal-percentage">
-                      {goalData.percentage.toFixed(1)}%
-                    </p>
-                    <Badge 
-                      variant={goalData.percentage >= 100 ? "default" : "secondary"}
-                      className={goalData.percentage >= 100 ? "bg-green-600" : ""}
-                    >
-                      {goalData.percentage >= 100 ? "¡Cumplida!" : "En progreso"}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Progress Bar */}
-              <div className="mt-4">
-                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-500 ${
-                      goalData.percentage >= 100 
-                        ? 'bg-gradient-to-r from-green-500 to-green-600' 
-                        : 'bg-gradient-to-r from-purple-500 to-purple-600'
-                    }`}
-                    style={{ width: `${Math.min(100, goalData.percentage)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-            )}
 
             {/* Data Tables - Only show in normal mode */}
             {!isComparativeMode && (
