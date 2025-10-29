@@ -1,9 +1,6 @@
-import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Target, TrendingUp, CheckCircle, AlertCircle, TrendingDown, Clock, AlertTriangle, Building, Users } from "lucide-react";
+import { Target, Building, Users } from "lucide-react";
 
 export interface GoalProgress {
   id: string;
@@ -114,7 +111,7 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
       case 'global': return <Target className="h-5 w-5" />;
       case 'segment': return <Building className="h-5 w-5" />;
       case 'salesperson': return <Users className="h-5 w-5" />;
-      default: return <TrendingUp className="h-5 w-5" />;
+      default: return <Target className="h-5 w-5" />;
     }
   };
 
@@ -126,135 +123,6 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
       default: return type;
     }
   };
-
-  const getProgressColor = (percentage: number) => {
-    if (percentage >= 100) return "bg-green-500";
-    if (percentage >= 75) return "bg-blue-500";
-    if (percentage >= 50) return "bg-yellow-500";
-    return "bg-red-500";
-  };
-
-  // Calcular proyección basada en el progreso actual
-  const calculateProjection = (goal: GoalProgress) => {
-    const currentDate = new Date();
-    const goalPeriod = goal.period; // formato "YYYY-MM"
-    const [year, month] = goalPeriod.split('-');
-    
-    // Primer día del mes de la meta
-    const startOfMonth = new Date(parseInt(year), parseInt(month) - 1, 1);
-    // Último día del mes de la meta
-    const endOfMonth = new Date(parseInt(year), parseInt(month), 0);
-    
-    // Verificar si el mes ya terminó
-    const isMonthClosed = currentDate > endOfMonth;
-    
-    // Días totales del mes
-    const totalDays = endOfMonth.getDate();
-    // Días transcurridos desde el inicio del mes
-    const currentDay = isMonthClosed ? totalDays : Math.min(currentDate.getDate(), totalDays);
-    // Porcentaje del tiempo transcurrido
-    const timeProgress = currentDay / totalDays;
-    
-    // Proyección simple: ventas actuales / tiempo transcurrido * tiempo total
-    const projectedSales = timeProgress > 0 ? (goal.currentSales / timeProgress) : 0;
-    const projectedPercentage = (projectedSales / goal.targetAmount) * 100;
-    
-    return {
-      projectedSales,
-      projectedPercentage,
-      timeProgress: timeProgress * 100,
-      daysRemaining: totalDays - currentDay,
-      isOnTrack: projectedPercentage >= 100,
-      isMonthClosed,
-      actualPercentage: goal.percentage, // Porcentaje real alcanzado
-      pace: projectedPercentage >= 95 ? 'excellent' : 
-            projectedPercentage >= 85 ? 'good' : 
-            projectedPercentage >= 70 ? 'warning' : 'danger'
-    };
-  };
-
-  // Generar mensaje motivacional o de advertencia
-  const getProjectionMessage = (goal: GoalProgress, projection: ReturnType<typeof calculateProjection>) => {
-    const { isMonthClosed, actualPercentage, pace, projectedPercentage, daysRemaining } = projection;
-    
-    // Si el mes ya cerró, mostrar resultado final
-    if (isMonthClosed) {
-      const monthName = getMonthName(goal.period);
-      
-      if (actualPercentage >= 100) {
-        return {
-          text: `${monthName} cerrado - Meta alcanzada: ${actualPercentage.toFixed(1)}%`,
-          icon: CheckCircle,
-          color: "text-green-600",
-          bgColor: "bg-green-50 border-green-200"
-        };
-      } else if (actualPercentage >= 90) {
-        return {
-          text: `${monthName} cerrado - Muy cerca: ${actualPercentage.toFixed(1)}% de la meta`,
-          icon: Target,
-          color: "text-blue-600",
-          bgColor: "bg-blue-50 border-blue-200"
-        };
-      } else {
-        return {
-          text: `${monthName} cerrado - Meta no alcanzada: ${actualPercentage.toFixed(1)}%`,
-          icon: AlertCircle,
-          color: "text-red-600",
-          bgColor: "bg-red-50 border-red-200"
-        };
-      }
-    }
-    
-    // Si está completada durante el mes actual
-    if (goal.isCompleted) {
-      return {
-        text: "¡Felicitaciones! Meta completada exitosamente.",
-        icon: CheckCircle,
-        color: "text-green-600",
-        bgColor: "bg-green-50 border-green-200"
-      };
-    }
-
-    // Mensajes de proyección para meses en curso
-    switch (pace) {
-      case 'excellent':
-        return {
-          text: `¡Excelente ritmo! Al paso actual llegarás al ${projectedPercentage.toFixed(1)}% de la meta. ¡Sigue así!`,
-          icon: TrendingUp,
-          color: "text-green-600",
-          bgColor: "bg-green-50 border-green-200"
-        };
-      case 'good':
-        return {
-          text: `Buen progreso. Proyectado: ${projectedPercentage.toFixed(1)}% de la meta. Quedan ${daysRemaining} días.`,
-          icon: Target,
-          color: "text-blue-600",
-          bgColor: "bg-blue-50 border-blue-200"
-        };
-      case 'warning':
-        return {
-          text: `¡Acelera el ritmo! Proyección actual: ${projectedPercentage.toFixed(1)}%. Necesitas aumentar las ventas.`,
-          icon: Clock,
-          color: "text-yellow-600",
-          bgColor: "bg-yellow-50 border-yellow-200"
-        };
-      case 'danger':
-        return {
-          text: `⚠️ Ritmo insuficiente. Proyección: ${projectedPercentage.toFixed(1)}%. ¡Acción urgente requerida!`,
-          icon: AlertTriangle,
-          color: "text-red-600",
-          bgColor: "bg-red-50 border-red-200"
-        };
-      default:
-        return {
-          text: "Iniciando seguimiento de meta...",
-          icon: Target,
-          color: "text-gray-600",
-          bgColor: "bg-gray-50 border-gray-200"
-        };
-    }
-  };
-
 
   // Función para obtener el nombre del mes en español
   const getMonthName = (period: string) => {
@@ -346,93 +214,65 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
         </Card>
       )}
 
-      {/* Global Goals - Enhanced Design */}
+      {/* Global Goals - Clean Design */}
       {globalGoals.length > 0 && (
         <div className="space-y-4">
           {globalGoals.map((goal) => {
-            const projection = calculateProjection(goal);
-            const message = getProjectionMessage(goal, projection);
-            const MessageIcon = message.icon;
-            
             return (
-              <Card key={goal.id} className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 space-y-2 sm:space-y-0">
-                  <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-                    <Target className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-base sm:text-lg font-semibold text-foreground truncate">Meta Global - {goal.period}</h3>
-                      {goal.description && (
-                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{goal.description}</p>
-                      )}
+              <div key={goal.id} className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700 p-5">
+                <div className="space-y-4">
+                  {/* Header con título y porcentaje */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-emerald-100 rounded-xl p-2.5">
+                        <Target className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white">Meta Global</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {getMonthName(goal.period)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  {goal.isCompleted ? (
-                    <div className="flex items-center space-x-2 text-green-600 self-start sm:self-center">
-                      <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
-                      <span className="text-xs sm:text-sm font-medium">Completada</span>
-                    </div>
-                  ) : (
-                    <div className="text-left sm:text-right">
-                      <div className="text-lg sm:text-xl font-bold text-foreground">
+                    <div className="text-right">
+                      <div className={`text-2xl font-bold ${
+                        goal.percentage >= 100 ? 'text-emerald-600' : 
+                        goal.percentage >= 70 ? 'text-amber-600' : 'text-rose-600'
+                      }`}>
                         {goal.percentage.toFixed(1)}%
                       </div>
-                      <div className="text-xs text-muted-foreground">progreso</div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
                     </div>
-                  )}
-                </div>
-
-                {/* Proyección y Mensaje Motivacional */}
-                <div className={`mb-4 p-3 sm:p-4 rounded-lg border ${message.bgColor}`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
-                    <MessageIcon className={`h-4 w-4 sm:h-5 sm:w-5 ${message.color} shrink-0`} />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs sm:text-sm font-medium ${message.color} leading-relaxed`}>
-                        {message.text}
+                  </div>
+                  
+                  {/* Meta y Ventas Actuales en fila */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
+                      <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
+                      <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                        {formatCurrency(goal.targetAmount)}
                       </p>
-                      {!goal.isCompleted && (
-                        <div className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                          Tiempo transcurrido: {projection.timeProgress.toFixed(1)}% • Proyección: {formatCurrency(projection.projectedSales)}
-                        </div>
-                      )}
                     </div>
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-xl p-3">
+                      <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
+                      <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
+                        {formatCurrency(goal.currentSales)}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Barra de progreso */}
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-3 rounded-full transition-all duration-500 ${
+                        goal.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                        goal.percentage >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                      }`}
+                      style={{ width: `${Math.min(goal.percentage, 100)}%` }}
+                    />
                   </div>
                 </div>
-
-                {/* Compact Progress Bar */}
-                <div className="space-y-2 mb-4">
-                  <Progress 
-                    value={goal.percentage} 
-                    className="h-2 sm:h-3"
-                    data-testid={`progress-global-${goal.id}`}
-                  />
-                </div>
-
-                {/* Mobile-Optimized Stats */}
-                <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
-                  <div className="p-2 sm:p-0">
-                    <div className="text-xs text-muted-foreground mb-1">Actual</div>
-                    <div className="text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap overflow-hidden">
-                      {formatCurrency(goal.currentSales)}
-                    </div>
-                  </div>
-                  <div className="p-2 sm:p-0">
-                    <div className="text-xs text-muted-foreground mb-1">Meta</div>
-                    <div className="text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap overflow-hidden">
-                      {formatCurrency(goal.targetAmount)}
-                    </div>
-                  </div>
-                  <div className="p-2 sm:p-0">
-                    <div className="text-xs text-muted-foreground mb-1">
-                      {goal.isCompleted ? "Excedente" : "Falta"}
-                    </div>
-                    <div className={`text-xs sm:text-sm font-semibold whitespace-nowrap overflow-hidden ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
-                      {goal.isCompleted ? `${goal.percentage.toFixed(0)}% ${formatCurrency(goal.currentSales)}` : formatCurrency(goal.remaining)}
-                    </div>
-                  </div>
-                </div>
-                </CardContent>
-              </Card>
+              </div>
             );
           })}
         </div>
@@ -442,91 +282,63 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
       {specificGoals.length > 0 && shouldShowFullWidth && (
         <div className="space-y-4">
           {specificGoals.map((goal) => {
-            const projection = calculateProjection(goal);
-            const message = getProjectionMessage(goal, projection);
-            const MessageIcon = message.icon;
-            
             return (
-              <Card key={goal.id} className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 to-secondary/5 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      {getTypeIcon(goal.type)}
+              <div key={goal.id} className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700 p-5">
+                <div className="space-y-4">
+                  {/* Header con título y porcentaje */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-emerald-100 rounded-xl p-2.5">
+                        {getTypeIcon(goal.type)}
+                      </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-foreground">
-                          {goal.target} - {goal.period}
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                          {getTypeLabel(goal.type)}: {goal.target}
                         </h3>
-                        {goal.description && (
-                          <p className="text-sm text-muted-foreground">{goal.description}</p>
-                        )}
-                      </div>
-                    </div>
-                    {goal.isCompleted ? (
-                      <div className="flex items-center space-x-2 text-green-600">
-                        <CheckCircle className="h-5 w-5" />
-                        <span className="text-sm font-medium">Completada</span>
-                      </div>
-                    ) : (
-                      <div className="text-right">
-                        <div className="text-xl font-bold text-foreground">
-                          {goal.percentage.toFixed(1)}%
-                        </div>
-                        <div className="text-xs text-muted-foreground">progreso</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Proyección y Mensaje Motivacional */}
-                  <div className={`mb-4 p-3 rounded-lg border ${message.bgColor}`}>
-                    <div className="flex items-center space-x-3">
-                      <MessageIcon className={`h-5 w-5 ${message.color}`} />
-                      <div className="flex-1">
-                        <p className={`text-sm font-medium ${message.color}`}>
-                          {message.text}
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {getMonthName(goal.period)}
                         </p>
-                        {!goal.isCompleted && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Tiempo transcurrido: {projection.timeProgress.toFixed(1)}% • Proyección: {formatCurrency(projection.projectedSales)}
-                          </div>
-                        )}
                       </div>
                     </div>
+                    <div className="text-right">
+                      <div className={`text-2xl font-bold ${
+                        goal.percentage >= 100 ? 'text-emerald-600' : 
+                        goal.percentage >= 70 ? 'text-amber-600' : 'text-rose-600'
+                      }`}>
+                        {goal.percentage.toFixed(1)}%
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
+                    </div>
                   </div>
-
-                  {/* Compact Progress Bar */}
-                  <div className="space-y-2 mb-3">
-                    <Progress 
-                      value={goal.percentage} 
-                      className="h-2"
-                      data-testid={`progress-specific-${goal.id}`}
+                  
+                  {/* Meta y Ventas Actuales en fila */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
+                      <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
+                      <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                        {formatCurrency(goal.targetAmount)}
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-xl p-3">
+                      <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
+                      <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
+                        {formatCurrency(goal.currentSales)}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Barra de progreso */}
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-3 rounded-full transition-all duration-500 ${
+                        goal.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                        goal.percentage >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                      }`}
+                      style={{ width: `${Math.min(goal.percentage, 100)}%` }}
                     />
                   </div>
-
-                  {/* Compact Stats */}
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div>
-                      <div className="text-xs text-muted-foreground">Actual</div>
-                      <div className="text-sm font-semibold text-foreground">
-                        {formatCurrency(goal.currentSales)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">Meta</div>
-                      <div className="text-sm font-semibold text-foreground">
-                        {formatCurrency(goal.targetAmount)}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">
-                        {goal.isCompleted ? "Excedente" : "Falta"}
-                      </div>
-                      <div className={`text-sm font-semibold ${goal.isCompleted ? "text-green-600" : "text-red-600"}`}>
-                        {goal.isCompleted ? `${goal.percentage.toFixed(0)}% ${formatCurrency(goal.currentSales)}` : formatCurrency(goal.remaining)}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             );
           })}
         </div>
