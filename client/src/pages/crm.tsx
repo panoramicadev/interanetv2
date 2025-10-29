@@ -228,12 +228,13 @@ export default function CRMPage() {
         {/* Tab de Leads */}
         <TabsContent value="leads" className="space-y-2 sm:space-y-4">
           {/* Barra de búsqueda y filtros */}
-          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 sm:gap-3">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 flex-1 w-full">
+          <div className="flex flex-col gap-2 sm:gap-3">
+            {/* Fila de filtros: en móvil horizontal, en desktop también horizontal */}
+            <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
               {/* Filtro de Segmento */}
               <Select value={segmentFilter} onValueChange={setSegmentFilter}>
-                <SelectTrigger className="w-full sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-segment-filter">
-                  <SelectValue placeholder="Todos los segmentos" />
+                <SelectTrigger className="flex-1 sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-segment-filter">
+                  <SelectValue placeholder={isMobile ? "Segmentos" : "Todos los segmentos"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los segmentos</SelectItem>
@@ -245,8 +246,8 @@ export default function CRMPage() {
               
               {/* Filtro de Vendedor */}
               <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-                <SelectTrigger className="w-full sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-vendedor-filter">
-                  <SelectValue placeholder="Todos los vendedores" />
+                <SelectTrigger className="flex-1 sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-vendedor-filter">
+                  <SelectValue placeholder={isMobile ? "Vendedores" : "Todos los vendedores"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los vendedores</SelectItem>
@@ -255,25 +256,26 @@ export default function CRMPage() {
                   ))}
                 </SelectContent>
               </Select>
-
-              {/* Buscador */}
-              <div className="flex-1 w-full min-w-[200px]">
-                <Input
-                  placeholder="Buscar..."
-                  className="h-8 sm:h-10 text-xs sm:text-sm"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  data-testid="input-search-leads"
-                />
-              </div>
+              
+              {/* Botón Administrar Etapas en desktop */}
+              {isAdmin && (
+                <Button variant="outline" size="sm" className="h-8 sm:h-9 hidden lg:flex" data-testid="button-manage-stages">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Administrar Etapas
+                </Button>
+              )}
             </div>
-            
-            {isAdmin && (
-              <Button variant="outline" size="sm" className="h-8 sm:h-9 hidden sm:flex" data-testid="button-manage-stages">
-                <Settings className="w-4 h-4 mr-2" />
-                Administrar Etapas
-              </Button>
-            )}
+
+            {/* Buscador en su propia fila */}
+            <div className="w-full">
+              <Input
+                placeholder="Buscar..."
+                className="h-8 sm:h-10 text-xs sm:text-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                data-testid="input-search-leads"
+              />
+            </div>
           </div>
 
           {/* Vista Desktop: Kanban - Columnas por etapa */}
