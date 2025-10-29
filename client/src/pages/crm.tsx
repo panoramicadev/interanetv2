@@ -894,6 +894,9 @@ function LeadComments({ leadId }: { leadId: string }) {
 function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data: segments = [] } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
@@ -907,6 +910,18 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
   const { data: clients = [] } = useQuery<any[]>({
     queryKey: ['/api/users/clients'],
   });
+
+  // Cerrar dropdown cuando se hace clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowClientDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Use the base schema directly without extra omits
   const form = useForm({
@@ -923,27 +938,37 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
+  // Filtrar clientes basándose en la búsqueda
+  const filteredClients = clients.filter((client) => {
+    if (!clientSearchQuery.trim()) return false;
+    const searchLower = clientSearchQuery.toLowerCase();
+    const nokoen = (client.nokoen || '').toLowerCase();
+    const rten = (client.rten || '').toLowerCase();
+    const koen = (client.koen || '').toLowerCase();
+    return nokoen.includes(searchLower) || rten.includes(searchLower) || koen.includes(searchLower);
+  }).slice(0, 20); // Limitar a 20 resultados
+
   // Función para auto-rellenar el formulario cuando se selecciona un cliente
-  const handleClientSelect = (clientId: string) => {
-    if (clientId === 'none') {
-      // Limpiar el formulario si se deselecciona
-      setSelectedClientId('');
-      form.reset();
-      return;
-    }
+  const handleClientSelect = (client: any) => {
+    setSelectedClientId(client.id);
+    setClientSearchQuery(client.nokoen || '');
+    setShowClientDropdown(false);
     
-    setSelectedClientId(clientId);
-    const client = clients.find(c => c.id === clientId);
-    if (client) {
-      // Rellenar con datos de cliente de ventas (nokoen, koen, rten, etc)
-      form.setValue('clientName', client.nokoen || '');
-      form.setValue('clientCompany', client.rten || '');
-      form.setValue('clientAddress', client.dien || '');
-      form.setValue('segment', client.gien || '');
-      // Email y teléfono pueden no estar disponibles en todos los clientes
-      if (client.email) form.setValue('clientEmail', client.email);
-      if (client.foen) form.setValue('clientPhone', client.foen);
-    }
+    // Rellenar con datos de cliente de ventas (nokoen, koen, rten, etc)
+    form.setValue('clientName', client.nokoen || '');
+    form.setValue('clientCompany', client.rten || '');
+    form.setValue('clientAddress', client.dien || '');
+    form.setValue('segment', client.gien || '');
+    // Email y teléfono pueden no estar disponibles en todos los clientes
+    if (client.email) form.setValue('clientEmail', client.email);
+    if (client.foen) form.setValue('clientPhone', client.foen);
+  };
+
+  const handleClearClient = () => {
+    setSelectedClientId('');
+    setClientSearchQuery('');
+    setShowClientDropdown(false);
+    form.reset();
   };
 
   const createLeadMutation = useMutation({
@@ -1008,26 +1033,72 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {/* Selector de Cliente Existente */}
+        {/* Buscador de Cliente Existente */}
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Seleccionar Cliente Existente (opcional)
+            Buscar Cliente Existente (opcional)
           </label>
-          <Select value={selectedClientId || "none"} onValueChange={handleClientSelect}>
-            <SelectTrigger className="w-full" data-testid="select-existing-client">
-              <SelectValue placeholder="Buscar cliente existente..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Crear nuevo lead sin cliente existente</SelectItem>
-              {clients.map((client) => (
-                <SelectItem key={client.id} value={client.id}>
-                  {client.nokoen} {client.rten ? `- ${client.rten}` : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="relative" ref={dropdownRef}>
+            <Input
+              placeholder="Escribe para buscar cliente por nombre o empresa..."
+              value={clientSearchQuery}
+              onChange={(e) => {
+                setClientSearchQuery(e.target.value);
+                setShowClientDropdown(true);
+              }}
+              onFocus={() => setShowClientDropdown(true)}
+              className="w-full"
+              data-testid="input-search-client"
+            />
+            {selectedClientId && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2"
+                onClick={handleClearClient}
+              >
+                ✕
+              </Button>
+            )}
+            
+            {/* Dropdown de resultados */}
+            {showClientDropdown && clientSearchQuery.trim() && (
+              <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                {filteredClients.length > 0 ? (
+                  filteredClients.map((client) => (
+                    <button
+                      key={client.id}
+                      type="button"
+                      className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-0"
+                      onClick={() => handleClientSelect(client)}
+                      data-testid={`client-option-${client.id}`}
+                    >
+                      <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                        {client.nokoen}
+                      </div>
+                      {client.rten && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {client.rten}
+                        </div>
+                      )}
+                      {client.koen && (
+                        <div className="text-xs text-gray-400 dark:text-gray-500">
+                          Código: {client.koen}
+                        </div>
+                      )}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                    No se encontraron clientes. Escribe al menos 3 caracteres.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Selecciona un cliente de ventas para auto-rellenar sus datos, o déjalo vacío para crear un lead nuevo.
+            Escribe para buscar y seleccionar un cliente existente, o déjalo vacío para crear un lead nuevo.
           </p>
         </div>
 
