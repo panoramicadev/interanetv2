@@ -223,8 +223,9 @@ export default function SalespersonPendingNVV({
         {/* Grouped by Client with Accordion */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Por Cliente</h3>
-          <Accordion type="single" collapsible className="space-y-2">
-            {groupedByClient.map((clientGroup, index) => (
+          <div className="max-h-[240px] overflow-y-auto">
+            <Accordion type="single" collapsible className="space-y-2">
+              {groupedByClient.map((clientGroup, index) => (
               <AccordionItem 
                 key={clientGroup.uniqueKey} 
                 value={clientGroup.uniqueKey}
@@ -335,8 +336,9 @@ export default function SalespersonPendingNVV({
                   </div>
                 </AccordionContent>
               </AccordionItem>
-            ))}
-          </Accordion>
+              ))}
+            </Accordion>
+          </div>
         </div>
       </CardContent>
     </Card>
