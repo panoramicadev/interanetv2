@@ -289,6 +289,9 @@ export default function SalespersonDetail({
   
   // Promesas collapse state
   const [isPromesasExpanded, setIsPromesasExpanded] = useState(false);
+  
+  // Segments breakdown expansion in goal card
+  const [isSegmentsExpanded, setIsSegmentsExpanded] = useState(false);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -729,11 +732,67 @@ export default function SalespersonDetail({
                     ></div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div className="bg-white/60 rounded-xl p-3">
-                      <p className="text-xs text-gray-600 mb-1">Ventas Actuales</p>
-                      <p className="text-xl font-bold text-gray-900">{formatCurrency(primaryGoal.currentSales || 0)}</p>
+                  <div className="grid grid-cols-1 gap-4 pt-2">
+                    {/* Ventas Actuales con desglose por segmento */}
+                    <div className="bg-white/60 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-600 mb-1">Ventas Actuales</p>
+                          <p className="text-xl font-bold text-gray-900">{formatCurrency(primaryGoal.currentSales || 0)}</p>
+                        </div>
+                        {segments && segments.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsSegmentsExpanded(!isSegmentsExpanded)}
+                            className="h-7 px-2 text-gray-600 hover:text-gray-900"
+                            data-testid="button-toggle-segments"
+                          >
+                            <BarChart3 className="h-4 w-4 mr-1" />
+                            <span className="text-xs">Por segmento</span>
+                            {isSegmentsExpanded ? (
+                              <ChevronUp className="h-4 w-4 ml-1" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 ml-1" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {/* Desglose de segmentos expandible */}
+                      {isSegmentsExpanded && segments && segments.length > 0 && (
+                        <div className="space-y-1.5 pt-2 border-t border-gray-200">
+                          {segments.map((segment, index) => (
+                            <div key={segment.segment} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/50 transition-colors">
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-2 h-2 rounded-full flex-shrink-0" 
+                                  style={{
+                                    backgroundColor: [
+                                      'rgba(253, 99, 1, 0.8)',
+                                      'rgba(59, 130, 246, 0.8)',
+                                      'rgba(16, 185, 129, 0.8)',
+                                      'rgba(245, 158, 11, 0.8)',
+                                      'rgba(139, 92, 246, 0.8)',
+                                      'rgba(236, 72, 153, 0.8)',
+                                      'rgba(99, 102, 241, 0.8)',
+                                      'rgba(244, 63, 94, 0.8)',
+                                    ][index % 8]
+                                  }}
+                                />
+                                <span className="text-xs font-medium text-gray-700">{segment.segment}</span>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs font-semibold text-gray-900">{formatCurrency(segment.totalSales)}</p>
+                                <p className="text-xs text-gray-500">{segment.percentage.toFixed(1)}%</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                    
+                    {/* Meta */}
                     <div className="bg-white/60 rounded-xl p-3">
                       <p className="text-xs text-gray-600 mb-1">Meta</p>
                       <p className="text-xl font-bold text-gray-900">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
@@ -1084,73 +1143,6 @@ export default function SalespersonDetail({
               </CardContent>
             </Card>
           )}
-
-          {/* Segments Chart */}
-          <div className="modern-card p-5 lg:p-6 hover-lift">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-orange-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">Ventas por Segmento</h2>
-            </div>
-            
-            {isLoadingSegments ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-pulse">
-                  <div className="w-64 h-64 bg-gray-200 rounded-full mx-auto"></div>
-                </div>
-              </div>
-            ) : segments.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No hay datos de segmentos disponibles</p>
-            ) : (
-              <div className={segments.length === 1 ? 'w-full' : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'}>
-                {segments.map((segment, index) => {
-                  const isSelected = selectedSegment === segment.segment;
-                  return (
-                    <button
-                      key={segment.segment}
-                      onClick={() => setSelectedSegment(isSelected ? null : segment.segment)}
-                      className={`flex items-center justify-between p-4 rounded-lg border transition-all text-left w-full ${
-                        isSelected 
-                          ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-200' 
-                          : 'border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-                      }`}
-                      data-testid={`segment-card-${index}`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div 
-                          className="w-4 h-4 rounded-full flex-shrink-0" 
-                          style={{
-                            backgroundColor: [
-                              'rgba(253, 99, 1, 0.8)',
-                              'rgba(59, 130, 246, 0.8)',
-                              'rgba(16, 185, 129, 0.8)',
-                              'rgba(245, 158, 11, 0.8)',
-                              'rgba(139, 92, 246, 0.8)',
-                              'rgba(236, 72, 153, 0.8)',
-                              'rgba(99, 102, 241, 0.8)',
-                              'rgba(244, 63, 94, 0.8)',
-                            ][index % 8]
-                          }}
-                        />
-                        <span className={`text-sm font-medium truncate ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>
-                          {segment.segment}
-                        </span>
-                      </div>
-                      <div className="text-right ml-3 flex-shrink-0">
-                        <p className={`text-sm font-semibold ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>
-                          {formatCurrency(segment.totalSales)}
-                        </p>
-                        <p className={`text-xs ${isSelected ? 'text-orange-700' : 'text-gray-500'}`}>
-                          {segment.percentage.toFixed(1)}%
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
 
           {/* Clients Table */}
           <div className="modern-card p-5 lg:p-6 hover-lift">
