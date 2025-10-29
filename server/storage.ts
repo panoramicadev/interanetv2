@@ -289,7 +289,7 @@ export interface IStorage {
     }>;
     periodTotalSales: number;
   }>;
-  getSegmentAnalysis(startDate?: string, endDate?: string): Promise<Array<{
+  getSegmentAnalysis(startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     segment: string;
     totalSales: number;
     percentage: number;
@@ -2000,7 +2000,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSegmentAnalysis(startDate?: string, endDate?: string, salesperson?: string): Promise<Array<{
+  async getSegmentAnalysis(startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     segment: string;
     totalSales: number;
     percentage: number;
@@ -2017,6 +2017,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (salesperson) {
       dateConditions.push(sql`${salesTransactions.nokofu} = ${salesperson}`);
+    }
+    if (segment) {
+      dateConditions.push(sql`${salesTransactions.noruen} = ${segment}`);
     }
     const dateFilter = dateConditions.length > 0 ? and(...dateConditions) : undefined;
 
@@ -2040,6 +2043,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (salesperson) {
       conditions.push(sql`${salesTransactions.nokofu} = ${salesperson}`);
+    }
+    if (segment) {
+      conditions.push(sql`${salesTransactions.noruen} = ${segment}`);
     }
 
     const results = await db

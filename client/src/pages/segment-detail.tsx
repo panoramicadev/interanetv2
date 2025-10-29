@@ -646,6 +646,7 @@ export default function SegmentDetail({
               {/* Comparative Segment Chart */}
               <ComparativeSegmentTable 
                 periods={comparativePeriods}
+                segment={segmentName}
               />
 
               {/* Comparative Salespeople Chart */}

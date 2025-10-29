@@ -11,16 +11,19 @@ interface SegmentData {
 
 interface ComparativeSegmentTableProps {
   periods: Array<{ period: string; label: string; filterType: "day" | "month" | "year" }>;
+  segment?: string;
 }
 
-export default function ComparativeSegmentTable({ periods }: ComparativeSegmentTableProps) {
+export default function ComparativeSegmentTable({ periods, segment }: ComparativeSegmentTableProps) {
   const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
   // Fetch segment data for all periods using useQueries to respect Rules of Hooks
   const segmentQueries = useQueries({
     queries: periods.map(({ period, filterType }) => ({
-      queryKey: [`/api/sales/segments?period=${period}&filterType=${filterType}`],
+      queryKey: [`/api/sales/segments?period=${period}&filterType=${filterType}${segment ? `&segment=${segment}` : ''}`],
       queryFn: async () => {
-        const res = await fetch(`/api/sales/segments?period=${period}&filterType=${filterType}`, { 
+        const params = new URLSearchParams({ period, filterType });
+        if (segment) params.set('segment', segment);
+        const res = await fetch(`/api/sales/segments?${params}`, { 
           credentials: "include" 
         });
         if (!res.ok) throw new Error('Failed to fetch');
