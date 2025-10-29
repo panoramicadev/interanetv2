@@ -4153,17 +4153,22 @@ export function registerRoutes(app: Express): Server {
       if (stage) {
         filters.stage = stage as string;
       }
-      if (segment) {
+      if (segment && user.role === 'admin') {
+        // Only admins can manually filter by segment
         filters.segment = segment as string;
       }
       
       // Role-based filtering
       if (user.role === 'salesperson') {
+        // Salespeople see only their own leads
         filters.salespersonId = user.id;
       } else if (user.role === 'supervisor') {
-        filters.supervisorId = user.id;
+        // Supervisors see leads from their assigned segment
+        if (user.assignedSegment) {
+          filters.segment = user.assignedSegment;
+        }
       }
-      // Admin sees all leads (no filter)
+      // Admin sees all leads (no additional filter)
       
       const leads = await storage.getAllLeads(filters);
       res.json(leads);
@@ -4185,10 +4190,17 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "Lead not found" });
       }
       
-      // Check authorization
-      const canView = user.role === 'admin' || 
-                     user.role === 'supervisor' || 
-                     lead.salespersonId === user.id;
+      // Check authorization based on role
+      let canView = false;
+      if (user.role === 'admin') {
+        canView = true;
+      } else if (user.role === 'supervisor') {
+        // Supervisor can view if lead is in their segment
+        canView = lead.segment === user.assignedSegment;
+      } else if (user.role === 'salesperson') {
+        // Salesperson can view only their own leads
+        canView = lead.salespersonId === user.id;
+      }
       
       if (!canView) {
         return res.status(403).json({ message: "Not authorized to view this lead" });
