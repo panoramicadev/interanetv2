@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 ### Database
 - **Database**: PostgreSQL (Neon serverless)
 - **ORM**: Drizzle ORM
-- **Key Schemas**: Users, sales_transactions, ecommerceOrders, notifications, reclamosGenerales, solicitudesMantencion, mantencionPhotos, mantencionResolucionPhotos, mantencionHistorial, presupuestoMarketing, solicitudesMarketing, gastosEmpresariales, hitosMarketing, stgMaeedo, factVentas, etlConfig, etlExecutionLog.
+- **Key Schemas**: Users, sales_transactions, ecommerceOrders, notifications, crmLeads, crmStages, reclamosGenerales, solicitudesMantencion, mantencionPhotos, mantencionResolucionPhotos, mantencionHistorial, presupuestoMarketing, solicitudesMarketing, gastosEmpresariales, hitosMarketing, stgMaeedo, factVentas, etlConfig, etlExecutionLog.
 - **Migrations**: Drizzle Kit
 
 ### UI/UX
@@ -41,6 +41,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Key Features
 - **Client & User Management**: Client credential assignment, user-client linking, role-based access.
+- **CRM Pipeline System**: Comprehensive lead management with Kanban-style board featuring 8 customizable pipeline stages (Nuevo, Contacto, Visita, Lista Precio, Campaña, Primera Venta, Promesa, Venta). Visual drag-free column layout where leads are organized by stage with real-time counters. Interactive stage selector dropdown in each lead card for quick stage transitions. Role-based access control: admins see all leads and can delete, supervisors see leads from their assigned segment, salespeople see only their own leads. Integration with Promesas de Compra system for seamless purchase promise tracking. Admin-only stage management interface for adding/removing/reordering pipeline stages with custom colors. Chilean peso formatting throughout with activity tracking (calls, WhatsApp). Full CRUD operations with search functionality across client names, emails, and phone numbers.
 - **E-commerce**: Order management and notification system.
 - **Product Grouping System**: Parent-child product variations with CRUD operations.
 - **Technical Visits**: Four-step creation flow, custom product support, PDF generation.
