@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -355,7 +355,7 @@ function LeadCard({
   return (
     <Card className="hover:shadow-md transition-shadow bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800" data-testid={`card-lead-${lead.id}`}>
       <CardContent className="p-5 space-y-4">
-        {/* Header con avatar y menú */}
+        {/* Header con avatar y acciones */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3 flex-1">
             <div className={`w-12 h-12 rounded-full ${avatarColor} flex items-center justify-center text-white font-semibold text-sm shadow-md flex-shrink-0`}>
@@ -370,21 +370,26 @@ function LeadCard({
               </p>
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowComments(!showComments)}>
-                Ver comentarios
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDelete} className="text-red-600">
-                Eliminar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              onClick={() => setShowComments(!showComments)}
+              title="Ver bitácora de comentarios"
+            >
+              <BookOpen className={`w-4 h-4 ${showComments ? 'text-blue-600' : 'text-gray-600'}`} />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20"
+              onClick={onDelete}
+              title="Eliminar lead"
+            >
+              <Trash2 className="w-4 h-4 text-gray-600 hover:text-red-600" />
+            </Button>
+          </div>
         </div>
 
         {/* Información de contacto */}
