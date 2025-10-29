@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -923,8 +924,21 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Use the base schema directly without extra omits
+  // Create validation schema for the form
+  const formSchema = z.object({
+    clientName: z.string().min(1, "Nombre del cliente es requerido"),
+    salespersonId: z.string().min(1, "Vendedor es requerido"),
+    stage: z.string().default('lead'),
+    clientPhone: z.string().optional(),
+    clientEmail: z.string().email("Email inválido").optional().or(z.literal("")),
+    clientCompany: z.string().optional(),
+    clientAddress: z.string().optional(),
+    segment: z.string().optional(),
+    notes: z.string().optional(),
+  });
+
   const form = useForm({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       clientName: '',
       clientPhone: '',
