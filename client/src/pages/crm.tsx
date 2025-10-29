@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,8 +55,11 @@ export default function CRMPage() {
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'leads' | 'promesas'>('leads');
   const [searchQuery, setSearchQuery] = useState('');
+  const [segmentFilter, setSegmentFilter] = useState('all');
+  const [vendedorFilter, setVendedorFilter] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   
+  const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isAdmin = currentUser?.role === 'admin';
 
   // Load custom stages from database
@@ -70,6 +73,10 @@ export default function CRMPage() {
 
   const { data: segments = [] } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
+  });
+
+  const { data: salespeople = [] } = useQuery<string[]>({
+    queryKey: ['/api/goals/data/salespeople'],
   });
 
   const toggleActivityMutation = useMutation({
@@ -91,12 +98,20 @@ export default function CRMPage() {
         data: { stage }
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/crm/leads'] });
       toast({
         title: "Etapa actualizada",
         description: "El lead ha sido movido exitosamente",
       });
+      
+      // Scroll to the destination column
+      setTimeout(() => {
+        const targetColumn = columnRefs.current[variables.stage];
+        if (targetColumn) {
+          targetColumn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }, 100);
     },
   });
 
@@ -115,14 +130,22 @@ export default function CRMPage() {
     },
   });
 
-  // Filter leads by search query only
-  const filteredLeads = searchQuery
-    ? leads.filter(lead => 
-        lead.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (lead.clientEmail || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (lead.clientPhone || '').toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : leads;
+  // Filter leads by search query, segment, and salesperson
+  const filteredLeads = leads.filter(lead => {
+    // Search filter
+    const matchesSearch = !searchQuery || 
+      lead.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lead.clientEmail || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (lead.clientPhone || '').toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Segment filter
+    const matchesSegment = segmentFilter === 'all' || lead.segment === segmentFilter;
+    
+    // Salesperson filter
+    const matchesVendedor = vendedorFilter === 'all' || lead.salespersonName === vendedorFilter;
+    
+    return matchesSearch && matchesSegment && matchesVendedor;
+  });
 
   // Group leads by stage
   const leadsByStage = stages.reduce((acc, stage) => {
@@ -182,16 +205,46 @@ export default function CRMPage() {
 
         {/* Tab de Leads */}
         <TabsContent value="leads" className="space-y-4">
-          {/* Barra de búsqueda y acciones */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="flex-1 w-full">
-              <Input
-                placeholder="Buscar por nombre, email o teléfono..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                data-testid="input-search-leads"
-              />
+          {/* Barra de búsqueda y filtros */}
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 w-full">
+              {/* Filtro de Segmento */}
+              <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-segment-filter">
+                  <SelectValue placeholder="Todos los segmentos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los segmentos</SelectItem>
+                  {segments.map((segment) => (
+                    <SelectItem key={segment} value={segment}>{segment}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {/* Filtro de Vendedor */}
+              <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
+                <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-vendedor-filter">
+                  <SelectValue placeholder="Todos los vendedores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los vendedores</SelectItem>
+                  {salespeople.filter(sp => sp && sp !== '.').map((salesperson) => (
+                    <SelectItem key={salesperson} value={salesperson}>{salesperson}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Buscador */}
+              <div className="flex-1 w-full min-w-[200px]">
+                <Input
+                  placeholder="Buscar por nombre, email o teléfono..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  data-testid="input-search-leads"
+                />
+              </div>
             </div>
+            
             {isAdmin && (
               <Button variant="outline" size="sm" data-testid="button-manage-stages">
                 <Settings className="w-4 h-4 mr-2" />
@@ -212,7 +265,12 @@ export default function CRMPage() {
                 };
                 
                 return (
-                  <div key={stage.id} className="flex-shrink-0" style={{ width: '320px' }}>
+                  <div 
+                    key={stage.id} 
+                    className="flex-shrink-0" 
+                    style={{ width: '320px' }}
+                    ref={(el) => { columnRefs.current[stage.stageKey] = el; }}
+                  >
                     <Card className="h-full">
                       <CardContent className="p-4">
                         {/* Encabezado de columna */}
