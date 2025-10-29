@@ -54,13 +54,9 @@ export default function AllSalespeopleNVV({
   filterType
 }: AllSalespeopleNVVProps) {
   const { data: salespeopleData, isLoading } = useQuery<SalespersonGroup[]>({
-    queryKey: [`/api/nvv/all-by-salespeople`, selectedPeriod, filterType],
+    queryKey: [`/api/nvv/all-by-salespeople`],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        period: selectedPeriod,
-        filterType
-      });
-      const response = await fetch(`/api/nvv/all-by-salespeople?${params}`, {
+      const response = await fetch(`/api/nvv/all-by-salespeople`, {
         credentials: 'include'
       });
       if (!response.ok) {
