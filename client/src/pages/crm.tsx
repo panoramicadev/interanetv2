@@ -613,26 +613,8 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
     queryKey: ['/api/users'],
   });
 
-  const formSchema = insertCrmLeadSchema.omit({ 
-    id: true, 
-    createdAt: true, 
-    updatedAt: true,
-    salespersonName: true,
-    supervisorId: true,
-  });
-
-  type FormValues = Omit<InsertCrmLeadInput, 'id' | 'createdAt' | 'updatedAt' | 'salespersonName' | 'supervisorId'> & {
-    // Override nullable fields to string for form compatibility
-    clientPhone: string;
-    clientEmail: string;
-    clientCompany: string;
-    clientAddress: string;
-    segment: string;
-    notes: string;
-  };
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  // Use the base schema directly without extra omits
+  const form = useForm({
     defaultValues: {
       clientName: '',
       clientPhone: '',
@@ -647,22 +629,32 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   const createLeadMutation = useMutation({
-    mutationFn: async (data: FormValues): Promise<CrmLead> => {
+    mutationFn: async (data: any): Promise<CrmLead> => {
+      console.log('🚀 [CREATE LEAD] Mutation started with data:', data);
+      
       // Clean up empty strings to null for optional fields
-      const cleanData: InsertCrmLeadInput = {
-        ...data,
+      const cleanData = {
+        clientName: data.clientName,
+        salespersonId: data.salespersonId,
+        stage: data.stage || 'lead',
         clientPhone: data.clientPhone || null,
         clientEmail: data.clientEmail || null,
         clientCompany: data.clientCompany || null,
         clientAddress: data.clientAddress || null,
         segment: data.segment || null,
         notes: data.notes || null,
-        estimatedValue: data.estimatedValue || null,
-        lastContactDate: data.lastContactDate || null,
       };
       
-      const response = await apiRequest('/api/crm/leads', 'POST', cleanData);
-      return response;
+      console.log('📤 [CREATE LEAD] Sending cleaned data to backend:', cleanData);
+      
+      try {
+        const response = await apiRequest('/api/crm/leads', 'POST', cleanData);
+        console.log('✅ [CREATE LEAD] Success response:', response);
+        return response;
+      } catch (error) {
+        console.error('❌ [CREATE LEAD] Error:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/crm/leads'] });
@@ -683,9 +675,11 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
-  const onSubmit = (data: FormValues) => {
-    console.log('Form data:', data);
-    console.log('Form errors:', form.formState.errors);
+  const onSubmit = (data: any) => {
+    console.log('📝 [FORM SUBMIT] Form data:', data);
+    console.log('📝 [FORM SUBMIT] Form errors:', form.formState.errors);
+    console.log('📝 [FORM SUBMIT] Form is valid:', form.formState.isValid);
+    
     createLeadMutation.mutate(data);
   };
 
