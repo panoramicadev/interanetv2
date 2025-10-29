@@ -692,7 +692,8 @@ function ListLeadRow({
   onChangeStage,
   onDelete,
   currentUser,
-  stageBadgeMap
+  stageBadgeMap,
+  stages
 }: { 
   lead: CrmLead; 
   onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
@@ -700,6 +701,7 @@ function ListLeadRow({
   onDelete: () => void;
   currentUser: any;
   stageBadgeMap: Record<string, { label: string; bgColor: string; textColor: string }>;
+  stages: CrmStage[];
 }) {
   const stageBadge = stageBadgeMap[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
   const isAdmin = currentUser?.role === 'admin';
@@ -765,11 +767,15 @@ function ListLeadRow({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PIPELINE_STAGES.filter(s => s.id !== 'all').map((stage) => {
-                    const badge = stageBadgeMap[stage.id] || { label: stage.name, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
+                  {stages.filter(stage => stage.stageKey && stage.stageKey.trim() !== '').map((stage) => {
+                    const badge = stageBadgeMap[stage.stageKey] || { label: stage.name, bgColor: stage.color, textColor: 'text-gray-700 dark:text-gray-300' };
+                    const isHexColor = !badge.bgColor.startsWith('bg-');
                     return (
-                      <SelectItem key={stage.id} value={stage.id}>
-                        <span className={`inline-block px-2 py-0.5 rounded ${badge.bgColor} ${badge.textColor}`}>
+                      <SelectItem key={stage.id} value={stage.stageKey}>
+                        <span 
+                          className={`inline-block px-2 py-0.5 rounded ${isHexColor ? '' : badge.bgColor} ${badge.textColor}`}
+                          style={isHexColor ? { backgroundColor: badge.bgColor } : undefined}
+                        >
                           {badge.label}
                         </span>
                       </SelectItem>
