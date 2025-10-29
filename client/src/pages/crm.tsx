@@ -62,6 +62,8 @@ export default function CRMPage() {
   const [isMobile, setIsMobile] = useState(false);
   
   const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const savedScrollPosition = useRef<number>(0);
   const isAdmin = currentUser?.role === 'admin';
 
   // Detect mobile view
@@ -109,6 +111,11 @@ export default function CRMPage() {
 
   const updateStageMutation = useMutation({
     mutationFn: async ({ id, stage }: { id: string; stage: string }) => {
+      // Guardar la posición del scroll antes de la mutación
+      if (scrollContainerRef.current) {
+        savedScrollPosition.current = scrollContainerRef.current.scrollLeft;
+      }
+      
       return apiRequest(`/api/crm/leads/${id}`, {
         method: 'PUT',
         data: { stage }
@@ -120,6 +127,13 @@ export default function CRMPage() {
         title: "Etapa actualizada",
         description: "El lead ha sido movido exitosamente",
       });
+      
+      // Restaurar la posición del scroll después de la actualización
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollLeft = savedScrollPosition.current;
+        }
+      }, 50);
     },
   });
 
@@ -263,7 +277,7 @@ export default function CRMPage() {
 
           {/* Vista Desktop: Kanban - Columnas por etapa */}
           {!isMobile ? (
-            <div className="overflow-x-auto pb-4">
+            <div className="overflow-x-auto pb-4" ref={scrollContainerRef}>
               <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
               {stages.map((stage) => {
                 const stageLeads = leadsByStage[stage.stageKey] || [];
