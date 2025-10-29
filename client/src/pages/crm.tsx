@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
@@ -51,6 +52,7 @@ const STAGE_BADGE_MAP: Record<string, { label: string; bgColor: string; textColo
 
 export default function CRMPage() {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'leads' | 'promesas'>('leads');
   const [selectedStage, setSelectedStage] = useState<string>('all');
   const [segmentFilter, setSegmentFilter] = useState<string>('all');
@@ -94,7 +96,10 @@ export default function CRMPage() {
 
   const toggleActivityMutation = useMutation({
     mutationFn: async ({ id, field, value }: { id: string; field: 'hasCall' | 'hasWhatsapp'; value: boolean }) => {
-      return apiRequest(`/api/crm/leads/${id}`, 'PUT', { [field]: value });
+      return apiRequest(`/api/crm/leads/${id}`, {
+        method: 'PUT',
+        data: { [field]: value }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/crm/leads'] });
@@ -103,7 +108,10 @@ export default function CRMPage() {
 
   const updateStageMutation = useMutation({
     mutationFn: async ({ id, stage }: { id: string; stage: string }) => {
-      return apiRequest(`/api/crm/leads/${id}`, 'PUT', { stage });
+      return apiRequest(`/api/crm/leads/${id}`, {
+        method: 'PUT',
+        data: { stage }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/crm/leads'] });
@@ -116,7 +124,9 @@ export default function CRMPage() {
 
   const deleteLeadMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/crm/leads/${id}`, 'DELETE');
+      return apiRequest(`/api/crm/leads/${id}`, {
+        method: 'DELETE'
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/crm/leads'] });
@@ -282,6 +292,7 @@ export default function CRMPage() {
                   <LeadCard
                     key={lead.id}
                     lead={lead}
+                    currentUser={currentUser}
                     onToggleActivity={(field) => {
                       const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
                       toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
@@ -297,6 +308,7 @@ export default function CRMPage() {
                   <ListLeadRow
                     key={lead.id}
                     lead={lead}
+                    currentUser={currentUser}
                     onToggleActivity={(field) => {
                       const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
                       toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
@@ -323,15 +335,18 @@ function LeadCard({
   lead, 
   onToggleActivity,
   onChangeStage,
-  onDelete
+  onDelete,
+  currentUser
 }: { 
   lead: CrmLead; 
   onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
   onChangeStage: (stage: string) => void;
   onDelete: () => void;
+  currentUser: any;
 }) {
   const [showComments, setShowComments] = useState(false);
   const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
+  const isAdmin = currentUser?.role === 'admin';
   
   // Get initials for avatar
   const initials = lead.clientName
@@ -380,15 +395,17 @@ function LeadCard({
             >
               <BookOpen className={`w-4 h-4 ${showComments ? 'text-blue-600' : 'text-gray-600'}`} />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20"
-              onClick={onDelete}
-              title="Eliminar lead"
-            >
-              <Trash2 className="w-4 h-4 text-gray-600 hover:text-red-600" />
-            </Button>
+            {isAdmin && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20"
+                onClick={onDelete}
+                title="Eliminar lead"
+              >
+                <Trash2 className="w-4 h-4 text-gray-600 hover:text-red-600" />
+              </Button>
+            )}
           </div>
         </div>
 
@@ -414,11 +431,25 @@ function LeadCard({
           )}
         </div>
 
-        {/* Badge de estado */}
-        <div className="flex items-center justify-center pt-3">
-          <Badge className={`${stageBadge.bgColor} ${stageBadge.textColor} border-0 px-4 py-1.5 text-xs font-medium`}>
-            {stageBadge.label}
-          </Badge>
+        {/* Selector de etapa */}
+        <div className="pt-3">
+          <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
+            <SelectTrigger className={`w-full h-9 text-xs font-medium ${stageBadge.bgColor} ${stageBadge.textColor} border-0`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PIPELINE_STAGES.filter(s => s.id !== 'all').map((stage) => {
+                const badge = STAGE_BADGE_MAP[stage.id];
+                return (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    <span className={`inline-block px-2 py-0.5 rounded ${badge.bgColor} ${badge.textColor}`}>
+                      {badge.label}
+                    </span>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Comentarios colapsables */}
@@ -436,14 +467,17 @@ function ListLeadRow({
   lead, 
   onToggleActivity,
   onChangeStage,
-  onDelete
+  onDelete,
+  currentUser
 }: { 
   lead: CrmLead; 
   onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
   onChangeStage: (stage: string) => void;
   onDelete: () => void;
+  currentUser: any;
 }) {
   const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
+  const isAdmin = currentUser?.role === 'admin';
   
   const initials = lead.clientName
     .split(' ')
@@ -497,10 +531,24 @@ function ListLeadRow({
               )}
             </div>
 
-            <div className="flex items-center">
-              <Badge className={`${stageBadge.bgColor} ${stageBadge.textColor} border-0 px-3 py-1 text-xs font-medium`}>
-                {stageBadge.label}
-              </Badge>
+            <div className="flex items-center min-w-[140px]">
+              <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
+                <SelectTrigger className={`w-full h-8 text-xs font-medium ${stageBadge.bgColor} ${stageBadge.textColor} border-0`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PIPELINE_STAGES.filter(s => s.id !== 'all').map((stage) => {
+                    const badge = STAGE_BADGE_MAP[stage.id];
+                    return (
+                      <SelectItem key={stage.id} value={stage.id}>
+                        <span className={`inline-block px-2 py-0.5 rounded ${badge.bgColor} ${badge.textColor}`}>
+                          {badge.label}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex items-center gap-2 justify-start sm:justify-end">
@@ -527,18 +575,17 @@ function ListLeadRow({
                 <MessageSquare className="w-3.5 h-3.5" />
               </Button>
               
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={onDelete} className="text-red-600">
-                    Eliminar
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {isAdmin && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20"
+                  onClick={onDelete}
+                  title="Eliminar lead"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-gray-600 hover:text-red-600" />
+                </Button>
+              )}
             </div>
           </div>
         </div>
