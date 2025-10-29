@@ -835,6 +835,7 @@ function LeadComments({ leadId }: { leadId: string }) {
 
 function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
 
   const { data: segments = [] } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
@@ -842,6 +843,11 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
 
   const { data: users = [] } = useQuery<any[]>({
     queryKey: ['/api/users'],
+  });
+
+  // Obtener clientes desde users con role='client'
+  const { data: clients = [] } = useQuery<any[]>({
+    queryKey: ['/api/users/clients'],
   });
 
   // Use the base schema directly without extra omits
@@ -858,6 +864,28 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
       stage: 'lead' as const,
     },
   });
+
+  // Función para auto-rellenar el formulario cuando se selecciona un cliente
+  const handleClientSelect = (clientId: string) => {
+    setSelectedClientId(clientId);
+    if (clientId === '') {
+      // Limpiar el formulario si se deselecciona
+      form.reset();
+      return;
+    }
+    
+    const client = clients.find(c => c.id === clientId);
+    if (client) {
+      // Rellenar con datos de cliente de ventas (nokoen, koen, rten, etc)
+      form.setValue('clientName', client.nokoen || '');
+      form.setValue('clientCompany', client.rten || '');
+      form.setValue('clientAddress', client.dien || '');
+      form.setValue('segment', client.gien || '');
+      // Email y teléfono pueden no estar disponibles en todos los clientes
+      if (client.email) form.setValue('clientEmail', client.email);
+      if (client.foen) form.setValue('clientPhone', client.foen);
+    }
+  };
 
   const createLeadMutation = useMutation({
     mutationFn: async (data: any): Promise<CrmLead> => {
@@ -921,6 +949,29 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {/* Selector de Cliente Existente */}
+        <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Seleccionar Cliente Existente (opcional)
+          </label>
+          <Select value={selectedClientId} onValueChange={handleClientSelect}>
+            <SelectTrigger className="w-full" data-testid="select-existing-client">
+              <SelectValue placeholder="Buscar cliente existente..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Crear nuevo lead sin cliente existente</SelectItem>
+              {clients.map((client) => (
+                <SelectItem key={client.id} value={client.id}>
+                  {client.nokoen} {client.rten ? `- ${client.rten}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Selecciona un cliente de ventas para auto-rellenar sus datos, o déjalo vacío para crear un lead nuevo.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}

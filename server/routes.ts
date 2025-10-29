@@ -4137,6 +4137,25 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get all client users (for CRM lead creation from existing clients)
+  app.get('/api/users/clients', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Only admin, supervisor, and salesperson can view client list
+      if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+        return res.status(403).json({ message: "No autorizado" });
+      }
+      
+      // Get all clients from the clients table (nokoen, koen)
+      const clients = await storage.getClients({ limit: 1000 });
+      res.json(clients);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      res.status(500).json({ message: "Failed to fetch clients" });
+    }
+  });
+
   // ==================================================================================
   // CRM Pipeline endpoints
   // ==================================================================================
