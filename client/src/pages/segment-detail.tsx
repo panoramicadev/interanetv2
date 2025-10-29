@@ -716,6 +716,13 @@ export default function SegmentDetail({
             </div>
           </div>
 
+          {/* NVV Pendientes - Notas de Venta Pendientes by Segment (sin filtros de fecha para coincidir con módulo NVV) */}
+          {segmentName && (
+            <SegmentPendingNVV
+              segment={segmentName}
+            />
+          )}
+
           {/* Goal Progress Section - Only show for monthly view */}
           {filterType === 'month' && goalData && (
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
@@ -867,13 +874,6 @@ export default function SegmentDetail({
                 </div>
               </div>
               </div>
-            )}
-
-            {/* NVV Pendientes - Notas de Venta Pendientes by Segment (sin filtros de fecha para coincidir con módulo NVV) */}
-            {segmentName && (
-              <SegmentPendingNVV
-                segment={segmentName}
-              />
             )}
             </>
           )}
