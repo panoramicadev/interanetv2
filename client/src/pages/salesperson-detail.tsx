@@ -289,6 +289,9 @@ export default function SalespersonDetail({
   
   // Promesas collapse state
   const [isPromesasExpanded, setIsPromesasExpanded] = useState(false);
+  
+  // Clients table collapse state
+  const [isClientsExpanded, setIsClientsExpanded] = useState(false);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -1138,55 +1141,82 @@ export default function SalespersonDetail({
             <div className="space-y-3">
               {isLoadingClients ? (
                 <div className="space-y-3">
-                  {[...Array(8)].map((_, i) => (
+                  {[...Array(5)].map((_, i) => (
                     <div key={i} className="animate-pulse h-16 bg-gray-200 rounded-lg"></div>
                   ))}
                 </div>
               ) : clients.length === 0 ? (
                 <p className="text-gray-500 text-center py-8">No hay clientes registrados para este vendedor</p>
               ) : (
-                clients.map((client, index) => (
-                  <Link key={client.clientName} href={`/client/${encodeURIComponent(client.clientName)}`}>
-                    <div 
-                      className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                      data-testid={`client-${index}`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-3">
-                          <div className="flex-shrink-0">
-                            <Badge variant="outline" className="text-xs">
-                              #{index + 1}
-                            </Badge>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {client.clientName}
-                            </p>
-                            <div className="flex items-center space-x-4 mt-1">
-                              <p className="text-xs text-gray-500">
-                                {formatNumber(client.transactionCount)} transacciones
+                <>
+                  {(isClientsExpanded ? clients : clients.slice(0, 5)).map((client, index) => (
+                    <Link key={client.clientName} href={`/client/${encodeURIComponent(client.clientName)}`}>
+                      <div 
+                        className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                        data-testid={`client-${index}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex-shrink-0">
+                              <Badge variant="outline" className="text-xs">
+                                #{index + 1}
+                              </Badge>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                {client.clientName}
                               </p>
-                              <p className="text-xs text-gray-500">
-                                Ticket: {formatCurrency(client.averageTicket)}
-                              </p>
-                              <p className={`text-xs ${getDaysColor(client.daysSinceLastSale)}`}>
-                                Última venta: {client.daysSinceLastSale} días
-                              </p>
+                              <div className="flex items-center space-x-4 mt-1">
+                                <p className="text-xs text-gray-500">
+                                  {formatNumber(client.transactionCount)} transacciones
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  Ticket: {formatCurrency(client.averageTicket)}
+                                </p>
+                                <p className={`text-xs ${getDaysColor(client.daysSinceLastSale)}`}>
+                                  Última venta: {client.daysSinceLastSale} días
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
+                        <div className="text-right ml-4">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {formatCurrency(client.totalSales)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatDate(client.lastSale)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right ml-4">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {formatCurrency(client.totalSales)}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatDate(client.lastSale)}
-                        </p>
-                      </div>
+                    </Link>
+                  ))}
+                  
+                  {/* Ver más button - only show if more than 5 clients */}
+                  {clients.length > 5 && (
+                    <div className="pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsClientsExpanded(!isClientsExpanded)}
+                        className="w-full"
+                        data-testid="button-toggle-clients"
+                      >
+                        {isClientsExpanded ? (
+                          <>
+                            Ver menos
+                            <ChevronUp className="ml-2 h-4 w-4" />
+                          </>
+                        ) : (
+                          <>
+                            Ver más ({clients.length - 5} clientes adicionales)
+                            <ChevronDown className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
                     </div>
-                  </Link>
-                ))
+                  )}
+                </>
               )}
             </div>
           </div>
