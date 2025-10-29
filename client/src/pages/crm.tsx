@@ -498,41 +498,35 @@ function LeadCard({
           )}
         </div>
 
-        {/* Botones de acción grandes */}
-        <div className="flex items-center gap-2 pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 h-10"
+        {/* Botones de acción modernos */}
+        <div className="grid grid-cols-3 gap-2 pt-2">
+          <button
             onClick={handleCall}
             disabled={!lead.clientPhone}
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-gray-700 dark:text-gray-300"
             data-testid={`button-call-${lead.id}`}
           >
-            <Phone className="w-5 h-5 mr-1.5" />
-            Llamar
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 h-10"
+            <Phone className="w-4 h-4" />
+            <span>Llamar</span>
+          </button>
+          <button
             onClick={handleWhatsApp}
             disabled={!lead.clientPhone}
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-gray-700 dark:text-gray-300"
             data-testid={`button-whatsapp-${lead.id}`}
           >
-            <MessageSquare className="w-5 h-5 mr-1.5" />
-            WhatsApp
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1 h-10"
+            <MessageSquare className="w-4 h-4" />
+            <span>WhatsApp</span>
+          </button>
+          <button
             onClick={handleEmail}
             disabled={!lead.clientEmail}
+            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-gray-700 dark:text-gray-300"
             data-testid={`button-email-${lead.id}`}
           >
-            <Mail className="w-5 h-5 mr-1.5" />
-            Email
-          </Button>
+            <Mail className="w-4 h-4" />
+            <span>Email</span>
+          </button>
         </div>
 
         {/* Selector de etapa */}
