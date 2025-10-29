@@ -3977,3 +3977,33 @@ export const insertCrmCommentSchema = createInsertSchema(crmComments, {
 
 export type InsertCrmLeadInput = z.infer<typeof insertCrmLeadSchema>;
 export type InsertCrmCommentInput = z.infer<typeof insertCrmCommentSchema>;
+
+// CRM Pipeline Stages - Etapas personalizables del pipeline
+export const crmStages = pgTable("crm_stages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(), // Nombre de la etapa
+  stageKey: varchar("stage_key").notNull().unique(), // Identificador único (ej: 'lead', 'contacto')
+  color: varchar("color").notNull(), // Color en formato HSL o hex
+  order: integer("order").notNull(), // Orden de visualización
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  orderIdx: index("IDX_crm_stages_order").on(table.order),
+}));
+
+export type CrmStage = typeof crmStages.$inferSelect;
+export type InsertCrmStage = typeof crmStages.$inferInsert;
+
+export const insertCrmStageSchema = createInsertSchema(crmStages, {
+  name: z.string().min(1, "Nombre es requerido"),
+  stageKey: z.string().min(1, "Identificador es requerido"),
+  color: z.string().min(1, "Color es requerido"),
+  order: z.number().min(0, "Orden debe ser positivo"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCrmStageInput = z.infer<typeof insertCrmStageSchema>;
