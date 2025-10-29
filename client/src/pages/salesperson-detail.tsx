@@ -289,9 +289,6 @@ export default function SalespersonDetail({
   
   // Promesas collapse state
   const [isPromesasExpanded, setIsPromesasExpanded] = useState(false);
-  
-  // Segments breakdown expansion in goal card
-  const [isSegmentsExpanded, setIsSegmentsExpanded] = useState(false);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -698,33 +695,47 @@ export default function SalespersonDetail({
             <>
           {/* Meta de Ventas */}
           {primaryGoal && (
-            <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
-              <CardContent className="pt-6 pb-6">
+            <Card className="rounded-2xl shadow-sm border border-gray-200 bg-white dark:bg-slate-900 dark:border-gray-700">
+              <CardContent className="pt-5 pb-5">
                 <div className="space-y-4">
+                  {/* Header con título y porcentaje */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="bg-emerald-500 rounded-full p-3">
-                        <Target className="h-6 w-6 text-white" />
+                      <div className="bg-emerald-100 rounded-xl p-2.5">
+                        <Target className="h-5 w-5 text-emerald-600" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900">Meta de Ventas</h3>
-                        <p className="text-sm text-gray-600">{primaryGoal.description || primaryGoal.period}</p>
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white">Meta de Ventas</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{primaryGoal.description || primaryGoal.period}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-3xl font-bold ${
+                      <div className={`text-2xl font-bold ${
                         (primaryGoal.percentage || 0) >= 100 ? 'text-emerald-600' : 
                         (primaryGoal.percentage || 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
                       }`}>
                         {(primaryGoal.percentage || 0).toFixed(1)}%
                       </div>
-                      <p className="text-xs text-gray-600 mt-1">Logrado</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
                     </div>
                   </div>
                   
-                  <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                  {/* Meta y Ventas Actuales en fila */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 rounded-xl p-3">
+                      <p className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Meta Mensual</p>
+                      <p className="text-lg font-bold text-purple-900 dark:text-purple-100">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 rounded-xl p-3">
+                      <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Ventas Actuales</p>
+                      <p className="text-lg font-bold text-blue-900 dark:text-blue-100">{formatCurrency(primaryGoal.currentSales || 0)}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Barra de progreso */}
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                     <div
-                      className={`h-4 rounded-full transition-all duration-500 ${
+                      className={`h-3 rounded-full transition-all duration-500 ${
                         (primaryGoal.percentage || 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
                         (primaryGoal.percentage || 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
                       }`}
@@ -732,72 +743,43 @@ export default function SalespersonDetail({
                     ></div>
                   </div>
                   
-                  <div className="grid grid-cols-1 gap-4 pt-2">
-                    {/* Ventas Actuales con desglose por segmento */}
-                    <div className="bg-white/60 rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <p className="text-xs text-gray-600 mb-1">Ventas Actuales</p>
-                          <p className="text-xl font-bold text-gray-900">{formatCurrency(primaryGoal.currentSales || 0)}</p>
-                        </div>
-                        {segments && segments.length > 0 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setIsSegmentsExpanded(!isSegmentsExpanded)}
-                            className="h-7 px-2 text-gray-600 hover:text-gray-900"
-                            data-testid="button-toggle-segments"
-                          >
-                            <BarChart3 className="h-4 w-4 mr-1" />
-                            <span className="text-xs">Por segmento</span>
-                            {isSegmentsExpanded ? (
-                              <ChevronUp className="h-4 w-4 ml-1" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4 ml-1" />
-                            )}
-                          </Button>
-                        )}
+                  {/* Desglose por segmento - siempre visible */}
+                  {segments && segments.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 pb-1 border-b border-gray-200 dark:border-gray-700">
+                        <BarChart3 className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                        <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Ventas por Segmento</h4>
                       </div>
-                      
-                      {/* Desglose de segmentos expandible */}
-                      {isSegmentsExpanded && segments && segments.length > 0 && (
-                        <div className="space-y-1.5 pt-2 border-t border-gray-200">
-                          {segments.map((segment, index) => (
-                            <div key={segment.segment} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/50 transition-colors">
-                              <div className="flex items-center gap-2">
-                                <div 
-                                  className="w-2 h-2 rounded-full flex-shrink-0" 
-                                  style={{
-                                    backgroundColor: [
-                                      'rgba(253, 99, 1, 0.8)',
-                                      'rgba(59, 130, 246, 0.8)',
-                                      'rgba(16, 185, 129, 0.8)',
-                                      'rgba(245, 158, 11, 0.8)',
-                                      'rgba(139, 92, 246, 0.8)',
-                                      'rgba(236, 72, 153, 0.8)',
-                                      'rgba(99, 102, 241, 0.8)',
-                                      'rgba(244, 63, 94, 0.8)',
-                                    ][index % 8]
-                                  }}
-                                />
-                                <span className="text-xs font-medium text-gray-700">{segment.segment}</span>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-xs font-semibold text-gray-900">{formatCurrency(segment.totalSales)}</p>
-                                <p className="text-xs text-gray-500">{segment.percentage.toFixed(1)}%</p>
-                              </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {segments.map((segment, index) => (
+                          <div key={segment.segment} className="flex items-center justify-between p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm" 
+                                style={{
+                                  backgroundColor: [
+                                    'rgba(253, 99, 1, 0.9)',
+                                    'rgba(59, 130, 246, 0.9)',
+                                    'rgba(16, 185, 129, 0.9)',
+                                    'rgba(245, 158, 11, 0.9)',
+                                    'rgba(139, 92, 246, 0.9)',
+                                    'rgba(236, 72, 153, 0.9)',
+                                    'rgba(99, 102, 241, 0.9)',
+                                    'rgba(244, 63, 94, 0.9)',
+                                  ][index % 8]
+                                }}
+                              />
+                              <span className="text-xs font-medium text-gray-800 dark:text-gray-200">{segment.segment}</span>
                             </div>
-                          ))}
-                        </div>
-                      )}
+                            <div className="text-right">
+                              <p className="text-xs font-bold text-gray-900 dark:text-white">{formatCurrency(segment.totalSales)}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{segment.percentage.toFixed(1)}%</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    
-                    {/* Meta */}
-                    <div className="bg-white/60 rounded-xl p-3">
-                      <p className="text-xs text-gray-600 mb-1">Meta</p>
-                      <p className="text-xl font-bold text-gray-900">{formatCurrency(primaryGoal.targetAmount || 0)}</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
