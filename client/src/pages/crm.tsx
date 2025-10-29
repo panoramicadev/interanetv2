@@ -59,9 +59,24 @@ export default function CRMPage() {
   const [vendedorFilter, setVendedorFilter] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   
   const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isAdmin = currentUser?.role === 'admin';
+
+  // Detect mobile view
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Load custom stages from database
   const { data: stages = [] } = useQuery<CrmStage[]>({
@@ -254,9 +269,10 @@ export default function CRMPage() {
             )}
           </div>
 
-          {/* Vista Kanban - Columnas por etapa */}
-          <div className="overflow-x-auto pb-4">
-            <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
+          {/* Vista Desktop: Kanban - Columnas por etapa */}
+          {!isMobile ? (
+            <div className="overflow-x-auto pb-4">
+              <div className="flex gap-4" style={{ minWidth: 'max-content' }}>
               {stages.map((stage) => {
                 const stageLeads = leadsByStage[stage.stageKey] || [];
                 const stageBadge = STAGE_BADGE_MAP[stage.stageKey] || { 
@@ -333,6 +349,7 @@ export default function CRMPage() {
                                 key={lead.id}
                                 lead={lead}
                                 currentUser={currentUser}
+                                isMobile={false}
                                 onToggleActivity={(field) => {
                                   const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
                                   toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
@@ -348,8 +365,58 @@ export default function CRMPage() {
                   </div>
                 );
               })}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Vista Móvil: Lista vertical agrupada por etapa */
+            <div className="space-y-4">
+              {stages.map((stage) => {
+                const stageLeads = leadsByStage[stage.stageKey] || [];
+                const stageBadge = STAGE_BADGE_MAP[stage.stageKey] || { 
+                  label: stage.name, 
+                  bgColor: stage.color, 
+                  textColor: 'text-gray-700 dark:text-gray-300' 
+                };
+                
+                if (stageLeads.length === 0) return null;
+                
+                return (
+                  <div key={stage.id} className="space-y-3">
+                    {/* Encabezado de sección */}
+                    <div className="flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-3 w-1 rounded-full ${stageBadge.bgColor}`} />
+                        <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+                          {stage.name}
+                        </h3>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        {stageLeads.length}
+                      </Badge>
+                    </div>
+                    
+                    {/* Lista de leads */}
+                    <div className="space-y-3">
+                      {stageLeads.map((lead) => (
+                        <LeadCard
+                          key={lead.id}
+                          lead={lead}
+                          currentUser={currentUser}
+                          isMobile={true}
+                          onToggleActivity={(field) => {
+                            const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
+                            toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
+                          }}
+                          onChangeStage={(newStage) => updateStageMutation.mutate({ id: lead.id, stage: newStage })}
+                          onDelete={() => deleteLeadMutation.mutate(lead.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         {/* Tab de Promesas */}
@@ -366,13 +433,15 @@ function LeadCard({
   onToggleActivity,
   onChangeStage,
   onDelete,
-  currentUser
+  currentUser,
+  isMobile = false
 }: { 
   lead: CrmLead; 
   onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
   onChangeStage: (stage: string) => void;
   onDelete: () => void;
   currentUser: any;
+  isMobile?: boolean;
 }) {
   const [showComments, setShowComments] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -430,11 +499,11 @@ function LeadCard({
 
   return (
     <Card 
-      className={`hover:shadow-md transition-all bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-move ${isDragging ? 'opacity-50' : ''}`} 
+      className={`hover:shadow-md transition-all bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 ${!isMobile ? 'cursor-move' : ''} ${isDragging ? 'opacity-50' : ''}`} 
       data-testid={`card-lead-${lead.id}`}
-      draggable
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
+      draggable={!isMobile}
+      onDragStart={!isMobile ? handleDragStart : undefined}
+      onDragEnd={!isMobile ? handleDragEnd : undefined}
     >
       <CardContent className="p-5 space-y-4">
         {/* Header con avatar y acciones */}
