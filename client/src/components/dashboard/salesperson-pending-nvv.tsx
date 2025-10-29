@@ -147,7 +147,7 @@ export default function SalespersonPendingNVV({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64 bg-gray-100 rounded-lg animate-pulse" />
+          <div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />
         </CardContent>
       </Card>
     );
@@ -164,8 +164,8 @@ export default function SalespersonPendingNVV({
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
-            <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">
+            <Package className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               No hay notas de venta pendientes en este período
             </p>
           </div>
@@ -183,10 +183,10 @@ export default function SalespersonPendingNVV({
             Notas de Venta Pendientes
           </CardTitle>
           <div className="flex gap-2">
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
               {totalClients} {totalClients === 1 ? 'cliente' : 'clientes'}
             </Badge>
-            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+            <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
               {totalOrders} {totalOrders === 1 ? 'pedido' : 'pedidos'}
             </Badge>
           </div>
@@ -195,8 +195,8 @@ export default function SalespersonPendingNVV({
       <CardContent className="space-y-4">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-amber-600 mb-1">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500 mb-1">
               <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
                 <DollarSign className="h-4 w-4" />
               </div>
@@ -207,8 +207,8 @@ export default function SalespersonPendingNVV({
             </div>
           </div>
           
-          <div className="bg-white border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-purple-600 mb-1">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-500 mb-1">
               <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
                 <Package className="h-4 w-4" />
               </div>
@@ -219,8 +219,8 @@ export default function SalespersonPendingNVV({
             </div>
           </div>
           
-          <div className="bg-white border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-blue-600 mb-1">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-500 mb-1">
               <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                 <ShoppingCart className="h-4 w-4" />
               </div>
@@ -232,7 +232,7 @@ export default function SalespersonPendingNVV({
 
         {/* Grouped by Client with Accordion */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Por Cliente</h3>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Por Cliente</h3>
           <div>
             <Accordion type="single" collapsible className="space-y-2">
               {(showAll ? groupedByClient : groupedByClient.slice(0, 5)).map((clientGroup, index) => (
@@ -243,31 +243,31 @@ export default function SalespersonPendingNVV({
                 data-testid={`client-group-${clientGroup.uniqueKey}`}
               >
                 <AccordionTrigger 
-                  className="px-4 py-3 hover:bg-gray-50 hover:no-underline"
+                  className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 hover:no-underline"
                   data-testid={`client-trigger-${clientGroup.uniqueKey}`}
                 >
                   <div className="flex items-center justify-between w-full pr-4">
                     <div className="flex items-center gap-3">
-                      <div className="bg-blue-100 p-2 rounded-lg">
-                        <User className="h-4 w-4 text-blue-600" />
+                      <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+                        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="text-left">
-                        <div className="font-semibold text-gray-900">{clientGroup.clientName}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="font-semibold text-gray-900 dark:text-gray-100">{clientGroup.clientName}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
                           {clientGroup.totalOrders} {clientGroup.totalOrders === 1 ? 'documento' : 'documentos'}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className="text-sm text-gray-500">Unidades</div>
-                        <div className="font-semibold text-purple-700">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Unidades</div>
+                        <div className="font-semibold text-purple-700 dark:text-purple-300">
                           {clientGroup.totalUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm text-gray-500">Monto Total</div>
-                        <div className="font-bold text-amber-700">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Monto Total</div>
+                        <div className="font-bold text-amber-700 dark:text-amber-300">
                           {formatCurrency(clientGroup.totalAmount)}
                         </div>
                       </div>
@@ -275,8 +275,8 @@ export default function SalespersonPendingNVV({
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
-                  <div className="bg-gray-50 rounded-lg p-4 mt-2">
-                    <div className="flex items-center gap-2 mb-3 text-gray-700">
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-2">
+                    <div className="flex items-center gap-2 mb-3 text-gray-700 dark:text-gray-300">
                       <FileText className="h-4 w-4" />
                       <span className="text-sm font-medium">Documentos</span>
                     </div>
@@ -299,8 +299,8 @@ export default function SalespersonPendingNVV({
                             <TableRow key={record.id} data-testid={`nvv-detail-${record.id}`}>
                               <TableCell className="font-medium">
                                 <div>
-                                  <div className="font-semibold">{record.NUDO}</div>
-                                  <div className="text-xs text-gray-500">{record.TIDO}</div>
+                                  <div className="font-semibold text-gray-900 dark:text-gray-100">{record.NUDO}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">{record.TIDO}</div>
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -326,15 +326,15 @@ export default function SalespersonPendingNVV({
                                 </span>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
                                   {record.cantidadPendiente.toLocaleString('es-CL', { maximumFractionDigits: 2 })}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-right text-sm text-gray-600">
+                              <TableCell className="text-right text-sm text-gray-600 dark:text-gray-400">
                                 {formatCurrency(record.PPPRNE)}
                               </TableCell>
                               <TableCell className="text-right">
-                                <span className="font-semibold text-amber-700">
+                                <span className="font-semibold text-amber-700 dark:text-amber-300">
                                   {formatCurrency(record.totalPendiente)}
                                 </span>
                               </TableCell>
