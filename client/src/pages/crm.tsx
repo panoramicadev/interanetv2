@@ -187,24 +187,24 @@ export default function CRMPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-2 sm:p-6 space-y-2 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">Leads</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">Leads</h1>
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-0.5 sm:mt-1 hidden sm:block">
             Gestión de clientes y promesas de compra
           </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button variant="outline" size="sm" data-testid="button-export">
-            <Download className="w-4 h-4 mr-2" />
-            Export
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-export">
+            <Download className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" data-testid="button-create-lead">
-                <Plus className="w-4 h-4 mr-2" />
+              <Button size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-create-lead">
+                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                 Nuevo Lead
               </Button>
             </DialogTrigger>
@@ -220,19 +220,19 @@ export default function CRMPage() {
 
       {/* Tabs principales */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'leads' | 'promesas')}>
-        <TabsList>
-          <TabsTrigger value="leads" data-testid="tab-leads">Leads</TabsTrigger>
-          <TabsTrigger value="promesas" data-testid="tab-promesas">Promesas de Compra</TabsTrigger>
+        <TabsList className="h-9 sm:h-10">
+          <TabsTrigger value="leads" className="text-xs sm:text-sm" data-testid="tab-leads">Leads</TabsTrigger>
+          <TabsTrigger value="promesas" className="text-xs sm:text-sm" data-testid="tab-promesas">Promesas de Compra</TabsTrigger>
         </TabsList>
 
         {/* Tab de Leads */}
-        <TabsContent value="leads" className="space-y-4">
+        <TabsContent value="leads" className="space-y-2 sm:space-y-4">
           {/* Barra de búsqueda y filtros */}
-          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 w-full">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 sm:gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 flex-1 w-full">
               {/* Filtro de Segmento */}
               <Select value={segmentFilter} onValueChange={setSegmentFilter}>
-                <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-segment-filter">
+                <SelectTrigger className="w-full sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-segment-filter">
                   <SelectValue placeholder="Todos los segmentos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -245,7 +245,7 @@ export default function CRMPage() {
               
               {/* Filtro de Vendedor */}
               <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-                <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-vendedor-filter">
+                <SelectTrigger className="w-full sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-vendedor-filter">
                   <SelectValue placeholder="Todos los vendedores" />
                 </SelectTrigger>
                 <SelectContent>
@@ -259,7 +259,8 @@ export default function CRMPage() {
               {/* Buscador */}
               <div className="flex-1 w-full min-w-[200px]">
                 <Input
-                  placeholder="Buscar por nombre, email o teléfono..."
+                  placeholder="Buscar..."
+                  className="h-8 sm:h-10 text-xs sm:text-sm"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   data-testid="input-search-leads"
@@ -268,7 +269,7 @@ export default function CRMPage() {
             </div>
             
             {isAdmin && (
-              <Button variant="outline" size="sm" data-testid="button-manage-stages">
+              <Button variant="outline" size="sm" className="h-8 sm:h-9 hidden sm:flex" data-testid="button-manage-stages">
                 <Settings className="w-4 h-4 mr-2" />
                 Administrar Etapas
               </Button>
@@ -375,7 +376,7 @@ export default function CRMPage() {
             </div>
           ) : (
             /* Vista Móvil: Lista vertical agrupada por etapa */
-            <div className="space-y-4">
+            <div className="space-y-2">
               {stages.map((stage) => {
                 const stageLeads = leadsByStage[stage.stageKey] || [];
                 const stageBadge = STAGE_BADGE_MAP[stage.stageKey] || { 
@@ -387,22 +388,22 @@ export default function CRMPage() {
                 if (stageLeads.length === 0) return null;
                 
                 return (
-                  <div key={stage.id} className="space-y-3">
+                  <div key={stage.id} className="space-y-1.5">
                     {/* Encabezado de sección */}
-                    <div className="flex items-center justify-between px-1">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-3 w-1 rounded-full ${stageBadge.bgColor}`} />
-                        <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">
+                    <div className="flex items-center justify-between px-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className={`h-2.5 w-0.5 rounded-full ${stageBadge.bgColor}`} />
+                        <h3 className="font-semibold text-xs text-gray-900 dark:text-gray-100">
                           {stage.name}
                         </h3>
                       </div>
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
                         {stageLeads.length}
                       </Badge>
                     </div>
                     
                     {/* Lista de leads */}
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {stageLeads.map((lead) => (
                         <LeadCard
                           key={lead.id}
@@ -511,103 +512,103 @@ function LeadCard({
       onDragStart={!isMobile ? handleDragStart : undefined}
       onDragEnd={!isMobile ? handleDragEnd : undefined}
     >
-      <CardContent className="p-5 space-y-4">
+      <CardContent className={isMobile ? "p-3 space-y-2" : "p-5 space-y-4"}>
         {/* Header con avatar y acciones */}
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3 flex-1">
-            <div className={`w-12 h-12 rounded-full ${avatarColor} flex items-center justify-center text-white font-semibold text-sm shadow-md flex-shrink-0`}>
+          <div className={`flex items-center flex-1 ${isMobile ? 'gap-2' : 'gap-3'}`}>
+            <div className={`rounded-full ${avatarColor} flex items-center justify-center text-white font-semibold shadow-md flex-shrink-0 ${isMobile ? 'w-9 h-9 text-xs' : 'w-12 h-12 text-sm'}`}>
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-base text-gray-900 dark:text-gray-100 truncate">
+              <h4 className={`font-semibold text-gray-900 dark:text-gray-100 truncate ${isMobile ? 'text-sm' : 'text-base'}`}>
                 {lead.clientName}
               </h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <p className={`text-gray-500 dark:text-gray-400 mt-0.5 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
                 Today {lead.createdAt ? new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className={`flex items-center ${isMobile ? 'gap-0.5' : 'gap-1'}`}>
             <Button 
               variant="ghost" 
               size="sm" 
-              className="h-8 w-8 p-0 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              className={`p-0 hover:bg-blue-50 dark:hover:bg-blue-900/20 ${isMobile ? 'h-7 w-7' : 'h-8 w-8'}`}
               onClick={() => setShowComments(!showComments)}
               title="Ver bitácora de comentarios"
             >
-              <BookOpen className={`w-4 h-4 ${showComments ? 'text-blue-600' : 'text-gray-600'}`} />
+              <BookOpen className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} ${showComments ? 'text-blue-600' : 'text-gray-600'}`} />
             </Button>
             {isAdmin && (
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-900/20"
+                className={`p-0 hover:bg-red-50 dark:hover:bg-red-900/20 ${isMobile ? 'h-7 w-7' : 'h-8 w-8'}`}
                 onClick={onDelete}
                 title="Eliminar lead"
               >
-                <Trash2 className="w-4 h-4 text-gray-600 hover:text-red-600" />
+                <Trash2 className={`text-gray-600 hover:text-red-600 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
               </Button>
             )}
           </div>
         </div>
 
         {/* Información de contacto */}
-        <div className="space-y-2 text-sm">
+        <div className={`text-sm ${isMobile ? 'space-y-1' : 'space-y-2'}`}>
           {lead.clientPhone && (
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-              <Phone className="w-4 h-4 flex-shrink-0" />
+            <div className={`flex items-center text-gray-600 dark:text-gray-400 ${isMobile ? 'gap-1.5 text-xs' : 'gap-2'}`}>
+              <Phone className={isMobile ? "w-3 h-3 flex-shrink-0" : "w-4 h-4 flex-shrink-0"} />
               <span>{lead.clientPhone}</span>
             </div>
           )}
           {lead.clientEmail && (
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 truncate">
-              <Mail className="w-4 h-4 flex-shrink-0" />
+            <div className={`flex items-center text-gray-600 dark:text-gray-400 truncate ${isMobile ? 'gap-1.5 text-xs' : 'gap-2'}`}>
+              <Mail className={isMobile ? "w-3 h-3 flex-shrink-0" : "w-4 h-4 flex-shrink-0"} />
               <span className="truncate">{lead.clientEmail}</span>
             </div>
           )}
           {lead.clientCompany && (
-            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-              <Building2 className="w-4 h-4 flex-shrink-0" />
+            <div className={`flex items-center text-gray-600 dark:text-gray-400 ${isMobile ? 'gap-1.5 text-xs' : 'gap-2'}`}>
+              <Building2 className={isMobile ? "w-3 h-3 flex-shrink-0" : "w-4 h-4 flex-shrink-0"} />
               <span className="truncate">{lead.clientCompany}</span>
             </div>
           )}
         </div>
 
         {/* Botones de acción modernos */}
-        <div className="grid grid-cols-3 gap-2 pt-2">
+        <div className={`grid grid-cols-3 ${isMobile ? 'gap-1.5 pt-1' : 'gap-2 pt-2'}`}>
           <button
             onClick={handleCall}
             disabled={!lead.clientPhone}
-            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-gray-700 dark:text-gray-300"
+            className={`flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all disabled:opacity-40 disabled:cursor-not-allowed font-medium text-gray-700 dark:text-gray-300 ${isMobile ? 'gap-1 px-2 py-1.5 text-xs' : 'gap-1.5 px-3 py-2.5 text-sm'}`}
             data-testid={`button-call-${lead.id}`}
           >
-            <Phone className="w-4 h-4" />
+            <Phone className={isMobile ? "w-3 h-3" : "w-4 h-4"} />
             <span>Llamar</span>
           </button>
           <button
             onClick={handleWhatsApp}
             disabled={!lead.clientPhone}
-            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-gray-700 dark:text-gray-300"
+            className={`flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all disabled:opacity-40 disabled:cursor-not-allowed font-medium text-gray-700 dark:text-gray-300 ${isMobile ? 'gap-1 px-2 py-1.5 text-xs' : 'gap-1.5 px-3 py-2.5 text-sm'}`}
             data-testid={`button-whatsapp-${lead.id}`}
           >
-            <MessageSquare className="w-4 h-4" />
+            <MessageSquare className={isMobile ? "w-3 h-3" : "w-4 h-4"} />
             <span>WhatsApp</span>
           </button>
           <button
             onClick={handleEmail}
             disabled={!lead.clientEmail}
-            className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-gray-700 dark:text-gray-300"
+            className={`flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all disabled:opacity-40 disabled:cursor-not-allowed font-medium text-gray-700 dark:text-gray-300 ${isMobile ? 'gap-1 px-2 py-1.5 text-xs' : 'gap-1.5 px-3 py-2.5 text-sm'}`}
             data-testid={`button-email-${lead.id}`}
           >
-            <Mail className="w-4 h-4" />
+            <Mail className={isMobile ? "w-3 h-3" : "w-4 h-4"} />
             <span>Email</span>
           </button>
         </div>
 
         {/* Selector de etapa */}
-        <div className="pt-3">
+        <div className={isMobile ? "pt-1.5" : "pt-3"}>
           <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
-            <SelectTrigger className={`w-full h-9 text-xs font-medium ${stageBadge.bgColor} ${stageBadge.textColor} border-0`}>
+            <SelectTrigger className={`w-full font-medium ${stageBadge.bgColor} ${stageBadge.textColor} border-0 ${isMobile ? 'h-7 text-[10px]' : 'h-9 text-xs'}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -627,7 +628,7 @@ function LeadCard({
 
         {/* Comentarios colapsables */}
         {showComments && (
-          <div className="pt-3 border-t border-gray-200 dark:border-gray-800">
+          <div className={`border-t border-gray-200 dark:border-gray-800 ${isMobile ? 'pt-2' : 'pt-3'}`}>
             <LeadComments leadId={lead.id} />
           </div>
         )}
