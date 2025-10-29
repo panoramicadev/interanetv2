@@ -224,6 +224,16 @@ export default function CRMPage() {
                 <Filter className="w-4 h-4 mr-2" />
                 Filter
               </Button>
+
+              {/* Search field inline with filters */}
+              <div className="flex-1 min-w-[200px]">
+                <Input
+                  placeholder="Buscar por nombre, email o teléfono..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  data-testid="input-search-leads"
+                />
+              </div>
             </div>
 
             {/* View mode toggle - desktop only, disabled on mobile */}
@@ -258,16 +268,6 @@ export default function CRMPage() {
                 </Card>
               );
             })}
-          </div>
-
-          {/* Search */}
-          <div className="flex-1 max-w-md">
-            <Input
-              placeholder="Buscar por nombre, email o teléfono..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              data-testid="input-search-leads"
-            />
           </div>
 
           {/* Grid/List de leads */}
