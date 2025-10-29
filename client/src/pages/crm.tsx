@@ -120,14 +120,6 @@ export default function CRMPage() {
         title: "Etapa actualizada",
         description: "El lead ha sido movido exitosamente",
       });
-      
-      // Scroll to the destination column
-      setTimeout(() => {
-        const targetColumn = columnRefs.current[variables.stage];
-        if (targetColumn) {
-          targetColumn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-      }, 100);
     },
   });
 
