@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingCart, Package, DollarSign, User, ChevronDown, FileText, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Accordion,
   AccordionContent,
@@ -53,6 +55,8 @@ export default function AllSalespeopleNVV({
   selectedPeriod,
   filterType
 }: AllSalespeopleNVVProps) {
+  const [showAll, setShowAll] = useState(false);
+  
   const { data: salespeopleData, isLoading } = useQuery<SalespersonGroup[]>({
     queryKey: [`/api/nvv/all-by-salespeople`],
     queryFn: async () => {
@@ -204,9 +208,9 @@ export default function AllSalespeopleNVV({
         {/* Grouped by Salesperson with nested Client Accordion */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Por Vendedor</h3>
-          <div className="max-h-[240px] overflow-y-auto">
+          <div>
             <Accordion type="single" collapsible className="space-y-2">
-              {salespeopleData.map((salespersonGroup) => {
+              {(showAll ? salespeopleData : salespeopleData.slice(0, 5)).map((salespersonGroup) => {
               const clientGroups = groupRecordsByClient(salespersonGroup.records);
               
               return (
@@ -326,6 +330,21 @@ export default function AllSalespeopleNVV({
               );
               })}
             </Accordion>
+            
+            {/* Ver más button */}
+            {salespeopleData.length > 5 && (
+              <div className="mt-4 text-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAll(!showAll)}
+                  className="w-full"
+                  data-testid="button-toggle-show-all"
+                >
+                  {showAll ? 'Ver menos' : `Ver más (${salespeopleData.length - 5} más)`}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
