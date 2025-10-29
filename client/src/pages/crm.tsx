@@ -912,6 +912,14 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
     queryKey: ['/api/users/clients'],
   });
 
+  // Obtener etapas disponibles para usar la primera como valor por defecto
+  const { data: stages = [] } = useQuery<CrmStage[]>({
+    queryKey: ['/api/crm/stages'],
+  });
+
+  // Obtener la primera etapa disponible (la de menor order)
+  const defaultStage = stages.length > 0 ? stages[0].stageKey : 'lead';
+
   // Cerrar dropdown cuando se hace clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -928,7 +936,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
   const formSchema = z.object({
     clientName: z.string().min(1, "Nombre del cliente es requerido"),
     salespersonId: z.string().min(1, "Vendedor es requerido"),
-    stage: z.string().default('lead'),
+    stage: z.string().default(defaultStage),
     clientPhone: z.string().optional(),
     clientEmail: z.string().email("Email inválido").optional().or(z.literal("")),
     clientCompany: z.string().optional(),
@@ -948,7 +956,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
       segment: '',
       salespersonId: '',
       notes: '',
-      stage: 'lead' as const,
+      stage: defaultStage,
     },
   });
 
@@ -994,7 +1002,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
       const cleanData = {
         clientName: data.clientName,
         salespersonId: data.salespersonId,
-        stage: data.stage || 'lead',
+        stage: data.stage || defaultStage,
         clientPhone: data.clientPhone || null,
         clientEmail: data.clientEmail || null,
         clientCompany: data.clientCompany || null,
