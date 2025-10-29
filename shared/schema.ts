@@ -3955,7 +3955,7 @@ export const insertCrmLeadSchema = createInsertSchema(crmLeads, {
   clientName: z.string().min(1, "Nombre del cliente es requerido"),
   clientPhone: z.string().optional().nullable(),
   clientEmail: z.string().email("Email inválido").optional().nullable().or(z.literal("")),
-  stage: z.enum(["lead", "contacto", "visita", "lista_precio", "campana", "primera_venta", "promesa", "venta"]).default("lead"),
+  stage: z.string().default("lead"),
   salespersonId: z.string().min(1, "Vendedor es requerido"),
   estimatedValue: z.union([z.string(), z.number()]).transform((val) => 
     typeof val === 'string' ? val : val.toString()
