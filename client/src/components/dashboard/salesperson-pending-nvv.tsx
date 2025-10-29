@@ -195,12 +195,14 @@ export default function SalespersonPendingNVV({
       <CardContent className="space-y-4">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-blue-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-blue-700 mb-1">
-              <ShoppingCart className="h-4 w-4" />
-              <span className="text-xs font-medium">Total Pedidos</span>
+          <div className="bg-amber-50 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-amber-700 mb-1">
+              <DollarSign className="h-4 w-4" />
+              <span className="text-xs font-medium">Monto Pendiente</span>
             </div>
-            <div className="text-2xl font-bold text-blue-900">{totalOrders}</div>
+            <div className="text-2xl font-bold text-amber-900">
+              {formatCurrency(totalPendingAmount)}
+            </div>
           </div>
           
           <div className="bg-purple-50 rounded-lg p-4">
@@ -213,14 +215,12 @@ export default function SalespersonPendingNVV({
             </div>
           </div>
           
-          <div className="bg-amber-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-amber-700 mb-1">
-              <DollarSign className="h-4 w-4" />
-              <span className="text-xs font-medium">Monto Pendiente</span>
+          <div className="bg-blue-50 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-blue-700 mb-1">
+              <ShoppingCart className="h-4 w-4" />
+              <span className="text-xs font-medium">Total Pedidos</span>
             </div>
-            <div className="text-2xl font-bold text-amber-900">
-              {formatCurrency(totalPendingAmount)}
-            </div>
+            <div className="text-2xl font-bold text-blue-900">{totalOrders}</div>
           </div>
         </div>
 
