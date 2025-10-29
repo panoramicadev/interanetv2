@@ -277,13 +277,83 @@ export default function SalespersonPendingNVV({
                     </div>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-2">
+                <AccordionContent className="px-2 sm:px-4 pb-4">
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 sm:p-4 mt-2">
                     <div className="flex items-center gap-2 mb-3 text-gray-700 dark:text-gray-300">
                       <FileText className="h-4 w-4" />
                       <span className="text-sm font-medium">Documentos</span>
                     </div>
-                    <div className="overflow-x-auto">
+                    
+                    {/* Mobile Card View */}
+                    <div className="sm:hidden space-y-3">
+                      {clientGroup.records.map((record) => (
+                        <div 
+                          key={record.id} 
+                          className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2"
+                          data-testid={`nvv-detail-${record.id}`}
+                        >
+                          {/* Documento y Fecha */}
+                          <div className="flex justify-between items-start pb-2 border-b border-gray-200 dark:border-gray-700">
+                            <div>
+                              <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">{record.NUDO}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{record.TIDO}</div>
+                            </div>
+                            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(record.FEEMDO)}
+                            </div>
+                          </div>
+                          
+                          {/* Producto */}
+                          <div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Producto</div>
+                            <div className="font-medium text-sm text-gray-900 dark:text-gray-100 break-words">{record.NOKOPR}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{record.KOPRCT}</div>
+                          </div>
+                          
+                          {/* Cantidades */}
+                          <div className="grid grid-cols-3 gap-2 pt-2">
+                            <div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Requerida</div>
+                              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {record.CAPREX2.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Confirmada</div>
+                              <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                {record.CAPRCO2.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Pendiente</div>
+                              <div className="text-sm font-bold text-amber-700 dark:text-amber-300">
+                                {record.cantidadPendiente.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Precio y Monto Total */}
+                          <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Precio Unit.</div>
+                              <div className="text-sm text-gray-700 dark:text-gray-300">
+                                {formatCurrency(record.PPPRNE)}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Monto Pend.</div>
+                              <div className="text-base font-bold text-amber-700 dark:text-amber-300">
+                                {formatCurrency(record.totalPendiente)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Desktop Table View */}
+                    <div className="hidden sm:block overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
