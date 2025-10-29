@@ -383,6 +383,7 @@ export default function CRMPage() {
                                 currentUser={currentUser}
                                 isMobile={false}
                                 stageBadgeMap={stageBadgeMap}
+                                stages={stages}
                                 onToggleActivity={(field) => {
                                   const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
                                   toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
@@ -440,6 +441,7 @@ export default function CRMPage() {
                           currentUser={currentUser}
                           isMobile={true}
                           stageBadgeMap={stageBadgeMap}
+                          stages={stages}
                           onToggleActivity={(field) => {
                             const currentValue = field === 'hasCall' ? lead.hasCall : lead.hasWhatsapp;
                             toggleActivityMutation.mutate({ id: lead.id, field, value: !currentValue });
@@ -478,7 +480,8 @@ function LeadCard({
   onDelete,
   currentUser,
   isMobile = false,
-  stageBadgeMap
+  stageBadgeMap,
+  stages
 }: { 
   lead: CrmLead; 
   onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
@@ -487,6 +490,7 @@ function LeadCard({
   currentUser: any;
   isMobile?: boolean;
   stageBadgeMap: Record<string, { label: string; bgColor: string; textColor: string }>;
+  stages: CrmStage[];
 }) {
   const [showComments, setShowComments] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
