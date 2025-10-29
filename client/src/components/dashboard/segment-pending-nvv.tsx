@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingCart, Package, Calendar, DollarSign, ChevronDown, FileText, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Accordion,
   AccordionContent,
@@ -50,6 +52,8 @@ interface ClientGroup {
 export default function SegmentPendingNVV({
   segment
 }: SegmentPendingNVVProps) {
+  const [showAll, setShowAll] = useState(false);
+  
   const { data: nvvData, isLoading } = useQuery<NVVRecord[]>({
     queryKey: [`/api/nvv/by-segment`, segment],
     queryFn: async () => {
@@ -129,7 +133,7 @@ export default function SegmentPendingNVV({
 
   if (isLoading) {
     return (
-      <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
@@ -137,7 +141,7 @@ export default function SegmentPendingNVV({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64 bg-gray-100 rounded-lg animate-pulse" />
+          <div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />
         </CardContent>
       </Card>
     );
@@ -145,7 +149,7 @@ export default function SegmentPendingNVV({
 
   if (!nvvData || nvvData.length === 0) {
     return (
-      <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
@@ -154,8 +158,8 @@ export default function SegmentPendingNVV({
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
-            <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">
+            <Package className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               No hay notas de venta pendientes para el segmento {segment}
             </p>
           </div>
@@ -165,7 +169,7 @@ export default function SegmentPendingNVV({
   }
 
   return (
-    <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
+    <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -173,10 +177,10 @@ export default function SegmentPendingNVV({
             Notas de Venta Pendientes - {segment}
           </CardTitle>
           <div className="flex gap-2">
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
               {totalClients} {totalClients === 1 ? 'cliente' : 'clientes'}
             </Badge>
-            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+            <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
               {totalOrders} {totalOrders === 1 ? 'pedido' : 'pedidos'}
             </Badge>
           </div>
@@ -185,41 +189,47 @@ export default function SegmentPendingNVV({
       <CardContent className="space-y-4">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-blue-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-blue-700 mb-1">
-              <ShoppingCart className="h-4 w-4" />
-              <span className="text-xs font-medium">Total Pedidos</span>
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500 mb-1">
+              <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                <DollarSign className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Monto Pendiente</span>
             </div>
-            <div className="text-2xl font-bold text-blue-900">{totalOrders}</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              {formatCurrency(totalPendingAmount)}
+            </div>
           </div>
           
-          <div className="bg-purple-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-purple-700 mb-1">
-              <Package className="h-4 w-4" />
-              <span className="text-xs font-medium">Unidades Pendientes</span>
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-500 mb-1">
+              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Package className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Unidades Pendientes</span>
             </div>
-            <div className="text-2xl font-bold text-purple-900">
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {totalPendingUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
             </div>
           </div>
           
-          <div className="bg-amber-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-amber-700 mb-1">
-              <DollarSign className="h-4 w-4" />
-              <span className="text-xs font-medium">Monto Pendiente</span>
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-500 mb-1">
+              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <ShoppingCart className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Total Pedidos</span>
             </div>
-            <div className="text-2xl font-bold text-amber-900">
-              {formatCurrency(totalPendingAmount)}
-            </div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalOrders}</div>
           </div>
         </div>
 
         {/* Grouped by Client with Accordion */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Por Cliente</h3>
-          <div className="max-h-[240px] overflow-y-auto">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Por Cliente</h3>
+          <div>
             <Accordion type="single" collapsible className="space-y-2">
-              {groupedByClient.map((clientGroup, index) => (
+              {(showAll ? groupedByClient : groupedByClient.slice(0, 5)).map((clientGroup, index) => (
               <AccordionItem 
                 key={clientGroup.uniqueKey} 
                 value={clientGroup.uniqueKey}
@@ -227,31 +237,31 @@ export default function SegmentPendingNVV({
                 data-testid={`segment-client-group-${clientGroup.uniqueKey}`}
               >
                 <AccordionTrigger 
-                  className="px-4 py-3 hover:bg-gray-50 hover:no-underline"
+                  className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 hover:no-underline"
                   data-testid={`segment-client-trigger-${clientGroup.uniqueKey}`}
                 >
                   <div className="flex items-center justify-between w-full pr-4">
                     <div className="flex items-center gap-3">
-                      <div className="bg-blue-100 p-2 rounded-lg">
-                        <User className="h-4 w-4 text-blue-600" />
+                      <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+                        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="text-left">
-                        <div className="font-semibold text-gray-900">{clientGroup.clientName}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className="font-semibold text-gray-900 dark:text-gray-100">{clientGroup.clientName}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
                           {clientGroup.totalOrders} {clientGroup.totalOrders === 1 ? 'documento' : 'documentos'}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className="text-sm text-gray-500">Unidades</div>
-                        <div className="font-semibold text-purple-700">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Unidades</div>
+                        <div className="font-semibold text-purple-700 dark:text-purple-300">
                           {clientGroup.totalUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm text-gray-500">Monto Total</div>
-                        <div className="font-bold text-amber-700">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Monto Total</div>
+                        <div className="font-bold text-amber-700 dark:text-amber-300">
                           {formatCurrency(clientGroup.totalAmount)}
                         </div>
                       </div>
@@ -259,8 +269,8 @@ export default function SegmentPendingNVV({
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
-                  <div className="bg-gray-50 rounded-lg p-4 mt-2">
-                    <div className="flex items-center gap-2 mb-3 text-gray-700">
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-2">
+                    <div className="flex items-center gap-2 mb-3 text-gray-700 dark:text-gray-300">
                       <FileText className="h-4 w-4" />
                       <span className="text-sm font-medium">Documentos</span>
                     </div>
@@ -283,8 +293,8 @@ export default function SegmentPendingNVV({
                             <TableRow key={record.id} data-testid={`segment-nvv-detail-${record.id}`}>
                               <TableCell className="font-medium">
                                 <div>
-                                  <div className="font-semibold">{record.NUDO}</div>
-                                  <div className="text-xs text-gray-500">{record.TIDO}</div>
+                                  <div className="font-semibold text-gray-900 dark:text-gray-100">{record.NUDO}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">{record.TIDO}</div>
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -310,15 +320,15 @@ export default function SegmentPendingNVV({
                                 </span>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
                                   {record.cantidadPendiente.toLocaleString('es-CL', { maximumFractionDigits: 2 })}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-right text-sm text-gray-600">
+                              <TableCell className="text-right text-sm text-gray-600 dark:text-gray-400">
                                 {formatCurrency(record.PPPRNE)}
                               </TableCell>
                               <TableCell className="text-right">
-                                <span className="font-semibold text-amber-700">
+                                <span className="font-semibold text-amber-700 dark:text-amber-300">
                                   {formatCurrency(record.totalPendiente)}
                                 </span>
                               </TableCell>
@@ -332,6 +342,28 @@ export default function SegmentPendingNVV({
               </AccordionItem>
               ))}
             </Accordion>
+            
+            {/* Ver más / Ver menos */}
+            {groupedByClient.length > 5 && (
+              <div className="mt-3 text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAll(!showAll)}
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                >
+                  {showAll ? (
+                    <>
+                      Ver menos <ChevronDown className="ml-1 h-4 w-4 rotate-180" />
+                    </>
+                  ) : (
+                    <>
+                      Ver más ({groupedByClient.length - 5} clientes más) <ChevronDown className="ml-1 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
