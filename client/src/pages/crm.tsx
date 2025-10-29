@@ -657,7 +657,7 @@ function LeadCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {stages.map((stage) => {
+              {stages.filter(stage => stage.stageKey && stage.stageKey.trim() !== '').map((stage) => {
                 const badge = stageBadgeMap[stage.stageKey] || { label: stage.name, bgColor: stage.color, textColor: 'text-gray-700 dark:text-gray-300' };
                 const isHexColor = !badge.bgColor.startsWith('bg-');
                 return (
