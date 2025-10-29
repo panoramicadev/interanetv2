@@ -195,32 +195,38 @@ export default function SalespersonPendingNVV({
       <CardContent className="space-y-4">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-amber-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-amber-700 mb-1">
-              <DollarSign className="h-4 w-4" />
-              <span className="text-xs font-medium">Monto Pendiente</span>
+          <div className="bg-white border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-amber-600 mb-1">
+              <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                <DollarSign className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Monto Pendiente</span>
             </div>
-            <div className="text-2xl font-bold text-amber-900">
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {formatCurrency(totalPendingAmount)}
             </div>
           </div>
           
-          <div className="bg-purple-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-purple-700 mb-1">
-              <Package className="h-4 w-4" />
-              <span className="text-xs font-medium">Unidades Pendientes</span>
+          <div className="bg-white border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-purple-600 mb-1">
+              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Package className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Unidades Pendientes</span>
             </div>
-            <div className="text-2xl font-bold text-purple-900">
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {totalPendingUnits.toLocaleString('es-CL', { maximumFractionDigits: 0 })}
             </div>
           </div>
           
-          <div className="bg-blue-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-blue-700 mb-1">
-              <ShoppingCart className="h-4 w-4" />
-              <span className="text-xs font-medium">Total Pedidos</span>
+          <div className="bg-white border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-blue-600 mb-1">
+              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <ShoppingCart className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Total Pedidos</span>
             </div>
-            <div className="text-2xl font-bold text-blue-900">{totalOrders}</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalOrders}</div>
           </div>
         </div>
 
