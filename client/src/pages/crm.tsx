@@ -952,10 +952,11 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
-  // Filtrar clientes basándose en la búsqueda
+  // Filtrar clientes basándose en la búsqueda (mínimo 3 caracteres)
   const filteredClients = clients.filter((client) => {
-    if (!clientSearchQuery.trim()) return false;
-    const searchLower = clientSearchQuery.toLowerCase();
+    const query = clientSearchQuery.trim();
+    if (query.length < 3) return false;
+    const searchLower = query.toLowerCase();
     const nokoen = (client.nokoen || '').toLowerCase();
     const rten = (client.rten || '').toLowerCase();
     const koen = (client.koen || '').toLowerCase();
@@ -1079,7 +1080,11 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
             {/* Dropdown de resultados */}
             {showClientDropdown && clientSearchQuery.trim() && (
               <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                {filteredClients.length > 0 ? (
+                {clientSearchQuery.trim().length < 3 ? (
+                  <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                    Escribe al menos 3 caracteres para buscar...
+                  </div>
+                ) : filteredClients.length > 0 ? (
                   filteredClients.map((client) => (
                     <button
                       key={client.id}
@@ -1105,7 +1110,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
                   ))
                 ) : (
                   <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No se encontraron clientes. Escribe al menos 3 caracteres.
+                    No se encontraron clientes con ese criterio.
                   </div>
                 )}
               </div>
