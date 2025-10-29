@@ -552,7 +552,10 @@ function LeadComments({ leadId }: { leadId: string }) {
 
   const addCommentMutation = useMutation({
     mutationFn: async (comment: string) => {
-      return apiRequest(`/api/crm/leads/${leadId}/comments`, 'POST', { comment });
+      return apiRequest(`/api/crm/leads/${leadId}/comments`, {
+        method: 'POST',
+        data: { comment }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/crm/leads', leadId, 'comments'] });
@@ -648,9 +651,13 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
       console.log('📤 [CREATE LEAD] Sending cleaned data to backend:', cleanData);
       
       try {
-        const response = await apiRequest('/api/crm/leads', 'POST', cleanData);
-        console.log('✅ [CREATE LEAD] Success response:', response);
-        return response;
+        const response = await apiRequest('/api/crm/leads', {
+          method: 'POST',
+          data: cleanData
+        });
+        const result = await response.json();
+        console.log('✅ [CREATE LEAD] Success response:', result);
+        return result;
       } catch (error) {
         console.error('❌ [CREATE LEAD] Error:', error);
         throw error;
