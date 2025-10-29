@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingCart, Package, Calendar, DollarSign, ChevronDown, FileText, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Accordion,
   AccordionContent,
@@ -54,6 +56,8 @@ export default function SalespersonPendingNVV({
   selectedPeriod,
   filterType
 }: SalespersonPendingNVVProps) {
+  const [showAll, setShowAll] = useState(false);
+  
   const { data: nvvData, isLoading } = useQuery<NVVRecord[]>({
     queryKey: [`/api/nvv/by-salesperson`, salesperson, selectedPeriod, filterType],
     queryFn: async () => {
@@ -223,9 +227,9 @@ export default function SalespersonPendingNVV({
         {/* Grouped by Client with Accordion */}
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-700 mb-2">Por Cliente</h3>
-          <div className="max-h-[240px] overflow-y-auto">
+          <div>
             <Accordion type="single" collapsible className="space-y-2">
-              {groupedByClient.map((clientGroup, index) => (
+              {(showAll ? groupedByClient : groupedByClient.slice(0, 5)).map((clientGroup, index) => (
               <AccordionItem 
                 key={clientGroup.uniqueKey} 
                 value={clientGroup.uniqueKey}
@@ -338,6 +342,21 @@ export default function SalespersonPendingNVV({
               </AccordionItem>
               ))}
             </Accordion>
+            
+            {/* Ver más button */}
+            {groupedByClient.length > 5 && (
+              <div className="mt-4 text-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAll(!showAll)}
+                  className="w-full"
+                  data-testid="button-toggle-show-all"
+                >
+                  {showAll ? 'Ver menos' : `Ver más (${groupedByClient.length - 5} más)`}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
