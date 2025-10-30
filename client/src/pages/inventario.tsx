@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw, Database } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -394,58 +395,78 @@ function InventoryTable({
           </div>
         ) : inventory && inventory.length > 0 ? (
           <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50 dark:bg-gray-800/50">
-                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300 w-16">Sucursal</TableHead>
-                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300 w-24">SKU</TableHead>
-                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Producto</TableHead>
-                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300 w-32">Bodega</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300 w-24">Stock UD1</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300 w-24">Stock UD2</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300 w-28">Precio</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300 w-32">Valor Total</TableHead>
-                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300 w-28">Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {inventory.map((item, index) => (
-                  <TableRow 
-                    key={`${item.branchCode}-${item.productSku}-${item.warehouseCode}-${index}`} 
-                    data-testid={`row-stock-${item.productSku}`}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
-                  >
-                    <TableCell className="font-medium text-xs text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 py-2 px-3">
-                      <div className="truncate">{item.branchCode || '-'}</div>
-                    </TableCell>
-                    <TableCell className="font-semibold text-sm text-gray-900 dark:text-gray-100 py-2 px-3">
-                      <div className="truncate">{item.productSku}</div>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-700 dark:text-gray-300 py-2 px-3">
-                      <div className="truncate max-w-xs">{item.productName || '-'}</div>
-                    </TableCell>
-                    <TableCell className="text-xs text-gray-600 dark:text-gray-400 py-2 px-3">
-                      <div className="truncate">{item.warehouseName || item.warehouseCode}</div>
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-gray-700 dark:text-gray-300 py-2 px-3 whitespace-nowrap">
-                      {item.stock1?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-xs text-gray-500">{item.unit1 || ''}</span>
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-semibold text-blue-700 dark:text-blue-400 py-2 px-3 whitespace-nowrap">
-                      {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-xs text-gray-500">{item.unit2 || ''}</span>
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-medium text-gray-800 dark:text-gray-200 py-2 px-3 whitespace-nowrap">
-                      {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-bold text-indigo-700 dark:text-indigo-400 py-2 px-3 whitespace-nowrap">
-                      {item.totalValue ? `$${item.totalValue.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
-                    </TableCell>
-                    <TableCell className="py-2 px-3">
-                      {getStockBadge(item.availableQuantity, item.reservedQuantity)}
-                    </TableCell>
+            <TooltipProvider>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50 dark:bg-gray-800/50">
+                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-8 px-2">•</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-12 px-2">Suc</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">SKU</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 px-2">Producto</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">Bod</TableHead>
+                    <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD1</TableHead>
+                    <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD2</TableHead>
+                    <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Precio</TableHead>
+                    <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Valor</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {inventory.map((item, index) => {
+                    const available = item.availableQuantity || 0;
+                    const reserved = item.reservedQuantity || 0;
+                    let statusColor = 'bg-green-500';
+                    if (available === 0) statusColor = 'bg-red-500';
+                    else if (available < 10) statusColor = 'bg-orange-500';
+                    else if (reserved > 0) statusColor = 'bg-blue-500';
+                    
+                    return (
+                      <TableRow 
+                        key={`${item.branchCode}-${item.productSku}-${item.warehouseCode}-${index}`} 
+                        data-testid={`row-stock-${item.productSku}`}
+                        className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
+                      >
+                        <TableCell className="py-1 px-2">
+                          <div className={`w-2 h-2 rounded-full ${statusColor}`} />
+                        </TableCell>
+                        <TableCell className="text-xs font-medium text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 py-1 px-2">
+                          {item.branchCode || '-'}
+                        </TableCell>
+                        <TableCell className="text-xs font-semibold text-gray-900 dark:text-gray-100 py-1 px-2">
+                          <div className="truncate">{item.productSku}</div>
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-700 dark:text-gray-300 py-1 px-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="truncate max-w-[200px] cursor-help">
+                                {item.productName || '-'}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs">{item.productName || '-'}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-600 dark:text-gray-400 py-1 px-2">
+                          <div className="truncate">{item.warehouseName || item.warehouseCode}</div>
+                        </TableCell>
+                        <TableCell className="text-xs text-right text-gray-700 dark:text-gray-300 py-1 px-2 whitespace-nowrap">
+                          {item.stock1?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-[10px] text-gray-500">{item.unit1 || ''}</span>
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-semibold text-blue-700 dark:text-blue-400 py-1 px-2 whitespace-nowrap">
+                          {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-[10px] text-gray-500">{item.unit2 || ''}</span>
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-medium text-gray-800 dark:text-gray-200 py-1 px-2 whitespace-nowrap">
+                          {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-bold text-indigo-700 dark:text-indigo-400 py-1 px-2 whitespace-nowrap">
+                          {item.totalValue ? `$${item.totalValue.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TooltipProvider>
           </div>
         ) : (
           <div className="text-center py-16 text-muted-foreground">
