@@ -6920,6 +6920,30 @@ export function registerRoutes(app: Express): Server {
     res.json(results);
   }));
 
+  // Get NVV by branch (usando misma lógica que by-segment pero filtrando por nosudo)
+  app.get('/api/nvv/by-branch', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const { branch } = req.query;
+
+    if (!branch) {
+      return res.status(400).json({ message: 'Branch parameter is required' });
+    }
+
+    const nvvData = await storage.getNVVByBranch(branch as string);
+
+    const results = nvvData.map(row => ({
+      id: row.id,
+      NUDO: row.NUDO || '',
+      TIDO: row.TIDO || '',
+      FEEMDO: row.FEEMDO?.toString() || '',
+      ENDO: row.ENDO || '',
+      NOKOEN: row.NOKOEN || '',
+      VABRDO: Number(row.VABRDO) || 0,
+      KOFULIDO: row.KOFULIDO || ''
+    }));
+
+    res.json(results);
+  }));
+
   // Get all NVV grouped by salespeople
   app.get('/api/nvv/all-by-salespeople', requireAuth, asyncHandler(async (req: any, res: any) => {
     const { period, filterType } = req.query;
