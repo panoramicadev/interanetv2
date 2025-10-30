@@ -3294,6 +3294,69 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.total || 0);
   }
 
+  async getNVVByBranch(branchName: string): Promise<any[]> {
+    // Get kofulido to branch mapping from sales_transactions
+    const salespersonBranchResults = await db
+      .selectDistinct({
+        kofulido: salesTransactions.kofulido,
+        nosudo: salesTransactions.nosudo,
+      })
+      .from(salesTransactions)
+      .where(
+        and(
+          isNotNull(salesTransactions.kofulido),
+          isNotNull(salesTransactions.nosudo),
+          ne(salesTransactions.kofulido, ''),
+          ne(salesTransactions.nosudo, '')
+        )
+      );
+
+    const kofulidoToBranch: Record<string, string> = {};
+    salespersonBranchResults.forEach(result => {
+      if (result.kofulido && result.nosudo) {
+        kofulidoToBranch[result.kofulido] = result.nosudo;
+      }
+    });
+
+    // Find all KOFULIDO codes that map to this branch
+    const kofulidoCodes = Object.entries(kofulidoToBranch)
+      .filter(([_, branch]) => branch.trim().toUpperCase() === branchName.toString().trim().toUpperCase())
+      .map(([kofulido, _]) => kofulido.trim().toUpperCase())
+      .filter(Boolean);
+
+    if (kofulidoCodes.length === 0) {
+      console.log(`No salespeople found mapping to branch: ${branchName}`);
+      return [];
+    }
+
+    console.log(`Found ${kofulidoCodes.length} salespeople mapping to branch ${branchName}: ${kofulidoCodes.join(', ')}`);
+
+    // Get all NVV for these salespeople (sin filtros de fecha)
+    const nvvData = await db
+      .select({
+        id: nvvPendingSales.id,
+        NUDO: nvvPendingSales.NUDO,
+        TIDO: nvvPendingSales.TIDO,
+        FEEMDO: nvvPendingSales.FEEMDO,
+        ENDO: nvvPendingSales.ENDO,
+        NOKOEN: nvvPendingSales.NOKOEN,
+        VABRDO: nvvPendingSales.VABRDO,
+        KOFULIDO: nvvPendingSales.KOFULIDO
+      })
+      .from(nvvPendingSales)
+      .where(
+        and(
+          isNotNull(nvvPendingSales.KOFULIDO),
+          sql`UPPER(TRIM(${nvvPendingSales.KOFULIDO})) IN (${sql.raw(kofulidoCodes.map(c => `'${c}'`).join(','))})`
+        )
+      )
+      .orderBy(desc(nvvPendingSales.FEEMDO));
+
+    console.log(`Found ${nvvData.length} NVV records for branch ${branchName}`);
+
+    return nvvData;
+  }
+
   // Salesperson detail operations
   async getSalespersonDetails(salespersonName: string, period?: string, filterType: string = 'month'): Promise<{
     totalSales: number;
