@@ -573,17 +573,6 @@ function LeadCard({
             </div>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            <Button 
-              variant={showComments ? "default" : "outline"}
-              size="sm" 
-              className={`rounded-lg transition-all font-medium shadow-sm ${isMobile ? 'h-8 px-2 text-xs' : 'h-9 px-3 text-sm'} ${showComments ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700'}`}
-              onClick={() => setShowComments(!showComments)}
-              title="Ver bitácora de comentarios"
-              data-testid={`button-comments-${lead.id}`}
-            >
-              <BookOpen className={isMobile ? 'w-4 h-4 mr-1' : 'w-4 h-4 mr-1.5'} />
-              {!isMobile && <span>Bitácora</span>}
-            </Button>
             {isAdmin && (
               <Button 
                 variant="ghost" 
@@ -662,32 +651,45 @@ function LeadCard({
           </button>
         </div>
 
-        {/* Selector de etapa */}
-        <div className="min-w-0 overflow-hidden">
-          <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
-            <SelectTrigger 
-              className={`w-full font-semibold rounded-lg shadow-sm ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''} ${stageBadge.textColor} border-0 ${isMobile ? 'h-8 text-[11px]' : 'h-9 text-xs'}`}
-              style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {stages.filter(stage => stage.stageKey && stage.stageKey.trim() !== '').map((stage) => {
-                const badge = stageBadgeMap[stage.stageKey] || { label: stage.name, bgColor: stage.color, textColor: 'text-gray-700 dark:text-gray-300' };
-                const isHexColor = !badge.bgColor.startsWith('bg-');
-                return (
-                  <SelectItem key={stage.id} value={stage.stageKey}>
-                    <span 
-                      className={`inline-block px-2 py-0.5 rounded font-medium ${isHexColor ? '' : badge.bgColor} ${badge.textColor}`}
-                      style={isHexColor ? { backgroundColor: badge.bgColor } : undefined}
-                    >
-                      {badge.label}
-                    </span>
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+        {/* Selector de etapa y botón de bitácora */}
+        <div className={`flex ${isMobile ? 'gap-1.5' : 'gap-2'} min-w-0 overflow-hidden`}>
+          <div className="flex-1 min-w-0">
+            <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
+              <SelectTrigger 
+                className={`w-full font-semibold rounded-lg shadow-sm ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''} ${stageBadge.textColor} border-0 ${isMobile ? 'h-8 text-[11px]' : 'h-9 text-xs'}`}
+                style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {stages.filter(stage => stage.stageKey && stage.stageKey.trim() !== '').map((stage) => {
+                  const badge = stageBadgeMap[stage.stageKey] || { label: stage.name, bgColor: stage.color, textColor: 'text-gray-700 dark:text-gray-300' };
+                  const isHexColor = !badge.bgColor.startsWith('bg-');
+                  return (
+                    <SelectItem key={stage.id} value={stage.stageKey}>
+                      <span 
+                        className={`inline-block px-2 py-0.5 rounded font-medium ${isHexColor ? '' : badge.bgColor} ${badge.textColor}`}
+                        style={isHexColor ? { backgroundColor: badge.bgColor } : undefined}
+                      >
+                        {badge.label}
+                      </span>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button 
+            variant={showComments ? "default" : "outline"}
+            size="sm" 
+            className={`flex-shrink-0 rounded-lg transition-all font-medium shadow-sm ${isMobile ? 'h-8 px-2 text-xs' : 'h-9 px-3 text-sm'} ${showComments ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700'}`}
+            onClick={() => setShowComments(!showComments)}
+            title="Ver bitácora de comentarios"
+            data-testid={`button-comments-${lead.id}`}
+          >
+            <BookOpen className={isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1.5'} />
+            {!isMobile && <span>Bitácora</span>}
+          </Button>
         </div>
 
         {/* Comentarios colapsables */}
