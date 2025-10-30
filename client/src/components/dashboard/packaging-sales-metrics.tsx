@@ -23,7 +23,7 @@ const packagingNames: Record<string, string> = {
   'B5': 'Balde 5 Galones',
   'BD': 'Baldes',
   'GL': 'Galones',
-  'Q4': '4 Galones',
+  'Q4': 'Balde 4 Galones',
   'KT': 'Kits',
   'UN': 'Unidades',
   'KG': 'Kilogramos',
@@ -54,14 +54,14 @@ export default function PackagingSalesMetrics({ selectedPeriod, filterType, segm
   const sortOrder: Record<string, number> = {
     '04': 1,  // 1/4 Galón
     'GL': 2,  // Galones
-    'B5': 3,  // 5 Galones
-    'BD': 4,  // Baldes (alphabetical order starts here)
-    'GB': 5,  // Garrafas/Bidón
-    'KG': 6,  // Kilogramos
-    'KT': 7,  // Kits
-    'LT': 8,  // Litros
-    'OD': 9,  // Onzas
-    'Q4': 10, // 4 Galones (Q before U alphabetically)
+    'Q4': 3,  // Balde 4 Galones
+    'B5': 4,  // Balde 5 Galones
+    'BD': 5,  // Baldes (alphabetical order starts here)
+    'GB': 6,  // Garrafas/Bidón
+    'KG': 7,  // Kilogramos
+    'KT': 8,  // Kits
+    'LT': 9,  // Litros
+    'OD': 10, // Onzas
     'UN': 11, // Unidades
     'OT': 99  // Otros - always last
   };
