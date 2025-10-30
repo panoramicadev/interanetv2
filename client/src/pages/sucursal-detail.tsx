@@ -13,7 +13,7 @@ import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
-import SegmentPendingNVV from "@/components/dashboard/segment-pending-nvv";
+import BranchPendingNVV from "@/components/dashboard/branch-pending-nvv";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 
 interface BranchClient {
@@ -760,10 +760,10 @@ export default function SucursalDetail({
             </div>
           </div>
 
-          {/* NVV Pendientes - Notas de Venta Pendientes by Segment (sin filtros de fecha para coincidir con módulo NVV) */}
+          {/* NVV Pendientes - Notas de Venta Pendientes by Branch (sin filtros de fecha para coincidir con módulo NVV) */}
           {branchName && (
-            <SegmentPendingNVV
-              segment={branchName}
+            <BranchPendingNVV
+              branch={branchName}
             />
           )}
 
@@ -773,7 +773,7 @@ export default function SucursalDetail({
               <PackagingSalesMetrics
                 selectedPeriod={selectedPeriod}
                 filterType={filterType}
-                segment={branchName}
+                branch={branchName}
               />
             </div>
           )}
