@@ -544,10 +544,12 @@ function SyncCatalogButton() {
       {!isLoadingLastSync && lastSync && (
         <p className="text-xs text-muted-foreground" data-testid="text-last-sync">
           Última sincronización:{" "}
-          {formatDistanceToNow(new Date(lastSync.timestamp), {
-            addSuffix: true,
-            locale: es,
-          })}
+          {lastSync.timestamp && !isNaN(new Date(lastSync.timestamp).getTime())
+            ? formatDistanceToNow(new Date(lastSync.timestamp), {
+                addSuffix: true,
+                locale: es,
+              })
+            : "fecha no disponible"}
           {" "}
           ({lastSync.totalProcesados} productos)
         </p>
