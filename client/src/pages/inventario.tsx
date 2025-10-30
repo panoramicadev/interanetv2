@@ -401,9 +401,10 @@ function InventoryTable({
                   <TableHead className="font-semibold text-gray-700 dark:text-gray-300">SKU</TableHead>
                   <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Producto</TableHead>
                   <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Bodega</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Stock Unidad 1</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Stock Unidad 2</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Unidad</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Stock UD1</TableHead>
+                  <TableHead className="text-center font-semibold text-gray-700 dark:text-gray-300">Unidad 1</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Stock UD2</TableHead>
+                  <TableHead className="text-center font-semibold text-gray-700 dark:text-gray-300">Unidad 2</TableHead>
                   <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Precio Medio</TableHead>
                   <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Valor Inventario</TableHead>
                   <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Estado</TableHead>
@@ -423,13 +424,16 @@ function InventoryTable({
                     <TableCell className="text-gray-700 dark:text-gray-300 max-w-xs truncate">{item.productName || '-'}</TableCell>
                     <TableCell className="text-sm text-gray-600 dark:text-gray-400">{item.warehouseName || item.warehouseCode}</TableCell>
                     <TableCell className="text-right text-gray-500 dark:text-gray-400">
-                      {item.stock1?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) || '0'}
+                      {item.stock1?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'}
+                    </TableCell>
+                    <TableCell className="text-center text-xs text-gray-500 dark:text-gray-400 font-mono">
+                      {item.unit1 || '-'}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-blue-700 dark:text-blue-400">
-                      {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) || '0'}
+                      {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'}
                     </TableCell>
-                    <TableCell className="text-right text-xs text-gray-500 dark:text-gray-400">
-                      {item.unit2 || item.unit || '-'}
+                    <TableCell className="text-center text-xs text-gray-500 dark:text-gray-400 font-mono">
+                      {item.unit2 || '-'}
                     </TableCell>
                     <TableCell className="text-right font-medium text-gray-800 dark:text-gray-200">
                       {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
