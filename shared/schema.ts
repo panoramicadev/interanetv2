@@ -352,21 +352,30 @@ export const productPriceHistory = pgTable("product_price_history", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Inventory Products table - Catalog of products synced from ERP
+// Inventory Products table - Complete inventory snapshot synced from ERP
+// Changed from catalog (one product = one row) to inventory (product x sucursal x bodega = one row)
 export const inventoryProducts = pgTable("inventory_products", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sku: varchar("sku").notNull().unique(), // KOPR - Product code from ERP
+  sku: varchar("sku").notNull(), // KOPR - Product code from ERP
+  sucursal: varchar("sucursal").notNull(), // KOSU - Branch/Sucursal code
+  bodega: varchar("bodega").notNull(), // KOBO - Warehouse code
   nombre: text("nombre").notNull(), // NOKOPR - Product name
-  unidad1: varchar("unidad1"), // UD01PR - Primary unit (reference only)
-  unidad2: varchar("unidad2"), // UD02PR - Secondary unit (used for calculations)
+  nombreBodega: varchar("nombre_bodega"), // NOKOBO - Warehouse name
+  unidad1: varchar("unidad1"), // UD01PR - Primary unit
+  unidad2: varchar("unidad2"), // UD02PR - Secondary unit
   categoria: varchar("categoria"), // Product category/family
+  stock1: numeric("stock1", { precision: 15, scale: 2 }).default("0"), // STFI1 - Stock in primary unit
+  stock2: numeric("stock2", { precision: 15, scale: 2 }).default("0"), // STFI2 - Stock in secondary unit
   precioMedio: numeric("precio_medio", { precision: 15, scale: 2 }), // PM - Precio Medio from ERP
-  activo: boolean("activo").default(true), // Product is active in catalog
+  valorInventario: numeric("valor_inventario", { precision: 15, scale: 2 }), // Calculated: stock2 × precioMedio
+  activo: boolean("activo").default(true), // Product is active in inventory
   ultimaSincronizacion: timestamp("ultima_sincronizacion"), // Last time synced from ERP
   sincronizadoPor: varchar("sincronizado_por"), // User ID who triggered sync
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Composite primary key: one product in one warehouse at one branch = unique row
+  pk: primaryKey({ columns: [table.sku, table.sucursal, table.bodega] }),
+}));
 
 // Inventory Sync Log table - Audit trail for catalog synchronizations
 export const inventorySyncLog = pgTable("inventory_sync_log", {
@@ -944,11 +953,20 @@ export const insertProductPriceHistorySchema = createInsertSchema(productPriceHi
 });
 
 export const insertInventoryProductSchema = createInsertSchema(inventoryProducts).omit({
-  id: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
+  // Transform numeric fields to strings
+  stock1: z.union([z.string(), z.number()]).transform(val => 
+    typeof val === 'number' ? val.toString() : val
+  ).optional(),
+  stock2: z.union([z.string(), z.number()]).transform(val => 
+    typeof val === 'number' ? val.toString() : val
+  ).optional(),
   precioMedio: z.union([z.string(), z.number(), z.null()]).transform(val => 
+    val === null || val === undefined ? null : (typeof val === 'number' ? val.toString() : val)
+  ).nullable().optional(),
+  valorInventario: z.union([z.string(), z.number(), z.null()]).transform(val => 
     val === null || val === undefined ? null : (typeof val === 'number' ? val.toString() : val)
   ).nullable().optional(),
 });
