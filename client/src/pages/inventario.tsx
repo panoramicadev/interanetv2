@@ -217,7 +217,7 @@ function StockSummary({
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {summary?.totalQuantity.toLocaleString('es-CL') || 0}
+            {summary?.totalQuantity?.toLocaleString('es-CL') ?? '0'}
           </div>
           <p className="text-xs text-muted-foreground">Unidades totales</p>
         </CardContent>
@@ -230,7 +230,7 @@ function StockSummary({
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-green-600">
-            {summary?.totalAvailable.toLocaleString('es-CL') || 0}
+            {summary?.totalAvailable?.toLocaleString('es-CL') ?? '0'}
           </div>
           <p className="text-xs text-muted-foreground">Unidades disponibles</p>
         </CardContent>
@@ -243,7 +243,7 @@ function StockSummary({
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-            ${(summary?.totalValue || 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+            ${(summary?.totalValue ?? 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
           </div>
           <p className="text-xs text-blue-700 dark:text-blue-300">Valorización total a precio medio</p>
         </CardContent>
