@@ -361,6 +361,9 @@ export default function Dashboard() {
         case "segment":
           vistaText = globalFilter.value ? `Segmento: ${globalFilter.value}` : "Por segmento";
           break;
+        case "branch":
+          vistaText = globalFilter.value ? `Sucursal: ${globalFilter.value}` : "Por sucursal";
+          break;
         case "salesperson":
           vistaText = globalFilter.value ? `Vendedor: ${globalFilter.value}` : "Por vendedor";
           break;
@@ -960,6 +963,8 @@ export default function Dashboard() {
                         setGlobalFilter({ type: "all" });
                       } else if (value === "segment") {
                         setGlobalFilter({ type: "segment", value: undefined });
+                      } else if (value === "branch") {
+                        setGlobalFilter({ type: "branch", value: undefined });
                       } else if (value === "salesperson") {
                         setGlobalFilter({ type: "salesperson", value: undefined });
                       }
@@ -981,6 +986,12 @@ export default function Dashboard() {
                           <span>Por segmento</span>
                         </div>
                       </SelectItem>
+                      <SelectItem value="branch">
+                        <div className="flex items-center space-x-2">
+                          <Building className="h-3.5 w-3.5 text-blue-500" />
+                          <span>Por sucursal</span>
+                        </div>
+                      </SelectItem>
                       <SelectItem value="salesperson">
                         <div className="flex items-center space-x-2">
                           <Users className="h-3.5 w-3.5 text-purple-500" />
@@ -991,11 +1002,11 @@ export default function Dashboard() {
                   </Select>
                 </div>
 
-                {/* Segment/Salesperson selector - shown conditionally */}
-                {(selectedFilter === "segment" || selectedFilter === "salesperson") && (
+                {/* Segment/Branch/Salesperson selector - shown conditionally */}
+                {(selectedFilter === "segment" || selectedFilter === "branch" || selectedFilter === "salesperson") && (
                   <div className="flex items-center gap-2" key={`specific-selector-${selectedFilter}`}>
                     <span className="text-sm font-medium text-gray-700">
-                      {selectedFilter === "segment" ? "Segmento:" : "Vendedor:"}
+                      {selectedFilter === "segment" ? "Segmento:" : selectedFilter === "branch" ? "Sucursal:" : "Vendedor:"}
                     </span>
                     <Select 
                       key={selectedFilter}
@@ -1003,19 +1014,27 @@ export default function Dashboard() {
                       onValueChange={(value) => {
                         if (selectedFilter === "segment") {
                           setGlobalFilter({ type: "segment", value });
+                        } else if (selectedFilter === "branch") {
+                          setGlobalFilter({ type: "branch", value });
                         } else if (selectedFilter === "salesperson") {
                           setGlobalFilter({ type: "salesperson", value });
                         }
                       }}
                     >
                       <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
-                        <SelectValue placeholder={selectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"} />
+                        <SelectValue placeholder={selectedFilter === "segment" ? "Selecciona segmento" : selectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"} />
                       </SelectTrigger>
                       <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
                         {selectedFilter === "segment" ? (
                           segments?.map((segment) => (
                             <SelectItem key={segment} value={segment}>
                               {segment}
+                            </SelectItem>
+                          ))
+                        ) : selectedFilter === "branch" ? (
+                          ["CONCEPCION", "SANTIAGO"].map((branch) => (
+                            <SelectItem key={branch} value={branch}>
+                              {branch}
                             </SelectItem>
                           ))
                         ) : (
@@ -1050,7 +1069,8 @@ export default function Dashboard() {
                   <div className="flex-1">
                     <div className="text-xs font-medium text-purple-900">
                       Vista: {selectedFilter === "all" ? "Todo el dashboard" : 
-                             selectedFilter === "segment" ? "Por segmento" : "Por vendedor"}
+                             selectedFilter === "segment" ? "Por segmento" :
+                             selectedFilter === "branch" ? "Por sucursal" : "Por vendedor"}
                     </div>
                   </div>
                 </div>

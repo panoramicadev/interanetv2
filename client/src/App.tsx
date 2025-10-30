@@ -28,6 +28,7 @@ import Clients from "@/pages/clients";
 import OrdenesPage from "@/pages/ordenes";
 import ListaPrecios from "@/pages/lista-precios";
 import SegmentDetail from "@/pages/segment-detail";
+import SucursalDetail from "@/pages/sucursal-detail";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import ClientDetail from "@/pages/client-detail";
 import ProductDetail from "@/pages/product-detail";
@@ -175,6 +176,9 @@ function Router() {
             
             <Route path="/segment/:segmentName">
               {(params: any) => <SegmentDetail segmentName={params.segmentName} />}
+            </Route>
+            <Route path="/sucursal/:branchName">
+              {(params: any) => <SucursalDetail branchName={params.branchName} />}
             </Route>
             <Route path="/salesperson/:salespersonName">
               {(params: any) => <SalespersonDetail salespersonName={params.salespersonName} />}

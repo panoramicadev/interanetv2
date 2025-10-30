@@ -1725,6 +1725,34 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Branch detail route - clients by branch
+  app.get("/api/sales/branch/:branchName/clients", requireAuth, async (req, res) => {
+    try {
+      const { branchName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const clients = await storage.getBranchClients(branchName, period as string, filterType as string);
+      res.json(clients);
+    } catch (error) {
+      console.error("Error fetching branch clients:", error);
+      res.status(500).json({ message: "Failed to fetch branch clients" });
+    }
+  });
+
+  // Branch detail route - salespeople by branch
+  app.get("/api/sales/branch/:branchName/salespeople", requireAuth, async (req, res) => {
+    try {
+      const { branchName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      const salespeople = await storage.getBranchSalespeople(branchName, period as string, filterType as string);
+      res.json(salespeople);
+    } catch (error) {
+      console.error("Error fetching branch salespeople:", error);
+      res.status(500).json({ message: "Failed to fetch branch salespeople" });
+    }
+  });
+
   // Salesperson detail routes
   app.get("/api/sales/salesperson/:salespersonName/details", requireAuth, async (req, res) => {
     try {
