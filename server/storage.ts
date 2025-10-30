@@ -2195,7 +2195,10 @@ export class DatabaseStorage implements IStorage {
     salesPercentage: number;
     unitPercentage: number;
   }>> {
-    const conditions = [sql`${salesTransactions.feemdo} IS NOT NULL`];
+    const conditions = [
+      sql`${salesTransactions.feemdo} IS NOT NULL`,
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only count invoiced sales
+    ];
     
     // Use proper date boundaries for inclusive range
     const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(filters?.startDate, filters?.endDate);

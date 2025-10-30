@@ -50,8 +50,27 @@ export default function PackagingSalesMetrics({ selectedPeriod, filterType, segm
     return new Intl.NumberFormat('es-CL').format(value);
   };
 
-  // Sort by total sales descending
-  const sortedData = packagingData?.sort((a, b) => b.totalSales - a.totalSales) || [];
+  // Custom sort order: smallest to largest, then alphabetically, then others at the end
+  const sortOrder: Record<string, number> = {
+    '04': 1,  // 1/4 Galón
+    'GL': 2,  // Galones
+    'B5': 3,  // 5 Galones
+    'BD': 4,  // Baldes (alphabetical order starts here)
+    'GB': 5,  // Garrafas/Bidón
+    'KG': 6,  // Kilogramos
+    'KT': 7,  // Kits
+    'LT': 8,  // Litros
+    'OD': 9,  // Onzas
+    'Q4': 10, // 4 Galones (Q before U alphabetically)
+    'UN': 11, // Unidades
+    'OT': 99  // Otros - always last
+  };
+
+  const sortedData = packagingData?.sort((a, b) => {
+    const orderA = sortOrder[a.packagingType] ?? 50; // Unknown types go in the middle
+    const orderB = sortOrder[b.packagingType] ?? 50;
+    return orderA - orderB;
+  }) || [];
 
   return (
     <div className="space-y-4">
