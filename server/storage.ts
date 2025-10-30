@@ -12166,23 +12166,30 @@ export class DatabaseStorage implements IStorage {
   }): Promise<any[]> {
     try {
       // Step 1: Get product catalog from PostgreSQL
-      let catalogQuery = sql`SELECT * FROM ${inventoryProducts} WHERE ${inventoryProducts.activo} = true`;
+      let catalogProducts;
       
       if (filters?.search) {
-        catalogQuery = sql`
-          SELECT * FROM ${inventoryProducts} 
-          WHERE ${inventoryProducts.activo} = true 
-          AND (
-            ${inventoryProducts.sku} ILIKE ${`%${filters.search}%`}
-            OR ${inventoryProducts.nombre} ILIKE ${`%${filters.search}%`}
-          )
-        `;
+        catalogProducts = await db
+          .select()
+          .from(inventoryProducts)
+          .where(
+            and(
+              eq(inventoryProducts.activo, true),
+              or(
+                sql`${inventoryProducts.sku} ILIKE ${`%${filters.search}%`}`,
+                sql`${inventoryProducts.nombre} ILIKE ${`%${filters.search}%`}`
+              )
+            )
+          );
+      } else {
+        catalogProducts = await db
+          .select()
+          .from(inventoryProducts)
+          .where(eq(inventoryProducts.activo, true));
       }
 
-      const catalogProducts = await this.db.execute(catalogQuery);
-
       // If no products in catalog, fallback to legacy mode
-      if (catalogProducts.rows.length === 0) {
+      if (catalogProducts.length === 0) {
         console.log('[INVENTORY] No products in PostgreSQL catalog, falling back to legacy SQL Server query');
         return this.getInventoryWithPricesLegacy(filters);
       }
@@ -12251,7 +12258,7 @@ export class DatabaseStorage implements IStorage {
 
       // Step 4: Build final inventory list
       const inventory: any[] = [];
-      catalogProducts.rows.forEach((product: any) => {
+      catalogProducts.forEach((product: any) => {
         const stocks = stockMap.get(product.sku) || [];
         
         if (stocks.length > 0) {
@@ -12519,7 +12526,7 @@ export class DatabaseStorage implements IStorage {
           UD01PR as unit1,
           UD02PR as unit2,
           FMPR as category,
-          PM as averagePrice
+          PM as precioMedio
         FROM MAEPR
         WHERE KOPR IS NOT NULL AND KOPR != ''
         ORDER BY KOPR
@@ -12557,19 +12564,19 @@ export class DatabaseStorage implements IStorage {
           const unit1 = erpProduct.unit1?.toString()?.trim() || null;
           const unit2 = erpProduct.unit2?.toString()?.trim() || null;
           const category = erpProduct.category?.toString()?.trim() || null;
-          const averagePrice = parseFloat(erpProduct.averagePrice) || 0;
+          const precioMedio = erpProduct.precioMedio || null;
 
           // Prepare product data for validation
           const productData = {
             sku,
-            name,
-            unit1,
-            unit2,
-            category,
-            averagePrice,
-            active: true,
-            lastSyncAt: new Date(),
-            syncedBy: userId,
+            nombre: name,
+            unidad1: unit1,
+            unidad2: unit2,
+            categoria: category,
+            precioMedio,
+            activo: true,
+            ultimaSincronizacion: new Date(),
+            sincronizadoPor: userId,
           };
 
           // Validate product data using Zod schema
@@ -12597,12 +12604,12 @@ export class DatabaseStorage implements IStorage {
           } else {
             // Check if product needs update
             const needsUpdate = 
-              existing.name !== name ||
-              existing.unit1 !== unit1 ||
-              existing.unit2 !== unit2 ||
-              existing.category !== category ||
-              Math.abs((existing.averagePrice || 0) - averagePrice) > 0.01 ||
-              !existing.active;
+              existing.nombre !== name ||
+              existing.unidad1 !== unit1 ||
+              existing.unidad2 !== unit2 ||
+              existing.categoria !== category ||
+              existing.precioMedio !== precioMedio ||
+              !existing.activo;
 
             if (needsUpdate) {
               await tx
@@ -12623,18 +12630,18 @@ export class DatabaseStorage implements IStorage {
 
         // Deactivate products not in ERP
         for (const [sku, product] of existingProductsMap.entries()) {
-          if (product.active) {
+          if (product.activo) {
             await tx
               .update(inventoryProducts)
               .set({
-                active: false,
-                lastSyncAt: new Date(),
-                syncedBy: userId,
+                activo: false,
+                ultimaSincronizacion: new Date(),
+                sincronizadoPor: userId,
                 updatedAt: new Date(),
               })
               .where(eq(inventoryProducts.sku, sku));
             productsDeactivated++;
-            changes.push({ sku, action: 'deactivated', name: product.name });
+            changes.push({ sku, action: 'deactivated', name: product.nombre });
           }
         }
       });
