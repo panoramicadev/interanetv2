@@ -256,66 +256,76 @@ function StockSummary({
 
   return (
     <div className="grid gap-4 md:grid-cols-5">
-      <Card data-testid="card-total-products">
+      <Card data-testid="card-total-products" className="rounded-3xl border-0 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/40 dark:to-purple-900/40 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
-          <Package className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{summary?.totalProducts || 0}</div>
-          <p className="text-xs text-muted-foreground">SKUs únicos en inventario</p>
-        </CardContent>
-      </Card>
-
-      <Card data-testid="card-total-quantity">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Stock Total</CardTitle>
-          <Package className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {summary?.totalQuantity?.toLocaleString('es-CL') ?? '0'}
+          <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-100">Total Productos</CardTitle>
+          <div className="w-10 h-10 rounded-full bg-purple-500/20 dark:bg-purple-500/30 flex items-center justify-center">
+            <Package className="h-5 w-5 text-purple-600 dark:text-purple-400" />
           </div>
-          <p className="text-xs text-muted-foreground">Unidades totales</p>
-        </CardContent>
-      </Card>
-
-      <Card data-testid="card-available">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Disponible</CardTitle>
-          <CheckCircle className="h-4 w-4 text-green-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-green-600">
-            {summary?.totalAvailable?.toLocaleString('es-CL') ?? '0'}
-          </div>
-          <p className="text-xs text-muted-foreground">Unidades disponibles</p>
+          <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">{summary?.totalProducts?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) || 0}</div>
+          <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">SKUs únicos en inventario</p>
         </CardContent>
       </Card>
 
-      <Card data-testid="card-total-value" className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+      <Card data-testid="card-total-quantity" className="rounded-3xl border-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/40 dark:to-blue-900/40 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Valor Total Inventario</CardTitle>
-          <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Stock Total</CardTitle>
+          <div className="w-10 h-10 rounded-full bg-blue-500/20 dark:bg-blue-500/30 flex items-center justify-center">
+            <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-            ${(summary?.totalValue ?? 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+            {summary?.totalQuantity?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) ?? '0'}
           </div>
-          <p className="text-xs text-blue-700 dark:text-blue-300">Valorización total a precio medio</p>
+          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">Unidades totales</p>
         </CardContent>
       </Card>
 
-      <Card data-testid="card-low-stock">
+      <Card data-testid="card-available" className="rounded-3xl border-0 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/40 dark:to-green-900/40 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Stock Bajo</CardTitle>
-          <AlertCircle className="h-4 w-4 text-orange-500" />
+          <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">Disponible</CardTitle>
+          <div className="w-10 h-10 rounded-full bg-green-500/20 dark:bg-green-500/30 flex items-center justify-center">
+            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-orange-600">
-            {summary?.lowStock || 0}
+          <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+            {summary?.totalAvailable?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) ?? '0'}
           </div>
-          <p className="text-xs text-muted-foreground">Productos con stock bajo</p>
+          <p className="text-xs text-green-700 dark:text-green-300 mt-1">Unidades disponibles</p>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-total-value" className="rounded-3xl border-0 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950/40 dark:to-indigo-900/40 shadow-sm hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Valor Total Inventario</CardTitle>
+          <div className="w-10 h-10 rounded-full bg-indigo-500/20 dark:bg-indigo-500/30 flex items-center justify-center">
+            <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">
+            ${(summary?.totalValue ?? 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+          </div>
+          <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">Valorización total a precio medio</p>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-low-stock" className="rounded-3xl border-0 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/40 dark:to-orange-900/40 shadow-sm hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-orange-900 dark:text-orange-100">Stock Bajo</CardTitle>
+          <div className="w-10 h-10 rounded-full bg-orange-500/20 dark:bg-orange-500/30 flex items-center justify-center">
+            <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+            {(summary?.lowStock || 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+          </div>
+          <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">Productos con stock bajo</p>
         </CardContent>
       </Card>
     </div>
@@ -365,15 +375,19 @@ function InventoryTable({
   };
 
   return (
-    <Card>
+    <Card className="rounded-3xl border-0 bg-white dark:bg-slate-900 shadow-sm">
       <CardHeader>
         <div className="flex justify-between items-center">
-          <CardTitle>Inventario de Productos</CardTitle>
+          <div>
+            <CardTitle className="text-xl font-bold text-gray-900 dark:text-gray-100">Inventario de Productos</CardTitle>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Listado detallado por sucursal y bodega</p>
+          </div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => refetch()}
             data-testid="button-refresh"
+            className="rounded-xl"
           >
             <RefreshCcw className="h-4 w-4 mr-2" />
             Actualizar
@@ -382,46 +396,52 @@ function InventoryTable({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
           </div>
         ) : inventory && inventory.length > 0 ? (
-          <div className="rounded-md border overflow-x-auto">
+          <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Sucursal</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Producto</TableHead>
-                  <TableHead>Bodega</TableHead>
-                  <TableHead className="text-right">Stock Unidad 1</TableHead>
-                  <TableHead className="text-right">Stock Unidad 2</TableHead>
-                  <TableHead className="text-right">Unidad</TableHead>
-                  <TableHead className="text-right">Precio Medio</TableHead>
-                  <TableHead className="text-right">Valor Inventario</TableHead>
-                  <TableHead>Estado</TableHead>
+                <TableRow className="bg-gray-50 dark:bg-gray-800/50">
+                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Sucursal</TableHead>
+                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">SKU</TableHead>
+                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Producto</TableHead>
+                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Bodega</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Stock Unidad 1</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Stock Unidad 2</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Unidad</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Precio Medio</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Valor Inventario</TableHead>
+                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Estado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {inventory.map((item, index) => (
-                  <TableRow key={`${item.branchCode}-${item.productSku}-${item.warehouseCode}-${index}`} data-testid={`row-stock-${item.productSku}`}>
-                    <TableCell className="font-medium text-xs">{item.branchCode || '-'}</TableCell>
-                    <TableCell className="font-medium">{item.productSku}</TableCell>
-                    <TableCell>{item.productName || '-'}</TableCell>
-                    <TableCell className="text-xs">{item.warehouseName || item.warehouseCode}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {item.stock1?.toLocaleString('es-CL') || '0'}
+                  <TableRow 
+                    key={`${item.branchCode}-${item.productSku}-${item.warehouseCode}-${index}`} 
+                    data-testid={`row-stock-${item.productSku}`}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
+                  >
+                    <TableCell className="font-medium text-xs text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30">
+                      {item.branchCode || '-'}
                     </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {item.stock2?.toLocaleString('es-CL') || '0'}
+                    <TableCell className="font-semibold text-gray-900 dark:text-gray-100">{item.productSku}</TableCell>
+                    <TableCell className="text-gray-700 dark:text-gray-300 max-w-xs truncate">{item.productName || '-'}</TableCell>
+                    <TableCell className="text-sm text-gray-600 dark:text-gray-400">{item.warehouseName || item.warehouseCode}</TableCell>
+                    <TableCell className="text-right text-gray-500 dark:text-gray-400">
+                      {item.stock1?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) || '0'}
                     </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground">
+                    <TableCell className="text-right font-semibold text-blue-700 dark:text-blue-400">
+                      {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 0 }) || '0'}
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-gray-500 dark:text-gray-400">
                       {item.unit2 || item.unit || '-'}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
+                    <TableCell className="text-right font-medium text-gray-800 dark:text-gray-200">
                       {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
                     </TableCell>
-                    <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400">
+                    <TableCell className="text-right font-bold text-indigo-700 dark:text-indigo-400">
                       {item.totalValue ? `$${item.totalValue.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
                     </TableCell>
                     <TableCell>
@@ -433,11 +453,13 @@ function InventoryTable({
             </Table>
           </div>
         ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-            <p>No hay productos en inventario</p>
+          <div className="text-center py-16 text-muted-foreground">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+              <Package className="h-10 w-10 text-gray-400" />
+            </div>
+            <p className="text-lg font-medium text-gray-700 dark:text-gray-300">No hay productos en inventario</p>
             {searchTerm && (
-              <p className="text-sm mt-2">Intenta con otros términos de búsqueda</p>
+              <p className="text-sm mt-2 text-gray-500">Intenta con otros términos de búsqueda</p>
             )}
           </div>
         )}
