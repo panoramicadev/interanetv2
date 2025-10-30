@@ -21,9 +21,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw, Database } from "lucide-react";
+import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw, Database, Filter } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -63,6 +65,8 @@ export default function Inventario() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("all");
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
+  const [hideNoStock, setHideNoStock] = useState(false);
+  const [hideZZProducts, setHideZZProducts] = useState(false);
 
   if (!user) {
     return (
@@ -102,9 +106,12 @@ export default function Inventario() {
       {/* Filters Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Filtros de Búsqueda</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros de Búsqueda
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -125,17 +132,58 @@ export default function Inventario() {
               onWarehouseChange={setSelectedWarehouse}
             />
           </div>
+          
+          {/* Additional Filters */}
+          <div className="flex flex-wrap items-center gap-6 pt-2 border-t">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="hide-no-stock"
+                checked={hideNoStock}
+                onCheckedChange={setHideNoStock}
+                data-testid="switch-hide-no-stock"
+              />
+              <Label
+                htmlFor="hide-no-stock"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Ocultar productos sin stock
+              </Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="hide-zz-products"
+                checked={hideZZProducts}
+                onCheckedChange={setHideZZProducts}
+                data-testid="switch-hide-zz-products"
+              />
+              <Label
+                htmlFor="hide-zz-products"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Ocultar productos con SKU que inicie con "ZZ"
+              </Label>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
       {/* Stock Summary Cards */}
-      <StockSummary searchTerm={searchTerm} selectedWarehouse={selectedWarehouse} selectedBranch={selectedBranch} />
+      <StockSummary 
+        searchTerm={searchTerm} 
+        selectedWarehouse={selectedWarehouse} 
+        selectedBranch={selectedBranch}
+        hideNoStock={hideNoStock}
+        hideZZProducts={hideZZProducts}
+      />
 
       {/* Inventory Table */}
       <InventoryTable
         searchTerm={searchTerm}
         selectedWarehouse={selectedWarehouse}
         selectedBranch={selectedBranch}
+        hideNoStock={hideNoStock}
+        hideZZProducts={hideZZProducts}
       />
     </div>
   );
@@ -222,10 +270,14 @@ function StockSummary({
   searchTerm,
   selectedWarehouse,
   selectedBranch,
+  hideNoStock,
+  hideZZProducts,
 }: {
   searchTerm: string;
   selectedWarehouse: string;
   selectedBranch: string;
+  hideNoStock: boolean;
+  hideZZProducts: boolean;
 }) {
   const { data: summary } = useQuery<{
     totalProducts: number;
@@ -343,10 +395,14 @@ function InventoryTable({
   searchTerm,
   selectedWarehouse,
   selectedBranch,
+  hideNoStock,
+  hideZZProducts,
 }: {
   searchTerm: string;
   selectedWarehouse: string;
   selectedBranch: string;
+  hideNoStock: boolean;
+  hideZZProducts: boolean;
 }) {
   const { data: inventory, isLoading, refetch } = useQuery<ProductStock[]>({
     queryKey: ['/api/inventory-with-prices', searchTerm, selectedWarehouse, selectedBranch],
@@ -380,6 +436,21 @@ function InventoryTable({
     return <Badge className="bg-green-500">Disponible</Badge>;
   };
 
+  // Apply client-side filters
+  const filteredInventory = inventory?.filter((item) => {
+    // Filter out products with no stock if hideNoStock is enabled
+    if (hideNoStock && item.availableQuantity === 0) {
+      return false;
+    }
+    
+    // Filter out products with SKU starting with "ZZ" if hideZZProducts is enabled
+    if (hideZZProducts && item.productSku?.toUpperCase().startsWith('ZZ')) {
+      return false;
+    }
+    
+    return true;
+  }) || [];
+
   return (
     <Card className="rounded-3xl border-0 bg-white dark:bg-slate-900 shadow-sm">
       <CardHeader>
@@ -393,7 +464,7 @@ function InventoryTable({
           <div className="flex justify-center py-12">
             <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
           </div>
-        ) : inventory && inventory.length > 0 ? (
+        ) : filteredInventory && filteredInventory.length > 0 ? (
           <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
             <TooltipProvider>
               <Table>
@@ -411,7 +482,7 @@ function InventoryTable({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {inventory.map((item, index) => {
+                  {filteredInventory.map((item, index) => {
                     const available = item.availableQuantity || 0;
                     const reserved = item.reservedQuantity || 0;
                     let statusColor = 'bg-green-500';
