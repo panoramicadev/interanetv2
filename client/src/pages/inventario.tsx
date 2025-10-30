@@ -417,12 +417,12 @@ function InventoryTable({
                     data-testid={`row-stock-${item.productSku}`}
                     className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
                   >
-                    <TableCell className="font-medium text-xs text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30">
+                    <TableCell className="font-medium text-xs text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 max-w-[80px] truncate">
                       {item.branchCode || '-'}
                     </TableCell>
-                    <TableCell className="font-semibold text-gray-900 dark:text-gray-100">{item.productSku}</TableCell>
+                    <TableCell className="font-semibold text-gray-900 dark:text-gray-100 max-w-[120px] truncate">{item.productSku}</TableCell>
                     <TableCell className="text-gray-700 dark:text-gray-300 max-w-xs truncate">{item.productName || '-'}</TableCell>
-                    <TableCell className="text-sm text-gray-600 dark:text-gray-400">{item.warehouseName || item.warehouseCode}</TableCell>
+                    <TableCell className="text-sm text-gray-600 dark:text-gray-400 max-w-[150px] truncate">{item.warehouseName || item.warehouseCode}</TableCell>
                     <TableCell className="text-right text-gray-500 dark:text-gray-400">
                       {item.stock1?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'}
                     </TableCell>
