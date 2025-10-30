@@ -397,17 +397,15 @@ function InventoryTable({
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50 dark:bg-gray-800/50">
-                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Sucursal</TableHead>
-                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">SKU</TableHead>
+                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300 w-16">Sucursal</TableHead>
+                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300 w-24">SKU</TableHead>
                   <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Producto</TableHead>
-                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Bodega</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Stock UD1</TableHead>
-                  <TableHead className="text-center font-semibold text-gray-700 dark:text-gray-300">Unidad 1</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Stock UD2</TableHead>
-                  <TableHead className="text-center font-semibold text-gray-700 dark:text-gray-300">Unidad 2</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Precio Medio</TableHead>
-                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300">Valor Inventario</TableHead>
-                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300">Estado</TableHead>
+                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300 w-32">Bodega</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300 w-24">Stock UD1</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300 w-24">Stock UD2</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300 w-28">Precio</TableHead>
+                  <TableHead className="text-right font-semibold text-gray-700 dark:text-gray-300 w-32">Valor Total</TableHead>
+                  <TableHead className="font-semibold text-gray-700 dark:text-gray-300 w-28">Estado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -417,31 +415,31 @@ function InventoryTable({
                     data-testid={`row-stock-${item.productSku}`}
                     className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
                   >
-                    <TableCell className="font-medium text-xs text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 max-w-[80px] truncate">
-                      {item.branchCode || '-'}
+                    <TableCell className="font-medium text-xs text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 py-2 px-3">
+                      <div className="truncate">{item.branchCode || '-'}</div>
                     </TableCell>
-                    <TableCell className="font-semibold text-gray-900 dark:text-gray-100 max-w-[120px] truncate">{item.productSku}</TableCell>
-                    <TableCell className="text-gray-700 dark:text-gray-300 max-w-xs truncate">{item.productName || '-'}</TableCell>
-                    <TableCell className="text-sm text-gray-600 dark:text-gray-400 max-w-[150px] truncate">{item.warehouseName || item.warehouseCode}</TableCell>
-                    <TableCell className="text-right text-gray-500 dark:text-gray-400">
-                      {item.stock1?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'}
+                    <TableCell className="font-semibold text-sm text-gray-900 dark:text-gray-100 py-2 px-3">
+                      <div className="truncate">{item.productSku}</div>
                     </TableCell>
-                    <TableCell className="text-center text-xs text-gray-500 dark:text-gray-400 font-mono">
-                      {item.unit1 || '-'}
+                    <TableCell className="text-sm text-gray-700 dark:text-gray-300 py-2 px-3">
+                      <div className="truncate max-w-xs">{item.productName || '-'}</div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-blue-700 dark:text-blue-400">
-                      {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'}
+                    <TableCell className="text-xs text-gray-600 dark:text-gray-400 py-2 px-3">
+                      <div className="truncate">{item.warehouseName || item.warehouseCode}</div>
                     </TableCell>
-                    <TableCell className="text-center text-xs text-gray-500 dark:text-gray-400 font-mono">
-                      {item.unit2 || '-'}
+                    <TableCell className="text-right text-sm text-gray-700 dark:text-gray-300 py-2 px-3 whitespace-nowrap">
+                      {item.stock1?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-xs text-gray-500">{item.unit1 || ''}</span>
                     </TableCell>
-                    <TableCell className="text-right font-medium text-gray-800 dark:text-gray-200">
+                    <TableCell className="text-right text-sm font-semibold text-blue-700 dark:text-blue-400 py-2 px-3 whitespace-nowrap">
+                      {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-xs text-gray-500">{item.unit2 || ''}</span>
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-medium text-gray-800 dark:text-gray-200 py-2 px-3 whitespace-nowrap">
                       {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
                     </TableCell>
-                    <TableCell className="text-right font-bold text-indigo-700 dark:text-indigo-400">
+                    <TableCell className="text-right text-sm font-bold text-indigo-700 dark:text-indigo-400 py-2 px-3 whitespace-nowrap">
                       {item.totalValue ? `$${item.totalValue.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2 px-3">
                       {getStockBadge(item.availableQuantity, item.reservedQuantity)}
                     </TableCell>
                   </TableRow>
