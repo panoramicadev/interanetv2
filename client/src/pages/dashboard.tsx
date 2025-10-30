@@ -695,6 +695,46 @@ export default function Dashboard() {
     );
   }
 
+  // Si hay una sucursal seleccionada, mostrar el dashboard de la sucursal embedido
+  if (globalFilter.type === "branch" && globalFilter.value) {
+    const handleBack = () => {
+      setGlobalFilter({ type: "all" });
+      setSelectedFilter("all");
+    };
+    
+    const handleBranchChange = (newBranch: string) => {
+      setGlobalFilter({ type: "branch", value: newBranch });
+    };
+    
+    const handleDateFilterChange = (
+      newFilterType: "day" | "month" | "year" | "range",
+      newPeriod: string,
+      newDate?: Date,
+      newYear?: number,
+      newRange?: { from?: Date; to?: Date }
+    ) => {
+      const newSelection = convertToSelection(newFilterType, newPeriod, newDate, newYear, newRange);
+      setSelection(newSelection);
+    };
+    
+    return (
+      <SucursalDetail 
+        key={globalFilter.value} // Force remount when branch changes
+        branchName={globalFilter.value} 
+        embedded={true}
+        onBack={handleBack}
+        onBranchChange={handleBranchChange}
+        onDateFilterChange={handleDateFilterChange}
+        dashboardGlobalFilter={globalFilter}
+        dashboardFilterType={filterType}
+        dashboardSelectedPeriod={selectedPeriod}
+        dashboardSelectedDate={selectedDate}
+        dashboardSelectedYear={selectedYear}
+        dashboardDateRange={dateRange}
+      />
+    );
+  }
+
   // Si hay un vendedor seleccionado, mostrar el dashboard del vendedor embedido
   if (globalFilter.type === "salesperson" && globalFilter.value) {
     // Only allow back if user is not a salesperson (admin/supervisor can navigate back)
@@ -797,6 +837,8 @@ export default function Dashboard() {
                                   setLocalGlobalFilter({ type: "all" });
                                 } else if (value === "segment") {
                                   setLocalGlobalFilter({ type: "segment", value: undefined });
+                                } else if (value === "branch") {
+                                  setLocalGlobalFilter({ type: "branch", value: undefined });
                                 } else if (value === "salesperson") {
                                   setLocalGlobalFilter({ type: "salesperson", value: undefined });
                                 }
@@ -818,6 +860,12 @@ export default function Dashboard() {
                                     <span>Por segmento</span>
                                   </div>
                                 </SelectItem>
+                                <SelectItem value="branch">
+                                  <div className="flex items-center space-x-2">
+                                    <Building className="h-4 w-4 text-blue-500" />
+                                    <span>Por sucursal</span>
+                                  </div>
+                                </SelectItem>
                                 <SelectItem value="salesperson">
                                   <div className="flex items-center space-x-2">
                                     <Users className="h-4 w-4 text-purple-500" />
@@ -828,10 +876,10 @@ export default function Dashboard() {
                             </Select>
                           </div>
                           
-                          {(localSelectedFilter === "segment" || localSelectedFilter === "salesperson") && (
+                          {(localSelectedFilter === "segment" || localSelectedFilter === "branch" || localSelectedFilter === "salesperson") && (
                             <div>
                               <label className="text-sm font-medium text-gray-700 block mb-2">
-                                {localSelectedFilter === "segment" ? "Segmento específico" : "Vendedor específico"}
+                                {localSelectedFilter === "segment" ? "Segmento específico" : localSelectedFilter === "branch" ? "Sucursal específica" : "Vendedor específico"}
                               </label>
                               <Select 
                                 key={localSelectedFilter}
@@ -839,6 +887,8 @@ export default function Dashboard() {
                                 onValueChange={(value) => {
                                   if (localSelectedFilter === "segment") {
                                     setLocalGlobalFilter({ type: "segment", value });
+                                  } else if (localSelectedFilter === "branch") {
+                                    setLocalGlobalFilter({ type: "branch", value });
                                   } else if (localSelectedFilter === "salesperson") {
                                     setLocalGlobalFilter({ type: "salesperson", value });
                                   }
@@ -846,7 +896,7 @@ export default function Dashboard() {
                               >
                                 <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
                                   <SelectValue placeholder={
-                                    localSelectedFilter === "segment" ? "Selecciona segmento" : "Selecciona vendedor"
+                                    localSelectedFilter === "segment" ? "Selecciona segmento" : localSelectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
                                   } />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
@@ -854,6 +904,12 @@ export default function Dashboard() {
                                     segments?.map((segment) => (
                                       <SelectItem key={segment} value={segment}>
                                         {segment}
+                                      </SelectItem>
+                                    ))
+                                  ) : localSelectedFilter === "branch" ? (
+                                    ["CONCEPCION", "SANTIAGO"].map((branch) => (
+                                      <SelectItem key={branch} value={branch}>
+                                        {branch}
                                       </SelectItem>
                                     ))
                                   ) : (
@@ -1097,6 +1153,7 @@ export default function Dashboard() {
                     <div className="flex-1">
                       <div className="text-xs font-medium text-green-900">
                         {selectedFilter === "segment" && `Segmento: ${globalFilter.value}`}
+                        {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
                         {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
                       </div>
                     </div>
