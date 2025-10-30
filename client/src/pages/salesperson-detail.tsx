@@ -896,17 +896,6 @@ export default function SalespersonDetail({
             />
           )}
 
-          {/* Packaging Sales Metrics - Total Facturado x Unidades for this salesperson */}
-          {salespersonName && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <PackagingSalesMetrics
-                selectedPeriod={selectedPeriod}
-                filterType={filterType}
-                salesperson={salespersonName}
-              />
-            </div>
-          )}
-
           {/* Promesas de Compra - Always show for salespeople */}
           {vendedorId && (
             <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50">
@@ -1139,6 +1128,17 @@ export default function SalespersonDetail({
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Packaging Sales Metrics - Total Facturado x Unidades for this salesperson */}
+          {salespersonName && (
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <PackagingSalesMetrics
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                salesperson={salespersonName}
+              />
+            </div>
           )}
 
           {/* Clients Table */}
