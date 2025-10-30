@@ -188,7 +188,10 @@ import {
   // Inventory hybrid system
   inventoryProducts,
   inventorySyncLog,
+  insertInventoryProductSchema,
+  insertInventorySyncLogSchema,
   type InsertInventoryProduct,
+  type InsertInventorySyncLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
