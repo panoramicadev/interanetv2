@@ -15,6 +15,7 @@ import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSalespersonTable from "@/components/dashboard/comparative-salesperson-table";
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
+import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
 
 interface GoalProgress {
   id: string;
@@ -892,6 +893,15 @@ export default function SalespersonDetail({
               filterType={selection.period === "days" || selection.period === "day" || selection.period === "custom-range" ? "day" : 
                          selection.period === "months" || selection.period === "month" ? "month" : 
                          selection.period === "full-year" ? "year" : "month"}
+            />
+          )}
+
+          {/* Packaging Sales Metrics - Total Facturado x Unidades for this salesperson */}
+          {salespersonName && (
+            <PackagingSalesMetrics
+              selectedPeriod={selectedPeriod}
+              filterType={filterType}
+              salesperson={salespersonName}
             />
           )}
 
