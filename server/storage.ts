@@ -476,6 +476,23 @@ export interface IStorage {
     percentage: number;
   }>>;
   
+  // Branch detail operations
+  getBranchClients(branchName: string, period?: string, filterType?: string): Promise<Array<{
+    clientName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
+    percentage: number;
+  }>>;
+  getBranchSalespeople(branchName: string, period?: string, filterType?: string): Promise<Array<{
+    salespersonName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
+    percentage: number;
+  }>>;
+  getBranchSalesForPeriod(branchName: string, period: string): Promise<number>;
+  
   // Salesperson detail operations
   getSalespersonDetails(salespersonName: string, period?: string, filterType?: string): Promise<{
     totalSales: number;
@@ -3102,6 +3119,175 @@ export class DatabaseStorage implements IStorage {
       averageTicket: Number(salesperson.averageTicket),
       percentage: segmentTotal > 0 ? (Number(salesperson.totalSales) / segmentTotal) * 100 : 0
     }));
+  }
+
+  // Branch detail operations
+  async getBranchClients(branchName: string, period?: string, filterType: string = 'month'): Promise<Array<{
+    clientName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
+    percentage: number;
+  }>> {
+    const conditions = [
+      eq(salesTransactions.nosudo, branchName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
+
+    // Apply date filters if period is provided
+    if (period) {
+      switch (filterType) {
+        case 'day':
+          conditions.push(sql`DATE(${salesTransactions.feemdo}) = ${period}`);
+          break;
+        case 'month':
+          if (period === 'current-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+            );
+          } else if (period === 'last-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+            );
+          } else {
+            const [year, month] = period.split('-');
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+            );
+          }
+          break;
+        case 'year':
+          const yearForFilter = period.split('-')[0];
+          conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`);
+          break;
+        case 'range':
+          if (period.includes('_')) {
+            const [startDate, endDate] = period.split('_');
+            conditions.push(
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
+            );
+          } else if (period === 'last-30-days') {
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`);
+          } else if (period === 'last-7-days') {
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`);
+          }
+          break;
+      }
+    }
+
+    const result = await db
+      .select({
+        clientName: salesTransactions.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions))
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+    
+    const branchTotal = result.reduce((sum, client) => sum + Number(client.totalSales || 0), 0);
+    
+    return result.map(client => ({
+      clientName: client.clientName || 'Cliente desconocido',
+      totalSales: Number(client.totalSales),
+      transactionCount: Number(client.transactionCount),
+      averageTicket: Number(client.averageTicket),
+      percentage: branchTotal > 0 ? (Number(client.totalSales) / branchTotal) * 100 : 0
+    }));
+  }
+
+  async getBranchSalespeople(branchName: string, period?: string, filterType: string = 'month'): Promise<Array<{
+    salespersonName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
+    percentage: number;
+  }>> {
+    const conditions = [
+      eq(salesTransactions.nosudo, branchName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
+
+    // Apply date filters if period is provided
+    if (period) {
+      switch (filterType) {
+        case 'day':
+          conditions.push(sql`DATE(${salesTransactions.feemdo}) = ${period}`);
+          break;
+        case 'month':
+          if (period === 'current-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+            );
+          } else if (period === 'last-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+            );
+          } else {
+            const [year, month] = period.split('-');
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+            );
+          }
+          break;
+        case 'year':
+          const yearForFilter = period.split('-')[0];
+          conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`);
+          break;
+        case 'range':
+          if (period.includes('_')) {
+            const [startDate, endDate] = period.split('_');
+            conditions.push(
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
+            );
+          } else if (period.includes('last-')) {
+            const days = period.includes('30') ? '30' : '7';
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '${sql.raw(days)} days'`);
+          }
+          break;
+      }
+    }
+
+    const result = await db
+      .select({
+        salespersonName: salesTransactions.nokofu,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions))
+      .groupBy(salesTransactions.nokofu)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+    
+    const branchTotal = result.reduce((sum, salesperson) => sum + Number(salesperson.totalSales || 0), 0);
+    
+    return result.map(salesperson => ({
+      salespersonName: salesperson.salespersonName || 'Vendedor desconocido',
+      totalSales: Number(salesperson.totalSales),
+      transactionCount: Number(salesperson.transactionCount),
+      averageTicket: Number(salesperson.averageTicket),
+      percentage: branchTotal > 0 ? (Number(salesperson.totalSales) / branchTotal) * 100 : 0
+    }));
+  }
+
+  async getBranchSalesForPeriod(branchName: string, period: string): Promise<number> {
+    const result = await db
+      .select({
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS DECIMAL) ELSE 0 END), 0)`
+      })
+      .from(salesTransactions)
+      .where(
+        and(
+          eq(salesTransactions.nosudo, branchName),
+          sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`
+        )
+      )
+      .execute();
+
+    return Number(result[0]?.total || 0);
   }
 
   // Salesperson detail operations
