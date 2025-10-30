@@ -1550,7 +1550,7 @@ export function registerRoutes(app: Express): Server {
 
   // Packaging metrics endpoint
   app.get('/api/sales/packaging-metrics', requireAuth, asyncHandler(async (req: any, res: any) => {
-    const { period, filterType, salesperson, segment } = req.query;
+    const { period, filterType, salesperson, segment, branch } = req.query;
     const dateRange = getDateRange(period as string, filterType as string);
     
     const packagingMetrics = await storage.getPackagingMetrics({
@@ -1558,6 +1558,7 @@ export function registerRoutes(app: Express): Server {
       endDate: dateRange.endDate,
       salesperson: salesperson as string,
       segment: segment as string,
+      branch: branch as string,
     });
     
     res.json(packagingMetrics);

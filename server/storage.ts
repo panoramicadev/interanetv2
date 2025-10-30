@@ -2232,6 +2232,7 @@ export class DatabaseStorage implements IStorage {
     endDate?: string;
     salesperson?: string;
     segment?: string;
+    branch?: string;
   }): Promise<Array<{
     packagingType: string;
     totalSales: number;
@@ -2259,6 +2260,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters?.segment) {
       conditions.push(eq(salesTransactions.noruen, filters.segment));
+    }
+    if (filters?.branch) {
+      conditions.push(eq(salesTransactions.nosudo, filters.branch));
     }
 
     // Get totals for percentage calculations
