@@ -898,11 +898,13 @@ export default function SalespersonDetail({
 
           {/* Packaging Sales Metrics - Total Facturado x Unidades for this salesperson */}
           {salespersonName && (
-            <PackagingSalesMetrics
-              selectedPeriod={selectedPeriod}
-              filterType={filterType}
-              salesperson={salespersonName}
-            />
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <PackagingSalesMetrics
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                salesperson={salespersonName}
+              />
+            </div>
           )}
 
           {/* Promesas de Compra - Always show for salespeople */}
