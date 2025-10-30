@@ -12565,7 +12565,7 @@ export class DatabaseStorage implements IStorage {
         reservedQuantity: 0,
         availableQuantity: parseFloat(row.stock2) || 0,
         averagePrice: parseFloat(row.averagePrice) || 0,
-        totalValue: (parseFloat(row.stock2) || 0) * (parseFloat(row.averagePrice) || 0),
+        totalValue: (parseFloat(row.stock1) || 0) * (parseFloat(row.averagePrice) || 0),
         lastUpdated: new Date(),
       }));
     } catch (error: any) {
