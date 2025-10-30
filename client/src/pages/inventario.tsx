@@ -25,12 +25,17 @@ import { useToast } from "@/hooks/use-toast";
 import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw } from "lucide-react";
 
 interface ProductStock {
-  id: number;
+  id?: number;
+  branchCode: string;
   productSku: string;
   productName: string | null;
   warehouseCode: string;
   warehouseName: string | null;
+  stock1: number;
+  stock2: number;
   quantity: number;
+  unit1?: string;
+  unit2?: string;
   unit?: string;
   reservedQuantity: number;
   availableQuantity: number;
@@ -44,11 +49,17 @@ interface Warehouse {
   name: string;
 }
 
+interface Branch {
+  code: string;
+  name: string;
+}
+
 export default function Inventario() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("all");
+  const [selectedBranch, setSelectedBranch] = useState<string>("all");
 
   if (!user) {
     return (
@@ -88,7 +99,7 @@ export default function Inventario() {
           <CardTitle>Filtros de Búsqueda</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -99,6 +110,10 @@ export default function Inventario() {
                 data-testid="input-search"
               />
             </div>
+            <BranchFilter
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+            />
             <WarehouseFilter
               selectedWarehouse={selectedWarehouse}
               onWarehouseChange={setSelectedWarehouse}
@@ -108,14 +123,53 @@ export default function Inventario() {
       </Card>
 
       {/* Stock Summary Cards */}
-      <StockSummary searchTerm={searchTerm} selectedWarehouse={selectedWarehouse} />
+      <StockSummary searchTerm={searchTerm} selectedWarehouse={selectedWarehouse} selectedBranch={selectedBranch} />
 
       {/* Inventory Table */}
       <InventoryTable
         searchTerm={searchTerm}
         selectedWarehouse={selectedWarehouse}
+        selectedBranch={selectedBranch}
       />
     </div>
+  );
+}
+
+// Branch Filter Component
+function BranchFilter({
+  selectedBranch,
+  onBranchChange,
+}: {
+  selectedBranch: string;
+  onBranchChange: (branch: string) => void;
+}) {
+  const { data: branches, isLoading } = useQuery<Branch[]>({
+    queryKey: ['/api/branches'],
+    queryFn: async () => {
+      const response = await fetch('/api/branches', {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Error al cargar sucursales');
+      }
+      return response.json();
+    },
+  });
+
+  return (
+    <Select value={selectedBranch} onValueChange={onBranchChange}>
+      <SelectTrigger data-testid="select-branch">
+        <SelectValue placeholder="Seleccionar sucursal" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">Todas las sucursales</SelectItem>
+        {branches?.map((branch) => (
+          <SelectItem key={branch.code} value={branch.code}>
+            {branch.name || branch.code}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -161,9 +215,11 @@ function WarehouseFilter({
 function StockSummary({
   searchTerm,
   selectedWarehouse,
+  selectedBranch,
 }: {
   searchTerm: string;
   selectedWarehouse: string;
+  selectedBranch: string;
 }) {
   const { data: summary } = useQuery<{
     totalProducts: number;
@@ -172,11 +228,12 @@ function StockSummary({
     totalValue: number;
     lowStock: number;
   }>({
-    queryKey: ['/api/inventory/summary-with-prices', searchTerm, selectedWarehouse],
+    queryKey: ['/api/inventory/summary-with-prices', searchTerm, selectedWarehouse, selectedBranch],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (selectedWarehouse !== 'all') params.append('warehouse', selectedWarehouse);
+      if (selectedBranch !== 'all') params.append('branch', selectedBranch);
       
       const response = await fetch(`/api/inventory/summary-with-prices?${params}`, {
         credentials: 'include'
@@ -269,16 +326,19 @@ function StockSummary({
 function InventoryTable({
   searchTerm,
   selectedWarehouse,
+  selectedBranch,
 }: {
   searchTerm: string;
   selectedWarehouse: string;
+  selectedBranch: string;
 }) {
   const { data: inventory, isLoading, refetch } = useQuery<ProductStock[]>({
-    queryKey: ['/api/inventory-with-prices', searchTerm, selectedWarehouse],
+    queryKey: ['/api/inventory-with-prices', searchTerm, selectedWarehouse, selectedBranch],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (selectedWarehouse !== 'all') params.append('warehouse', selectedWarehouse);
+      if (selectedBranch !== 'all') params.append('branch', selectedBranch);
       
       const response = await fetch(`/api/inventory-with-prices?${params}`, {
         credentials: 'include'
@@ -326,14 +386,16 @@ function InventoryTable({
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : inventory && inventory.length > 0 ? (
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Sucursal</TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Producto</TableHead>
                   <TableHead>Bodega</TableHead>
-                  <TableHead className="text-right">Stock Total</TableHead>
+                  <TableHead className="text-right">Stock Unidad 1</TableHead>
+                  <TableHead className="text-right">Stock Unidad 2</TableHead>
                   <TableHead className="text-right">Unidad</TableHead>
                   <TableHead className="text-right">Precio Medio</TableHead>
                   <TableHead className="text-right">Valor Inventario</TableHead>
@@ -341,16 +403,20 @@ function InventoryTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {inventory.map((item) => (
-                  <TableRow key={`${item.productSku}-${item.warehouseCode}`} data-testid={`row-stock-${item.productSku}`}>
+                {inventory.map((item, index) => (
+                  <TableRow key={`${item.branchCode}-${item.productSku}-${item.warehouseCode}-${index}`} data-testid={`row-stock-${item.productSku}`}>
+                    <TableCell className="font-medium text-xs">{item.branchCode || '-'}</TableCell>
                     <TableCell className="font-medium">{item.productSku}</TableCell>
                     <TableCell>{item.productName || '-'}</TableCell>
-                    <TableCell>{item.warehouseName || item.warehouseCode}</TableCell>
-                    <TableCell className="text-right">
-                      {item.quantity.toLocaleString('es-CL')}
+                    <TableCell className="text-xs">{item.warehouseName || item.warehouseCode}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {item.stock1?.toLocaleString('es-CL') || '0'}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {item.stock2?.toLocaleString('es-CL') || '0'}
                     </TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground">
-                      {item.unit || '-'}
+                      {item.unit2 || item.unit || '-'}
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}

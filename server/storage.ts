@@ -1160,11 +1160,13 @@ export interface IStorage {
   getInventoryWithPrices(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
   }): Promise<any[]>;
   
   getInventorySummary(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
   }): Promise<{
     totalProducts: number;
     totalQuantity: number;
@@ -1175,6 +1177,7 @@ export interface IStorage {
   getInventorySummaryWithPrices(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
   }): Promise<{
     totalProducts: number;
     totalQuantity: number;
@@ -1184,6 +1187,7 @@ export interface IStorage {
   }>;
   
   getWarehouses(): Promise<{ code: string; name: string }[]>;
+  getBranches(): Promise<{ code: string; name: string }[]>;
 
   // ==================================================================================
   // GASTOS EMPRESARIALES operations
@@ -12084,9 +12088,48 @@ export class DatabaseStorage implements IStorage {
     return results;
   }
 
+  async getBranches(): Promise<{ code: string; name: string }[]> {
+    try {
+      const pool = await mssql.connect({
+        server: process.env.SQL_SERVER_HOST || '',
+        port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
+        user: process.env.SQL_SERVER_USER || '',
+        password: process.env.SQL_SERVER_PASSWORD || '',
+        database: process.env.SQL_SERVER_DATABASE || '',
+        options: {
+          encrypt: true,
+          trustServerCertificate: true,
+          enableArithAbort: true,
+        },
+        connectionTimeout: 30000,
+        requestTimeout: 30000,
+      });
+
+      const result = await pool.request().query(`
+        SELECT DISTINCT
+          KOSU as code,
+          KOSU as name
+        FROM MAEST
+        WHERE KOSU IS NOT NULL AND KOSU != ''
+        ORDER BY KOSU
+      `);
+
+      await pool.close();
+
+      return result.recordset.map((row: any) => ({
+        code: row.code || '',
+        name: row.name || row.code || '',
+      }));
+    } catch (error: any) {
+      console.error('Error fetching branches from SQL Server:', error.message);
+      return [];
+    }
+  }
+
   async getInventoryWithPrices(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
   }): Promise<any[]> {
     try {
       const pool = await mssql.connect({
@@ -12106,27 +12149,40 @@ export class DatabaseStorage implements IStorage {
 
       let query = `
         SELECT 
-          p.KOPR as productSku,
+          m.KOSU as branchCode,
+          m.KOBO as warehouseCode,
+          b.NOKOBO as warehouseName,
+          m.KOPR as productSku,
           p.NOKOPR as productName,
-          p.PM as averagePrice,
-          p.STFI1 as stock1,
-          p.STFI2 as stock2,
+          m.STFI1 as stock1,
+          m.STFI2 as stock2,
           p.UD01PR as unit1,
           p.UD02PR as unit2,
-          'TOTAL' as warehouseCode,
-          'Total General' as warehouseName
-        FROM MAEPR p
-        WHERE p.STFI1 > 0 OR p.STFI2 > 0
+          p.PM as averagePrice
+        FROM MAEST m
+        LEFT JOIN TABBO b ON m.KOBO = b.KOBO
+        LEFT JOIN MAEPR p ON m.KOPR = p.KOPR
+        WHERE (m.STFI1 > 0 OR m.STFI2 > 0)
       `;
 
       const params: any = [];
 
       if (filters?.search) {
-        query += ` AND (p.KOPR LIKE @search OR p.NOKOPR LIKE @search)`;
+        query += ` AND (m.KOPR LIKE @search OR p.NOKOPR LIKE @search)`;
         params.push({ name: 'search', value: `%${filters.search}%` });
       }
 
-      query += ` ORDER BY p.KOPR`;
+      if (filters?.warehouse && filters.warehouse !== 'all') {
+        query += ` AND m.KOBO = @warehouse`;
+        params.push({ name: 'warehouse', value: filters.warehouse });
+      }
+
+      if (filters?.branch && filters.branch !== 'all') {
+        query += ` AND m.KOSU = @branch`;
+        params.push({ name: 'branch', value: filters.branch });
+      }
+
+      query += ` ORDER BY m.KOSU, m.KOBO, m.KOPR`;
 
       const request = pool.request();
       params.forEach((param: any) => {
@@ -12138,16 +12194,21 @@ export class DatabaseStorage implements IStorage {
       await pool.close();
 
       return result.recordset.map((row: any) => ({
+        branchCode: row.branchCode || '',
         productSku: row.productSku || '',
         productName: row.productName || '',
-        warehouseCode: row.warehouseCode,
-        warehouseName: row.warehouseName,
-        quantity: parseFloat(row.stock1) || 0,
-        unit: row.unit1 || '',
+        warehouseCode: row.warehouseCode || '',
+        warehouseName: row.warehouseName || row.warehouseCode || '',
+        stock1: parseFloat(row.stock1) || 0,
+        stock2: parseFloat(row.stock2) || 0,
+        quantity: parseFloat(row.stock2) || 0,
+        unit1: row.unit1 || '',
+        unit2: row.unit2 || '',
+        unit: row.unit2 || '',
         reservedQuantity: 0,
-        availableQuantity: parseFloat(row.stock1) || 0,
+        availableQuantity: parseFloat(row.stock2) || 0,
         averagePrice: parseFloat(row.averagePrice) || 0,
-        totalValue: (parseFloat(row.stock1) || 0) * (parseFloat(row.averagePrice) || 0),
+        totalValue: (parseFloat(row.stock2) || 0) * (parseFloat(row.averagePrice) || 0),
         lastUpdated: new Date(),
       }));
     } catch (error: any) {
@@ -12159,6 +12220,7 @@ export class DatabaseStorage implements IStorage {
   async getInventorySummaryWithPrices(filters?: {
     search?: string;
     warehouse?: string;
+    branch?: string;
   }): Promise<{
     totalProducts: number;
     totalQuantity: number;
