@@ -12123,38 +12123,26 @@ export class DatabaseStorage implements IStorage {
 
   async getBranches(): Promise<{ code: string; name: string }[]> {
     try {
-      const pool = await mssql.connect({
-        server: process.env.SQL_SERVER_HOST || '',
-        port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
-        user: process.env.SQL_SERVER_USER || '',
-        password: process.env.SQL_SERVER_PASSWORD || '',
-        database: process.env.SQL_SERVER_DATABASE || '',
-        options: {
-          encrypt: true,
-          trustServerCertificate: true,
-          enableArithAbort: true,
-        },
-        connectionTimeout: 30000,
-        requestTimeout: 30000,
-      });
+      // Query unique branches from PostgreSQL inventory_products table
+      const branches = await db
+        .selectDistinct({
+          code: inventoryProducts.sucursal,
+        })
+        .from(inventoryProducts)
+        .where(
+          and(
+            isNotNull(inventoryProducts.sucursal),
+            sql`${inventoryProducts.sucursal} != ''`
+          )
+        )
+        .orderBy(inventoryProducts.sucursal);
 
-      const result = await pool.request().query(`
-        SELECT DISTINCT
-          KOSU as code,
-          KOSU as name
-        FROM MAEST
-        WHERE KOSU IS NOT NULL AND KOSU != ''
-        ORDER BY KOSU
-      `);
-
-      await pool.close();
-
-      return result.recordset.map((row: any) => ({
-        code: row.code || '',
-        name: row.name || row.code || '',
+      return branches.map((b) => ({
+        code: b.code || '',
+        name: b.code || '', // Using code as name since we don't have branch names
       }));
     } catch (error: any) {
-      console.error('Error fetching branches from SQL Server:', error.message);
+      console.error('Error fetching branches from PostgreSQL:', error.message);
       return [];
     }
   }

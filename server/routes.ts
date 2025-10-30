@@ -2972,6 +2972,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get all branches
+  app.get('/api/branches', requireAuth, async (req: any, res) => {
+    try {
+      const branches = await storage.getBranches();
+      res.json(branches);
+    } catch (error) {
+      console.error("Error fetching branches:", error);
+      res.status(500).json({ message: "Failed to fetch branches" });
+    }
+  });
+
   // Get stock summary by warehouse
   app.get('/api/warehouses/stock-summary', requireAuth, async (req: any, res) => {
     try {
