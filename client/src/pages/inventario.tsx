@@ -469,17 +469,17 @@ function SyncCatalogButton() {
   const { toast } = useToast();
 
   const { data: lastSync, isLoading: isLoadingLastSync } = useQuery<{
-    id: number;
-    timestamp: string;
+    id: string;
+    completedAt: string;
     userId: string;
     userEmail: string;
-    productosNuevos: number;
-    productosActualizados: number;
-    productosDesactivados: number;
-    totalProcesados: number;
-    duracion: number;
-    estado: string;
-    mensajeError: string | null;
+    productsNew: number;
+    productsUpdated: number;
+    productsDeactivated: number;
+    totalProcessed: number;
+    duration: number;
+    status: string;
+    errorMessage: string | null;
     summary: any;
   } | null>({
     queryKey: ['/api/inventory/last-sync'],
@@ -548,14 +548,14 @@ function SyncCatalogButton() {
       {!isLoadingLastSync && lastSync && (
         <p className="text-xs text-muted-foreground" data-testid="text-last-sync">
           Última sincronización:{" "}
-          {lastSync.timestamp && !isNaN(new Date(lastSync.timestamp).getTime())
-            ? formatDistanceToNow(new Date(lastSync.timestamp), {
+          {lastSync.completedAt && !isNaN(new Date(lastSync.completedAt).getTime())
+            ? formatDistanceToNow(new Date(lastSync.completedAt), {
                 addSuffix: true,
                 locale: es,
               })
             : "fecha no disponible"}
           {" "}
-          ({lastSync.totalProcesados} productos)
+          ({lastSync.totalProcessed || 0} productos)
         </p>
       )}
       
