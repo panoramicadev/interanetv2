@@ -18,6 +18,7 @@ import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metric
 import PackagingUnitsMetrics from "@/components/dashboard/packaging-units-metrics";
 import SalespersonDetail from "@/pages/salesperson-detail";
 import SegmentDetail from "@/pages/segment-detail";
+import SucursalDetail from "@/pages/sucursal-detail";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeKPICards from "@/components/dashboard/comparative-kpi-cards";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
