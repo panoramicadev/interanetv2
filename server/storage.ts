@@ -12458,7 +12458,7 @@ export class DatabaseStorage implements IStorage {
         productsDeactivated: 0,
         totalProcessed: 0,
         duration: 0,
-        errorMessage: 'Sync already in progress. Please wait for the current sync to complete.',
+        errorMessage: 'Sincronización ya en progreso. Por favor espera a que termine.',
         summary: { error: 'Sync already in progress' },
       };
     }
@@ -12472,6 +12472,7 @@ export class DatabaseStorage implements IStorage {
 
     try {
       // Connect to SQL Server with proper timeout handling
+      console.log('🔄 Conectando a SQL Server...');
       const connectionPromise = mssql.connect({
         server: process.env.SQL_SERVER_HOST || '',
         port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
@@ -12484,25 +12485,23 @@ export class DatabaseStorage implements IStorage {
           enableArithAbort: true,
         },
         connectionTimeout: 30000,
-        requestTimeout: 30000,
+        requestTimeout: 120000, // 2 minutes for large queries
       });
 
       const timeoutPromise = new Promise((_, reject) => {
         timeoutHandle = setTimeout(() => {
           connectionTimedOut = true;
           reject(new Error('SQL Server connection timeout'));
-        }, 30000);
+        }, 35000);
       });
 
       pool = await Promise.race([connectionPromise, timeoutPromise]);
 
-      // INMEDIATAMENTE clear the timeout after successful connection
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
         timeoutHandle = null;
       }
 
-      // If timeout occurred, close any potential connection leak
       if (connectionTimedOut && pool) {
         try {
           await pool.close();
@@ -12513,143 +12512,127 @@ export class DatabaseStorage implements IStorage {
         throw new Error('SQL Server connection timeout');
       }
 
-      // Verify pool exists before using it
       if (!pool) {
         throw new Error('SQL Server connection failed - pool is null');
       }
 
-      // Fetch all products from ERP
+      console.log('✅ Conectado a SQL Server');
+
+      // Fetch complete inventory from ERP (product × sucursal × bodega with stocks)
+      console.log('📦 Extrayendo inventario completo desde ERP...');
       const result = await pool.request().query(`
         SELECT 
-          KOPR as sku,
-          NOKOPR as name,
-          UD01PR as unit1,
-          UD02PR as unit2,
-          FMPR as category,
-          PM as precioMedio
-        FROM MAEPR
-        WHERE KOPR IS NOT NULL AND KOPR != ''
-        ORDER BY KOPR
+          m.KOPR as sku,
+          m.KOSU as sucursal,
+          m.KOBO as bodega,
+          p.NOKOPR as nombre,
+          b.NOKOBO as nombreBodega,
+          p.UD01PR as unidad1,
+          p.UD02PR as unidad2,
+          p.FMPR as categoria,
+          m.STFI1 as stock1,
+          m.STFI2 as stock2,
+          p.PM as precioMedio
+        FROM MAEST m
+        LEFT JOIN MAEPR p ON m.KOPR = p.KOPR
+        LEFT JOIN TABBO b ON m.KOBO = b.KOBO
+        WHERE m.KOPR IS NOT NULL 
+          AND m.KOPR != ''
+          AND (m.STFI1 > 0 OR m.STFI2 > 0)
+        ORDER BY m.KOSU, m.KOBO, m.KOPR
       `);
 
       await pool.close();
       pool = null;
 
-      const erpProducts = result.recordset;
-      console.log(`📦 Fetched ${erpProducts.length} products from ERP`);
+      const erpInventory = result.recordset;
+      console.log(`📦 Extraídos ${erpInventory.length} registros de inventario desde ERP`);
 
-      // Get existing products from PostgreSQL
-      const existingProducts = await db
-        .select()
-        .from(inventoryProducts);
+      // Clear existing inventory data (full refresh approach)
+      console.log('🗑️  Limpiando inventario anterior...');
+      await db.delete(inventoryProducts);
 
-      const existingProductsMap = new Map(
-        existingProducts.map(p => [p.sku, p])
-      );
-
-      let productsNew = 0;
-      let productsUpdated = 0;
-      let productsDeactivated = 0;
-      const changes: any[] = [];
+      let recordsInserted = 0;
       const validationErrors: any[] = [];
+      const BATCH_SIZE = 500;
 
-      // Start transaction
-      await db.transaction(async (tx) => {
-        // Process each ERP product
-        for (const erpProduct of erpProducts) {
-          const sku = erpProduct.sku?.toString()?.trim();
-          if (!sku) continue;
+      // Process in batches
+      console.log(`📝 Procesando inventario en lotes de ${BATCH_SIZE}...`);
+      for (let i = 0; i < erpInventory.length; i += BATCH_SIZE) {
+        const batch = erpInventory.slice(i, i + BATCH_SIZE);
+        const batchData: any[] = [];
 
-          const name = erpProduct.name?.toString()?.trim() || '';
-          const unit1 = erpProduct.unit1?.toString()?.trim() || null;
-          const unit2 = erpProduct.unit2?.toString()?.trim() || null;
-          const category = erpProduct.category?.toString()?.trim() || null;
-          const precioMedio = erpProduct.precioMedio || null;
+        for (const row of batch) {
+          const sku = row.sku?.toString()?.trim();
+          const sucursal = row.sucursal?.toString()?.trim();
+          const bodega = row.bodega?.toString()?.trim();
 
-          // Prepare product data for validation
-          const productData = {
+          if (!sku || !sucursal || !bodega) {
+            validationErrors.push({
+              sku: sku || 'N/A',
+              sucursal: sucursal || 'N/A',
+              bodega: bodega || 'N/A',
+              error: 'Missing required fields (sku, sucursal, or bodega)',
+            });
+            continue;
+          }
+
+          const nombre = row.nombre?.toString()?.trim() || '';
+          const nombreBodega = row.nombreBodega?.toString()?.trim() || null;
+          const unidad1 = row.unidad1?.toString()?.trim() || null;
+          const unidad2 = row.unidad2?.toString()?.trim() || null;
+          const categoria = row.categoria?.toString()?.trim() || null;
+          const stock1 = parseFloat(row.stock1) || 0;
+          const stock2 = parseFloat(row.stock2) || 0;
+          const precioMedio = row.precioMedio ? parseFloat(row.precioMedio) : null;
+
+          // Calculate inventory value
+          const valorInventario = precioMedio && stock2 
+            ? parseFloat((stock2 * precioMedio).toFixed(2))
+            : null;
+
+          const inventoryRecord = {
             sku,
-            nombre: name,
-            unidad1: unit1,
-            unidad2: unit2,
-            categoria: category,
-            precioMedio,
+            sucursal,
+            bodega,
+            nombre,
+            nombreBodega,
+            unidad1,
+            unidad2,
+            categoria,
+            stock1: stock1.toString(),
+            stock2: stock2.toString(),
+            precioMedio: precioMedio?.toString() || null,
+            valorInventario: valorInventario?.toString() || null,
             activo: true,
             ultimaSincronizacion: new Date(),
             sincronizadoPor: userId,
           };
 
-          // Validate product data using Zod schema
-          let validatedData;
+          // Validate data
           try {
-            validatedData = insertInventoryProductSchema.parse(productData);
+            const validatedData = insertInventoryProductSchema.parse(inventoryRecord);
+            batchData.push(validatedData);
           } catch (validationError: any) {
             validationErrors.push({
               sku,
-              name,
+              sucursal,
+              bodega,
               error: validationError.message || 'Validation failed',
               details: validationError.errors || validationError,
             });
-            console.warn(`⚠️ Skipping invalid product ${sku}: ${validationError.message}`);
-            continue; // Skip this product
-          }
-
-          const existing = existingProductsMap.get(sku);
-
-          if (!existing) {
-            // New product
-            await tx.insert(inventoryProducts).values(validatedData);
-            productsNew++;
-            changes.push({ sku, action: 'new', name });
-          } else {
-            // Check if product needs update
-            const needsUpdate = 
-              existing.nombre !== name ||
-              existing.unidad1 !== unit1 ||
-              existing.unidad2 !== unit2 ||
-              existing.categoria !== category ||
-              existing.precioMedio !== precioMedio ||
-              !existing.activo;
-
-            if (needsUpdate) {
-              await tx
-                .update(inventoryProducts)
-                .set({
-                  ...validatedData,
-                  updatedAt: new Date(),
-                })
-                .where(eq(inventoryProducts.sku, sku));
-              productsUpdated++;
-              changes.push({ sku, action: 'updated', name });
-            }
-
-            // Remove from map (remaining products will be deactivated)
-            existingProductsMap.delete(sku);
           }
         }
 
-        // Deactivate products not in ERP
-        for (const [sku, product] of existingProductsMap.entries()) {
-          if (product.activo) {
-            await tx
-              .update(inventoryProducts)
-              .set({
-                activo: false,
-                ultimaSincronizacion: new Date(),
-                sincronizadoPor: userId,
-                updatedAt: new Date(),
-              })
-              .where(eq(inventoryProducts.sku, sku));
-            productsDeactivated++;
-            changes.push({ sku, action: 'deactivated', name: product.nombre });
-          }
+        // Insert batch
+        if (batchData.length > 0) {
+          await db.insert(inventoryProducts).values(batchData);
+          recordsInserted += batchData.length;
+          console.log(`  ✓ Insertados ${recordsInserted}/${erpInventory.length} registros...`);
         }
-      });
+      }
 
       const duration = Date.now() - startTime;
-      const totalProcessed = productsNew + productsUpdated + productsDeactivated;
-
-      // Determine sync status based on validation errors
       const syncStatus: 'success' | 'partial' = validationErrors.length > 0 ? 'partial' : 'success';
 
       // Log sync to audit table
@@ -12657,41 +12640,43 @@ export class DatabaseStorage implements IStorage {
         userId,
         userEmail,
         status: syncStatus,
-        productsNew,
-        productsUpdated,
-        productsDeactivated,
-        totalProcessed,
+        productsNew: recordsInserted,
+        productsUpdated: 0,
+        productsDeactivated: 0,
+        totalProcessed: recordsInserted,
         duration,
         summary: { 
-          changes: changes.slice(0, 100),
-          validationErrors: validationErrors.slice(0, 50), // Include first 50 validation errors
+          erpRecordCount: erpInventory.length,
+          recordsInserted,
+          validationErrors: validationErrors.slice(0, 50),
+          validationErrorCount: validationErrors.length,
         },
         startedAt,
         completedAt: new Date(),
       });
 
       if (validationErrors.length > 0) {
-        console.log(`⚠️ Sync completed with ${validationErrors.length} validation errors: ${productsNew} new, ${productsUpdated} updated, ${productsDeactivated} deactivated in ${duration}ms`);
+        console.log(`⚠️ Sincronización completada con ${validationErrors.length} errores de validación: ${recordsInserted} registros insertados en ${duration}ms`);
       } else {
-        console.log(`✅ Sync completed: ${productsNew} new, ${productsUpdated} updated, ${productsDeactivated} deactivated in ${duration}ms`);
+        console.log(`✅ Sincronización completada: ${recordsInserted} registros de inventario insertados en ${duration}ms`);
       }
 
       return {
         status: syncStatus,
-        productsNew,
-        productsUpdated,
-        productsDeactivated,
-        totalProcessed,
+        productsNew: recordsInserted,
+        productsUpdated: 0,
+        productsDeactivated: 0,
+        totalProcessed: recordsInserted,
         duration,
         summary: {
-          erpProductCount: erpProducts.length,
-          changes: changes.slice(0, 100),
-          validationErrors: validationErrors.slice(0, 50), // Include first 50 validation errors
+          erpRecordCount: erpInventory.length,
+          recordsInserted,
+          validationErrors: validationErrors.slice(0, 50),
           validationErrorCount: validationErrors.length,
         },
       };
     } catch (error: any) {
-      // CRITICAL: Clear timeout FIRST to prevent unhandled rejection
+      // Clear timeout
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
         timeoutHandle = null;
@@ -12708,7 +12693,7 @@ export class DatabaseStorage implements IStorage {
       const duration = Date.now() - startTime;
       const errorMessage = error.message || 'Unknown error';
 
-      console.error('❌ Sync failed:', errorMessage);
+      console.error('❌ Sincronización fallida:', errorMessage);
 
       // Log failed sync
       try {
