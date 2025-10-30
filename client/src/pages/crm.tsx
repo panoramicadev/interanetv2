@@ -494,6 +494,7 @@ function LeadCard({
   stages: CrmStage[];
 }) {
   const [showComments, setShowComments] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const stageBadge = stageBadgeMap[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
   const isAdmin = currentUser?.role === 'admin';
@@ -571,29 +572,42 @@ function LeadCard({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <Button 
-              variant="ghost" 
+              variant={showComments ? "default" : "outline"}
               size="sm" 
-              className={`rounded-lg transition-colors ${isMobile ? 'h-7 w-7' : 'h-8 w-8'} ${showComments ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-500'}`}
+              className={`rounded-lg transition-all font-medium shadow-sm ${isMobile ? 'h-8 px-2 text-xs' : 'h-9 px-3 text-sm'} ${showComments ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700'}`}
               onClick={() => setShowComments(!showComments)}
               title="Ver bitácora de comentarios"
+              data-testid={`button-comments-${lead.id}`}
             >
-              <BookOpen className={isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
+              <BookOpen className={isMobile ? 'w-4 h-4 mr-1' : 'w-4 h-4 mr-1.5'} />
+              {!isMobile && <span>Bitácora</span>}
             </Button>
             {isAdmin && (
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className={`rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-500 hover:text-red-600 transition-colors ${isMobile ? 'h-7 w-7' : 'h-8 w-8'}`}
-                onClick={onDelete}
-                title="Eliminar lead"
+                className={`rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors ${isMobile ? 'h-8 w-8' : 'h-9 w-9'}`}
+                onClick={() => setIsEditDialogOpen(true)}
+                title="Editar lead"
+                data-testid={`button-edit-${lead.id}`}
               >
-                <Trash2 className={isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
+                <Edit className={isMobile ? 'w-4 h-4' : 'w-4 h-4'} />
               </Button>
             )}
           </div>
         </div>
+
+        {/* Modal de edición */}
+        {isAdmin && (
+          <EditLeadDialog
+            lead={lead}
+            open={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+            onDelete={onDelete}
+          />
+        )}
 
         {/* Información de contacto */}
         <div className={`space-y-1.5 min-w-0 overflow-hidden ${isMobile ? 'text-xs' : 'text-sm'}`}>
@@ -1273,6 +1287,329 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
       </form>
     </Form>
+  );
+}
+
+function EditLeadDialog({ 
+  lead, 
+  open, 
+  onOpenChange,
+  onDelete 
+}: { 
+  lead: CrmLead; 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+  onDelete: () => void;
+}) {
+  const { toast } = useToast();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const { data: segments = [] } = useQuery<string[]>({
+    queryKey: ['/api/goals/data/segments'],
+  });
+
+  const { data: users = [] } = useQuery<any[]>({
+    queryKey: ['/api/users'],
+  });
+
+  const formSchema = z.object({
+    clientName: z.string().min(1, "Nombre del cliente es requerido"),
+    salespersonId: z.string().min(1, "Vendedor es requerido"),
+    clientPhone: z.string().optional(),
+    clientEmail: z.string().email("Email inválido").optional().or(z.literal("")),
+    clientCompany: z.string().optional(),
+    clientAddress: z.string().optional(),
+    segment: z.string().optional(),
+    notes: z.string().optional(),
+  });
+
+  const form = useForm({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      clientName: lead.clientName || '',
+      clientPhone: lead.clientPhone || '',
+      clientEmail: lead.clientEmail || '',
+      clientCompany: lead.clientCompany || '',
+      clientAddress: lead.clientAddress || '',
+      segment: lead.segment || '',
+      salespersonId: lead.salespersonId || '',
+      notes: lead.notes || '',
+    },
+  });
+
+  // Reset form when lead changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        clientName: lead.clientName || '',
+        clientPhone: lead.clientPhone || '',
+        clientEmail: lead.clientEmail || '',
+        clientCompany: lead.clientCompany || '',
+        clientAddress: lead.clientAddress || '',
+        segment: lead.segment || '',
+        salespersonId: lead.salespersonId || '',
+        notes: lead.notes || '',
+      });
+    }
+  }, [open, lead, form]);
+
+  const updateLeadMutation = useMutation({
+    mutationFn: async (data: any) => {
+      // Find the selected salesperson's name from users list
+      const selectedUser = users.find((u: any) => u.id === data.salespersonId);
+      const salespersonName = selectedUser?.salespersonName || selectedUser?.firstName || selectedUser?.email || lead.salespersonName;
+      
+      const cleanData = {
+        clientName: data.clientName,
+        salespersonId: data.salespersonId,
+        salespersonName: salespersonName, // Preserve denormalized name
+        supervisorId: lead.supervisorId, // Preserve supervisor assignment
+        clientPhone: data.clientPhone || null,
+        clientEmail: data.clientEmail || null,
+        clientCompany: data.clientCompany || null,
+        clientAddress: data.clientAddress || null,
+        segment: data.segment || null,
+        notes: data.notes || null,
+      };
+      
+      return apiRequest(`/api/crm/leads/${lead.id}`, {
+        method: 'PUT',
+        data: cleanData
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/leads'] });
+      toast({
+        title: "Lead actualizado",
+        description: "Los cambios se han guardado exitosamente",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el lead",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: any) => {
+    updateLeadMutation.mutate(data);
+  };
+
+  const handleDelete = () => {
+    onDelete();
+    setShowDeleteConfirm(false);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Editar Lead</DialogTitle>
+        </DialogHeader>
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="clientName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre del Cliente *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-client-name" placeholder="Juan Pérez" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="clientCompany"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Empresa</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-company-name" placeholder="Empresa S.A." />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="clientPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teléfono</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-phone" placeholder="+56 9 1234 5678" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="clientEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" data-testid="input-edit-email" placeholder="correo@ejemplo.com" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="segment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Segmento</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-segment">
+                          <SelectValue placeholder="Selecciona segmento" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {segments.map((segment) => (
+                          <SelectItem key={segment} value={segment}>{segment}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="salespersonId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vendedor Asignado *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-edit-salesperson">
+                          <SelectValue placeholder="Selecciona vendedor" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {users
+                          .filter((u: any) => u.role === 'salesperson' || u.role === 'supervisor' || u.role === 'admin')
+                          .map((user: any) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.salespersonName || user.firstName || user.email}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="clientAddress"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Dirección</FormLabel>
+                  <FormControl>
+                    <Input {...field} data-testid="input-edit-address" placeholder="Av. Principal 123, Santiago" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notas</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} rows={3} data-testid="textarea-edit-notes" placeholder="Notas adicionales..." />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex justify-between items-center gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+              {!showDeleteConfirm ? (
+                <>
+                  <Button 
+                    type="button" 
+                    variant="destructive" 
+                    onClick={() => setShowDeleteConfirm(true)}
+                    data-testid="button-show-delete-confirm"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Eliminar Lead
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => onOpenChange(false)}
+                      data-testid="button-cancel-edit"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={updateLeadMutation.isPending}
+                      data-testid="button-submit-edit-lead"
+                    >
+                      {updateLeadMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                    ¿Estás seguro de eliminar este lead?
+                  </p>
+                  <div className="flex gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setShowDeleteConfirm(false)}
+                      data-testid="button-cancel-delete"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="destructive" 
+                      onClick={handleDelete}
+                      data-testid="button-confirm-delete"
+                    >
+                      Sí, Eliminar
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
