@@ -12077,15 +12077,41 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getWarehouses(): Promise<{ code: string; name: string }[]> {
-    const results = await db
-      .select({
-        code: warehouses.code,
-        name: warehouses.name,
-      })
-      .from(warehouses)
-      .orderBy(asc(warehouses.name));
-    
-    return results;
+    try {
+      const pool = await mssql.connect({
+        server: process.env.SQL_SERVER_HOST || '',
+        port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
+        user: process.env.SQL_SERVER_USER || '',
+        password: process.env.SQL_SERVER_PASSWORD || '',
+        database: process.env.SQL_SERVER_DATABASE || '',
+        options: {
+          encrypt: true,
+          trustServerCertificate: true,
+          enableArithAbort: true,
+        },
+        connectionTimeout: 30000,
+        requestTimeout: 30000,
+      });
+
+      const result = await pool.request().query(`
+        SELECT DISTINCT
+          KOBO as code,
+          NOKOBO as name
+        FROM TABBO
+        WHERE KOBO IS NOT NULL AND KOBO != ''
+        ORDER BY NOKOBO
+      `);
+
+      await pool.close();
+
+      return result.recordset.map((row: any) => ({
+        code: row.code || '',
+        name: row.name || row.code || '',
+      }));
+    } catch (error: any) {
+      console.error('Error fetching warehouses from SQL Server:', error.message);
+      return [];
+    }
   }
 
   async getBranches(): Promise<{ code: string; name: string }[]> {
@@ -12243,6 +12269,343 @@ export class DatabaseStorage implements IStorage {
       totalValue,
       lowStock,
     };
+  }
+
+  // ==================================================================================
+  // INVENTORY SYNC operations
+  // ==================================================================================
+
+  private syncInProgress = false;
+
+  async syncProductsFromERP(userId: string, userEmail: string): Promise<{
+    status: 'success' | 'error' | 'partial';
+    productsNew: number;
+    productsUpdated: number;
+    productsDeactivated: number;
+    totalProcessed: number;
+    duration: number;
+    errorMessage?: string;
+    summary: any;
+  }> {
+    // Check if sync is already in progress
+    if (this.syncInProgress) {
+      return {
+        status: 'error',
+        productsNew: 0,
+        productsUpdated: 0,
+        productsDeactivated: 0,
+        totalProcessed: 0,
+        duration: 0,
+        errorMessage: 'Sync already in progress. Please wait for the current sync to complete.',
+        summary: { error: 'Sync already in progress' },
+      };
+    }
+
+    this.syncInProgress = true;
+    const startTime = Date.now();
+    const startedAt = new Date();
+    let pool: any = null;
+    let connectionTimedOut = false;
+    let timeoutHandle: NodeJS.Timeout | null = null;
+
+    try {
+      // Connect to SQL Server with proper timeout handling
+      const connectionPromise = mssql.connect({
+        server: process.env.SQL_SERVER_HOST || '',
+        port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
+        user: process.env.SQL_SERVER_USER || '',
+        password: process.env.SQL_SERVER_PASSWORD || '',
+        database: process.env.SQL_SERVER_DATABASE || '',
+        options: {
+          encrypt: true,
+          trustServerCertificate: true,
+          enableArithAbort: true,
+        },
+        connectionTimeout: 30000,
+        requestTimeout: 30000,
+      });
+
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          connectionTimedOut = true;
+          reject(new Error('SQL Server connection timeout'));
+        }, 30000);
+      });
+
+      pool = await Promise.race([connectionPromise, timeoutPromise]);
+
+      // INMEDIATAMENTE clear the timeout after successful connection
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = null;
+      }
+
+      // If timeout occurred, close any potential connection leak
+      if (connectionTimedOut && pool) {
+        try {
+          await pool.close();
+          pool = null;
+        } catch (closeError) {
+          console.error('Error closing pool after timeout:', closeError);
+        }
+        throw new Error('SQL Server connection timeout');
+      }
+
+      // Verify pool exists before using it
+      if (!pool) {
+        throw new Error('SQL Server connection failed - pool is null');
+      }
+
+      // Fetch all products from ERP
+      const result = await pool.request().query(`
+        SELECT 
+          KOPR as sku,
+          NOKOPR as name,
+          UD01PR as unit1,
+          UD02PR as unit2,
+          FMPR as category,
+          PM as averagePrice
+        FROM MAEPR
+        WHERE KOPR IS NOT NULL AND KOPR != ''
+        ORDER BY KOPR
+      `);
+
+      await pool.close();
+      pool = null;
+
+      const erpProducts = result.recordset;
+      console.log(`📦 Fetched ${erpProducts.length} products from ERP`);
+
+      // Get existing products from PostgreSQL
+      const existingProducts = await db
+        .select()
+        .from(inventoryProducts);
+
+      const existingProductsMap = new Map(
+        existingProducts.map(p => [p.sku, p])
+      );
+
+      let productsNew = 0;
+      let productsUpdated = 0;
+      let productsDeactivated = 0;
+      const changes: any[] = [];
+      const validationErrors: any[] = [];
+
+      // Start transaction
+      await db.transaction(async (tx) => {
+        // Process each ERP product
+        for (const erpProduct of erpProducts) {
+          const sku = erpProduct.sku?.toString()?.trim();
+          if (!sku) continue;
+
+          const name = erpProduct.name?.toString()?.trim() || '';
+          const unit1 = erpProduct.unit1?.toString()?.trim() || null;
+          const unit2 = erpProduct.unit2?.toString()?.trim() || null;
+          const category = erpProduct.category?.toString()?.trim() || null;
+          const averagePrice = parseFloat(erpProduct.averagePrice) || 0;
+
+          // Prepare product data for validation
+          const productData = {
+            sku,
+            name,
+            unit1,
+            unit2,
+            category,
+            averagePrice,
+            active: true,
+            lastSyncAt: new Date(),
+            syncedBy: userId,
+          };
+
+          // Validate product data using Zod schema
+          let validatedData;
+          try {
+            validatedData = insertInventoryProductSchema.parse(productData);
+          } catch (validationError: any) {
+            validationErrors.push({
+              sku,
+              name,
+              error: validationError.message || 'Validation failed',
+              details: validationError.errors || validationError,
+            });
+            console.warn(`⚠️ Skipping invalid product ${sku}: ${validationError.message}`);
+            continue; // Skip this product
+          }
+
+          const existing = existingProductsMap.get(sku);
+
+          if (!existing) {
+            // New product
+            await tx.insert(inventoryProducts).values(validatedData);
+            productsNew++;
+            changes.push({ sku, action: 'new', name });
+          } else {
+            // Check if product needs update
+            const needsUpdate = 
+              existing.name !== name ||
+              existing.unit1 !== unit1 ||
+              existing.unit2 !== unit2 ||
+              existing.category !== category ||
+              Math.abs((existing.averagePrice || 0) - averagePrice) > 0.01 ||
+              !existing.active;
+
+            if (needsUpdate) {
+              await tx
+                .update(inventoryProducts)
+                .set({
+                  ...validatedData,
+                  updatedAt: new Date(),
+                })
+                .where(eq(inventoryProducts.sku, sku));
+              productsUpdated++;
+              changes.push({ sku, action: 'updated', name });
+            }
+
+            // Remove from map (remaining products will be deactivated)
+            existingProductsMap.delete(sku);
+          }
+        }
+
+        // Deactivate products not in ERP
+        for (const [sku, product] of existingProductsMap.entries()) {
+          if (product.active) {
+            await tx
+              .update(inventoryProducts)
+              .set({
+                active: false,
+                lastSyncAt: new Date(),
+                syncedBy: userId,
+                updatedAt: new Date(),
+              })
+              .where(eq(inventoryProducts.sku, sku));
+            productsDeactivated++;
+            changes.push({ sku, action: 'deactivated', name: product.name });
+          }
+        }
+      });
+
+      const duration = Date.now() - startTime;
+      const totalProcessed = productsNew + productsUpdated + productsDeactivated;
+
+      // Determine sync status based on validation errors
+      const syncStatus: 'success' | 'partial' = validationErrors.length > 0 ? 'partial' : 'success';
+
+      // Log sync to audit table
+      await db.insert(inventorySyncLog).values({
+        userId,
+        userEmail,
+        status: syncStatus,
+        productsNew,
+        productsUpdated,
+        productsDeactivated,
+        totalProcessed,
+        duration,
+        summary: { 
+          changes: changes.slice(0, 100),
+          validationErrors: validationErrors.slice(0, 50), // Include first 50 validation errors
+        },
+        startedAt,
+        completedAt: new Date(),
+      });
+
+      if (validationErrors.length > 0) {
+        console.log(`⚠️ Sync completed with ${validationErrors.length} validation errors: ${productsNew} new, ${productsUpdated} updated, ${productsDeactivated} deactivated in ${duration}ms`);
+      } else {
+        console.log(`✅ Sync completed: ${productsNew} new, ${productsUpdated} updated, ${productsDeactivated} deactivated in ${duration}ms`);
+      }
+
+      return {
+        status: syncStatus,
+        productsNew,
+        productsUpdated,
+        productsDeactivated,
+        totalProcessed,
+        duration,
+        summary: {
+          erpProductCount: erpProducts.length,
+          changes: changes.slice(0, 100),
+          validationErrors: validationErrors.slice(0, 50), // Include first 50 validation errors
+          validationErrorCount: validationErrors.length,
+        },
+      };
+    } catch (error: any) {
+      // CRITICAL: Clear timeout FIRST to prevent unhandled rejection
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = null;
+      }
+
+      if (pool) {
+        try {
+          await pool.close();
+        } catch (closeError) {
+          console.error('Error closing SQL Server connection:', closeError);
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      const errorMessage = error.message || 'Unknown error';
+
+      console.error('❌ Sync failed:', errorMessage);
+
+      // Log failed sync
+      try {
+        await db.insert(inventorySyncLog).values({
+          userId,
+          userEmail,
+          status: 'error',
+          productsNew: 0,
+          productsUpdated: 0,
+          productsDeactivated: 0,
+          totalProcessed: 0,
+          duration,
+          errorMessage,
+          summary: { error: errorMessage },
+          startedAt,
+          completedAt: new Date(),
+        });
+      } catch (logError) {
+        console.error('Failed to log sync error:', logError);
+      }
+
+      return {
+        status: 'error',
+        productsNew: 0,
+        productsUpdated: 0,
+        productsDeactivated: 0,
+        totalProcessed: 0,
+        duration,
+        errorMessage,
+        summary: { error: errorMessage },
+      };
+    } finally {
+      // CRITICAL: Clear timeout for absolute guarantee (defense-in-depth)
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+        timeoutHandle = null;
+      }
+      
+      // Always release the sync lock, regardless of success or failure
+      this.syncInProgress = false;
+    }
+  }
+
+  async getLastSync(): Promise<InventorySyncLog | null> {
+    const [lastSync] = await db
+      .select()
+      .from(inventorySyncLog)
+      .orderBy(desc(inventorySyncLog.createdAt))
+      .limit(1);
+    
+    return lastSync || null;
+  }
+
+  async getSyncHistory(limit: number = 20): Promise<InventorySyncLog[]> {
+    return db
+      .select()
+      .from(inventorySyncLog)
+      .orderBy(desc(inventorySyncLog.createdAt))
+      .limit(limit);
   }
 
   // ==================================================================================
