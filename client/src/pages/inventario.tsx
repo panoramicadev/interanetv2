@@ -382,21 +382,9 @@ function InventoryTable({
   return (
     <Card className="rounded-3xl border-0 bg-white dark:bg-slate-900 shadow-sm">
       <CardHeader>
-        <div className="flex justify-between items-center">
-          <div>
-            <CardTitle className="text-xl font-bold text-gray-900 dark:text-gray-100">Inventario de Productos</CardTitle>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Listado detallado por sucursal y bodega</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            data-testid="button-refresh"
-            className="rounded-xl"
-          >
-            <RefreshCcw className="h-4 w-4 mr-2" />
-            Actualizar
-          </Button>
+        <div>
+          <CardTitle className="text-xl font-bold text-gray-900 dark:text-gray-100">Inventario de Productos</CardTitle>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Listado detallado por sucursal y bodega</p>
         </div>
       </CardHeader>
       <CardContent>

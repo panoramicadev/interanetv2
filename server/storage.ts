@@ -185,6 +185,10 @@ import {
   factVentas,
   type FactVentas,
   type InsertFactVentas,
+  // Inventory hybrid system
+  inventoryProducts,
+  inventorySyncLog,
+  type InsertInventoryProduct,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
