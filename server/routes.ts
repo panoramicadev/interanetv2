@@ -9302,11 +9302,12 @@ export function registerRoutes(app: Express): Server {
   // Get inventory summary
   app.get('/api/inventory/summary', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse } = req.query;
+      const { search, warehouse, branch } = req.query;
       
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
+      if (branch) filters.branch = branch;
       
       const summary = await storage.getInventorySummary(filters);
       res.json(summary);
@@ -9325,14 +9326,25 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get branches list
+  app.get('/api/branches', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const branches = await storage.getBranches();
+      res.json(branches);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener sucursales', error: error.message });
+    }
+  }));
+
   // Get inventory with prices from SQL Server
   app.get('/api/inventory-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse } = req.query;
+      const { search, warehouse, branch } = req.query;
       
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
+      if (branch) filters.branch = branch;
       
       const inventory = await storage.getInventoryWithPrices(filters);
       res.json(inventory);
@@ -9344,11 +9356,12 @@ export function registerRoutes(app: Express): Server {
   // Get inventory summary with prices and total value
   app.get('/api/inventory/summary-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse } = req.query;
+      const { search, warehouse, branch } = req.query;
       
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
+      if (branch) filters.branch = branch;
       
       const summary = await storage.getInventorySummaryWithPrices(filters);
       res.json(summary);
