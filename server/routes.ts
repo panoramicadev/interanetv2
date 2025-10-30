@@ -2990,10 +2990,11 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get all warehouses
+  // Get all warehouses (optionally filtered by branch)
   app.get('/api/warehouses', requireAuth, async (req: any, res) => {
     try {
-      const warehouses = await storage.getWarehouses();
+      const { branch } = req.query;
+      const warehouses = await storage.getWarehouses(branch as string);
       res.json(warehouses);
     } catch (error) {
       console.error("Error fetching warehouses:", error);
