@@ -15,6 +15,7 @@ interface PackagingSalesMetricsProps {
   filterType: "day" | "month" | "year" | "range";
   segment?: string;
   salesperson?: string;
+  branch?: string;
 }
 
 // Mapping packaging codes to friendly names
@@ -33,9 +34,9 @@ const packagingNames: Record<string, string> = {
   'OT': 'Otros'
 };
 
-export default function PackagingSalesMetrics({ selectedPeriod, filterType, segment, salesperson }: PackagingSalesMetricsProps) {
+export default function PackagingSalesMetrics({ selectedPeriod, filterType, segment, salesperson, branch }: PackagingSalesMetricsProps) {
   const { data: packagingData, isLoading } = useQuery<PackagingMetric[]>({
-    queryKey: [`/api/sales/packaging-metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/packaging-metrics?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}${branch ? `&branch=${encodeURIComponent(branch)}` : ''}`],
   });
 
   const formatCurrency = (value: number) => {
