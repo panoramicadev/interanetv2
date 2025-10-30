@@ -2230,6 +2230,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         packagingType: sql<string>`
           CASE 
+            WHEN UPPER(${salesTransactions.nokoprct}) LIKE '% 5 GALON%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% 5 GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% 5GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% 5GAL%' THEN 'B5'
             WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%BALDE%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%BALDES%' THEN 'BD'
             WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%4 GALONES%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%4 GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%4GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%CUARTO%' THEN 'Q4'
             WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%GL.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GL %' OR UPPER(${salesTransactions.nokoprct}) LIKE '% GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GALON%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GALONES%' THEN 'GL'
@@ -2249,6 +2250,7 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .groupBy(sql`
         CASE 
+          WHEN UPPER(${salesTransactions.nokoprct}) LIKE '% 5 GALON%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% 5 GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% 5GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '% 5GAL%' THEN 'B5'
           WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%BALDE%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%BALDES%' THEN 'BD'
           WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%4 GALONES%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%4 GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%4GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%CUARTO%' THEN 'Q4'
           WHEN UPPER(${salesTransactions.nokoprct}) LIKE '%GL.%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GL %' OR UPPER(${salesTransactions.nokoprct}) LIKE '% GL%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GALON%' OR UPPER(${salesTransactions.nokoprct}) LIKE '%GALONES%' THEN 'GL'
