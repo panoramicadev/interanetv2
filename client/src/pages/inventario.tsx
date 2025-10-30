@@ -31,8 +31,11 @@ interface ProductStock {
   warehouseCode: string;
   warehouseName: string | null;
   quantity: number;
+  unit?: string;
   reservedQuantity: number;
   availableQuantity: number;
+  averagePrice?: number;
+  totalValue?: number;
   lastUpdated: string | null;
 }
 
@@ -166,15 +169,16 @@ function StockSummary({
     totalProducts: number;
     totalQuantity: number;
     totalAvailable: number;
+    totalValue: number;
     lowStock: number;
   }>({
-    queryKey: ['/api/inventory/summary', searchTerm, selectedWarehouse],
+    queryKey: ['/api/inventory/summary-with-prices', searchTerm, selectedWarehouse],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (selectedWarehouse !== 'all') params.append('warehouse', selectedWarehouse);
       
-      const response = await fetch(`/api/inventory/summary?${params}`, {
+      const response = await fetch(`/api/inventory/summary-with-prices?${params}`, {
         credentials: 'include'
       });
       if (!response.ok) {
@@ -183,6 +187,7 @@ function StockSummary({
             totalProducts: 0,
             totalQuantity: 0,
             totalAvailable: 0,
+            totalValue: 0,
             lowStock: 0,
           };
         }
@@ -193,7 +198,7 @@ function StockSummary({
   });
 
   return (
-    <div className="grid gap-4 md:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-5">
       <Card data-testid="card-total-products">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
@@ -231,6 +236,19 @@ function StockSummary({
         </CardContent>
       </Card>
 
+      <Card data-testid="card-total-value" className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Valor Total Inventario</CardTitle>
+          <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+            ${(summary?.totalValue || 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+          </div>
+          <p className="text-xs text-blue-700 dark:text-blue-300">Valorización total a precio medio</p>
+        </CardContent>
+      </Card>
+
       <Card data-testid="card-low-stock">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Stock Bajo</CardTitle>
@@ -256,13 +274,13 @@ function InventoryTable({
   selectedWarehouse: string;
 }) {
   const { data: inventory, isLoading, refetch } = useQuery<ProductStock[]>({
-    queryKey: ['/api/inventory', searchTerm, selectedWarehouse],
+    queryKey: ['/api/inventory-with-prices', searchTerm, selectedWarehouse],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (selectedWarehouse !== 'all') params.append('warehouse', selectedWarehouse);
       
-      const response = await fetch(`/api/inventory?${params}`, {
+      const response = await fetch(`/api/inventory-with-prices?${params}`, {
         credentials: 'include'
       });
       if (!response.ok) {
@@ -316,8 +334,9 @@ function InventoryTable({
                   <TableHead>Producto</TableHead>
                   <TableHead>Bodega</TableHead>
                   <TableHead className="text-right">Stock Total</TableHead>
-                  <TableHead className="text-right">Reservado</TableHead>
-                  <TableHead className="text-right">Disponible</TableHead>
+                  <TableHead className="text-right">Unidad</TableHead>
+                  <TableHead className="text-right">Precio Medio</TableHead>
+                  <TableHead className="text-right">Valor Inventario</TableHead>
                   <TableHead>Estado</TableHead>
                 </TableRow>
               </TableHeader>
@@ -330,17 +349,14 @@ function InventoryTable({
                     <TableCell className="text-right">
                       {item.quantity.toLocaleString('es-CL')}
                     </TableCell>
-                    <TableCell className="text-right">
-                      {item.reservedQuantity > 0 ? (
-                        <span className="text-orange-600">
-                          {item.reservedQuantity.toLocaleString('es-CL')}
-                        </span>
-                      ) : (
-                        '-'
-                      )}
+                    <TableCell className="text-right text-xs text-muted-foreground">
+                      {item.unit || '-'}
                     </TableCell>
-                    <TableCell className="text-right font-bold">
-                      {item.availableQuantity.toLocaleString('es-CL')}
+                    <TableCell className="text-right font-medium">
+                      {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400">
+                      {item.totalValue ? `$${item.totalValue.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
                     </TableCell>
                     <TableCell>
                       {getStockBadge(item.availableQuantity, item.reservedQuantity)}
