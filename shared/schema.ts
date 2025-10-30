@@ -948,9 +948,9 @@ export const insertInventoryProductSchema = createInsertSchema(inventoryProducts
   createdAt: true,
   updatedAt: true,
 }).extend({
-  precioMedio: z.union([z.string(), z.number()]).transform(val => 
-    typeof val === 'number' ? val.toString() : val
-  ).optional(),
+  precioMedio: z.union([z.string(), z.number(), z.null()]).transform(val => 
+    val === null || val === undefined ? null : (typeof val === 'number' ? val.toString() : val)
+  ).nullable().optional(),
 });
 
 export const insertInventorySyncLogSchema = createInsertSchema(inventorySyncLog).omit({
