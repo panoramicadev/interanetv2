@@ -22,7 +22,9 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw } from "lucide-react";
+import { Package, Search, AlertCircle, CheckCircle, Loader2, RefreshCcw, Database } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface ProductStock {
   id?: number;
@@ -86,11 +88,14 @@ export default function Inventario() {
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold" data-testid="text-page-title">Inventario</h1>
           <p className="text-muted-foreground">Gestión de stock y disponibilidad de productos</p>
         </div>
+        {(user.role === 'admin' || user.role === 'supervisor') && (
+          <SyncCatalogButton />
+        )}
       </div>
 
       {/* Filters Card */}
@@ -465,5 +470,106 @@ function InventoryTable({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function SyncCatalogButton() {
+  const { toast } = useToast();
+
+  const { data: lastSync, isLoading: isLoadingLastSync } = useQuery<{
+    id: number;
+    timestamp: string;
+    userId: string;
+    userEmail: string;
+    productosNuevos: number;
+    productosActualizados: number;
+    productosDesactivados: number;
+    totalProcesados: number;
+    duracion: number;
+    estado: string;
+    mensajeError: string | null;
+    summary: any;
+  } | null>({
+    queryKey: ['/api/inventory/last-sync'],
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/inventory/sync', {
+        method: 'POST',
+      });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory/last-sync'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory/summary'] });
+      
+      if (data.status === 'success') {
+        toast({
+          title: "Sincronización completada",
+          description: `Se procesaron ${data.totalProcessed} productos: ${data.productsNew} nuevos, ${data.productsUpdated} actualizados, ${data.productsDeactivated} desactivados`,
+        });
+      } else if (data.status === 'partial') {
+        toast({
+          title: "Sincronización parcial",
+          description: `Se procesaron ${data.totalProcessed} productos con algunos errores. Revisa el historial para más detalles.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Error en sincronización",
+          description: data.errorMessage || "Ocurrió un error durante la sincronización",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo sincronizar el catálogo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <Button
+        onClick={() => syncMutation.mutate()}
+        disabled={syncMutation.isPending}
+        data-testid="button-sync-catalog"
+        className="gap-2"
+      >
+        {syncMutation.isPending ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Sincronizando...
+          </>
+        ) : (
+          <>
+            <Database className="h-4 w-4" />
+            Sincronizar Catálogo
+          </>
+        )}
+      </Button>
+      
+      {!isLoadingLastSync && lastSync && (
+        <p className="text-xs text-muted-foreground" data-testid="text-last-sync">
+          Última sincronización:{" "}
+          {formatDistanceToNow(new Date(lastSync.timestamp), {
+            addSuffix: true,
+            locale: es,
+          })}
+          {" "}
+          ({lastSync.totalProcesados} productos)
+        </p>
+      )}
+      
+      {!isLoadingLastSync && !lastSync && (
+        <p className="text-xs text-muted-foreground">
+          No hay sincronizaciones previas
+        </p>
+      )}
+    </div>
   );
 }
