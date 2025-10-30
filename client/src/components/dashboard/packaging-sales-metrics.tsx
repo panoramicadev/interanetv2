@@ -19,6 +19,7 @@ interface PackagingSalesMetricsProps {
 
 // Mapping packaging codes to friendly names
 const packagingNames: Record<string, string> = {
+  'B5': 'Balde 5 Galones',
   'BD': 'Baldes',
   'GL': 'Galones',
   'Q4': '4 Galones',

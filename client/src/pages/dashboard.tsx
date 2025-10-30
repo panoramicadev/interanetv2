@@ -1285,6 +1285,16 @@ export default function Dashboard() {
                 />
               </div>
 
+              {/* Packaging Metrics - Full Width */}
+              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+                <PackagingSalesMetrics 
+                  selectedPeriod={selectedPeriod} 
+                  filterType={filterType}
+                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+                />
+              </div>
+
               {/* Sales Team & Client Analytics - Full Width Column */}
               <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                 <TopSalespeoplePanel 
@@ -1297,16 +1307,6 @@ export default function Dashboard() {
 
               <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
                 <TopClientsPanel 
-                  selectedPeriod={selectedPeriod} 
-                  filterType={filterType}
-                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                />
-              </div>
-
-              {/* Packaging Metrics - Full Width */}
-              <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-                <PackagingSalesMetrics 
                   selectedPeriod={selectedPeriod} 
                   filterType={filterType}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
