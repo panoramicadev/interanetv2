@@ -1212,7 +1212,7 @@ export interface IStorage {
     lowStock: number;
   }>;
   
-  getWarehouses(): Promise<{ code: string; name: string }[]>;
+  getWarehouses(branch?: string): Promise<{ code: string; name: string }[]>;
   getBranches(): Promise<{ code: string; name: string }[]>;
 
   // ==================================================================================
@@ -12338,8 +12338,32 @@ export class DatabaseStorage implements IStorage {
     };
   }
   
-  async getWarehouses(): Promise<{ code: string; name: string }[]> {
+  async getWarehouses(branch?: string): Promise<{ code: string; name: string }[]> {
     try {
+      // If branch is specified, filter warehouses from PostgreSQL inventory
+      if (branch && branch !== 'all') {
+        const warehouses = await db
+          .selectDistinct({
+            code: inventoryProducts.bodega,
+            name: inventoryProducts.nombreBodega,
+          })
+          .from(inventoryProducts)
+          .where(
+            and(
+              eq(inventoryProducts.sucursal, branch),
+              isNotNull(inventoryProducts.bodega),
+              sql`${inventoryProducts.bodega} != ''`
+            )
+          )
+          .orderBy(inventoryProducts.bodega);
+
+        return warehouses.map((w) => ({
+          code: w.code || '',
+          name: w.name || w.code || '',
+        }));
+      }
+
+      // Otherwise, fetch all warehouses from SQL Server
       const pool = await mssql.connect({
         server: process.env.SQL_SERVER_HOST || '',
         port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
@@ -12371,7 +12395,7 @@ export class DatabaseStorage implements IStorage {
         name: row.name || row.code || '',
       }));
     } catch (error: any) {
-      console.error('Error fetching warehouses from SQL Server:', error.message);
+      console.error('Error fetching warehouses:', error.message);
       return [];
     }
   }

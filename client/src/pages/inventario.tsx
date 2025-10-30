@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -68,6 +68,11 @@ export default function Inventario() {
   const [hideNoStock, setHideNoStock] = useState(false);
   const [hideZZProducts, setHideZZProducts] = useState(false);
 
+  // Reset warehouse filter when branch changes
+  useEffect(() => {
+    setSelectedWarehouse("all");
+  }, [selectedBranch]);
+
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -130,6 +135,7 @@ export default function Inventario() {
             <WarehouseFilter
               selectedWarehouse={selectedWarehouse}
               onWarehouseChange={setSelectedWarehouse}
+              selectedBranch={selectedBranch}
             />
           </div>
           
@@ -231,14 +237,21 @@ function BranchFilter({
 function WarehouseFilter({
   selectedWarehouse,
   onWarehouseChange,
+  selectedBranch,
 }: {
   selectedWarehouse: string;
   onWarehouseChange: (warehouse: string) => void;
+  selectedBranch: string;
 }) {
   const { data: warehouses, isLoading } = useQuery<Warehouse[]>({
-    queryKey: ['/api/warehouses'],
+    queryKey: ['/api/warehouses', selectedBranch],
     queryFn: async () => {
-      const response = await fetch('/api/warehouses', {
+      const params = new URLSearchParams();
+      if (selectedBranch && selectedBranch !== 'all') {
+        params.append('branch', selectedBranch);
+      }
+      
+      const response = await fetch(`/api/warehouses?${params}`, {
         credentials: 'include'
       });
       if (!response.ok) {
