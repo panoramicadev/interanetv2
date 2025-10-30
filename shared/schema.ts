@@ -356,14 +356,14 @@ export const productPriceHistory = pgTable("product_price_history", {
 export const inventoryProducts = pgTable("inventory_products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sku: varchar("sku").notNull().unique(), // KOPR - Product code from ERP
-  name: text("name").notNull(), // NOKOPR - Product name
-  unit1: varchar("unit1"), // UD01PR - Primary unit (reference only)
-  unit2: varchar("unit2"), // UD02PR - Secondary unit (used for calculations)
-  category: varchar("category"), // Product category/family
-  averagePrice: numeric("average_price", { precision: 15, scale: 2 }), // PM - Precio Medio from ERP
-  active: boolean("active").default(true), // Product is active in catalog
-  lastSyncAt: timestamp("last_sync_at"), // Last time synced from ERP
-  syncedBy: varchar("synced_by"), // User ID who triggered sync
+  nombre: text("nombre").notNull(), // NOKOPR - Product name
+  unidad1: varchar("unidad1"), // UD01PR - Primary unit (reference only)
+  unidad2: varchar("unidad2"), // UD02PR - Secondary unit (used for calculations)
+  categoria: varchar("categoria"), // Product category/family
+  precioMedio: numeric("precio_medio", { precision: 15, scale: 2 }), // PM - Precio Medio from ERP
+  activo: boolean("activo").default(true), // Product is active in catalog
+  ultimaSincronizacion: timestamp("ultima_sincronizacion"), // Last time synced from ERP
+  sincronizadoPor: varchar("sincronizado_por"), // User ID who triggered sync
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
