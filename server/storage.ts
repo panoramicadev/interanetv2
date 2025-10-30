@@ -1202,6 +1202,8 @@ export interface IStorage {
     search?: string;
     warehouse?: string;
     branch?: string;
+    hideNoStock?: boolean;
+    hideZZProducts?: boolean;
   }): Promise<{
     totalProducts: number;
     totalQuantity: number;
@@ -12552,6 +12554,8 @@ export class DatabaseStorage implements IStorage {
     search?: string;
     warehouse?: string;
     branch?: string;
+    hideNoStock?: boolean;
+    hideZZProducts?: boolean;
   }): Promise<{
     totalProducts: number;
     totalQuantity: number;
@@ -12559,7 +12563,16 @@ export class DatabaseStorage implements IStorage {
     totalValue: number;
     lowStock: number;
   }> {
-    const inventory = await this.getInventoryWithPrices(filters);
+    let inventory = await this.getInventoryWithPrices(filters);
+    
+    // Apply client-side filters
+    if (filters?.hideNoStock) {
+      inventory = inventory.filter(item => item.availableQuantity > 0);
+    }
+    
+    if (filters?.hideZZProducts) {
+      inventory = inventory.filter(item => !item.productSku?.toUpperCase().startsWith('ZZ'));
+    }
     
     const totalProducts = inventory.length;
     const totalQuantity = inventory.reduce((sum, item) => sum + item.quantity, 0);

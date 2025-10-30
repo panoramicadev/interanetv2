@@ -9379,12 +9379,14 @@ export function registerRoutes(app: Express): Server {
   // Get inventory summary with prices and total value
   app.get('/api/inventory/summary-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { search, warehouse, branch } = req.query;
+      const { search, warehouse, branch, hideNoStock, hideZZProducts } = req.query;
       
       const filters: any = {};
       if (search) filters.search = search;
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
+      if (hideNoStock === 'true') filters.hideNoStock = true;
+      if (hideZZProducts === 'true') filters.hideZZProducts = true;
       
       const summary = await storage.getInventorySummaryWithPrices(filters);
       res.json(summary);
