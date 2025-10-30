@@ -190,6 +190,7 @@ import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
+import mssql from 'mssql';
 
 // Utility function to normalize comuna names for consistent regional mapping
 function normalizeComunaName(name: string | null): string | null {
@@ -1156,6 +1157,11 @@ export interface IStorage {
     warehouse?: string;
   }): Promise<any[]>;
   
+  getInventoryWithPrices(filters?: {
+    search?: string;
+    warehouse?: string;
+  }): Promise<any[]>;
+  
   getInventorySummary(filters?: {
     search?: string;
     warehouse?: string;
@@ -1163,6 +1169,17 @@ export interface IStorage {
     totalProducts: number;
     totalQuantity: number;
     totalAvailable: number;
+    lowStock: number;
+  }>;
+  
+  getInventorySummaryWithPrices(filters?: {
+    search?: string;
+    warehouse?: string;
+  }): Promise<{
+    totalProducts: number;
+    totalQuantity: number;
+    totalAvailable: number;
+    totalValue: number;
     lowStock: number;
   }>;
   
@@ -12065,6 +12082,105 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(warehouses.name));
     
     return results;
+  }
+
+  async getInventoryWithPrices(filters?: {
+    search?: string;
+    warehouse?: string;
+  }): Promise<any[]> {
+    try {
+      const pool = await mssql.connect({
+        server: process.env.SQL_SERVER_HOST || '',
+        port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
+        user: process.env.SQL_SERVER_USER || '',
+        password: process.env.SQL_SERVER_PASSWORD || '',
+        database: process.env.SQL_SERVER_DATABASE || '',
+        options: {
+          encrypt: true,
+          trustServerCertificate: true,
+          enableArithAbort: true,
+        },
+        connectionTimeout: 30000,
+        requestTimeout: 30000,
+      });
+
+      let query = `
+        SELECT 
+          p.KOPR as productSku,
+          p.NOKOPR as productName,
+          p.PM as averagePrice,
+          p.STFI1 as stock1,
+          p.STFI2 as stock2,
+          p.UD01PR as unit1,
+          p.UD02PR as unit2,
+          'TOTAL' as warehouseCode,
+          'Total General' as warehouseName
+        FROM MAEPR p
+        WHERE p.STFI1 > 0 OR p.STFI2 > 0
+      `;
+
+      const params: any = [];
+
+      if (filters?.search) {
+        query += ` AND (p.KOPR LIKE @search OR p.NOKOPR LIKE @search)`;
+        params.push({ name: 'search', value: `%${filters.search}%` });
+      }
+
+      query += ` ORDER BY p.KOPR`;
+
+      const request = pool.request();
+      params.forEach((param: any) => {
+        request.input(param.name, mssql.NVarChar, param.value);
+      });
+
+      const result = await request.query(query);
+
+      await pool.close();
+
+      return result.recordset.map((row: any) => ({
+        productSku: row.productSku || '',
+        productName: row.productName || '',
+        warehouseCode: row.warehouseCode,
+        warehouseName: row.warehouseName,
+        quantity: parseFloat(row.stock1) || 0,
+        unit: row.unit1 || '',
+        reservedQuantity: 0,
+        availableQuantity: parseFloat(row.stock1) || 0,
+        averagePrice: parseFloat(row.averagePrice) || 0,
+        totalValue: (parseFloat(row.stock1) || 0) * (parseFloat(row.averagePrice) || 0),
+        lastUpdated: new Date(),
+      }));
+    } catch (error: any) {
+      console.error('Error fetching inventory with prices from SQL Server:', error.message);
+      return [];
+    }
+  }
+
+  async getInventorySummaryWithPrices(filters?: {
+    search?: string;
+    warehouse?: string;
+  }): Promise<{
+    totalProducts: number;
+    totalQuantity: number;
+    totalAvailable: number;
+    totalValue: number;
+    lowStock: number;
+  }> {
+    const inventory = await this.getInventoryWithPrices(filters);
+    
+    const totalProducts = inventory.length;
+    const totalQuantity = inventory.reduce((sum, item) => sum + item.quantity, 0);
+    const totalAvailable = inventory.reduce((sum, item) => sum + item.availableQuantity, 0);
+    const totalValue = inventory.reduce((sum, item) => sum + (item.totalValue || 0), 0);
+    const lowStock = inventory.filter(item => item.availableQuantity < 10 && item.availableQuantity > 0).length;
+    
+    return {
+      totalProducts,
+      totalQuantity,
+      totalAvailable,
+      totalValue,
+      lowStock,
+    };
   }
 
   // ==================================================================================
