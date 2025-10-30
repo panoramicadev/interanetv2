@@ -12766,9 +12766,9 @@ export class DatabaseStorage implements IStorage {
           const stock2 = parseFloat(row.stock2) || 0;
           const precioMedio = row.precioMedio ? parseFloat(row.precioMedio) : null;
 
-          // Calculate inventory value
-          const valorInventario = precioMedio && stock2 
-            ? parseFloat((stock2 * precioMedio).toFixed(2))
+          // Calculate inventory value using UD1 (stock1)
+          const valorInventario = precioMedio && stock1 
+            ? parseFloat((stock1 * precioMedio).toFixed(2))
             : null;
 
           const inventoryRecord = {
