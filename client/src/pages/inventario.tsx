@@ -286,12 +286,14 @@ function StockSummary({
     totalValue: number;
     lowStock: number;
   }>({
-    queryKey: ['/api/inventory/summary-with-prices', searchTerm, selectedWarehouse, selectedBranch],
+    queryKey: ['/api/inventory/summary-with-prices', searchTerm, selectedWarehouse, selectedBranch, hideNoStock, hideZZProducts],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (selectedWarehouse !== 'all') params.append('warehouse', selectedWarehouse);
       if (selectedBranch !== 'all') params.append('branch', selectedBranch);
+      if (hideNoStock) params.append('hideNoStock', 'true');
+      if (hideZZProducts) params.append('hideZZProducts', 'true');
       
       const response = await fetch(`/api/inventory/summary-with-prices?${params}`, {
         credentials: 'include'
