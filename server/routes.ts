@@ -3784,27 +3784,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Warehouse and branch routes
-  app.get('/api/warehouses', requireAuth, async (req: any, res) => {
-    try {
-      const warehouses = await storage.getWarehouses();
-      res.json(warehouses);
-    } catch (error) {
-      console.error("Error fetching warehouses:", error);
-      res.status(500).json({ message: "Failed to fetch warehouses" });
-    }
-  });
-
-  app.get('/api/branches', requireAuth, async (req: any, res) => {
-    try {
-      const branches = await storage.getBranches();
-      res.json(branches);
-    } catch (error) {
-      console.error("Error fetching branches:", error);
-      res.status(500).json({ message: "Failed to fetch branches" });
-    }
-  });
-
   // Task management endpoints
   app.get('/api/tasks', requireAuth, async (req: any, res) => {
     try {
@@ -9316,26 +9295,6 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Get warehouses list
-  app.get('/api/warehouses', requireAuth, asyncHandler(async (req: any, res: any) => {
-    try {
-      const warehouses = await storage.getWarehouses();
-      res.json(warehouses);
-    } catch (error: any) {
-      res.status(500).json({ message: 'Error al obtener bodegas', error: error.message });
-    }
-  }));
-
-  // Get branches list
-  app.get('/api/branches', requireAuth, asyncHandler(async (req: any, res: any) => {
-    try {
-      const branches = await storage.getBranches();
-      res.json(branches);
-    } catch (error: any) {
-      res.status(500).json({ message: 'Error al obtener sucursales', error: error.message });
-    }
-  }));
-
   // Get inventory with prices from SQL Server
   app.get('/api/inventory-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
@@ -9367,6 +9326,57 @@ export function registerRoutes(app: Express): Server {
       res.json(summary);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener resumen de inventario con precios', error: error.message });
+    }
+  }));
+
+  // Sync products from ERP to PostgreSQL
+  app.post('/api/inventory/sync', requireRoles('admin', 'supervisor'), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!user || !user.id || !user.email) {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+
+      console.log(`🔄 Starting inventory sync requested by ${user.email}`);
+      
+      const result = await storage.syncProductsFromERP(user.id, user.email);
+      
+      if (result.status === 'error') {
+        return res.status(500).json({
+          message: 'Error al sincronizar catálogo',
+          error: result.errorMessage,
+          ...result,
+        });
+      }
+
+      res.json({
+        message: 'Sincronización completada exitosamente',
+        ...result,
+      });
+    } catch (error: any) {
+      console.error('Error in sync endpoint:', error);
+      res.status(500).json({ message: 'Error al sincronizar catálogo', error: error.message });
+    }
+  }));
+
+  // Get last sync info
+  app.get('/api/inventory/last-sync', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const lastSync = await storage.getLastSync();
+      res.json(lastSync);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener última sincronización', error: error.message });
+    }
+  }));
+
+  // Get sync history
+  app.get('/api/inventory/sync-history', requireRoles('admin', 'supervisor'), asyncHandler(async (req: any, res: any) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
+      const history = await storage.getSyncHistory(limit);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener historial de sincronización', error: error.message });
     }
   }));
 

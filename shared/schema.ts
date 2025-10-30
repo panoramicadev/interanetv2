@@ -352,6 +352,40 @@ export const productPriceHistory = pgTable("product_price_history", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Inventory Products table - Catalog of products synced from ERP
+export const inventoryProducts = pgTable("inventory_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sku: varchar("sku").notNull().unique(), // KOPR - Product code from ERP
+  name: text("name").notNull(), // NOKOPR - Product name
+  unit1: varchar("unit1"), // UD01PR - Primary unit (reference only)
+  unit2: varchar("unit2"), // UD02PR - Secondary unit (used for calculations)
+  category: varchar("category"), // Product category/family
+  averagePrice: numeric("average_price", { precision: 15, scale: 2 }), // PM - Precio Medio from ERP
+  active: boolean("active").default(true), // Product is active in catalog
+  lastSyncAt: timestamp("last_sync_at"), // Last time synced from ERP
+  syncedBy: varchar("synced_by"), // User ID who triggered sync
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Inventory Sync Log table - Audit trail for catalog synchronizations
+export const inventorySyncLog = pgTable("inventory_sync_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // User who triggered the sync
+  userEmail: varchar("user_email"), // Email of user for reference
+  status: varchar("status").notNull(), // 'success', 'error', 'partial'
+  productsNew: integer("products_new").default(0), // New products added
+  productsUpdated: integer("products_updated").default(0), // Products updated
+  productsDeactivated: integer("products_deactivated").default(0), // Products marked inactive
+  totalProcessed: integer("total_processed").default(0), // Total products processed
+  duration: integer("duration"), // Sync duration in milliseconds
+  errorMessage: text("error_message"), // Error details if failed
+  summary: jsonb("summary"), // Detailed summary of changes
+  startedAt: timestamp("started_at").notNull(), // When sync started
+  completedAt: timestamp("completed_at"), // When sync completed
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Clients table - Complete structure from CSV import
 export const clients = pgTable("clients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -909,12 +943,29 @@ export const insertProductPriceHistorySchema = createInsertSchema(productPriceHi
   createdAt: true,
 });
 
+export const insertInventoryProductSchema = createInsertSchema(inventoryProducts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertInventorySyncLogSchema = createInsertSchema(inventorySyncLog).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Type exports for CSV import
 export type CsvProductStockImport = z.infer<typeof csvProductStockImportSchema>;
 export type CsvProductImport = z.infer<typeof csvProductImportSchema>;
 export type InsertWarehouseInput = z.infer<typeof insertWarehouseSchema>;
 export type InsertProductStockInput = z.infer<typeof insertProductStockSchema>;
 export type InsertProductPriceHistoryInput = z.infer<typeof insertProductPriceHistorySchema>;
+
+// Inventory types
+export type InventoryProduct = typeof inventoryProducts.$inferSelect;
+export type InsertInventoryProduct = z.infer<typeof insertInventoryProductSchema>;
+export type InventorySyncLog = typeof inventorySyncLog.$inferSelect;
+export type InsertInventorySyncLog = z.infer<typeof insertInventorySyncLogSchema>;
 
 // Slug validation schema for separate validation endpoint
 export const validateSlugSchema = z.object({
