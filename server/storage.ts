@@ -12165,152 +12165,54 @@ export class DatabaseStorage implements IStorage {
     branch?: string;
   }): Promise<any[]> {
     try {
-      // Step 1: Get product catalog from PostgreSQL
-      let catalogProducts;
+      // Build where conditions
+      const conditions = [eq(inventoryProducts.activo, true)];
       
       if (filters?.search) {
-        catalogProducts = await db
-          .select()
-          .from(inventoryProducts)
-          .where(
-            and(
-              eq(inventoryProducts.activo, true),
-              or(
-                sql`${inventoryProducts.sku} ILIKE ${`%${filters.search}%`}`,
-                sql`${inventoryProducts.nombre} ILIKE ${`%${filters.search}%`}`
-              )
-            )
-          );
-      } else {
-        catalogProducts = await db
-          .select()
-          .from(inventoryProducts)
-          .where(eq(inventoryProducts.activo, true));
+        conditions.push(
+          or(
+            sql`${inventoryProducts.sku} ILIKE ${`%${filters.search}%`}`,
+            sql`${inventoryProducts.nombre} ILIKE ${`%${filters.search}%`}`
+          )!
+        );
       }
-
-      // If no products in catalog, fallback to legacy mode
-      if (catalogProducts.length === 0) {
-        console.log('[INVENTORY] No products in PostgreSQL catalog, falling back to legacy SQL Server query');
-        return this.getInventoryWithPricesLegacy(filters);
-      }
-
-      // Step 2: Connect to SQL Server and get real-time stocks
-      const pool = await mssql.connect({
-        server: process.env.SQL_SERVER_HOST || '',
-        port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
-        user: process.env.SQL_SERVER_USER || '',
-        password: process.env.SQL_SERVER_PASSWORD || '',
-        database: process.env.SQL_SERVER_DATABASE || '',
-        options: {
-          encrypt: true,
-          trustServerCertificate: true,
-          enableArithAbort: true,
-        },
-        connectionTimeout: 30000,
-        requestTimeout: 30000,
-      });
-
-      // Build query to get stocks for catalog products
-      let stockQuery = `
-        SELECT 
-          m.KOSU as branchCode,
-          m.KOBO as warehouseCode,
-          b.NOKOBO as warehouseName,
-          m.KOPR as productSku,
-          m.STFI1 as stock1,
-          m.STFI2 as stock2
-        FROM MAEST m
-        LEFT JOIN TABBO b ON m.KOBO = b.KOBO
-        WHERE (m.STFI1 > 0 OR m.STFI2 > 0)
-      `;
-
-      const params: any = [];
 
       if (filters?.warehouse && filters.warehouse !== 'all') {
-        stockQuery += ` AND m.KOBO = @warehouse`;
-        params.push({ name: 'warehouse', value: filters.warehouse });
+        conditions.push(eq(inventoryProducts.bodega, filters.warehouse));
       }
 
       if (filters?.branch && filters.branch !== 'all') {
-        stockQuery += ` AND m.KOSU = @branch`;
-        params.push({ name: 'branch', value: filters.branch });
+        conditions.push(eq(inventoryProducts.sucursal, filters.branch));
       }
 
-      stockQuery += ` ORDER BY m.KOSU, m.KOBO, m.KOPR`;
+      // Query inventory from PostgreSQL
+      const inventory = await db
+        .select()
+        .from(inventoryProducts)
+        .where(and(...conditions));
 
-      const request = pool.request();
-      params.forEach((param: any) => {
-        request.input(param.name, mssql.NVarChar, param.value);
-      });
-
-      const stockResult = await request.query(stockQuery);
-      await pool.close();
-
-      // Step 3: Join catalog with stocks
-      const stockMap = new Map<string, any[]>();
-      stockResult.recordset.forEach((stockRow: any) => {
-        const sku = stockRow.productSku;
-        if (!stockMap.has(sku)) {
-          stockMap.set(sku, []);
-        }
-        stockMap.get(sku)!.push(stockRow);
-      });
-
-      // Step 4: Build final inventory list
-      const inventory: any[] = [];
-      catalogProducts.forEach((product: any) => {
-        const stocks = stockMap.get(product.sku) || [];
-        
-        if (stocks.length > 0) {
-          // Product has stock entries
-          stocks.forEach((stockRow: any) => {
-            inventory.push({
-              branchCode: stockRow.branchCode || '',
-              productSku: product.sku,
-              productName: product.nombre,
-              warehouseCode: stockRow.warehouseCode || '',
-              warehouseName: stockRow.warehouseName || stockRow.warehouseCode || '',
-              stock1: parseFloat(stockRow.stock1) || 0,
-              stock2: parseFloat(stockRow.stock2) || 0,
-              quantity: parseFloat(stockRow.stock2) || 0,
-              unit1: product.unidad1 || '',
-              unit2: product.unidad2 || '',
-              unit: product.unidad2 || '',
-              reservedQuantity: 0,
-              availableQuantity: parseFloat(stockRow.stock2) || 0,
-              averagePrice: parseFloat(product.precioMedio) || 0,
-              totalValue: (parseFloat(stockRow.stock2) || 0) * (parseFloat(product.precioMedio) || 0),
-              lastUpdated: product.ultimaSincronizacion || new Date(),
-            });
-          });
-        } else if (!filters?.warehouse && !filters?.branch) {
-          // No stock but no warehouse/branch filter, show with zero stock
-          inventory.push({
-            branchCode: '',
-            productSku: product.sku,
-            productName: product.nombre,
-            warehouseCode: '',
-            warehouseName: '',
-            stock1: 0,
-            stock2: 0,
-            quantity: 0,
-            unit1: product.unidad1 || '',
-            unit2: product.unidad2 || '',
-            unit: product.unidad2 || '',
-            reservedQuantity: 0,
-            availableQuantity: 0,
-            averagePrice: parseFloat(product.precioMedio) || 0,
-            totalValue: 0,
-            lastUpdated: product.ultimaSincronizacion || new Date(),
-          });
-        }
-      });
-
-      return inventory;
+      // Map to frontend format
+      return inventory.map((item) => ({
+        branchCode: item.sucursal || '',
+        productSku: item.sku,
+        productName: item.nombre,
+        warehouseCode: item.bodega || '',
+        warehouseName: item.nombreBodega || item.bodega || '',
+        stock1: parseFloat(item.stock1?.toString() || '0'),
+        stock2: parseFloat(item.stock2?.toString() || '0'),
+        quantity: parseFloat(item.stock2?.toString() || '0'),
+        unit1: item.unidad1 || '',
+        unit2: item.unidad2 || '',
+        unit: item.unidad2 || '',
+        reservedQuantity: 0,
+        availableQuantity: parseFloat(item.stock2?.toString() || '0'),
+        averagePrice: parseFloat(item.precioMedio?.toString() || '0'),
+        totalValue: parseFloat(item.valorInventario?.toString() || '0'),
+        lastUpdated: item.ultimaSincronizacion || new Date(),
+      }));
     } catch (error: any) {
-      console.error('Error fetching hybrid inventory:', error.message);
-      // Fallback to direct SQL Server query if PostgreSQL catalog is empty or fails
-      return this.getInventoryWithPricesLegacy(filters);
+      console.error('Error fetching inventory from PostgreSQL:', error.message);
+      return [];
     }
   }
 
