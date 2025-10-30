@@ -9325,6 +9325,38 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get inventory with prices from SQL Server
+  app.get('/api/inventory-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { search, warehouse } = req.query;
+      
+      const filters: any = {};
+      if (search) filters.search = search;
+      if (warehouse) filters.warehouse = warehouse;
+      
+      const inventory = await storage.getInventoryWithPrices(filters);
+      res.json(inventory);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener inventario con precios', error: error.message });
+    }
+  }));
+
+  // Get inventory summary with prices and total value
+  app.get('/api/inventory/summary-with-prices', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { search, warehouse } = req.query;
+      
+      const filters: any = {};
+      if (search) filters.search = search;
+      if (warehouse) filters.warehouse = warehouse;
+      
+      const summary = await storage.getInventorySummaryWithPrices(filters);
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener resumen de inventario con precios', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // GASTOS EMPRESARIALES routes
   // ==================================================================================
