@@ -4080,3 +4080,57 @@ export const insertCrmStageSchema = createInsertSchema(crmStages, {
 });
 
 export type InsertCrmStageInput = z.infer<typeof insertCrmStageSchema>;
+
+// Clientes Inactivos - Alertas de clientes que necesitan seguimiento
+export const clientesInactivos = pgTable("clientes_inactivos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Información del cliente
+  clientName: text("client_name").notNull(),
+  clientKoen: varchar("client_koen"), // ID del cliente en el sistema de ventas
+  clientRut: varchar("client_rut"),
+  clientEmail: varchar("client_email"),
+  clientPhone: varchar("client_phone"),
+  
+  // Información de ventas
+  lastPurchaseDate: timestamp("last_purchase_date"),
+  lastPurchaseAmount: numeric("last_purchase_amount", { precision: 15, scale: 2 }),
+  daysSinceLastPurchase: integer("days_since_last_purchase"),
+  totalPurchasesLastYear: numeric("total_purchases_last_year", { precision: 15, scale: 2 }),
+  
+  // Segmentación y asignación
+  segment: varchar("segment"), // Segmento del cliente (noruen)
+  salespersonId: varchar("salesperson_id"), // Vendedor asignado (si lo tiene)
+  salespersonName: text("salesperson_name"),
+  supervisorId: varchar("supervisor_id"), // Supervisor del segmento
+  supervisorName: text("supervisor_name"),
+  
+  // Estado de la alerta
+  addedToCrm: boolean("added_to_crm").default(false),
+  crmLeadId: varchar("crm_lead_id"), // FK a crmLeads si fue añadido
+  dismissed: boolean("dismissed").default(false), // Si el usuario descartó la alerta
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  clientKoenIdx: index("IDX_clientes_inactivos_koen").on(table.clientKoen),
+  segmentIdx: index("IDX_clientes_inactivos_segment").on(table.segment),
+  salespersonIdx: index("IDX_clientes_inactivos_salesperson").on(table.salespersonId),
+  supervisorIdx: index("IDX_clientes_inactivos_supervisor").on(table.supervisorId),
+  addedToCrmIdx: index("IDX_clientes_inactivos_added_to_crm").on(table.addedToCrm),
+}));
+
+export type ClienteInactivo = typeof clientesInactivos.$inferSelect;
+export type InsertClienteInactivo = typeof clientesInactivos.$inferInsert;
+
+export const insertClienteInactivoSchema = createInsertSchema(clientesInactivos, {
+  clientName: z.string().min(1, "Nombre del cliente es requerido"),
+  daysSinceLastPurchase: z.number().min(0, "Días debe ser positivo"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertClienteInactivoInput = z.infer<typeof insertClienteInactivoSchema>;
