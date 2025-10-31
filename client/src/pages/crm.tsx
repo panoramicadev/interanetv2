@@ -310,14 +310,26 @@ export default function CRMPage() {
 
           {/* Client Type Tabs */}
           <Tabs value={clientTypeFilter} onValueChange={(v) => setClientTypeFilter(v as 'todos' | 'nuevos' | 'recurrentes')}>
-            <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="todos" className="flex-1 sm:flex-none text-xs sm:text-sm" data-testid="tab-todos">
+            <TabsList className="w-full sm:w-auto sm:p-1.5 bg-gray-100/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700">
+              <TabsTrigger 
+                value="todos" 
+                className="flex-1 sm:flex-none text-xs sm:text-base sm:px-6 sm:py-2.5 font-medium sm:font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-md transition-all" 
+                data-testid="tab-todos"
+              >
                 Todos
               </TabsTrigger>
-              <TabsTrigger value="nuevos" className="flex-1 sm:flex-none text-xs sm:text-sm" data-testid="tab-nuevos">
+              <TabsTrigger 
+                value="nuevos" 
+                className="flex-1 sm:flex-none text-xs sm:text-base sm:px-6 sm:py-2.5 font-medium sm:font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-md transition-all" 
+                data-testid="tab-nuevos"
+              >
                 Leads Nuevos
               </TabsTrigger>
-              <TabsTrigger value="recurrentes" className="flex-1 sm:flex-none text-xs sm:text-sm" data-testid="tab-recurrentes">
+              <TabsTrigger 
+                value="recurrentes" 
+                className="flex-1 sm:flex-none text-xs sm:text-base sm:px-6 sm:py-2.5 font-medium sm:font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-md transition-all" 
+                data-testid="tab-recurrentes"
+              >
                 Clientes Recurrentes
               </TabsTrigger>
             </TabsList>
