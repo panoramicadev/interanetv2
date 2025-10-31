@@ -15,7 +15,8 @@ import { useState } from "react";
 import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
-import NotificationBell from "@/components/notifications/NotificationBell";
+import FloatingNotificationBell from "@/components/notifications/FloatingNotificationBell";
+import NotificationPanel from "@/components/notifications/NotificationPanel";
 import logoPath from "@assets/logo_1757532115858.png";
 
 interface DashboardLayoutProps {
@@ -114,15 +115,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="p-6 border-b border-slate-700/50">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 flex justify-center">
-                <img 
-                  src={logoPath} 
-                  alt="PANORAMICA Logo" 
-                  className="h-12 w-auto object-contain"
-                />
-              </div>
-              <NotificationBell />
+            <div className="flex items-center justify-center">
+              <img 
+                src={logoPath} 
+                alt="PANORAMICA Logo" 
+                className="h-12 w-auto object-contain"
+              />
             </div>
           </div>
         
@@ -247,6 +245,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             )}
           </nav>
           
+          {/* Notification Panel */}
+          <NotificationPanel />
+          
           {/* Footer */}
           <div className="p-4 lg:p-6 border-t border-slate-700/50">
             <div className="flex items-center space-x-2 lg:space-x-3 mb-3 lg:mb-4">
@@ -296,6 +297,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </div>
       </div>
+      
+      {/* Floating Notification Bell */}
+      <FloatingNotificationBell />
       
       {/* Main Content */}
       <div className="lg:ml-64 transition-all duration-300">
