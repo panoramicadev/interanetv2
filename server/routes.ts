@@ -287,7 +287,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -4604,6 +4604,128 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error dismissing alert:", error);
       res.status(500).json({ message: "Failed to dismiss alert" });
+    }
+  });
+
+  // ============================================
+  // NOTIFICATION ENDPOINTS - Sistema robusto de notificaciones internas
+  // ============================================
+
+  // Get all notifications for current user (filtered by role and department)
+  app.get('/api/notifications', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { isArchived = 'false', type, priority, department } = req.query;
+      
+      const filters = {
+        isArchived: isArchived === 'true',
+        type: type as string,
+        priority: priority as string,
+        department: department as string,
+      };
+      
+      const notifications = await storage.getNotificationsForUser(user.id, user.role, user.assignedSegment, filters);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  // ==================== NOTIFICATIONS SYSTEM ====================
+  // Authorized roles for creating notifications
+  const NOTIFICATION_CREATOR_ROLES = ['admin', 'supervisor', 'logistica_bodega', 'logistica', 'laboratorio', 'area_produccion', 'area_logistica', 'area_aplicacion', 'produccion', 'planificacion'];
+  
+  // Authorized roles for archiving notifications
+  const NOTIFICATION_ARCHIVER_ROLES = ['admin', 'supervisor'];
+  
+  // Get unread notification count for current user
+  app.get('/api/notifications/unread-count', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      const count = await storage.getUnreadNotificationCount(user.id, user.role, user.assignedSegment);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ message: "Failed to fetch unread count" });
+    }
+  });
+
+  // Create new notification (manual) - Only authorized roles can create
+  app.post('/api/notifications', requireRoles(NOTIFICATION_CREATOR_ROLES), async (req: any, res) => {
+    try {
+      const user = req.user;
+      
+      // Validate request body
+      const validatedData = insertNotificationSchema.parse({
+        ...req.body,
+        createdBy: user.id,
+        createdByName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+      });
+      
+      const notification = await storage.createNotification(validatedData);
+      res.status(201).json(notification);
+    } catch (error: any) {
+      console.error("Error creating notification:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: "Datos inválidos", 
+          details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
+        });
+      }
+      res.status(500).json({ message: "Failed to create notification" });
+    }
+  });
+
+  // Mark notification as read
+  app.post('/api/notifications/:id/read', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { id } = req.params;
+      
+      const success = await storage.markNotificationAsRead(id, user.id);
+      
+      if (success) {
+        res.json({ message: "Notification marked as read" });
+      } else {
+        res.status(500).json({ message: "Failed to mark notification as read" });
+      }
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ message: "Failed to mark notification as read" });
+    }
+  });
+
+  // Archive notification - Only admin and supervisor can archive
+  app.post('/api/notifications/:id/archive', requireRoles(NOTIFICATION_ARCHIVER_ROLES), async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { id } = req.params;
+      
+      const success = await storage.archiveNotification(id, user.id);
+      
+      if (success) {
+        res.json({ message: "Notification archived successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to archive notification" });
+      }
+    } catch (error) {
+      console.error("Error archiving notification:", error);
+      res.status(500).json({ message: "Failed to archive notification" });
+    }
+  });
+
+  // Get read statistics for a notification (who has read it)
+  app.get('/api/notifications/:id/reads', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const reads = await storage.getNotificationReads(id);
+      res.json(reads);
+    } catch (error) {
+      console.error("Error fetching notification reads:", error);
+      res.status(500).json({ message: "Failed to fetch notification reads" });
     }
   });
 

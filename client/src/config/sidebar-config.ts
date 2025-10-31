@@ -22,7 +22,8 @@ import {
   AlertTriangle,
   Warehouse,
   Banknote,
-  Database
+  Database,
+  Bell
 } from "lucide-react";
 
 interface SidebarItem {
@@ -117,6 +118,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/inventario",
       label: "Inventario",
       icon: Warehouse,
+    },
+    {
+      href: "/notificaciones",
+      label: "Notificaciones",
+      icon: Bell,
     },
     {
       href: "/etl-monitor",
@@ -230,6 +236,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/inventario",
       label: "Inventario",
       icon: Warehouse,
+    },
+    {
+      href: "/notificaciones",
+      label: "Notificaciones",
+      icon: Bell,
     },
     {
       href: "/etl-monitor",

@@ -195,6 +195,13 @@ import {
   insertInventorySyncLogSchema,
   type InsertInventoryProduct,
   type InsertInventorySyncLog,
+  // Notifications system
+  notifications,
+  notificationReads,
+  type Notification,
+  type InsertNotification,
+  type NotificationRead,
+  type InsertNotificationRead,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
@@ -1312,6 +1319,31 @@ export interface IStorage {
   
   getRunningETLExecution(etlName: string): Promise<any | undefined>;
   cancelETLExecution(executionId: string, cancelledBy: string): Promise<void>;
+
+  // ==================================================================================
+  // NOTIFICATIONS operations - Sistema robusto de notificaciones internas
+  // ==================================================================================
+  
+  createNotification(notification: InsertNotificationInput): Promise<Notification>;
+  getNotificationsForUser(
+    userId: string, 
+    userRole: string, 
+    userSegment?: string | null,
+    filters?: {
+      isArchived?: boolean;
+      type?: string;
+      priority?: string;
+      department?: string;
+    }
+  ): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: string, userRole: string, userSegment?: string | null): Promise<number>;
+  markNotificationAsRead(notificationId: string, userId: string): Promise<boolean>;
+  archiveNotification(notificationId: string, userId: string): Promise<boolean>;
+  getNotificationReads(notificationId: string): Promise<Array<{
+    userId: string;
+    userName: string;
+    readAt: Date;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -13887,6 +13919,234 @@ export class DatabaseStorage implements IStorage {
       console.error('Error dismissing inactive client:', error.message);
       return false;
     }
+  }
+
+  // ==================================================================================
+  // NOTIFICATIONS operations - Sistema robusto de notificaciones internas
+  // ==================================================================================
+
+  async createNotification(notification: InsertNotificationInput): Promise<Notification> {
+    try {
+      const [newNotification] = await db
+        .insert(notifications)
+        .values(notification)
+        .returning();
+
+      return newNotification;
+    } catch (error: any) {
+      console.error('Error creating notification:', error.message);
+      throw error;
+    }
+  }
+
+  async getNotificationsForUser(
+    userId: string,
+    userRole: string,
+    userSegment?: string | null,
+    filters?: {
+      isArchived?: boolean;
+      type?: string;
+      priority?: string;
+      department?: string;
+    }
+  ): Promise<Notification[]> {
+    try {
+      const conditions = [];
+
+      // Filter by archived status
+      if (filters?.isArchived !== undefined) {
+        conditions.push(eq(notifications.isArchived, filters.isArchived));
+      }
+
+      // Filter by type
+      if (filters?.type) {
+        conditions.push(eq(notifications.type, filters.type));
+      }
+
+      // Filter by priority
+      if (filters?.priority) {
+        conditions.push(eq(notifications.priority, filters.priority));
+      }
+
+      // Filter by department
+      if (filters?.department) {
+        conditions.push(eq(notifications.department, filters.department));
+      }
+
+      // Filter based on targetType and user role/department
+      // User sees:
+      // 1. Personal notifications targeted to them
+      // 2. General notifications (for everyone)
+      // 3. Department notifications matching their department/role
+      const targetConditions = [
+        // Personal notifications for this user
+        and(
+          eq(notifications.targetType, 'personal'),
+          eq(notifications.userId, userId)
+        ),
+        // General notifications for everyone
+        eq(notifications.targetType, 'general'),
+      ];
+
+      // Map user role to departments they should see
+      const userDepartments = this.getUserDepartments(userRole);
+      if (userDepartments.length > 0) {
+        userDepartments.forEach(dept => {
+          targetConditions.push(
+            and(
+              eq(notifications.targetType, 'departamento'),
+              eq(notifications.department, dept)
+            )
+          );
+        });
+      }
+
+      conditions.push(or(...targetConditions));
+
+      const results = await db
+        .select()
+        .from(notifications)
+        .where(and(...conditions))
+        .orderBy(desc(notifications.createdAt));
+
+      // For each notification, check if current user has read it
+      const notificationsWithReadStatus = await Promise.all(
+        results.map(async (notification) => {
+          const [readRecord] = await db
+            .select()
+            .from(notificationReads)
+            .where(
+              and(
+                eq(notificationReads.notificationId, notification.id),
+                eq(notificationReads.userId, userId)
+              )
+            )
+            .limit(1);
+
+          return {
+            ...notification,
+            hasRead: !!readRecord,
+          };
+        })
+      );
+
+      return notificationsWithReadStatus as any;
+    } catch (error: any) {
+      console.error('Error fetching notifications for user:', error.message);
+      return [];
+    }
+  }
+
+  async getUnreadNotificationCount(userId: string, userRole: string, userSegment?: string | null): Promise<number> {
+    try {
+      // Get all notifications for user (non-archived)
+      const userNotifications = await this.getNotificationsForUser(userId, userRole, userSegment, {
+        isArchived: false,
+      });
+
+      // Count unread notifications
+      const unreadCount = userNotifications.filter((n: any) => !n.hasRead).length;
+
+      return unreadCount;
+    } catch (error: any) {
+      console.error('Error getting unread notification count:', error.message);
+      return 0;
+    }
+  }
+
+  async markNotificationAsRead(notificationId: string, userId: string): Promise<boolean> {
+    try {
+      // Insert into notification_reads (upsert - ignore if already exists)
+      await db
+        .insert(notificationReads)
+        .values({
+          notificationId,
+          userId,
+        })
+        .onConflictDoNothing();
+
+      return true;
+    } catch (error: any) {
+      console.error('Error marking notification as read:', error.message);
+      return false;
+    }
+  }
+
+  async archiveNotification(notificationId: string, userId: string): Promise<boolean> {
+    try {
+      // Only allow archiving if user has permission (creator or admin)
+      // For now, mark as read and update isArchived
+      await this.markNotificationAsRead(notificationId, userId);
+
+      await db
+        .update(notifications)
+        .set({
+          isArchived: true,
+          archivedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(notifications.id, notificationId));
+
+      return true;
+    } catch (error: any) {
+      console.error('Error archiving notification:', error.message);
+      return false;
+    }
+  }
+
+  async getNotificationReads(notificationId: string): Promise<Array<{
+    userId: string;
+    userName: string;
+    readAt: Date;
+  }>> {
+    try {
+      const reads = await db
+        .select({
+          userId: notificationReads.userId,
+          readAt: notificationReads.readAt,
+          userFirstName: users.firstName,
+          userLastName: users.lastName,
+          userEmail: users.email,
+        })
+        .from(notificationReads)
+        .leftJoin(users, eq(notificationReads.userId, users.id))
+        .where(eq(notificationReads.notificationId, notificationId))
+        .orderBy(desc(notificationReads.readAt));
+
+      return reads.map(read => ({
+        userId: read.userId,
+        userName: `${read.userFirstName || ''} ${read.userLastName || ''}`.trim() || read.userEmail || 'Usuario',
+        readAt: read.readAt || new Date(),
+      }));
+    } catch (error: any) {
+      console.error('Error fetching notification reads:', error.message);
+      return [];
+    }
+  }
+
+  // Helper method to map user roles to departments
+  private getUserDepartments(userRole: string): string[] {
+    const roleMapping: Record<string, string[]> = {
+      'admin': ['laboratorio', 'logistica', 'finanzas', 'ventas', 'produccion', 'planificacion', 'bodega_materias_primas', 'area_produccion', 'area_logistica', 'area_aplicacion', 'area_materia_prima', 'area_colores', 'area_envase', 'area_etiqueta', 'reception'],
+      'supervisor': ['ventas', 'logistica'],
+      'logistica_bodega': ['logistica', 'bodega_materias_primas', 'area_logistica'],
+      'bodega_materias_primas': ['bodega_materias_primas', 'area_materia_prima'],
+      'salesperson': ['ventas'],
+      'tecnico_obra': ['area_aplicacion'],
+      'reception': ['reception'],
+      'laboratorio': ['laboratorio'],
+      'area_produccion': ['area_produccion', 'produccion'],
+      'area_logistica': ['area_logistica', 'logistica'],
+      'area_aplicacion': ['area_aplicacion'],
+      'area_materia_prima': ['area_materia_prima'],
+      'area_colores': ['area_colores'],
+      'area_envase': ['area_envase'],
+      'area_etiqueta': ['area_etiqueta'],
+      'produccion': ['produccion', 'area_produccion'],
+      'planificacion': ['planificacion'],
+    };
+
+    return roleMapping[userRole] || [];
   }
 
 }
