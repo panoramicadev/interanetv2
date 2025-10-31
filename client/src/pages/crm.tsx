@@ -976,16 +976,16 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
-  // Filtrar clientes basándose en la búsqueda (mínimo 3 caracteres)
+  // Filtrar clientes basándose en la búsqueda (mínimo 2 caracteres)
   const filteredClients = clients.filter((client) => {
     const query = clientSearchQuery.trim();
-    if (query.length < 3) return false;
+    if (query.length < 2) return false;
     const searchLower = query.toLowerCase();
     const nokoen = (client.nokoen || '').toLowerCase();
     const rten = (client.rten || '').toLowerCase();
     const koen = (client.koen || '').toLowerCase();
     return nokoen.includes(searchLower) || rten.includes(searchLower) || koen.includes(searchLower);
-  }).slice(0, 20); // Limitar a 20 resultados
+  }); // Mostrar todos los resultados sin límite
 
   // Función para auto-rellenar el formulario cuando se selecciona un cliente
   const handleClientSelect = (client: any) => {
