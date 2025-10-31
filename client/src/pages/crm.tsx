@@ -1119,6 +1119,8 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
     clientAddress: z.string().optional(),
     segment: z.string().optional(),
     notes: z.string().optional(),
+    clientType: z.enum(["nuevo", "recurrente"]).default("nuevo"),
+    nombreObra: z.string().optional(),
   });
 
   const form = useForm({
@@ -1133,6 +1135,8 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
       salespersonId: prefilledData?.salespersonId || '',
       notes: '',
       stage: defaultStage,
+      clientType: prefilledData ? 'recurrente' : 'nuevo',
+      nombreObra: '',
     },
   });
 
@@ -1149,6 +1153,8 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
         salespersonId: prefilledData.salespersonId || '',
         notes: `Cliente inactivo desde hace ${prefilledData.daysSinceLastPurchase} días`,
         stage: defaultStage,
+        clientType: 'recurrente',
+        nombreObra: '',
       });
     }
   }, [prefilledData]);
@@ -1175,6 +1181,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
     form.setValue('clientCompany', client.rten || '');
     form.setValue('clientAddress', client.dien || '');
     form.setValue('segment', client.gien || '');
+    form.setValue('clientType', 'recurrente'); // Cliente existente = recurrente
     // Email y teléfono pueden no estar disponibles en todos los clientes
     if (client.email) form.setValue('clientEmail', client.email);
     if (client.foen) form.setValue('clientPhone', client.foen);
@@ -1202,7 +1209,9 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
         clientAddress: data.clientAddress || null,
         segment: data.segment || null,
         notes: data.notes || null,
-        hasHistoricalSales: prefilledData ? true : false, // Mark as recurring if from inactive client
+        hasHistoricalSales: data.clientType === 'recurrente',
+        clientType: data.clientType || 'nuevo',
+        nombreObra: data.nombreObra || null,
       };
       
       console.log('📤 [CREATE LEAD] Sending cleaned data to backend:', cleanData);
@@ -1463,6 +1472,44 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
             </FormItem>
           )}
         />
+
+        <FormField
+          control={form.control}
+          name="clientType"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tipo de Cliente *</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger data-testid="select-client-type">
+                    <SelectValue placeholder="Selecciona tipo de cliente" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="nuevo">Cliente Nuevo</SelectItem>
+                  <SelectItem value="recurrente">Cliente Recurrente</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {form.watch('segment')?.toLowerCase().includes('construc') && (
+          <FormField
+            control={form.control}
+            name="nombreObra"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre de la Obra</FormLabel>
+                <FormControl>
+                  <Input {...field} data-testid="input-nombre-obra" placeholder="Ej: Edificio Los Ángeles, Casa Particular" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={form.control}
