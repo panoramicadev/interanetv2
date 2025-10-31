@@ -3968,6 +3968,9 @@ export const crmLeads = pgTable("crm_leads", {
   hasWhatsapp: boolean("has_whatsapp").default(false),
   lastContactDate: timestamp("last_contact_date"),
   
+  // Purchase history tracking
+  hasHistoricalSales: boolean("has_historical_sales").default(false), // True if client has previous purchases
+  
   // Metadata
   estimatedValue: numeric("estimated_value", { precision: 15, scale: 2 }),
   notes: text("notes"),
@@ -4087,7 +4090,7 @@ export const clientesInactivos = pgTable("clientes_inactivos", {
   
   // Información del cliente
   clientName: text("client_name").notNull(),
-  clientKoen: varchar("client_koen"), // ID del cliente en el sistema de ventas
+  clientKoen: varchar("client_koen").notNull().unique(), // ID del cliente en el sistema de ventas - UNIQUE para UPSERT
   clientRut: varchar("client_rut"),
   clientEmail: varchar("client_email"),
   clientPhone: varchar("client_phone"),
