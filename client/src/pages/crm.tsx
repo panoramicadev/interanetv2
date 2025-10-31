@@ -1308,13 +1308,14 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
           </label>
           <div className="relative" ref={dropdownRef}>
             <Input
-              placeholder="Escribe para buscar cliente por nombre o empresa..."
+              placeholder="Escribe para buscar cliente por nombre, empresa o código..."
               value={clientSearchQuery}
               onChange={(e) => {
-                setClientSearchQuery(e.target.value);
-                setShowClientDropdown(true);
+                const value = e.target.value;
+                setClientSearchQuery(value);
+                // Solo mostrar dropdown si hay al menos 2 caracteres
+                setShowClientDropdown(value.trim().length >= 2);
               }}
-              onFocus={() => setShowClientDropdown(true)}
               className="w-full"
               data-testid="input-search-client"
             />
@@ -1333,9 +1334,9 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
             {/* Dropdown de resultados */}
             {showClientDropdown && clientSearchQuery.trim() && (
               <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                {clientSearchQuery.trim().length < 3 ? (
+                {clientSearchQuery.trim().length < 2 ? (
                   <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                    Escribe al menos 3 caracteres para buscar...
+                    Escribe al menos 2 caracteres para buscar...
                   </div>
                 ) : filteredClients.length > 0 ? (
                   filteredClients.map((client) => (
@@ -1370,7 +1371,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
             )}
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Escribe para buscar y seleccionar un cliente existente, o déjalo vacío para crear un lead nuevo.
+            Los resultados aparecerán al escribir al menos 2 caracteres. Deja vacío para crear un lead completamente nuevo.
           </p>
         </div>
 
