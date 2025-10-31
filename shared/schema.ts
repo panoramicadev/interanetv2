@@ -3971,6 +3971,10 @@ export const crmLeads = pgTable("crm_leads", {
   // Purchase history tracking
   hasHistoricalSales: boolean("has_historical_sales").default(false), // True if client has previous purchases
   
+  // Client classification
+  clientType: varchar("client_type").default("nuevo"), // 'nuevo' o 'recurrente'
+  nombreObra: text("nombre_obra"), // Nombre de la obra (solo para segmento construcción)
+  
   // Metadata
   estimatedValue: numeric("estimated_value", { precision: 15, scale: 2 }),
   notes: text("notes"),
@@ -4033,6 +4037,8 @@ export const insertCrmLeadSchema = createInsertSchema(crmLeads, {
   clientEmail: z.string().email("Email inválido").optional().nullable().or(z.literal("")),
   stage: z.string().default("lead"),
   salespersonId: z.string().min(1, "Vendedor es requerido"),
+  clientType: z.enum(["nuevo", "recurrente"]).default("nuevo"),
+  nombreObra: z.string().optional().nullable(),
   estimatedValue: z.union([z.string(), z.number()]).transform((val) => 
     typeof val === 'string' ? val : val.toString()
   ).optional().nullable(),
