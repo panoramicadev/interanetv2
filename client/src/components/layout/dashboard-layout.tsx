@@ -15,6 +15,7 @@ import { useState } from "react";
 import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import logoPath from "@assets/logo_1757532115858.png";
 
 interface DashboardLayoutProps {
@@ -113,12 +114,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="p-6 border-b border-slate-700/50">
-            <div className="flex justify-center">
-              <img 
-                src={logoPath} 
-                alt="PANORAMICA Logo" 
-                className="h-12 w-auto object-contain"
-              />
+            <div className="flex items-center justify-between">
+              <div className="flex-1 flex justify-center">
+                <img 
+                  src={logoPath} 
+                  alt="PANORAMICA Logo" 
+                  className="h-12 w-auto object-contain"
+                />
+              </div>
+              <NotificationBell />
             </div>
           </div>
         

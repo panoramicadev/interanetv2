@@ -3007,33 +3007,75 @@ export const ecommerceOrders = pgTable("ecommerce_orders", {
   statusIdx: index("IDX_ecommerce_orders_status").on(table.status),
 }));
 
-// Notificaciones - System notifications for salespeople and supervisors
+// Notificaciones - Sistema robusto de notificaciones internas
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(), // FK to users.id (who receives the notification)
   
-  type: varchar("type").notNull(), // ecommerce_order, task_assigned, order_status_change, etc.
+  // Destinatario (solo para notificaciones personales)
+  userId: varchar("user_id"), // FK to users.id (solo para targetType='personal')
+  
+  // Tipo de notificación
+  targetType: varchar("target_type").notNull().default('personal'), // 'personal', 'general', 'departamento'
+  department: varchar("department"), // Para targetType='departamento': 'laboratorio', 'logistica', 'finanzas', 'ventas', 'produccion', 'planificacion', etc.
+  
+  // Contenido
+  type: varchar("type").notNull(), // 'manual', 'stock_bajo', 'stock_critico', 'producto_agotado', 'ecommerce_order', 'task_assigned', etc.
   title: varchar("title").notNull(),
   message: text("message").notNull(),
+  priority: varchar("priority").default("media"), // 'baja', 'media', 'alta', 'critica'
   
-  // Related entity references
+  // Referencias relacionadas
   relatedOrderId: varchar("related_order_id"), // FK to ecommerce_orders.id
   relatedQuoteId: varchar("related_quote_id"), // FK to quotes.id
   relatedTaskId: varchar("related_task_id"), // FK to tasks.id
   relatedReclamoId: varchar("related_reclamo_id"), // FK to reclamos_generales.id
+  relatedInventoryProductId: varchar("related_inventory_product_id"), // FK to inventory_products.id
+  relatedWarehouseId: varchar("related_warehouse_id"), // FK to warehouses.id
   
-  // Notification state
+  // Estado (DEPRECATED - usar notification_reads en su lugar para seguimiento individual)
   read: boolean("read").default(false),
   readAt: timestamp("read_at"),
   
-  // Action URL (where to go when clicked)
+  // Archivado
+  isArchived: boolean("is_archived").default(false),
+  archivedAt: timestamp("archived_at"),
+  
+  // Expiración
+  expiresAt: timestamp("expires_at"), // Fecha de expiración opcional
+  
+  // URL de acción
   actionUrl: varchar("action_url"),
   
+  // Creador
+  createdBy: varchar("created_by").notNull().default('system'), // FK to users.id (quien creó la notificación)
+  createdByName: varchar("created_by_name"), // Nombre del creador
+  
+  // Metadata
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("IDX_notifications_user_id").on(table.userId),
+  targetTypeIdx: index("IDX_notifications_target_type").on(table.targetType),
+  departmentIdx: index("IDX_notifications_department").on(table.department),
   typeIdx: index("IDX_notifications_type").on(table.type),
+  priorityIdx: index("IDX_notifications_priority").on(table.priority),
   readIdx: index("IDX_notifications_read").on(table.read),
+  isArchivedIdx: index("IDX_notifications_is_archived").on(table.isArchived),
+  createdByIdx: index("IDX_notifications_created_by").on(table.createdBy),
+}));
+
+// Tabla de seguimiento de lecturas de notificaciones
+export const notificationReads = pgTable("notification_reads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  notificationId: varchar("notification_id").notNull(), // FK to notifications.id
+  userId: varchar("user_id").notNull(), // FK to users.id (quien leyó)
+  
+  readAt: timestamp("read_at").defaultNow(),
+}, (table) => ({
+  notificationUserIdx: unique("notification_user_unique").on(table.notificationId, table.userId), // Un usuario solo puede leer una vez cada notificación
+  notificationIdIdx: index("IDX_notification_reads_notification_id").on(table.notificationId),
+  userIdIdx: index("IDX_notification_reads_user_id").on(table.userId),
 }));
 
 // Relations for ecommerce orders
@@ -3071,6 +3113,8 @@ export type InsertEcommerceOrder = typeof ecommerceOrders.$inferInsert;
 // Types for notifications
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
+export type NotificationRead = typeof notificationReads.$inferSelect;
+export type InsertNotificationRead = typeof notificationReads.$inferInsert;
 
 // Schemas for ecommerce orders
 export const insertEcommerceOrderSchema = createInsertSchema(ecommerceOrders).omit({
@@ -3093,14 +3137,31 @@ export const insertEcommerceOrderSchema = createInsertSchema(ecommerceOrders).om
 });
 
 // Schemas for notifications
-export const insertNotificationSchema = createInsertSchema(notifications).omit({
+export const insertNotificationSchema = createInsertSchema(notifications, {
+  targetType: z.enum(['personal', 'general', 'departamento']),
+  department: z.enum(['laboratorio', 'logistica', 'finanzas', 'ventas', 'produccion', 'planificacion', 'bodega_materias_primas', 'area_produccion', 'area_logistica', 'area_aplicacion', 'area_materia_prima', 'area_colores', 'area_envase', 'area_etiqueta', 'reception']).optional().nullable(),
+  type: z.string().min(1, "Tipo es requerido"),
+  title: z.string().min(1, "Título es requerido"),
+  message: z.string().min(1, "Mensaje es requerido"),
+  priority: z.enum(['baja', 'media', 'alta', 'critica']).default('media'),
+}).omit({
   id: true,
   createdAt: true,
-}).extend({
-  type: z.string(),
-  title: z.string(),
-  message: z.string(),
+  updatedAt: true,
+  read: true,
+  readAt: true,
+  isArchived: true,
+  archivedAt: true,
 });
+
+export type InsertNotificationInput = z.infer<typeof insertNotificationSchema>;
+
+export const insertNotificationReadSchema = createInsertSchema(notificationReads).omit({
+  id: true,
+  readAt: true,
+});
+
+export type InsertNotificationReadInput = z.infer<typeof insertNotificationReadSchema>;
 
 // ============================================
 // SISTEMA DE RECLAMOS GENERALES (separado de visitas técnicas)

@@ -1,0 +1,14 @@
+Se implementará un módulo robusto de notificaciones internas que centralice toda la comunicación operativa dentro de la plataforma. Este sistema contará con una campana visible en toda la aplicación y un panel dedicado accesible desde el menú lateral, permitiendo visualizar y gestionar todas las alertas, avisos y comunicados relevantes para la operación.
+
+Las notificaciones podrán clasificarse en tres grandes grupos:
+	1.	Notificaciones personales: Mensajes dirigidos a un usuario específico.
+	2.	Notificaciones generales: Comunicados globales para todo el equipo.
+	3.	Notificaciones por departamento: Alertas específicas de áreas como Laboratorio, Logística, Finanzas, Ventas/Comercial, entre otras.
+
+Dentro del apartado de Logística, se incluirán notificaciones automáticas relacionadas con inventarios y disponibilidad de productos, alertando sobre stock bajo, stock crítico y productos agotados por bodega. Ejemplo: “Stock crítico — SKU X en Bodega Temuco” o “Producto agotado — Zinc Acryl 5L”. Esto permitirá tomar decisiones operativas rápidamente y mantener control sobre inventarios y abastecimiento.
+
+Cada usuario también tendrá la capacidad de generar notificaciones manuales cuando sea necesario comunicar algo urgente o relevante al resto del equipo o a un área específica. Esto permite, por ejemplo, que el equipo de laboratorio informe directamente sobre la resolución de problemas o contingencias operativas, o que logística notifique cambios en rutas, retrasos o imprevistos con despachos.
+
+Todas las notificaciones podrán ser acusadas de recibo por los usuarios, y cada notificación mantendrá un registro histórico que muestre quién la ha visto y quién aún no la ha leído, asegurando transparencia, trazabilidad y responsabilidad en las comunicaciones internas. Al marcar una notificación como recibida, esta se moverá a un apartado personal de Notificaciones Archivadas, donde quedará disponible para consulta futura. Ninguna notificación podrá ser eliminada, garantizando un historial completo y auditado de la comunicación institucional.
+
+Este módulo permitirá mantener una comunicación interna ordenada, estructurada y verificable, aumentando la eficiencia en la toma de decisiones y la coordinación entre áreas como logística, laboratorio, finanzas, administración y comercial.
