@@ -17,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, Home } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -207,10 +207,10 @@ export default function CRMPage() {
     // Salesperson filter
     const matchesVendedor = vendedorFilter === 'all' || lead.salespersonName === vendedorFilter;
     
-    // Client type filter
+    // Client type filter - acepta ambos indicadores (clientType y hasHistoricalSales como fallback)
     const matchesClientType = clientTypeFilter === 'todos' || 
-      (clientTypeFilter === 'nuevos' && !lead.hasHistoricalSales) ||
-      (clientTypeFilter === 'recurrentes' && lead.hasHistoricalSales);
+      (clientTypeFilter === 'nuevos' && (lead.clientType === 'nuevo' || (!lead.clientType && !lead.hasHistoricalSales))) ||
+      (clientTypeFilter === 'recurrentes' && (lead.clientType === 'recurrente' || lead.hasHistoricalSales));
     
     return matchesSearch && matchesSegment && matchesVendedor && matchesClientType;
   });
@@ -776,6 +776,30 @@ function LeadCard({
             <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 min-w-0">
               <Building2 className={`flex-shrink-0 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
               <span className="truncate font-medium">{lead.clientCompany}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Tipo de cliente y nombre de obra */}
+        <div className={`flex flex-wrap gap-2 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+          {lead.clientType && (
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${
+              lead.clientType === 'recurrente' 
+                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' 
+                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
+            }`}>
+              <User className={`flex-shrink-0 ${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
+              <span className={isMobile ? 'text-[10px]' : 'text-xs'}>
+                {lead.clientType === 'recurrente' ? 'Cliente Recurrente' : 'Cliente Nuevo'}
+              </span>
+            </div>
+          )}
+          {lead.nombreObra && (
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800`}>
+              <Home className={`flex-shrink-0 ${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
+              <span className={`truncate ${isMobile ? 'text-[10px] max-w-[120px]' : 'text-xs max-w-[180px]'}`}>
+                {lead.nombreObra}
+              </span>
             </div>
           )}
         </div>
