@@ -1566,6 +1566,8 @@ function EditLeadDialog({
     clientAddress: z.string().optional(),
     segment: z.string().optional(),
     notes: z.string().optional(),
+    clientType: z.enum(["nuevo", "recurrente"]).default("nuevo"),
+    nombreObra: z.string().optional(),
   });
 
   const form = useForm({
@@ -1579,6 +1581,8 @@ function EditLeadDialog({
       segment: lead.segment || '',
       salespersonId: lead.salespersonId || '',
       notes: lead.notes || '',
+      clientType: lead.clientType || 'nuevo',
+      nombreObra: lead.nombreObra || '',
     },
   });
 
@@ -1594,6 +1598,8 @@ function EditLeadDialog({
         segment: lead.segment || '',
         salespersonId: lead.salespersonId || '',
         notes: lead.notes || '',
+        clientType: lead.clientType || 'nuevo',
+        nombreObra: lead.nombreObra || '',
       });
     }
   }, [open, lead, form]);
@@ -1615,6 +1621,9 @@ function EditLeadDialog({
         clientAddress: data.clientAddress || null,
         segment: data.segment || null,
         notes: data.notes || null,
+        clientType: data.clientType || 'nuevo',
+        nombreObra: data.nombreObra || null,
+        hasHistoricalSales: data.clientType === 'recurrente',
       };
       
       return apiRequest(`/api/crm/leads/${lead.id}`, {
@@ -1780,6 +1789,44 @@ function EditLeadDialog({
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="clientType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de Cliente *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-edit-client-type">
+                        <SelectValue placeholder="Selecciona tipo de cliente" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="nuevo">Cliente Nuevo</SelectItem>
+                      <SelectItem value="recurrente">Cliente Recurrente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {form.watch('segment')?.toLowerCase().includes('construc') && (
+              <FormField
+                control={form.control}
+                name="nombreObra"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre de la Obra</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-edit-nombre-obra" placeholder="Ej: Edificio Los Ángeles, Casa Particular" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
