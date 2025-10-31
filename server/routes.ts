@@ -4157,22 +4157,31 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get all client users (for CRM lead creation from existing clients)
-  app.get('/api/users/clients', requireAuth, async (req: any, res) => {
+  // Search clients (for CRM lead creation from existing clients)
+  app.get('/api/users/clients/search', requireAuth, async (req: any, res) => {
     try {
       const user = req.user;
+      const { q } = req.query;
       
       // Only admin, supervisor, and salesperson can view client list
       if (!['admin', 'supervisor', 'salesperson'].includes(user.role)) {
         return res.status(403).json({ message: "No autorizado" });
       }
       
-      // Get all clients from the clients table (nokoen, koen)
-      const clients = await storage.getClients({ limit: 1000 });
+      // Require at least 2 characters for search
+      if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        return res.json([]);
+      }
+      
+      // Search clients from the clients table with dynamic query
+      const clients = await storage.getClients({ 
+        search: q.trim(),
+        limit: 100  // Limit results to 100 for performance
+      });
       res.json(clients);
     } catch (error) {
-      console.error("Error fetching clients:", error);
-      res.status(500).json({ message: "Failed to fetch clients" });
+      console.error("Error searching clients:", error);
+      res.status(500).json({ message: "Failed to search clients" });
     }
   });
 

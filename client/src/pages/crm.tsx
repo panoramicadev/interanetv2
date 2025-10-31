@@ -1107,9 +1107,17 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
     queryKey: ['/api/users'],
   });
 
-  // Obtener clientes desde users con role='client'
-  const { data: clients = [] } = useQuery<any[]>({
-    queryKey: ['/api/users/clients'],
+  // Buscar clientes dinámicamente desde el servidor
+  const { data: clients = [], isLoading: isSearching } = useQuery<any[]>({
+    queryKey: ['/api/users/clients/search', clientSearchQuery],
+    queryFn: async () => {
+      const query = clientSearchQuery.trim();
+      if (query.length < 2) return [];
+      const response = await fetch(`/api/users/clients/search?q=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error('Error al buscar clientes');
+      return response.json();
+    },
+    enabled: clientSearchQuery.trim().length >= 2,
   });
 
   // Obtener etapas disponibles para usar la primera como valor por defecto
@@ -1183,16 +1191,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
     }
   }, [prefilledData]);
 
-  // Filtrar clientes basándose en la búsqueda (mínimo 2 caracteres)
-  const filteredClients = clients.filter((client) => {
-    const query = clientSearchQuery.trim();
-    if (query.length < 2) return false;
-    const searchLower = query.toLowerCase();
-    const nokoen = (client.nokoen || '').toLowerCase();
-    const rten = (client.rten || '').toLowerCase();
-    const koen = (client.koen || '').toLowerCase();
-    return nokoen.includes(searchLower) || rten.includes(searchLower) || koen.includes(searchLower);
-  }); // Mostrar todos los resultados sin límite
+  // Los clientes ya vienen filtrados desde el servidor, no es necesario filtrar aquí
 
   // Función para auto-rellenar el formulario cuando se selecciona un cliente
   const handleClientSelect = (client: any) => {
@@ -1338,8 +1337,12 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
                   <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     Escribe al menos 2 caracteres para buscar...
                   </div>
-                ) : filteredClients.length > 0 ? (
-                  filteredClients.map((client) => (
+                ) : isSearching ? (
+                  <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                    Buscando...
+                  </div>
+                ) : clients.length > 0 ? (
+                  clients.map((client) => (
                     <button
                       key={client.id}
                       type="button"
