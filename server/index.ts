@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import path from "path";
 import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
+import { storage } from "./storage";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -114,6 +115,37 @@ app.use((req, res, next) => {
           console.error('Scheduled ETL execution failed:', error.message);
         }
       }, ETL_INTERVAL);
+    }
+
+    // Start inactive clients update scheduler (runs daily)
+    try {
+      const INACTIVE_CLIENTS_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+      
+      log('🔔 Inactive clients alert scheduler initialized (runs every 24 hours)');
+      
+      // Run on startup after 1 minute (give the app time to fully initialize)
+      setTimeout(async () => {
+        try {
+          log('🔔 Running initial inactive clients update on startup...');
+          const count = await storage.updateInactiveClients();
+          log(`✅ Updated ${count} inactive clients alerts`);
+        } catch (error: any) {
+          console.error('Initial inactive clients update failed:', error.message);
+        }
+      }, 60000);
+      
+      // Schedule to run daily
+      setInterval(async () => {
+        try {
+          log('🔔 Running scheduled inactive clients update...');
+          const count = await storage.updateInactiveClients();
+          log(`✅ Updated ${count} inactive clients alerts`);
+        } catch (error: any) {
+          console.error('Scheduled inactive clients update failed:', error.message);
+        }
+      }, INACTIVE_CLIENTS_INTERVAL);
+    } catch (error: any) {
+      console.error('Failed to initialize inactive clients scheduler:', error.message);
     }
   });
 })();

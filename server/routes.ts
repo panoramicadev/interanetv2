@@ -4521,6 +4521,83 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Inactive clients endpoints
+  app.get('/api/crm/inactive-clients', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+      const { includeDismissed } = req.query;
+
+      // Aplicar filtros de rol desde el backend basándose en el usuario autenticado
+      // NO confiar en parámetros de consulta para seguridad
+      const inactiveClients = await storage.getInactiveClients({
+        userId: user.id,
+        role: user.role,
+        includeDismissed: includeDismissed === 'true',
+      });
+
+      res.json(inactiveClients);
+    } catch (error) {
+      console.error("Error fetching inactive clients:", error);
+      res.status(500).json({ message: "Failed to fetch inactive clients" });
+    }
+  });
+
+  app.post('/api/crm/inactive-clients/update', requireAuth, async (req: any, res) => {
+    try {
+      const user = req.user;
+
+      // Only admin and supervisors can update inactive clients list
+      if (user.role !== 'admin' && user.role !== 'supervisor') {
+        return res.status(403).json({ message: "Only admins and supervisors can update inactive clients" });
+      }
+
+      const count = await storage.updateInactiveClients();
+      res.json({ message: `Updated ${count} inactive clients successfully`, count });
+    } catch (error) {
+      console.error("Error updating inactive clients:", error);
+      res.status(500).json({ message: "Failed to update inactive clients" });
+    }
+  });
+
+  app.post('/api/crm/inactive-clients/:id/add-to-crm', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { leadId } = req.body;
+
+      if (!leadId) {
+        return res.status(400).json({ message: "Lead ID is required" });
+      }
+
+      const success = await storage.markInactiveClientAddedToCrm(id, leadId);
+      
+      if (success) {
+        res.json({ message: "Client marked as added to CRM successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to mark client as added to CRM" });
+      }
+    } catch (error) {
+      console.error("Error marking client as added to CRM:", error);
+      res.status(500).json({ message: "Failed to mark client as added to CRM" });
+    }
+  });
+
+  app.post('/api/crm/inactive-clients/:id/dismiss', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+
+      const success = await storage.dismissInactiveClient(id);
+      
+      if (success) {
+        res.json({ message: "Alert dismissed successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to dismiss alert" });
+      }
+    } catch (error) {
+      console.error("Error dismissing alert:", error);
+      res.status(500).json({ message: "Failed to dismiss alert" });
+    }
+  });
+
   // Order management endpoints
   app.get('/api/orders', requireAuth, async (req: any, res) => {
     try {

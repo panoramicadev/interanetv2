@@ -17,14 +17,15 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { CrmLead, CrmStage, InsertCrmLeadInput } from "@shared/schema";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { CrmLead, CrmStage, InsertCrmLeadInput, ClienteInactivo } from "@shared/schema";
 import { insertCrmLeadSchema } from "@shared/schema";
 import PromesasCompraPage from "./promesas-compra";
 
@@ -55,13 +56,16 @@ export default function CRMPage() {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'leads' | 'promesas'>('leads');
+  const [clientTypeFilter, setClientTypeFilter] = useState<'todos' | 'nuevos' | 'recurrentes'>('todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [segmentFilter, setSegmentFilter] = useState('all');
   const [vendedorFilter, setVendedorFilter] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isStageManagementOpen, setIsStageManagementOpen] = useState(false);
+  const [isInactiveClientsDialogOpen, setIsInactiveClientsDialogOpen] = useState(false);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [prefilledClientData, setPrefilledClientData] = useState<ClienteInactivo | null>(null);
   
   const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -103,6 +107,13 @@ export default function CRMPage() {
   const { data: leads = [], isLoading } = useQuery<CrmLead[]>({
     queryKey: ['/api/crm/leads'],
   });
+
+  const { data: inactiveClients = [] } = useQuery<ClienteInactivo[]>({
+    queryKey: ['/api/crm/inactive-clients'],
+  });
+
+  // Filter out dismissed and already added inactive clients
+  const activeInactiveClients = inactiveClients.filter(client => !client.dismissed && !client.addedToCrm);
 
   const { data: segments = [] } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
@@ -167,7 +178,22 @@ export default function CRMPage() {
     },
   });
 
-  // Filter leads by search query, segment, and salesperson
+  const dismissInactiveClientMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest(`/api/crm/inactive-clients/${id}/dismiss`, {
+        method: 'POST'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/inactive-clients'] });
+      toast({
+        title: "Cliente descartado",
+        description: "El cliente inactivo ha sido descartado",
+      });
+    },
+  });
+
+  // Filter leads by search query, segment, salesperson, and client type
   const filteredLeads = leads.filter(lead => {
     // Search filter
     const matchesSearch = !searchQuery || 
@@ -181,7 +207,12 @@ export default function CRMPage() {
     // Salesperson filter
     const matchesVendedor = vendedorFilter === 'all' || lead.salespersonName === vendedorFilter;
     
-    return matchesSearch && matchesSegment && matchesVendedor;
+    // Client type filter
+    const matchesClientType = clientTypeFilter === 'todos' || 
+      (clientTypeFilter === 'nuevos' && !lead.hasHistoricalSales) ||
+      (clientTypeFilter === 'recurrentes' && lead.hasHistoricalSales);
+    
+    return matchesSearch && matchesSegment && matchesVendedor && matchesClientType;
   });
 
   // Group leads by stage
@@ -216,7 +247,10 @@ export default function CRMPage() {
             <Download className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
             <span className="hidden sm:inline">Export</span>
           </Button>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+            setIsCreateDialogOpen(open);
+            if (!open) setPrefilledClientData(null);
+          }}>
             <DialogTrigger asChild>
               <Button size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-create-lead">
                 <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
@@ -227,7 +261,13 @@ export default function CRMPage() {
               <DialogHeader>
                 <DialogTitle>Crear Nuevo Lead</DialogTitle>
               </DialogHeader>
-              <CreateLeadForm onSuccess={() => setIsCreateDialogOpen(false)} />
+              <CreateLeadForm 
+                onSuccess={() => {
+                  setIsCreateDialogOpen(false);
+                  setPrefilledClientData(null);
+                }} 
+                prefilledData={prefilledClientData}
+              />
             </DialogContent>
           </Dialog>
         </div>
@@ -242,6 +282,47 @@ export default function CRMPage() {
 
         {/* Tab de Leads */}
         <TabsContent value="leads" className="space-y-2 sm:space-y-4">
+          {/* Inactive Clients Alert */}
+          {activeInactiveClients.length > 0 && (
+            <Alert className="bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
+              <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              <AlertDescription className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-orange-800 dark:text-orange-200">
+                    Tienes <strong>{activeInactiveClients.length}</strong> {activeInactiveClients.length === 1 ? 'cliente inactivo' : 'clientes inactivos'}
+                  </span>
+                  <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200">
+                    {activeInactiveClients.length}
+                  </Badge>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 text-xs"
+                  onClick={() => setIsInactiveClientsDialogOpen(true)}
+                  data-testid="button-view-inactive-clients"
+                >
+                  Ver Detalles
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Client Type Tabs */}
+          <Tabs value={clientTypeFilter} onValueChange={(v) => setClientTypeFilter(v as 'todos' | 'nuevos' | 'recurrentes')}>
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="todos" className="flex-1 sm:flex-none text-xs sm:text-sm" data-testid="tab-todos">
+                Todos
+              </TabsTrigger>
+              <TabsTrigger value="nuevos" className="flex-1 sm:flex-none text-xs sm:text-sm" data-testid="tab-nuevos">
+                Leads Nuevos
+              </TabsTrigger>
+              <TabsTrigger value="recurrentes" className="flex-1 sm:flex-none text-xs sm:text-sm" data-testid="tab-recurrentes">
+                Clientes Recurrentes
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           {/* Barra de búsqueda y filtros */}
           <div className="flex flex-col gap-2 sm:gap-3">
             {/* Fila de filtros: en móvil horizontal, en desktop también horizontal */}
@@ -470,6 +551,85 @@ export default function CRMPage() {
         open={isStageManagementOpen}
         onOpenChange={setIsStageManagementOpen}
       />
+
+      {/* Diálogo de Clientes Inactivos */}
+      <Dialog open={isInactiveClientsDialogOpen} onOpenChange={setIsInactiveClientsDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Clientes Inactivos</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {activeInactiveClients.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No hay clientes inactivos</p>
+            ) : (
+              activeInactiveClients.map((client) => (
+                <Card key={client.id} className="p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <h4 className="font-semibold text-lg">{client.clientName}</h4>
+                        {client.segment && (
+                          <Badge variant="outline" className="mt-1">
+                            {client.segment}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-600 dark:text-gray-400">Días sin comprar:</span>
+                          <p className="font-semibold text-orange-600">{client.daysSinceLastPurchase || 0} días</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600 dark:text-gray-400">Última compra:</span>
+                          <p className="font-semibold">
+                            {client.lastPurchaseDate 
+                              ? new Date(client.lastPurchaseDate).toLocaleDateString('es-CL')
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600 dark:text-gray-400">Total año:</span>
+                          <p className="font-semibold">
+                            ${Number(client.totalPurchasesLastYear || 0).toLocaleString('es-CL')}
+                          </p>
+                        </div>
+                      </div>
+                      {client.salespersonName && (
+                        <p className="text-xs text-gray-500">
+                          Vendedor: {client.salespersonName}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setPrefilledClientData(client);
+                          setIsInactiveClientsDialogOpen(false);
+                          setIsCreateDialogOpen(true);
+                        }}
+                        data-testid={`button-add-to-crm-${client.id}`}
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Añadir al CRM
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => dismissInactiveClientMutation.mutate(client.id)}
+                        data-testid={`button-dismiss-${client.id}`}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Descartar
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -908,7 +1068,7 @@ function LeadComments({ leadId }: { leadId: string }) {
   );
 }
 
-function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
+function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; prefilledData?: ClienteInactivo | null }) {
   const { toast } = useToast();
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [clientSearchQuery, setClientSearchQuery] = useState('');
@@ -964,17 +1124,34 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      clientName: '',
-      clientPhone: '',
-      clientEmail: '',
+      clientName: prefilledData?.clientName || '',
+      clientPhone: prefilledData?.clientPhone || '',
+      clientEmail: prefilledData?.clientEmail || '',
       clientCompany: '',
       clientAddress: '',
-      segment: '',
-      salespersonId: '',
+      segment: prefilledData?.segment || '',
+      salespersonId: prefilledData?.salespersonId || '',
       notes: '',
       stage: defaultStage,
     },
   });
+
+  // Update form when prefilledData changes
+  useEffect(() => {
+    if (prefilledData) {
+      form.reset({
+        clientName: prefilledData.clientName || '',
+        clientPhone: prefilledData.clientPhone || '',
+        clientEmail: prefilledData.clientEmail || '',
+        clientCompany: '',
+        clientAddress: '',
+        segment: prefilledData.segment || '',
+        salespersonId: prefilledData.salespersonId || '',
+        notes: `Cliente inactivo desde hace ${prefilledData.daysSinceLastPurchase} días`,
+        stage: defaultStage,
+      });
+    }
+  }, [prefilledData]);
 
   // Filtrar clientes basándose en la búsqueda (mínimo 2 caracteres)
   const filteredClients = clients.filter((client) => {
@@ -1025,6 +1202,7 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
         clientAddress: data.clientAddress || null,
         segment: data.segment || null,
         notes: data.notes || null,
+        hasHistoricalSales: prefilledData ? true : false, // Mark as recurring if from inactive client
       };
       
       console.log('📤 [CREATE LEAD] Sending cleaned data to backend:', cleanData);
@@ -1042,11 +1220,29 @@ function CreateLeadForm({ onSuccess }: { onSuccess: () => void }) {
         throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: async (newLead) => {
+      console.log('🎉 [CREATE LEAD] Success! New lead:', newLead);
+      
+      // If this lead was created from an inactive client, mark it as added
+      if (prefilledData?.id) {
+        try {
+          await apiRequest(`/api/crm/inactive-clients/${prefilledData.id}/add-to-crm`, {
+            method: 'POST',
+            data: { leadId: newLead.id }
+          });
+          console.log('✅ [CREATE LEAD] Inactive client marked as added to CRM');
+          queryClient.invalidateQueries({ queryKey: ['/api/crm/inactive-clients'] });
+        } catch (error) {
+          console.error('❌ [CREATE LEAD] Failed to mark inactive client as added:', error);
+        }
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['/api/crm/leads'] });
       toast({
         title: "Lead creado",
-        description: "El lead ha sido creado exitosamente",
+        description: prefilledData 
+          ? "El cliente inactivo ha sido añadido al CRM exitosamente"
+          : "El lead ha sido creado exitosamente",
       });
       form.reset();
       onSuccess();

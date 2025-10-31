@@ -24,6 +24,7 @@ import {
   crmLeads,
   crmComments,
   crmStages,
+  clientesInactivos,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -82,6 +83,8 @@ import {
   type InsertCrmComment,
   type CrmStage,
   type InsertCrmStage,
+  type ClienteInactivo,
+  type InsertClienteInactivo,
   type NvvPendingSales,
   type InsertNvvPendingSales,
   type NvvImportResult,
@@ -13667,6 +13670,223 @@ export class DatabaseStorage implements IStorage {
         count: Number(r.count),
       })),
     };
+  }
+
+  // ============================================
+  // CLIENTES INACTIVOS - INACTIVE CLIENTS ALERTS
+  // ============================================
+
+  async updateInactiveClients(): Promise<number> {
+    try {
+      // Detectar clientes con última compra >30 días pero <365 días
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+      // Consulta SQL para detectar clientes inactivos desde fact_ventas
+      const inactiveClientsQuery = await db.execute(sql`
+        WITH client_stats AS (
+          SELECT 
+            fv.nokoen as client_name,
+            fv.koen as client_koen,
+            MAX(fv.fecha) as last_purchase_date,
+            MAX(fv.vabrdo) as last_purchase_amount,
+            CURRENT_DATE - MAX(fv.fecha)::date as days_since_last_purchase,
+            SUM(fv.vabrdo) as total_purchases_last_year,
+            fv.noruen as segment,
+            fv.vendedor_nombre as salesperson_name
+          FROM ventas.fact_ventas fv
+          WHERE fv.fecha >= ${oneYearAgo.toISOString()}
+          GROUP BY fv.nokoen, fv.koen, fv.noruen, fv.vendedor_nombre
+          HAVING MAX(fv.fecha) < ${thirtyDaysAgo.toISOString()}
+            AND MAX(fv.fecha) >= ${oneYearAgo.toISOString()}
+        )
+        SELECT * FROM client_stats
+        ORDER BY days_since_last_purchase DESC
+      `);
+
+      const inactiveClients = inactiveClientsQuery.rows as any[];
+
+      // UPSERT con ON CONFLICT para idempotencia
+      // Primero, eliminar alertas de clientes que ya no están inactivos (pasaron más de 365 días o compraron recientemente)
+      const currentKoens = inactiveClients.map(c => c.client_koen).filter(Boolean);
+      
+      if (currentKoens.length > 0) {
+        await db
+          .delete(clientesInactivos)
+          .where(sql`${clientesInactivos.clientKoen} NOT IN (${sql.join(currentKoens.map(k => sql`${k}`), sql`, `)})`);
+      } else {
+        // Si no hay clientes inactivos, limpiar toda la tabla
+        await db.delete(clientesInactivos);
+      }
+
+      // UPSERT de clientes inactivos actuales
+      for (const client of inactiveClients) {
+        // Buscar vendedor y supervisor asociado
+        let salespersonId = null;
+        let supervisorId = null;
+        let supervisorName = null;
+
+        // Buscar vendedor por nombre
+        const salesperson = await db
+          .select()
+          .from(salespeopleUsers)
+          .where(eq(salespeopleUsers.name, client.salesperson_name))
+          .limit(1);
+
+        if (salesperson.length > 0) {
+          salespersonId = salesperson[0].id;
+          
+          // Si tiene vendedor, buscar su supervisor
+          if (salesperson[0].supervisorId) {
+            const supervisor = await db
+              .select()
+              .from(salespeopleUsers)
+              .where(eq(salespeopleUsers.id, salesperson[0].supervisorId))
+              .limit(1);
+            
+            if (supervisor.length > 0) {
+              supervisorId = supervisor[0].id;
+              supervisorName = supervisor[0].name;
+            }
+          }
+        } else {
+          // Si no se encontró vendedor por nombre, buscar por segmento
+          const supervisorBySegment = await db
+            .select()
+            .from(salespeopleUsers)
+            .where(
+              and(
+                eq(salespeopleUsers.role, 'supervisor'),
+                sql`${salespeopleUsers.noruen} = ${client.segment}`
+              )
+            )
+            .limit(1);
+
+          if (supervisorBySegment.length > 0) {
+            supervisorId = supervisorBySegment[0].id;
+            supervisorName = supervisorBySegment[0].name;
+          }
+        }
+
+        // UPSERT: Insertar o actualizar si ya existe basándose en clientKoen
+        await db.insert(clientesInactivos).values({
+          clientName: client.client_name,
+          clientKoen: client.client_koen,
+          lastPurchaseDate: client.last_purchase_date,
+          lastPurchaseAmount: client.last_purchase_amount?.toString() || '0',
+          daysSinceLastPurchase: parseInt(client.days_since_last_purchase) || 0,
+          totalPurchasesLastYear: client.total_purchases_last_year?.toString() || '0',
+          segment: client.segment,
+          salespersonId,
+          salespersonName: client.salesperson_name,
+          supervisorId,
+          supervisorName,
+          addedToCrm: false,
+          dismissed: false,
+        })
+        .onConflictDoUpdate({
+          target: clientesInactivos.clientKoen,
+          set: {
+            clientName: client.client_name,
+            lastPurchaseDate: client.last_purchase_date,
+            lastPurchaseAmount: client.last_purchase_amount?.toString() || '0',
+            daysSinceLastPurchase: parseInt(client.days_since_last_purchase) || 0,
+            totalPurchasesLastYear: client.total_purchases_last_year?.toString() || '0',
+            segment: client.segment,
+            salespersonId,
+            salespersonName: client.salesperson_name,
+            supervisorId,
+            supervisorName,
+            updatedAt: new Date(),
+            // Preservar addedToCrm y dismissed si ya existían
+          }
+        });
+      }
+
+      return inactiveClients.length;
+    } catch (error: any) {
+      console.error('Error updating inactive clients:', error.message);
+      return 0;
+    }
+  }
+
+  async getInactiveClients(filters?: {
+    userId?: string;
+    role?: string;
+    includeDismissed?: boolean;
+  }): Promise<ClienteInactivo[]> {
+    try {
+      const conditions = [];
+      
+      // No mostrar clientes ya añadidos al CRM
+      conditions.push(eq(clientesInactivos.addedToCrm, false));
+
+      // Filtrar por dismissed
+      if (!filters?.includeDismissed) {
+        conditions.push(eq(clientesInactivos.dismissed, false));
+      }
+
+      // FILTRADO POR ROL APLICADO DESDE EL SERVIDOR - NO CONFIAR EN QUERY PARAMS
+      if (filters?.role && filters?.userId) {
+        if (filters.role === 'salesperson') {
+          // Vendedor solo ve sus clientes
+          conditions.push(eq(clientesInactivos.salespersonId, filters.userId));
+        } else if (filters.role === 'supervisor') {
+          // Supervisor ve clientes de su segmento
+          conditions.push(eq(clientesInactivos.supervisorId, filters.userId));
+        }
+        // Admin ve todos - no se añade condición adicional
+      }
+
+      const results = await db
+        .select()
+        .from(clientesInactivos)
+        .where(and(...conditions))
+        .orderBy(desc(clientesInactivos.daysSinceLastPurchase));
+
+      return results;
+    } catch (error: any) {
+      console.error('Error getting inactive clients:', error.message);
+      return [];
+    }
+  }
+
+  async markInactiveClientAddedToCrm(id: string, leadId: string): Promise<boolean> {
+    try {
+      await db
+        .update(clientesInactivos)
+        .set({
+          addedToCrm: true,
+          crmLeadId: leadId,
+          updatedAt: new Date(),
+        })
+        .where(eq(clientesInactivos.id, id));
+
+      return true;
+    } catch (error: any) {
+      console.error('Error marking inactive client as added to CRM:', error.message);
+      return false;
+    }
+  }
+
+  async dismissInactiveClient(id: string): Promise<boolean> {
+    try {
+      await db
+        .update(clientesInactivos)
+        .set({
+          dismissed: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(clientesInactivos.id, id));
+
+      return true;
+    } catch (error: any) {
+      console.error('Error dismissing inactive client:', error.message);
+      return false;
+    }
   }
 
 }
