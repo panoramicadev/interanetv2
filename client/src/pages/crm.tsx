@@ -310,24 +310,24 @@ export default function CRMPage() {
 
           {/* Client Type Tabs */}
           <Tabs value={clientTypeFilter} onValueChange={(v) => setClientTypeFilter(v as 'todos' | 'nuevos' | 'recurrentes')}>
-            <TabsList className="w-full sm:w-auto sm:p-1.5 bg-gray-100/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700">
+            <TabsList className="w-full grid grid-cols-3 p-0 h-auto bg-transparent gap-0 border-b-2 border-gray-200 dark:border-gray-700">
               <TabsTrigger 
                 value="todos" 
-                className="flex-1 sm:flex-none text-xs sm:text-base sm:px-6 sm:py-2.5 font-medium sm:font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-md transition-all" 
+                className="relative flex-1 text-xs sm:text-base px-4 sm:px-8 py-3 sm:py-4 font-semibold rounded-none border-b-2 -mb-[2px] border-transparent data-[state=active]:border-gray-900 dark:data-[state=active]:border-white data-[state=active]:bg-gray-50/50 dark:data-[state=active]:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-all duration-200 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white text-gray-600 dark:text-gray-400" 
                 data-testid="tab-todos"
               >
                 Todos
               </TabsTrigger>
               <TabsTrigger 
                 value="nuevos" 
-                className="flex-1 sm:flex-none text-xs sm:text-base sm:px-6 sm:py-2.5 font-medium sm:font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-md transition-all" 
+                className="relative flex-1 text-xs sm:text-base px-4 sm:px-8 py-3 sm:py-4 font-semibold rounded-none border-b-2 -mb-[2px] border-transparent data-[state=active]:border-gray-900 dark:data-[state=active]:border-white data-[state=active]:bg-gray-50/50 dark:data-[state=active]:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-all duration-200 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white text-gray-600 dark:text-gray-400" 
                 data-testid="tab-nuevos"
               >
                 Leads Nuevos
               </TabsTrigger>
               <TabsTrigger 
                 value="recurrentes" 
-                className="flex-1 sm:flex-none text-xs sm:text-base sm:px-6 sm:py-2.5 font-medium sm:font-semibold data-[state=active]:bg-white dark:data-[state=active]:bg-gray-900 data-[state=active]:shadow-md transition-all" 
+                className="relative flex-1 text-xs sm:text-base px-4 sm:px-8 py-3 sm:py-4 font-semibold rounded-none border-b-2 -mb-[2px] border-transparent data-[state=active]:border-gray-900 dark:data-[state=active]:border-white data-[state=active]:bg-gray-50/50 dark:data-[state=active]:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-all duration-200 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white text-gray-600 dark:text-gray-400" 
                 data-testid="tab-recurrentes"
               >
                 Clientes Recurrentes
