@@ -129,6 +129,13 @@ app.use((req, res, next) => {
           log('🔔 Running initial inactive clients update on startup...');
           const count = await storage.updateInactiveClients();
           log(`✅ Updated ${count} inactive clients alerts`);
+          
+          // 🔔 Notificar si hay clientes inactivos
+          if (count > 0) {
+            const { notifyClientesInactivos } = await import('./notifications-helper');
+            await notifyClientesInactivos(count);
+            log(`✅ Notification sent: ${count} inactive clients detected`);
+          }
         } catch (error: any) {
           console.error('Initial inactive clients update failed:', error.message);
         }
@@ -140,6 +147,13 @@ app.use((req, res, next) => {
           log('🔔 Running scheduled inactive clients update...');
           const count = await storage.updateInactiveClients();
           log(`✅ Updated ${count} inactive clients alerts`);
+          
+          // 🔔 Notificar si hay clientes inactivos
+          if (count > 0) {
+            const { notifyClientesInactivos } = await import('./notifications-helper');
+            await notifyClientesInactivos(count);
+            log(`✅ Notification sent: ${count} inactive clients detected`);
+          }
         } catch (error: any) {
           console.error('Scheduled inactive clients update failed:', error.message);
         }

@@ -13718,22 +13718,26 @@ export class DatabaseStorage implements IStorage {
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
       // Consulta SQL para detectar clientes inactivos desde fact_ventas
+      // Nota: fact_ventas no tiene vendedor_nombre, solo usamos nokoen y noruen
+      const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+      
       const inactiveClientsQuery = await db.execute(sql`
         WITH client_stats AS (
           SELECT 
             fv.nokoen as client_name,
-            fv.koen as client_koen,
-            MAX(fv.fecha) as last_purchase_date,
+            fv.nokoen as client_koen,
+            MAX(fv.feemdo) as last_purchase_date,
             MAX(fv.vabrdo) as last_purchase_amount,
-            CURRENT_DATE - MAX(fv.fecha)::date as days_since_last_purchase,
+            CURRENT_DATE - MAX(fv.feemdo)::date as days_since_last_purchase,
             SUM(fv.vabrdo) as total_purchases_last_year,
             fv.noruen as segment,
-            fv.vendedor_nombre as salesperson_name
+            NULL as salesperson_name
           FROM ventas.fact_ventas fv
-          WHERE fv.fecha >= ${oneYearAgo.toISOString()}
-          GROUP BY fv.nokoen, fv.koen, fv.noruen, fv.vendedor_nombre
-          HAVING MAX(fv.fecha) < ${thirtyDaysAgo.toISOString()}
-            AND MAX(fv.fecha) >= ${oneYearAgo.toISOString()}
+          WHERE fv.feemdo >= ${sql.raw(`'${oneYearAgoStr}'::date`)}
+          GROUP BY fv.nokoen, fv.noruen
+          HAVING MAX(fv.feemdo) < ${sql.raw(`'${thirtyDaysAgoStr}'::date`)}
+            AND MAX(fv.feemdo) >= ${sql.raw(`'${oneYearAgoStr}'::date`)}
         )
         SELECT * FROM client_stats
         ORDER BY days_since_last_purchase DESC
