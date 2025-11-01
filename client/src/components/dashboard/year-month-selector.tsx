@@ -273,7 +273,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                 
                 {/* Encabezados de días de la semana */}
                 <div className="grid grid-cols-7 gap-1 mb-1">
-                  {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((dayName) => (
+                  {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((dayName) => (
                     <div
                       key={dayName}
                       className="h-6 flex items-center justify-center text-[9px] font-semibold text-gray-600"
@@ -291,7 +291,9 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                     const daysInMonth = getDaysInMonth();
                     
                     // Obtener el primer día de la semana del mes (0 = Domingo, 6 = Sábado)
-                    const firstDayOfWeek = new Date(year, month, 1).getDay();
+                    const firstDayOfWeekJS = new Date(year, month, 1).getDay();
+                    // Ajustar para que Lunes sea 0: (0=Dom -> 6, 1=Lun -> 0, 2=Mar -> 1, etc.)
+                    const firstDayOfWeek = firstDayOfWeekJS === 0 ? 6 : firstDayOfWeekJS - 1;
                     
                     // Crear array con espacios vacíos + días del mes
                     const calendarDays = [];
