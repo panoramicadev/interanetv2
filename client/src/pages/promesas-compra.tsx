@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks } from "date-fns";
+import { format, startOfWeek, endOfWeek, getISOWeek, getYear, addWeeks, subWeeks, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +27,16 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Calendar, TrendingUp, TrendingDown, CheckCircle, XCircle, Loader2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+function getWeekOfMonth(date: Date): number {
+  const firstDayOfMonth = startOfMonth(date);
+  const firstWeekStart = startOfWeek(firstDayOfMonth, { weekStartsOn: 1 });
+  const currentWeekStart = startOfWeek(date, { weekStartsOn: 1 });
+  
+  const weeksDiff = Math.floor((currentWeekStart.getTime() - firstWeekStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  
+  return weeksDiff + 1;
+}
 
 interface PromesaCompra {
   id: string;
@@ -122,7 +132,7 @@ export default function PromesasCompraPage() {
             <div>
               <CardTitle>Selección de Semana</CardTitle>
               <CardDescription>
-                Semana {getISOWeek(selectedWeek)} del {getYear(selectedWeek)} ({format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })})
+                Semana {getWeekOfMonth(selectedWeek)} de {format(selectedWeek, 'MMMM yyyy', { locale: es })} ({format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })})
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -459,7 +469,7 @@ function CreatePromesaDialog({
         <DialogHeader>
           <DialogTitle>Nueva Promesa de Compra</DialogTitle>
           <DialogDescription>
-            Registra un compromiso de compra para la semana {getISOWeek(selectedWeek)} del {getYear(selectedWeek)}
+            Registra un compromiso de compra para la semana {getWeekOfMonth(selectedWeek)} de {format(selectedWeek, 'MMMM yyyy', { locale: es })}
           </DialogDescription>
         </DialogHeader>
 
