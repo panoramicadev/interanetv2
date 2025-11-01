@@ -222,3 +222,18 @@ export async function notifyVisitaTecnicaCreada(clientName: string, visitType: s
     createdByName: `Sistema - ${createdBy}`,
   });
 }
+
+// Notificaciones para Clientes Inactivos
+export async function notifyClientesInactivos(count: number) {
+  if (count === 0) return;
+  
+  await createAutoNotification({
+    targetType: 'departamento',
+    title: '⚠️ Alerta de Clientes Inactivos',
+    message: `Hay ${count} ${count === 1 ? 'cliente inactivo' : 'clientes inactivos'} que no han comprado en más de 30 días. Revisa la sección CRM para reactivarlos.`,
+    priority: 'alta',
+    targetDepartment: 'Ventas',
+    actionUrl: `/crm`,
+    createdByName: 'Sistema - CRM',
+  });
+}
