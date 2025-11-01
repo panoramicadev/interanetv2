@@ -38,6 +38,20 @@ function getWeekOfMonth(date: Date): number {
   return weeksDiff + 1;
 }
 
+function getWeekRangeInMonth(date: Date): { start: Date; end: Date } {
+  let weekStart = startOfWeek(date, { weekStartsOn: 1 });
+  let weekEnd = endOfWeek(date, { weekStartsOn: 1 });
+  
+  const currentMonth = date.getMonth();
+  const lastDayOfMonth = new Date(date.getFullYear(), currentMonth + 1, 0);
+  
+  if (weekEnd.getMonth() !== currentMonth) {
+    weekEnd = lastDayOfMonth;
+  }
+  
+  return { start: weekStart, end: weekEnd };
+}
+
 interface PromesaCompra {
   id: string;
   vendedorId: string;
@@ -132,7 +146,7 @@ export default function PromesasCompraPage() {
             <div>
               <CardTitle>Selección de Semana</CardTitle>
               <CardDescription>
-                Semana {getWeekOfMonth(selectedWeek)} de {format(selectedWeek, 'MMMM yyyy', { locale: es })} ({format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'dd MMM', { locale: es })})
+                Semana {getWeekOfMonth(selectedWeek)} de {format(selectedWeek, 'MMMM yyyy', { locale: es })} ({format(getWeekRangeInMonth(selectedWeek).start, 'dd MMM', { locale: es })} - {format(getWeekRangeInMonth(selectedWeek).end, 'dd MMM', { locale: es })})
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -435,17 +449,7 @@ function CreatePromesaDialog({
       }
     }
 
-    let weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 });
-    let weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 });
-    
-    // IMPORTANTE: Si el fin de semana cae en el mes siguiente, cortarlo en el último día del mes actual
-    const currentMonth = selectedWeek.getMonth();
-    const lastDayOfMonth = new Date(selectedWeek.getFullYear(), currentMonth + 1, 0);
-    
-    if (weekEnd.getMonth() !== currentMonth) {
-      weekEnd = lastDayOfMonth;
-    }
-    
+    const { start: weekStart, end: weekEnd } = getWeekRangeInMonth(selectedWeek);
     const weekNumber = getISOWeek(selectedWeek);
     const year = getYear(selectedWeek);
 
