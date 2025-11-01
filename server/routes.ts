@@ -18,6 +18,7 @@ import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, 
 import { eq, and, isNotNull, ne, sql, desc } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig } from "./etl-incremental";
+import * as NotifyHelper from "./notifications-helper";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
 function parseDate(value: any): string | null {
@@ -4288,6 +4289,14 @@ export function registerRoutes(app: Express): Server {
       };
       
       const newLead = await storage.createLead(leadData);
+      
+      // 🔔 Notificación automática: Nuevo lead creado
+      await NotifyHelper.notifyNuevoLead(
+        leadData.clientName,
+        leadData.segment || 'Sin segmento',
+        leadData.salespersonName
+      );
+      
       res.status(201).json(newLead);
     } catch (error) {
       console.error("Error creating lead:", error);
@@ -7487,6 +7496,15 @@ export function registerRoutes(app: Express): Server {
       console.log('💾 Creando visita con datos:', visitaData);
       const nuevaVisita = await storage.createVisitaTecnica(visitaData);
       console.log('✅ Visita creada con ID:', nuevaVisita.id);
+      
+      // 🔔 Notificación automática: Nueva visita técnica programada
+      const user = req.user;
+      const creatorName = user.salespersonName || `${user.firstName} ${user.lastName}` || user.email;
+      await NotifyHelper.notifyVisitaTecnicaCreada(
+        visitaData.nombreObra,
+        estado || 'Evaluación',
+        creatorName
+      );
 
       // Si hay productos, crearlos junto con sus evaluaciones
       if (productos && productos.length > 0) {
@@ -8121,6 +8139,15 @@ export function registerRoutes(app: Express): Server {
       };
       
       const reclamo = await storage.createReclamoGeneral(reclamoData);
+      
+      // 🔔 Notificación automática: Nuevo reclamo creado
+      await NotifyHelper.notifyReclamoCreated(
+        reclamo.id, 
+        reclamoData.motivo,
+        reclamoData.clientName || 'Cliente',
+        reclamoData.vendedorName
+      );
+      
       res.status(201).json(reclamo);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al crear reclamo', error: error.message });
@@ -8621,6 +8648,13 @@ export function registerRoutes(app: Express): Server {
 
       const solicitud = await storage.createSolicitudMantencion(validatedData);
       
+      // 🔔 Notificación automática: Nueva solicitud de mantención
+      await NotifyHelper.notifyMantencionCreada(
+        validatedData.equipoNombre,
+        validatedData.gravedad,
+        validatedData.solicitanteName || 'Usuario'
+      );
+      
       // Process uploaded photos
       if (req.files && req.files.length > 0) {
         const objectStorageService = new ObjectStorageService();
@@ -9116,6 +9150,13 @@ export function registerRoutes(app: Express): Server {
       }
       
       const solicitud = await storage.createSolicitudMarketing(solicitudData);
+      
+      // 🔔 Notificación automática: Nueva solicitud de marketing
+      await NotifyHelper.notifySolicitudMarketing(
+        solicitudData.titulo,
+        solicitudData.presupuestoSolicitado || 0,
+        supervisorName
+      );
       
       res.status(201).json(solicitud);
     } catch (error: any) {
@@ -9713,6 +9754,15 @@ export function registerRoutes(app: Express): Server {
       });
       
       const gasto = await storage.createGastoEmpresarial(validated);
+      
+      // 🔔 Notificación automática: Nuevo gasto creado
+      const creatorName = user.salespersonName || `${user.firstName} ${user.lastName}` || user.email;
+      await NotifyHelper.notifyGastoCreado(
+        validated.categoria,
+        validated.monto,
+        creatorName
+      );
+      
       res.status(201).json(gasto);
     } catch (error: any) {
       if (error.name === 'ZodError') {
