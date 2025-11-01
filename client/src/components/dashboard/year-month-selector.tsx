@@ -270,23 +270,59 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
             {selectedMonths.length === 1 && (
               <div className="px-2.5 py-2 border-b">
                 <label className="text-[10px] font-medium text-gray-700 mb-1.5 block">Días:</label>
-                <div className="grid grid-cols-7 gap-1 max-h-32 overflow-y-auto">
-                  {Array.from({ length: getDaysInMonth() }, (_, i) => i + 1).map((day) => {
-                    const isSelected = selectedDays.includes(day);
-                    return (
-                      <Button
-                        key={day}
-                        variant={isSelected ? "default" : "outline"}
-                        className={`h-7 text-[10px] px-1 ${
-                          isSelected ? 'bg-primary text-white' : 'hover:bg-primary hover:text-white'
-                        }`}
-                        onClick={() => handleDayToggle(day)}
-                        data-testid={`day-${day}`}
-                      >
-                        {day}
-                      </Button>
-                    );
-                  })}
+                
+                {/* Encabezados de días de la semana */}
+                <div className="grid grid-cols-7 gap-1 mb-1">
+                  {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((dayName) => (
+                    <div
+                      key={dayName}
+                      className="h-6 flex items-center justify-center text-[9px] font-semibold text-gray-600"
+                    >
+                      {dayName}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Calendario de días */}
+                <div className="grid grid-cols-7 gap-1 max-h-40 overflow-y-auto">
+                  {(() => {
+                    const year = selectedYears[0];
+                    const month = selectedMonths[0]; // 0-11
+                    const daysInMonth = getDaysInMonth();
+                    
+                    // Obtener el primer día de la semana del mes (0 = Domingo, 6 = Sábado)
+                    const firstDayOfWeek = new Date(year, month, 1).getDay();
+                    
+                    // Crear array con espacios vacíos + días del mes
+                    const calendarDays = [];
+                    
+                    // Agregar espacios vacíos antes del primer día
+                    for (let i = 0; i < firstDayOfWeek; i++) {
+                      calendarDays.push(
+                        <div key={`empty-${i}`} className="h-7" />
+                      );
+                    }
+                    
+                    // Agregar los días del mes
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const isSelected = selectedDays.includes(day);
+                      calendarDays.push(
+                        <Button
+                          key={day}
+                          variant={isSelected ? "default" : "outline"}
+                          className={`h-7 text-[10px] px-1 ${
+                            isSelected ? 'bg-primary text-white' : 'hover:bg-primary hover:text-white'
+                          }`}
+                          onClick={() => handleDayToggle(day)}
+                          data-testid={`day-${day}`}
+                        >
+                          {day}
+                        </Button>
+                      );
+                    }
+                    
+                    return calendarDays;
+                  })()}
                 </div>
               </div>
             )}
