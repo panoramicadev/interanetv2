@@ -15,7 +15,6 @@ import { useState } from "react";
 import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
-import FloatingNotificationBell from "@/components/notifications/FloatingNotificationBell";
 import logoPath from "@assets/logo_1757532115858.png";
 
 interface DashboardLayoutProps {
@@ -301,9 +300,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </div>
       </div>
-      
-      {/* Floating Notification Bell */}
-      <FloatingNotificationBell />
       
       {/* Main Content */}
       <div className="lg:ml-64 transition-all duration-300">
