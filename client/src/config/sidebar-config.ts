@@ -44,6 +44,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
+      href: "/notificaciones",
+      label: "Notificaciones",
+      icon: Bell,
+    },
+    {
       href: "/crm",
       label: "CRM",
       icon: ClipboardList,
@@ -118,11 +123,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/inventario",
       label: "Inventario",
       icon: Warehouse,
-    },
-    {
-      href: "/notificaciones",
-      label: "Notificaciones",
-      icon: Bell,
     },
     {
       href: "/etl-monitor",
@@ -162,6 +162,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
+      href: "/notificaciones",
+      label: "Notificaciones",
+      icon: Bell,
+    },
+    {
       href: "/crm",
       label: "CRM",
       icon: ClipboardList,
@@ -236,11 +241,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/inventario",
       label: "Inventario",
       icon: Warehouse,
-    },
-    {
-      href: "/notificaciones",
-      label: "Notificaciones",
-      icon: Bell,
     },
     {
       href: "/etl-monitor",
