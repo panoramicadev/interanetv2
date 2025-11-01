@@ -39,14 +39,14 @@ interface SidebarItem {
 export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   admin: [
     {
-      href: "/",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-    },
-    {
       href: "/notificaciones",
       label: "Notificaciones",
       icon: Bell,
+    },
+    {
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
     },
     {
       href: "/crm",
@@ -157,14 +157,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   
   supervisor: [
     {
-      href: "/",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-    },
-    {
       href: "/notificaciones",
       label: "Notificaciones",
       icon: Bell,
+    },
+    {
+      href: "/",
+      label: "Dashboard",
+      icon: LayoutDashboard,
     },
     {
       href: "/crm",
