@@ -16,7 +16,6 @@ import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
 import FloatingNotificationBell from "@/components/notifications/FloatingNotificationBell";
-import NotificationPanel from "@/components/notifications/NotificationPanel";
 import logoPath from "@assets/logo_1757532115858.png";
 
 interface DashboardLayoutProps {
@@ -244,9 +243,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </Button>
             )}
           </nav>
-          
-          {/* Notification Panel */}
-          <NotificationPanel />
           
           {/* Footer */}
           <div className="p-4 lg:p-6 border-t border-slate-700/50">
