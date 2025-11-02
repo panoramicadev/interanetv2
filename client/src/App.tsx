@@ -40,6 +40,7 @@ import OrdersPage from "@/pages/orders";
 import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
 import ReclamosGeneralesPage from "@/pages/reclamos-generales";
 import MantencionesPage from "@/pages/mantenciones";
+import ApiKeysPage from "@/pages/api-keys";
 import Marketing from "@/pages/marketing";
 import Inventario from "@/pages/inventario";
 import GastosEmpresariales from "@/pages/gastos-empresariales";
@@ -161,6 +162,7 @@ function Router() {
             <Route path="/inventario" component={Inventario} />
             <Route path="/gastos-empresariales" component={GastosEmpresariales} />
             <Route path="/notificaciones" component={Notificaciones} />
+            <Route path="/api-keys" component={ApiKeysPage} />
             <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />
             <Route path="/gastos-empresariales/dashboard" component={GastosEmpresarialesDashboard} />
             <Route path="/etl-monitor" component={ETLMonitor} />
