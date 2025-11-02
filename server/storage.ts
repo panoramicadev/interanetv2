@@ -3607,6 +3607,100 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  async getSalespersonProducts(salespersonName: string, period?: string, filterType: string = 'month', segment?: string): Promise<Array<{
+    productName: string;
+    totalSales: number;
+    transactionCount: number;
+    averagePrice: number;
+    lastSale: string;
+    totalUnits: number;
+  }>> {
+    const conditions = [
+      eq(salesTransactions.nokofu, salespersonName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
+    
+    // Filter by segment if provided
+    if (segment) {
+      conditions.push(eq(salesTransactions.noruen, segment));
+    }
+
+    // Apply date filters if period is provided
+    if (period) {
+      switch (filterType) {
+        case 'day':
+          // Period format: YYYY-MM-DD
+          conditions.push(
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
+          );
+          break;
+        case 'month':
+          // Period format: YYYY-MM
+          if (period === 'current-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+            );
+          } else if (period === 'last-month') {
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+            );
+          } else {
+            const [year, month] = period.split('-');
+            conditions.push(
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
+            );
+          }
+          break;
+        case 'year':
+          // Period format: YYYY or YYYY-MM (extract year only)
+          const yearForFilter = period.split('-')[0];
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`
+          );
+          break;
+        case 'range':
+          if (period.includes('_')) {
+            const [startDate, endDate] = period.split('_');
+            conditions.push(
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
+            );
+          } else if (period === 'last-30-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+            );
+          } else if (period === 'last-7-days') {
+            conditions.push(
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+            );
+          }
+          break;
+      }
+    }
+
+    const result = await db
+      .select({
+        productName: salesTransactions.nokopr,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averagePrice: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        lastSale: sql<string>`MAX(${salesTransactions.feemdo})`,
+        totalUnits: sql<number>`COALESCE(SUM(CAST(${salesTransactions.cant} AS NUMERIC)), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions))
+      .groupBy(salesTransactions.nokopr)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
+
+    return result.map(product => ({
+      productName: product.productName || 'Producto desconocido',
+      totalSales: Number(product.totalSales),
+      transactionCount: Number(product.transactionCount),
+      averagePrice: Number(product.averagePrice),
+      lastSale: product.lastSale,
+      totalUnits: Number(product.totalUnits)
+    }));
+  }
+
   async getSalespersonSegments(salespersonName: string, period?: string, filterType: string = 'month'): Promise<Array<{
     segment: string;
     totalSales: number;

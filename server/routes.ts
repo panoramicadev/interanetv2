@@ -1808,6 +1808,24 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.get("/api/sales/salesperson/:salespersonName/products", requireAuth, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { period, filterType = "month", segment } = req.query;
+      
+      const products = await storage.getSalespersonProducts(
+        salespersonName, 
+        period as string, 
+        filterType as string,
+        segment as string | undefined
+      );
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching salesperson products:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson products" });
+    }
+  });
+
   app.get("/api/sales/salesperson/:salespersonName/segments", requireAuth, async (req, res) => {
     try {
       const { salespersonName } = req.params;

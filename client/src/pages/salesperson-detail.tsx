@@ -56,6 +56,15 @@ interface SalespersonSegment {
   percentage: number;
 }
 
+interface SalespersonProduct {
+  productName: string;
+  totalSales: number;
+  transactionCount: number;
+  averagePrice: number;
+  lastSale: string;
+  totalUnits: number;
+}
+
 interface SalespersonDetailProps {
   salespersonName?: string;
   embedded?: boolean;
@@ -293,6 +302,9 @@ export default function SalespersonDetail({
   
   // Clients table collapse state
   const [isClientsExpanded, setIsClientsExpanded] = useState(false);
+  
+  // Products table collapse state
+  const [isProductsExpanded, setIsProductsExpanded] = useState(false);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -323,6 +335,20 @@ export default function SalespersonDetail({
       params.append('filterType', filterType);
       if (selectedSegment) params.append('segment', selectedSegment);
       const res = await fetch(`/api/sales/salesperson/${salespersonName}/clients?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName,
+  });
+
+  const { data: products = [], isLoading: isLoadingProducts } = useQuery<SalespersonProduct[]>({
+    queryKey: ['/api/sales/salesperson', salespersonName, 'products', selectedPeriod, filterType, selectedSegment],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (selectedSegment) params.append('segment', selectedSegment);
+      const res = await fetch(`/api/sales/salesperson/${salespersonName}/products?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
@@ -1222,6 +1248,97 @@ export default function SalespersonDetail({
                         ) : (
                           <>
                             Ver más ({clients.length - 5} clientes adicionales)
+                            <ChevronDown className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Products Table */}
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                <Package className="h-5 w-5 text-green-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Productos del Vendedor</h2>
+            </div>
+            
+            <div className="space-y-3">
+              {isLoadingProducts ? (
+                <div className="space-y-3">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="animate-pulse h-16 bg-gray-200 rounded-lg"></div>
+                  ))}
+                </div>
+              ) : products.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No hay productos registrados para este vendedor</p>
+              ) : (
+                <>
+                  {(isProductsExpanded ? products : products.slice(0, 5)).map((product, index) => (
+                    <div 
+                      key={product.productName} 
+                      className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                      data-testid={`product-${index}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            <Badge variant="outline" className="text-xs">
+                              #{index + 1}
+                            </Badge>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {product.productName}
+                            </p>
+                            <div className="flex items-center space-x-4 mt-1">
+                              <p className="text-xs text-gray-500">
+                                {formatNumber(product.transactionCount)} transacciones
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Precio prom: {formatCurrency(product.averagePrice)}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Unidades: {formatNumber(product.totalUnits)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right ml-4">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(product.totalSales)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatDate(product.lastSale)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Ver más button - only show if more than 5 products */}
+                  {products.length > 5 && (
+                    <div className="pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsProductsExpanded(!isProductsExpanded)}
+                        className="w-full"
+                        data-testid="button-toggle-products"
+                      >
+                        {isProductsExpanded ? (
+                          <>
+                            Ver menos
+                            <ChevronUp className="ml-2 h-4 w-4" />
+                          </>
+                        ) : (
+                          <>
+                            Ver más ({products.length - 5} productos adicionales)
                             <ChevronDown className="ml-2 h-4 w-4" />
                           </>
                         )}
