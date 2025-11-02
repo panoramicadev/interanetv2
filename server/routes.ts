@@ -288,15 +288,20 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import externalApiRouter from './routes-external';
+import { nanoid } from 'nanoid';
 
 export function registerRoutes(app: Express): Server {
   // Setup email/password auth system (primary)
   setupAuth(app);
 
   // Note: Replit OIDC auth disabled to avoid conflicts - using email/password auth only
+  
+  // Mount external API routes (with API key auth)
+  app.use('/api/external', externalApiRouter);
 
   // Configure multer for file uploads
   const upload = multer({ 
@@ -2266,6 +2271,122 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching goals progress:", error);
       res.status(500).json({ message: "Failed to fetch goals progress" });
+    }
+  });
+
+  // API Keys management endpoints (admin only)
+  app.get('/api/api-keys', requireAuth, async (req: any, res) => {
+    try {
+      // Only admin and supervisor can view API keys
+      if (req.user.role !== 'admin' && req.user.role !== 'supervisor') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const keys = await storage.getApiKeys();
+      
+      // Don't return the actual key hash
+      const sanitizedKeys = keys.map(key => ({
+        id: key.id,
+        keyPrefix: key.keyPrefix,
+        name: key.name,
+        description: key.description,
+        role: key.role,
+        isActive: key.isActive,
+        lastUsedAt: key.lastUsedAt,
+        usageCount: key.usageCount,
+        createdBy: key.createdBy,
+        createdAt: key.createdAt,
+        expiresAt: key.expiresAt,
+      }));
+
+      res.json(sanitizedKeys);
+    } catch (error) {
+      console.error('Error fetching API keys:', error);
+      res.status(500).json({ message: 'Error al obtener API keys' });
+    }
+  });
+
+  app.post('/api/api-keys', requireAuth, async (req: any, res) => {
+    try {
+      // Only admin can create API keys
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const { name, description, role, expiresAt } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ message: 'El nombre es requerido' });
+      }
+
+      // Generate a random API key
+      const apiKey = `mk_${role || 'readonly'}_${nanoid(32)}`;
+      const keyHash = await bcrypt.hash(apiKey, 10);
+      const keyPrefix = apiKey.substring(0, 16) + '...';
+
+      const newKey = await storage.createApiKey({
+        name,
+        description: description || null,
+        role: role || 'readonly',
+        createdBy: req.user.id,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        keyHash,
+        keyPrefix,
+      });
+
+      // Return the full API key ONLY on creation (it won't be accessible again)
+      res.json({
+        ...newKey,
+        apiKey, // Only shown once
+        keyHash: undefined, // Don't expose hash
+      });
+    } catch (error) {
+      console.error('Error creating API key:', error);
+      res.status(500).json({ message: 'Error al crear API key' });
+    }
+  });
+
+  app.patch('/api/api-keys/:id/toggle', requireAuth, async (req: any, res) => {
+    try {
+      // Only admin can toggle API keys
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const { id } = req.params;
+      const { isActive } = req.body;
+
+      const updated = await storage.toggleApiKeyStatus(id, isActive);
+      
+      if (!updated) {
+        return res.status(404).json({ message: 'API key no encontrada' });
+      }
+
+      res.json({ ...updated, keyHash: undefined });
+    } catch (error) {
+      console.error('Error toggling API key:', error);
+      res.status(500).json({ message: 'Error al actualizar API key' });
+    }
+  });
+
+  app.delete('/api/api-keys/:id', requireAuth, async (req: any, res) => {
+    try {
+      // Only admin can delete API keys
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'No autorizado' });
+      }
+
+      const { id } = req.params;
+      const deleted = await storage.deleteApiKey(id);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: 'API key no encontrada' });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting API key:', error);
+      res.status(500).json({ message: 'Error al eliminar API key' });
     }
   });
 

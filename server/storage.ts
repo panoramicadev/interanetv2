@@ -25,6 +25,7 @@ import {
   crmComments,
   crmStages,
   clientesInactivos,
+  apiKeys,
   type User,
   type UpsertUser,
   type InsertUser,
@@ -85,6 +86,9 @@ import {
   type InsertCrmStage,
   type ClienteInactivo,
   type InsertClienteInactivo,
+  type ApiKey,
+  type InsertApiKey,
+  type InsertApiKeyInput,
   type NvvPendingSales,
   type InsertNvvPendingSales,
   type NvvImportResult,
@@ -14245,6 +14249,74 @@ export class DatabaseStorage implements IStorage {
     };
 
     return roleMapping[userRole] || [];
+  }
+
+  // ============================================
+  // API Keys Management
+  // ============================================
+
+  async createApiKey(data: InsertApiKeyInput & { keyHash: string; keyPrefix: string }): Promise<ApiKey> {
+    const [apiKey] = await db
+      .insert(apiKeys)
+      .values(data)
+      .returning();
+
+    return apiKey;
+  }
+
+  async getApiKeys(createdBy?: string): Promise<ApiKey[]> {
+    const conditions = [];
+    
+    if (createdBy) {
+      conditions.push(eq(apiKeys.createdBy, createdBy));
+    }
+
+    const result = await db
+      .select()
+      .from(apiKeys)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(apiKeys.createdAt));
+
+    return result;
+  }
+
+  async getApiKeyById(id: string): Promise<ApiKey | null> {
+    const [apiKey] = await db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.id, id));
+
+    return apiKey || null;
+  }
+
+  async updateApiKey(id: string, data: Partial<InsertApiKey>): Promise<ApiKey | null> {
+    const [updated] = await db
+      .update(apiKeys)
+      .set({
+        ...data,
+      })
+      .where(eq(apiKeys.id, id))
+      .returning();
+
+    return updated || null;
+  }
+
+  async deleteApiKey(id: string): Promise<boolean> {
+    const result = await db
+      .delete(apiKeys)
+      .where(eq(apiKeys.id, id));
+
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async toggleApiKeyStatus(id: string, isActive: boolean): Promise<ApiKey | null> {
+    const [updated] = await db
+      .update(apiKeys)
+      .set({ isActive })
+      .where(eq(apiKeys.id, id))
+      .returning();
+
+    return updated || null;
   }
 
 }

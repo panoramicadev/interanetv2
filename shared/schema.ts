@@ -4204,3 +4204,50 @@ export const insertClienteInactivoSchema = createInsertSchema(clientesInactivos,
 });
 
 export type InsertClienteInactivoInput = z.infer<typeof insertClienteInactivoSchema>;
+
+// API Keys for external integrations (Make.com, Zapier, etc.)
+export const apiKeys = pgTable("api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // API Key information
+  keyHash: varchar("key_hash").notNull().unique(), // Hashed API key
+  keyPrefix: varchar("key_prefix").notNull(), // First 8 chars for identification (e.g., "mk_live_abcd1234...")
+  name: varchar("name").notNull(), // Descriptive name for the key
+  description: text("description"), // Optional description
+  
+  // Access control
+  role: varchar("role").notNull().default("readonly"), // readonly, read_write, admin
+  isActive: boolean("is_active").default(true),
+  
+  // Usage tracking
+  lastUsedAt: timestamp("last_used_at"),
+  usageCount: integer("usage_count").default(0),
+  
+  // Metadata
+  createdBy: varchar("created_by").notNull(), // User ID who created the key
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at"), // Optional expiration date
+}, (table) => ({
+  keyHashIdx: index("IDX_api_keys_hash").on(table.keyHash),
+  isActiveIdx: index("IDX_api_keys_active").on(table.isActive),
+  createdByIdx: index("IDX_api_keys_created_by").on(table.createdBy),
+}));
+
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = typeof apiKeys.$inferInsert;
+
+export const insertApiKeySchema = createInsertSchema(apiKeys, {
+  name: z.string().min(1, "Nombre es requerido"),
+  description: z.string().optional().nullable(),
+  role: z.enum(["readonly", "read_write", "admin"]).default("readonly"),
+  createdBy: z.string().min(1, "Creador es requerido"),
+}).omit({
+  id: true,
+  keyHash: true,
+  keyPrefix: true,
+  lastUsedAt: true,
+  usageCount: true,
+  createdAt: true,
+});
+
+export type InsertApiKeyInput = z.infer<typeof insertApiKeySchema>;
