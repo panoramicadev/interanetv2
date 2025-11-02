@@ -23,7 +23,8 @@ import {
   Warehouse,
   Banknote,
   Database,
-  Bell
+  Bell,
+  Key
 } from "lucide-react";
 
 interface SidebarItem {
@@ -128,6 +129,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/etl-monitor",
       label: "Monitor ETL",
       icon: Database,
+    },
+    {
+      href: "/api-keys",
+      label: "API Keys",
+      icon: Key,
       separator: true,
     },
     {
