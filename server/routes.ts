@@ -14,8 +14,8 @@ import { Readable } from "stream";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema, insertHitoMarketingSchema, nvvPendingSales } from "../shared/schema";
-import { eq, and, isNotNull, ne, sql, desc } from "drizzle-orm";
+import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema, insertHitoMarketingSchema, nvvPendingSales, factVentas } from "../shared/schema";
+import { eq, and, isNotNull, ne, sql, desc, or } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig } from "./etl-incremental";
 import * as NotifyHelper from "./notifications-helper";
@@ -4174,12 +4174,30 @@ export function registerRoutes(app: Express): Server {
         return res.json([]);
       }
       
-      // Search clients from the clients table with dynamic query
-      const clients = await storage.getClients({ 
-        search: q.trim(),
-        limit: 100  // Limit results to 100 for performance
-      });
-      res.json(clients);
+      // Search clients directly from fact_ventas (data warehouse) to ensure we get real recurring clients
+      const searchTerm = q.trim().toLowerCase();
+      const clientsFromSales = await db
+        .selectDistinct({
+          id: factVentas.koen,
+          nokoen: factVentas.nokoen,
+          koen: factVentas.koen,
+          rten: factVentas.gien,
+          gien: factVentas.gien,
+          dien: sql<string | null>`NULL`.as('dien'),
+          foen: sql<string | null>`NULL`.as('foen'),
+          email: sql<string | null>`NULL`.as('email'),
+        })
+        .from(factVentas)
+        .where(
+          or(
+            sql`LOWER(${factVentas.nokoen}) LIKE ${`%${searchTerm}%`}`,
+            sql`LOWER(${factVentas.koen}) LIKE ${`%${searchTerm}%`}`
+          )
+        )
+        .orderBy(desc(factVentas.nokoen))
+        .limit(100);
+      
+      res.json(clientsFromSales);
     } catch (error) {
       console.error("Error searching clients:", error);
       res.status(500).json({ message: "Failed to search clients" });
