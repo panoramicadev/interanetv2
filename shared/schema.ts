@@ -4258,6 +4258,7 @@ export const proyeccionesVentas = pgTable("proyecciones_ventas", {
   
   // Información de la proyección
   year: integer("year").notNull(), // Año de la proyección
+  month: integer("month"), // Mes de la proyección (1-12), null para proyecciones anuales
   salespersonCode: varchar("salesperson_code").notNull(), // Código del vendedor (vavven de fact_ventas)
   salespersonName: text("salesperson_name"), // Nombre del vendedor para referencia
   clientCode: varchar("client_code").notNull(), // Código del cliente (vakoen de fact_ventas)
@@ -4273,9 +4274,10 @@ export const proyeccionesVentas = pgTable("proyecciones_ventas", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  // Índice compuesto único: un vendedor solo puede tener una proyección por cliente por año
-  uniqueProjection: uniqueIndex("UQ_proyecciones_year_salesperson_client").on(table.year, table.salespersonCode, table.clientCode),
+  // Índice compuesto único: un vendedor solo puede tener una proyección por cliente por año/mes
+  uniqueProjection: uniqueIndex("UQ_proyecciones_year_month_salesperson_client").on(table.year, sql`COALESCE(${table.month}, 0)`, table.salespersonCode, table.clientCode),
   yearIdx: index("IDX_proyecciones_year").on(table.year),
+  monthIdx: index("IDX_proyecciones_month").on(table.month),
   salespersonIdx: index("IDX_proyecciones_salesperson").on(table.salespersonCode),
   clientIdx: index("IDX_proyecciones_client").on(table.clientCode),
 }));
@@ -4285,6 +4287,7 @@ export type InsertProyeccionVenta = typeof proyeccionesVentas.$inferInsert;
 
 export const insertProyeccionVentaSchema = createInsertSchema(proyeccionesVentas, {
   year: z.number().int().min(2020).max(2050),
+  month: z.number().int().min(1).max(12).optional().nullable(),
   salespersonCode: z.string().min(1, "Código de vendedor es requerido"),
   clientCode: z.string().min(1, "Código de cliente es requerido"),
   projectedAmount: z.string().or(z.number()).transform(val => String(val)).default('0'),
