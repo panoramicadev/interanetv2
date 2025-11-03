@@ -18,6 +18,7 @@ import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metric
 
 interface SegmentClient {
   clientName: string;
+  salespersonName: string;
   totalSales: number;
   transactionCount: number;
   averageTicket: number;
@@ -404,8 +405,13 @@ export default function SegmentDetail({
     return new Intl.NumberFormat('es-CL').format(num);
   };
 
+  // Format currency for CSV (CLP with thousands separator as point, no decimals)
+  const formatCurrencyCSV = (amount: number) => {
+    return Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
   // Export data to CSV
-  const exportSegmentDataToCSV = () => {
+  const exportSegmentDataToCSV = async () => {
     const csvData = [];
     
     // Add header
@@ -416,22 +422,23 @@ export default function SegmentDetail({
     
     // KPIs Summary
     csvData.push(['RESUMEN GENERAL']);
-    csvData.push(['Total Ventas', totalSales]);
+    csvData.push(['Total Ventas', formatCurrencyCSV(totalSales)]);
     csvData.push(['Total Clientes', totalClients]);
     csvData.push(['Total Vendedores', totalSalespeople]);
     csvData.push(['Total Transacciones', totalTransactions]);
-    csvData.push(['Ticket Promedio', averageTicket]);
+    csvData.push(['Ticket Promedio', Math.round(averageTicket)]);
     csvData.push([]); // Empty row
     
     // Clients data
     csvData.push(['CLIENTES DEL SEGMENTO']);
-    csvData.push(['Cliente', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Porcentaje']);
+    csvData.push(['Cliente', 'Vendedor', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Porcentaje']);
     clients.forEach(client => {
       csvData.push([
         client.clientName,
-        client.totalSales,
+        client.salespersonName || '',
+        formatCurrencyCSV(client.totalSales),
         client.transactionCount,
-        client.averageTicket,
+        Math.round(client.averageTicket),
         client.percentage.toFixed(2) + '%'
       ]);
     });
@@ -443,12 +450,42 @@ export default function SegmentDetail({
     salespeople.forEach(salesperson => {
       csvData.push([
         salesperson.salespersonName,
-        salesperson.totalSales,
+        formatCurrencyCSV(salesperson.totalSales),
         salesperson.transactionCount,
-        salesperson.averageTicket,
+        Math.round(salesperson.averageTicket),
         salesperson.percentage.toFixed(2) + '%'
       ]);
     });
+    csvData.push([]); // Empty row
+    
+    // Monthly breakdown if year is selected
+    if (filterType === 'year' && selectedPeriod) {
+      try {
+        const year = selectedPeriod.split('-')[0]; // Extract year from period
+        const response = await fetch(`/api/sales/segment/${segmentName}/monthly-breakdown?year=${year}`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const monthlyData = await response.json();
+          
+          if (monthlyData && monthlyData.length > 0) {
+            csvData.push(['DESGLOSE MENSUAL - ' + year]);
+            csvData.push(['Mes', 'Total Ventas', 'Transacciones', 'Ticket Promedio']);
+            monthlyData.forEach((month: any) => {
+              csvData.push([
+                month.monthName,
+                formatCurrencyCSV(month.totalSales),
+                month.transactionCount,
+                Math.round(month.averageTicket)
+              ]);
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching monthly breakdown:', error);
+      }
+    }
     
     // Create CSV content
     const csvContent = csvData.map(row => 
