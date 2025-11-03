@@ -230,13 +230,20 @@ export default function SalespersonDashboard() {
   // Fetch notificaciones
   const salespersonName = user?.salespersonName || user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
   
-  const { data: notifications } = useQuery({
+  const { data: notifications, isLoading: loadingNotifications, error: notificationsError } = useQuery({
     queryKey: [`/api/alerts/salesperson/${salespersonName}`],
     enabled: !!salespersonName && !!user,
     refetchInterval: 5 * 60 * 1000, // Actualizar cada 5 minutos
   });
 
   const notificationsList = Array.isArray(notifications) ? notifications : [];
+  
+  // Debug: log notifications data
+  console.log('[SALESPERSON DASHBOARD] salespersonName:', salespersonName);
+  console.log('[SALESPERSON DASHBOARD] notifications:', notifications);
+  console.log('[SALESPERSON DASHBOARD] notificationsList:', notificationsList);
+  console.log('[SALESPERSON DASHBOARD] loadingNotifications:', loadingNotifications);
+  console.log('[SALESPERSON DASHBOARD] notificationsError:', notificationsError);
 
   // Helper function to get icon for notification type
   const getIcon = (type: string, icon?: string) => {
