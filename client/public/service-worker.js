@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v1.0.2';
+const CACHE_VERSION = 'v1.0.4';
 const CACHE_NAME = `panoramica-cache-${CACHE_VERSION}`;
 
 const STATIC_ASSETS = [
