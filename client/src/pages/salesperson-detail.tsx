@@ -810,7 +810,7 @@ export default function SalespersonDetail({
                     size="sm"
                     onClick={exportSalespersonDataToCSV}
                     disabled={isLoadingDetails || isLoadingClients}
-                    className="w-full bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-400 hover:border-emerald-500 hover:from-emerald-100 hover:to-green-100 text-emerald-700 font-semibold shadow-sm hover:shadow-md transition-all duration-300 animate-pulse-slow"
+                    className="w-full bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-400 hover:border-amber-500 hover:from-amber-100 hover:to-yellow-100 text-amber-700 font-semibold shadow-sm hover:shadow-md transition-all duration-300"
                     data-testid="button-export-salesperson-csv"
                   >
                     <Download className="h-4 w-4 mr-2" />
