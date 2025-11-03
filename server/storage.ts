@@ -14440,7 +14440,7 @@ export class DatabaseStorage implements IStorage {
         })
         .from(salesTransactions)
         .where(isNotNull(salesTransactions.feemdo))
-        .orderBy(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) DESC`);
+        .orderBy(desc(sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`));
 
       return results.map(r => r.year);
     } catch (error: any) {
