@@ -14453,17 +14453,19 @@ export class DatabaseStorage implements IStorage {
     try {
       const results = await db
         .selectDistinct({
-          code: salesTransactions.fmpr,
-          name: salesTransactions.nofmpr,
+          code: salesTransactions.kofudo,
+          name: salesTransactions.nokofu,
         })
         .from(salesTransactions)
         .where(
           and(
-            isNotNull(salesTransactions.fmpr),
-            isNotNull(salesTransactions.nofmpr)
+            isNotNull(salesTransactions.kofudo),
+            isNotNull(salesTransactions.nokofu),
+            sql`${salesTransactions.kofudo} != ''`,
+            sql`${salesTransactions.nokofu} != ''`
           )
         )
-        .orderBy(salesTransactions.nofmpr);
+        .orderBy(salesTransactions.nokofu);
 
       return results.map(r => ({
         code: r.code!,
