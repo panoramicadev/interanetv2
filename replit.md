@@ -8,13 +8,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-### November 3, 2025 - Sidebar with Notifications Panel in Salesperson Dashboard
-**Added sidebar layout with dedicated notifications panel:**
-- Created responsive sidebar visible on desktop (lg+ breakpoints) with fixed width (w-80 xl:w-96)
-- Notifications panel now displays in sidebar for desktop users, showing all notifications with priority-based styling
+### November 3, 2025 - General System Notifications in Salesperson Dashboard Sidebar
+**Added general system notifications to salesperson dashboard:**
+- Sidebar now displays general system notifications (from `/api/notifications`) instead of salesperson-specific alerts
+- Notifications panel shows all active system notifications with priority-based styling (crítica, alta, media, baja)
+- Updated notification icons to match system notification types (reclamo, stock_alert, maintenance, CRM, etc.)
+- Desktop users see full notification panel in fixed sidebar (w-80 xl:w-96)
 - Mobile users see compact NotificationsPanel popover in header (lg:hidden)
 - Desktop notification banner hidden (lg:hidden) to avoid duplication with sidebar
-- Maintained full mobile responsiveness and filter functionality
 - All YearMonthSelector filters remain unchanged and functional
 
 ### November 3, 2025 - React Hooks Order Fix in Salesperson Dashboard
