@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { format, parse } from "date-fns";
+import { format, parse, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
@@ -671,7 +671,7 @@ export default function SegmentDetail({
                         <div>
                           <h2 className="text-base font-bold text-gray-900 dark:text-white">Meta del Segmento</h2>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {selectedPeriod ? format(new Date(selectedPeriod + '-01'), 'MMMM yyyy', { locale: es }) : ''}
+                            {selectedPeriod ? format(parseISO(selectedPeriod + '-01'), 'MMMM yyyy', { locale: es }) : ''}
                           </p>
                         </div>
                       </div>
