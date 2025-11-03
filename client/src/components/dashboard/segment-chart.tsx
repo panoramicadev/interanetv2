@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface SegmentData {
   segment: string;
@@ -34,6 +35,35 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
     }).format(amount);
   };
 
+  const exportToCSV = () => {
+    if (!segmentData || segmentData.length === 0) return;
+
+    // Preparar datos CSV
+    const headers = ['Segmento', 'Total Ventas', 'Porcentaje'];
+    const rows = segmentData.map(seg => [
+      seg.segment,
+      seg.totalSales.toString(),
+      seg.percentage.toFixed(2)
+    ]);
+
+    // Crear CSV
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Descargar archivo
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ventas_por_segmento_${selectedPeriod}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Color mapping for segments
   const segmentColors = [
     'rgba(59, 130, 246, 0.8)',   // blue
@@ -53,6 +83,16 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Ventas por Segmento</h2>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={exportToCSV}
+          disabled={isLoading || !segmentData || segmentData.length === 0}
+          data-testid="button-export-segments-csv"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Exportar CSV
+        </Button>
       </div>
       
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
