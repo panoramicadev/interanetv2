@@ -186,11 +186,11 @@ export default function ProyeccionManualPage() {
 
   // Process data for table display
   const processedData = useMemo(() => {
-    const clientMap = new Map<string, ClientYearlyData>();
+    const clientMap = new Map<string, ClientYearlyData & { segmentSales: Record<string, number> }>();
 
-    // Process historical sales
+    // Process historical sales - group by client only
     historicalData.forEach(item => {
-      const key = `${item.salespersonCode}_${item.clientCode}`;
+      const key = item.clientCode; // Solo agrupar por cliente, no por vendedor
       if (!clientMap.has(key)) {
         clientMap.set(key, {
           clientCode: item.clientCode,
@@ -201,24 +201,43 @@ export default function ProyeccionManualPage() {
           projectedData: {},
           monthlyData: {},
           monthlyProjectedData: {},
+          segmentSales: {}, // Track sales per segment to determine primary segment
         });
       }
       const client = clientMap.get(key)!;
+      
+      // Track sales by segment to find the primary one
+      if (!client.segmentSales[item.segment]) {
+        client.segmentSales[item.segment] = 0;
+      }
+      client.segmentSales[item.segment] += item.totalSales;
+      
+      // Aggregate purchase frequency
+      client.purchaseFrequency = Math.max(client.purchaseFrequency, item.purchaseFrequency);
       
       // If month is specified, it's monthly data
       if (item.month) {
         const monthKey = `${item.year}-${item.month}`;
         client.monthlyData = client.monthlyData || {};
-        client.monthlyData[monthKey] = item.totalSales;
+        client.monthlyData[monthKey] = (client.monthlyData[monthKey] || 0) + item.totalSales;
       } else {
-        // Yearly aggregated data
-        client.yearlyData[item.year] = item.totalSales;
+        // Yearly aggregated data - sum all sales regardless of segment
+        client.yearlyData[item.year] = (client.yearlyData[item.year] || 0) + item.totalSales;
+      }
+    });
+    
+    // Determine primary segment for each client (segment with most sales)
+    clientMap.forEach((client) => {
+      if (Object.keys(client.segmentSales).length > 0) {
+        const primarySegment = Object.entries(client.segmentSales)
+          .sort(([, salesA], [, salesB]) => salesB - salesA)[0][0];
+        client.segment = primarySegment;
       }
     });
 
-    // Process manual projections
+    // Process manual projections - also group by client only
     manualProjections.forEach(proj => {
-      const key = `${proj.salespersonCode}_${proj.clientCode}`;
+      const key = proj.clientCode; // Solo agrupar por cliente
       if (!clientMap.has(key)) {
         clientMap.set(key, {
           clientCode: proj.clientCode,
@@ -229,6 +248,7 @@ export default function ProyeccionManualPage() {
           projectedData: {},
           monthlyData: {},
           monthlyProjectedData: {},
+          segmentSales: {},
         });
       }
       const client = clientMap.get(key)!;
@@ -237,10 +257,10 @@ export default function ProyeccionManualPage() {
       if (proj.month) {
         const monthKey = `${proj.year}-${proj.month}`;
         client.monthlyProjectedData = client.monthlyProjectedData || {};
-        client.monthlyProjectedData[monthKey] = proj.projectedAmount;
+        client.monthlyProjectedData[monthKey] = (client.monthlyProjectedData[monthKey] || 0) + proj.projectedAmount;
       } else {
-        // Yearly projection
-        client.projectedData[proj.year] = proj.projectedAmount;
+        // Yearly projection - sum if multiple projections exist
+        client.projectedData[proj.year] = (client.projectedData[proj.year] || 0) + proj.projectedAmount;
       }
     });
 
