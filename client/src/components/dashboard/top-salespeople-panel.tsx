@@ -24,13 +24,12 @@ interface TopSalespeoplePanelProps {
 
 export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson }: TopSalespeoplePanelProps) {
   const [displayedCount, setDisplayedCount] = useState(10); // Start with 10 salespeople
-  const apiLimit = 5000; // Get all data from API
   
   const { data: topSalespeopleResponse, isLoading } = useQuery<TopSalespeopleResponse>({
-    queryKey: ['/api/sales/top-salespeople', apiLimit, selectedPeriod, filterType, segment, salesperson],
+    queryKey: ['/api/sales/top-salespeople', 'all', selectedPeriod, filterType, segment, salesperson],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.append('limit', apiLimit.toString());
+      // No enviamos límite para obtener TODOS los vendedores
       params.append('period', selectedPeriod);
       params.append('filterType', filterType);
       if (segment) params.append('segment', segment);
@@ -61,27 +60,50 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
   const exportToCSV = () => {
     if (!salespeopleWithPercentage || salespeopleWithPercentage.length === 0) return;
 
-    // Preparar datos CSV
-    const headers = ['Vendedor', 'Total Ventas', 'Transacciones', 'Porcentaje'];
-    const rows = salespeopleWithPercentage.map(sp => [
-      sp.salesperson,
-      sp.totalSales.toString(),
-      sp.transactionCount.toString(),
-      sp.percentage.toFixed(2)
-    ]);
+    const csvData = [];
+    
+    // Add header
+    csvData.push(['REPORTE DE VENTAS POR VENDEDOR']);
+    csvData.push(['Período: ' + selectedPeriod]);
+    if (segment) csvData.push(['Segmento: ' + segment]);
+    csvData.push(['Total de vendedores: ' + salespeopleWithPercentage.length]);
+    csvData.push(['Total del periodo: ' + periodTotal.toLocaleString('es-CL')]);
+    csvData.push(['Generado: ' + new Date().toLocaleString('es-CL')]);
+    csvData.push([]); // Empty row
 
-    // Crear CSV
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
+    // Preparar datos CSV con más detalles
+    const headers = ['#', 'Vendedor', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Porcentaje del Total'];
+    csvData.push(headers);
+    
+    salespeopleWithPercentage.forEach((sp, index) => {
+      const ticketPromedio = sp.transactionCount > 0 ? sp.totalSales / sp.transactionCount : 0;
+      csvData.push([
+        (index + 1).toString(),
+        sp.salesperson,
+        sp.totalSales.toString(),
+        sp.transactionCount.toString(),
+        ticketPromedio.toFixed(2),
+        sp.percentage.toFixed(2) + '%'
+      ]);
+    });
+
+    // Create CSV content
+    const csvContent = csvData.map(row => 
+      row.map(cell => {
+        const stringCell = String(cell);
+        if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
+          return '"' + stringCell.replace(/"/g, '""') + '"';
+        }
+        return stringCell;
+      }).join(',')
+    ).join('\n');
 
     // Descargar archivo
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `ventas_por_vendedor_${selectedPeriod}.csv`);
+    link.setAttribute('download', `ventas_por_vendedor_${selectedPeriod.replace(/[\/\\:]/g, '-')}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
