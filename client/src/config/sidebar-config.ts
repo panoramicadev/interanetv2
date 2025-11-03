@@ -271,6 +271,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
   
   salesperson: [
     {
+      href: "/notificaciones",
+      label: "Notificaciones",
+      icon: Bell,
+    },
+    {
       href: "/",
       label: "Dashboard",
       icon: LayoutDashboard,

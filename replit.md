@@ -8,12 +8,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-### November 3, 2025 - General System Notifications in Salesperson Dashboard Sidebar
-**Added general system notifications to salesperson dashboard:**
-- Sidebar now displays general system notifications (from `/api/notifications`) instead of salesperson-specific alerts
+### November 3, 2025 - Notifications Access for Salesperson Role
+**Added notifications menu item and dashboard sidebar for salespeople:**
+- Added "Notificaciones" menu item to salesperson navigation sidebar (first item in menu)
+- Notifications page (`/notificaciones`) now accessible to salespeople with unread count badge
+- Dashboard sidebar displays general system notifications (from `/api/notifications`) instead of salesperson-specific alerts
 - Notifications panel shows all active system notifications with priority-based styling (crítica, alta, media, baja)
 - Updated notification icons to match system notification types (reclamo, stock_alert, maintenance, CRM, etc.)
-- Desktop users see full notification panel in fixed sidebar (w-80 xl:w-96)
+- Desktop users see full notification panel in fixed sidebar (w-80 xl:w-96) on dashboard
 - Mobile users see compact NotificationsPanel popover in header (lg:hidden)
 - Desktop notification banner hidden (lg:hidden) to avoid duplication with sidebar
 - All YearMonthSelector filters remain unchanged and functional
