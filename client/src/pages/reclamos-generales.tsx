@@ -1048,19 +1048,6 @@ export default function ReclamosGeneralesPage() {
         } else if (user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) {
           // Area roles and organizational roles: reclamos where areaResponsableActual matches and estado === "en_area_responsable"
           const userArea = getUserArea();
-          console.log('[DEBUG] Filtering asignados-area:', {
-            userRole: user?.role,
-            userArea,
-            totalReclamos: reclamos.length,
-            reclamosWithDetails: reclamos.map(r => ({
-              id: r.id,
-              estado: r.estado,
-              areaResponsableActual: r.areaResponsableActual,
-              matchesArea: r.areaResponsableActual === userArea,
-              matchesEstado: r.estado === 'en_area_responsable',
-              matchesBoth: r.areaResponsableActual === userArea && r.estado === 'en_area_responsable'
-            }))
-          });
           return reclamos.filter(r => 
             r.areaResponsableActual === userArea && r.estado === 'en_area_responsable'
           );
