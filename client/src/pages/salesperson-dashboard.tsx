@@ -449,12 +449,10 @@ export default function SalespersonDashboard() {
 
             {/* Panel de Notificaciones */}
             <div className="flex items-center gap-2">
-              {salespersonName && user && (
-                <NotificationsPanel 
-                  salespersonName={salespersonName} 
-                  salespersonId={user.id}
-                />
-              )}
+              <NotificationsPanel 
+                salespersonName={salespersonName || ''} 
+                salespersonId={user?.id || ''}
+              />
             </div>
           </div>
           
