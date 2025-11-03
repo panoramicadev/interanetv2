@@ -8328,7 +8328,11 @@ export function registerRoutes(app: Express): Server {
       // Usa taxonomía compartida para roles de área y organizacionales
       const { getRoleArea } = await import('@shared/reclamosAreas');
       const userArea = getRoleArea(user.role);
-      if (userArea) {
+      
+      // Caso especial: laboratorio filtra por estado, no por área responsable
+      if (user.role === 'laboratorio') {
+        filters.estado = 'en_laboratorio';
+      } else if (userArea) {
         filters.areaResponsable = userArea;
         // Mostrar solo reclamos asignados a su área (todos los estados)
       }
