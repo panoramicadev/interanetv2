@@ -14379,52 +14379,56 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
   }>> {
     try {
-      const connection = await getDbConnection();
-      
-      let conditions = ['nokofu IS NOT NULL', 'koprct IS NOT NULL', "nokofu != '.'", "tido != 'GDV'"];
-      const params: any[] = [];
-      let paramCount = 1;
+      const conditions = [
+        isNotNull(salesTransactions.nokofu),
+        isNotNull(salesTransactions.koprct),
+        ne(salesTransactions.nokofu, '.'),
+        ne(salesTransactions.tido, 'GDV')
+      ];
 
       if (filters?.years && filters.years.length > 0) {
-        conditions.push(`EXTRACT(YEAR FROM feemdo) = ANY($${paramCount}::int[])`);
-        params.push(filters.years);
-        paramCount++;
+        conditions.push(
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ANY(${filters.years})`
+        );
       }
 
       if (filters?.salespersonCode) {
-        conditions.push(`nokofu = $${paramCount}`);
-        params.push(filters.salespersonCode);
-        paramCount++;
+        conditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
       }
 
-      const query = `
-        SELECT 
-          EXTRACT(YEAR FROM feemdo)::int as year,
-          nokofu as salesperson_code,
-          nokofu as salesperson_name,
-          koprct as client_code,
-          MAX(nokoen) as client_name,
-          MAX(caprad2) as segment,
-          SUM(monto) as total_sales,
-          COUNT(DISTINCT nudo) as purchase_frequency
-        FROM sales_transactions
-        WHERE ${conditions.join(' AND ')}
-        GROUP BY EXTRACT(YEAR FROM feemdo), nokofu, koprct
-        ORDER BY year DESC, salesperson_name, total_sales DESC
-      `;
+      const results = await db
+        .select({
+          year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
+          salespersonCode: salesTransactions.nokofu,
+          salespersonName: salesTransactions.nokofu,
+          clientCode: salesTransactions.koprct,
+          clientName: sql<string>`MAX(${salesTransactions.nokoen})`,
+          segment: sql<string>`MAX(${salesTransactions.caprad2})`,
+          totalSales: sql<number>`SUM(${salesTransactions.monto})`,
+          purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+        })
+        .from(salesTransactions)
+        .where(and(...conditions))
+        .groupBy(
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
+          salesTransactions.nokofu,
+          salesTransactions.koprct
+        )
+        .orderBy(
+          desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
+          salesTransactions.nokofu,
+          desc(sql`SUM(${salesTransactions.monto})`)
+        );
 
-      const result = await connection.query(query, params);
-      connection.release();
-
-      return result.rows.map(row => ({
+      return results.map(row => ({
         year: row.year,
-        salespersonCode: row.salesperson_code,
-        salespersonName: row.salesperson_name || '',
-        clientCode: row.client_code,
-        clientName: row.client_name || '',
+        salespersonCode: row.salespersonCode || '',
+        salespersonName: row.salespersonName || '',
+        clientCode: row.clientCode || '',
+        clientName: row.clientName || '',
         segment: row.segment || '',
-        totalSales: parseFloat(row.total_sales) || 0,
-        purchaseFrequency: parseInt(row.purchase_frequency) || 0,
+        totalSales: Number(row.totalSales) || 0,
+        purchaseFrequency: Number(row.purchaseFrequency) || 0,
       }));
     } catch (error: any) {
       console.error('Error fetching historical sales by year:', error.message);
