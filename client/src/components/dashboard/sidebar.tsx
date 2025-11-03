@@ -196,6 +196,19 @@ export default function Sidebar({ onImportClick }: SidebarProps) {
                 </Button>
               </Link>
               
+              <Link href="/inventario">
+                <Button
+                  variant="ghost"
+                  className={`w-full justify-start text-slate-300 hover:text-white hover:bg-slate-800/50 ${
+                    location === "/inventario" ? "bg-slate-800 text-white" : ""
+                  }`}
+                  data-testid="nav-inventario"
+                >
+                  <Package className="w-5 h-5 mr-3" />
+                  Inventario
+                </Button>
+              </Link>
+              
               {user?.role === 'admin' && (
                 <>
                   <Link href="/visitas-tecnicas">
