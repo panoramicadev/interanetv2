@@ -45,6 +45,7 @@ import {
   ChevronUp
 } from "lucide-react";
 import type { ReclamoGeneral, ReclamoGeneralPhoto } from "@shared/schema";
+import { RECLAMOS_AREAS, AREA_LABELS, getAreaLabel } from "@shared/reclamosAreas";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -82,10 +83,14 @@ const MOTIVO_OPTIONS = [
 ];
 
 const AREA_ASIGNADA_OPTIONS = [
-  { value: 'produccion', label: 'Producción' },
-  { value: 'laboratorio', label: 'Laboratorio' },
-  { value: 'logistica', label: 'Logística' },
-  { value: 'aplicacion', label: 'Aplicación/Cliente' },
+  { value: RECLAMOS_AREAS.PRODUCCION, label: AREA_LABELS[RECLAMOS_AREAS.PRODUCCION] },
+  { value: RECLAMOS_AREAS.LABORATORIO, label: AREA_LABELS[RECLAMOS_AREAS.LABORATORIO] },
+  { value: RECLAMOS_AREAS.LOGISTICA, label: AREA_LABELS[RECLAMOS_AREAS.LOGISTICA] },
+  { value: RECLAMOS_AREAS.APLICACION, label: AREA_LABELS[RECLAMOS_AREAS.APLICACION] },
+  { value: RECLAMOS_AREAS.MATERIA_PRIMA, label: AREA_LABELS[RECLAMOS_AREAS.MATERIA_PRIMA] },
+  { value: RECLAMOS_AREAS.COLORES, label: AREA_LABELS[RECLAMOS_AREAS.COLORES] },
+  { value: RECLAMOS_AREAS.ENVASE, label: AREA_LABELS[RECLAMOS_AREAS.ENVASE] },
+  { value: RECLAMOS_AREAS.ETIQUETA, label: AREA_LABELS[RECLAMOS_AREAS.ETIQUETA] },
 ];
 
 const GRAVEDAD_OPTIONS = [
@@ -107,19 +112,21 @@ const TIPO_RECLAMO_OPTIONS = [
 ];
 
 const CATEGORIA_RESPONSABLE_OPTIONS = [
-  { value: 'produccion', label: 'Producción' },
-  { value: 'laboratorio', label: 'Laboratorio' },
-  { value: 'logistica', label: 'Logística' },
-  { value: 'aplicacion', label: 'Aplicación/Cliente' },
+  { value: RECLAMOS_AREAS.PRODUCCION, label: AREA_LABELS[RECLAMOS_AREAS.PRODUCCION] },
+  { value: RECLAMOS_AREAS.LABORATORIO, label: AREA_LABELS[RECLAMOS_AREAS.LABORATORIO] },
+  { value: RECLAMOS_AREAS.LOGISTICA, label: AREA_LABELS[RECLAMOS_AREAS.LOGISTICA] },
+  { value: RECLAMOS_AREAS.APLICACION, label: AREA_LABELS[RECLAMOS_AREAS.APLICACION] },
 ];
 
 const VALIDACION_AREA_OPTIONS = [
-  { value: 'produccion', label: 'Producción' },
-  { value: 'laboratorio', label: 'Laboratorio' },
-  { value: 'logistica', label: 'Logística' },
-  { value: 'aplicacion', label: 'Aplicación' },
-  { value: 'envase', label: 'Envase' },
-  { value: 'etiqueta', label: 'Etiqueta' },
+  { value: RECLAMOS_AREAS.PRODUCCION, label: AREA_LABELS[RECLAMOS_AREAS.PRODUCCION] },
+  { value: RECLAMOS_AREAS.LABORATORIO, label: AREA_LABELS[RECLAMOS_AREAS.LABORATORIO] },
+  { value: RECLAMOS_AREAS.LOGISTICA, label: AREA_LABELS[RECLAMOS_AREAS.LOGISTICA] },
+  { value: RECLAMOS_AREAS.APLICACION, label: AREA_LABELS[RECLAMOS_AREAS.APLICACION] },
+  { value: RECLAMOS_AREAS.ENVASE, label: AREA_LABELS[RECLAMOS_AREAS.ENVASE] },
+  { value: RECLAMOS_AREAS.ETIQUETA, label: AREA_LABELS[RECLAMOS_AREAS.ETIQUETA] },
+  { value: RECLAMOS_AREAS.MATERIA_PRIMA, label: AREA_LABELS[RECLAMOS_AREAS.MATERIA_PRIMA] },
+  { value: RECLAMOS_AREAS.COLORES, label: AREA_LABELS[RECLAMOS_AREAS.COLORES] },
 ];
 
 const ESTADO_LABELS: Record<string, { label: string; color: string; icon: any }> = {
@@ -981,23 +988,10 @@ export default function ReclamosGeneralesPage() {
     }
   };
 
-  // Get user's area from role (e.g., area_materia_prima -> materia_prima, produccion -> produccion)
+  // Get user's area from role using shared taxonomy
   const getUserArea = () => {
-    if (user?.role?.startsWith('area_')) {
-      return user.role.replace('area_', '');
-    }
-    // For organizational roles without area_ prefix
-    const organizationalRoleMapping: Record<string, string> = {
-      'produccion': 'produccion',
-      'logistica_bodega': 'logistica',
-      'planificacion': 'produccion', // Planificación maps to producción
-      'bodega_materias_primas': 'logistica',
-      'prevencion_riesgos': 'produccion',
-    };
-    if (user?.role && organizationalRoleMapping[user.role]) {
-      return organizationalRoleMapping[user.role];
-    }
-    return null;
+    const { getRoleArea } = require('@shared/reclamosAreas');
+    return getRoleArea(user?.role);
   };
 
   // Get available tabs based on user role
