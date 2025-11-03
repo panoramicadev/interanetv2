@@ -78,11 +78,12 @@ const SEGMENT_NAMES: Record<string, string> = {
 
 export default function ProyeccionManualPage() {
   const { toast } = useToast();
+  const currentYear = new Date().getFullYear();
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("all");
   const [selectedSegment, setSelectedSegment] = useState<string>("all");
-  const [futureYear, setFutureYear] = useState<number | null>(null);
+  const [futureYear, setFutureYear] = useState<number>(2026); // Siempre inicia en 2026
   const [editingCells, setEditingCells] = useState<Record<string, number>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -102,10 +103,15 @@ export default function ProyeccionManualPage() {
     setExpandedRows(newExpanded);
   };
 
-  // Fetch available years
-  const { data: availableYears = [] } = useQuery<number[]>({
+  // Fetch available years (exclude 2026 as it's a future year)
+  const { data: rawAvailableYears = [] } = useQuery<number[]>({
     queryKey: ['/api/proyecciones/years'],
   });
+  
+  // Filter out 2026 and any future years from historical years
+  const availableYears = useMemo(() => {
+    return rawAvailableYears.filter(year => year < 2026);
+  }, [rawAvailableYears]);
 
   // Fetch salespeople list
   const { data: salespeopleData = [] } = useQuery<Array<{ code: string; name: string }>>({
@@ -284,8 +290,45 @@ export default function ProyeccionManualPage() {
         client.monthlyProjectedData = client.monthlyProjectedData || {};
         client.monthlyProjectedData[monthKey] = (client.monthlyProjectedData[monthKey] || 0) + proj.projectedAmount;
       } else {
-        // Yearly projection - sum if multiple projections exist
+        // Yearly projection - sum if multiple projections exist (legacy, should not be used)
         client.projectedData[proj.year] = (client.projectedData[proj.year] || 0) + proj.projectedAmount;
+      }
+    });
+    
+    // Calculate yearly projection totals from monthly projections
+    // This MUST override any legacy yearly projections
+    clientMap.forEach((client) => {
+      // First, reset all yearly projections that have monthly data OR are future years
+      // This ensures we always calculate from months, even if sum is 0
+      const yearsToReset = new Set<number>();
+      
+      // Collect years that have monthly data
+      if (client.monthlyProjectedData) {
+        Object.keys(client.monthlyProjectedData).forEach(monthKey => {
+          const year = parseInt(monthKey.split('-')[0]);
+          yearsToReset.add(year);
+        });
+      }
+      
+      // Also reset any future years (>= 2026) to ensure they calculate from months only
+      Object.keys(client.projectedData).forEach(yearStr => {
+        const year = parseInt(yearStr);
+        if (year >= 2026) {
+          yearsToReset.add(year);
+        }
+      });
+      
+      // Reset identified years to 0 (will be recalculated from months)
+      yearsToReset.forEach(year => {
+        client.projectedData[year] = 0;
+      });
+      
+      // Now calculate totals from monthly data
+      if (client.monthlyProjectedData) {
+        Object.keys(client.monthlyProjectedData).forEach(monthKey => {
+          const year = parseInt(monthKey.split('-')[0]);
+          client.projectedData[year] += client.monthlyProjectedData![monthKey];
+        });
       }
     });
 
@@ -571,42 +614,29 @@ export default function ProyeccionManualPage() {
 
             {/* Add Future Year */}
             <div className="space-y-2">
-              <Label htmlFor="futureYear">Agregar Año Futuro</Label>
+              <Label htmlFor="futureYear">Año Futuro</Label>
               <Select
-                value={futureYear?.toString() || ''}
+                value={futureYear.toString()}
                 onValueChange={(value) => {
                   if (value) {
                     setFutureYear(parseInt(value));
-                  } else {
-                    setFutureYear(null);
                   }
                 }}
               >
                 <SelectTrigger id="futureYear" data-testid="select-future-year">
-                  <SelectValue placeholder="Ej: 2026" />
+                  <SelectValue placeholder="Selecciona año" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map(year => (
+                  {Array.from({ length: 10 }, (_, i) => 2026 + i).map(year => (
                     <SelectItem key={year} value={year.toString()}>
                       {year}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {futureYear && (
-                <Badge variant="secondary" className="mt-2">
-                  Año futuro: {futureYear}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="ml-2 h-4 w-4 p-0"
-                    onClick={() => setFutureYear(null)}
-                    data-testid="button-remove-future-year"
-                  >
-                    <X className="w-3 h-3" />
-                  </Button>
-                </Badge>
-              )}
+              <Badge variant="secondary" className="mt-2">
+                Año futuro seleccionado: {futureYear}
+              </Badge>
             </div>
           </div>
         </CardContent>
@@ -866,57 +896,25 @@ export default function ProyeccionManualPage() {
                                     return sum + (client.monthlyProjectedData?.[monthKey] || 0);
                                   }, 0);
                                   
-                                  // Always show monthly total if any month has a projection
-                                  const displayValue = monthlyTotal > 0 ? monthlyTotal : projectedValue;
+                                  // Always show monthly total (auto-calculated from months)
+                                  const displayValue = monthlyTotal;
 
-                                  // Editable cell for future year
+                                  // Read-only cell for future year (total calculated from months)
                                   return (
-                                    <TableCell key={year} className="text-right">
-                                      {isEditing ? (
-                                        <div className="flex items-center gap-1">
-                                          <Input
-                                            type="number"
-                                            defaultValue={editingCells[cellKey] || displayValue || ''}
-                                            onChange={(e) => handleCellEdit(client.clientCode, year, e.target.value)}
-                                            className="w-full"
-                                            autoFocus
-                                          />
-                                          <Button
-                                            size="sm"
-                                            onClick={() => {
-                                              const value = editingCells[cellKey] || displayValue || 0;
-                                              handleSaveProjection(
-                                                client.clientCode,
-                                                client.clientName,
-                                                client.segment,
-                                                year,
-                                                value
-                                              );
-                                            }}
-                                          >
-                                            <Save className="w-3 h-3" />
-                                          </Button>
+                                    <TableCell key={year} className="text-right bg-muted/20">
+                                      {displayValue > 0 ? (
+                                        <div className="flex flex-col items-end">
+                                          <span className="text-blue-600 font-semibold">
+                                            {formatCurrency(displayValue)}
+                                          </span>
+                                          {percentageChange !== null && (
+                                            <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                            </span>
+                                          )}
                                         </div>
                                       ) : (
-                                        <button
-                                          onClick={() => setEditingCells({ ...editingCells, [cellKey]: displayValue })}
-                                          className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
-                                        >
-                                          {displayValue > 0 ? (
-                                            <div className="flex flex-col items-end">
-                                              <span className="text-blue-600 font-semibold">
-                                                {formatCurrency(displayValue)}
-                                              </span>
-                                              {percentageChange !== null && (
-                                                <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                  {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
-                                                </span>
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <span className="text-muted-foreground">-</span>
-                                          )}
-                                        </button>
+                                        <span className="text-muted-foreground">-</span>
                                       )}
                                     </TableCell>
                                   );
