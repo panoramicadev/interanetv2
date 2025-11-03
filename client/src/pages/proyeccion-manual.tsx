@@ -306,9 +306,8 @@ export default function ProyeccionManualPage() {
     return years.sort((a, b) => a - b);
   }, [selectedYears, futureYear]);
 
-  // Determine if we should show monthly view
-  // Only show monthly columns if specific months are selected (not all 12)
-  const showMonthlyView = selectedMonths.length > 0 && selectedMonths.length < 12;
+  // Always show annual view with expandable months (never show monthly columns)
+  const showMonthlyView = false;
 
   // All periods to display (months or years)
   const allPeriods = useMemo(() => {
@@ -660,12 +659,9 @@ export default function ProyeccionManualPage() {
       {selectedYears.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>{showMonthlyView ? 'Ventas por Cliente y Mes' : 'Ventas por Cliente y Año'}</CardTitle>
+            <CardTitle>Ventas por Cliente y Año</CardTitle>
             <CardDescription>
-              {showMonthlyView 
-                ? 'Proyecciones mensuales. Haz clic en las celdas del año futuro para editar. El total anual se calcula automáticamente.'
-                : 'Histórico de ventas y proyecciones. Haz clic en las celdas del año futuro para editar proyecciones.'
-              }
+              Histórico de ventas y proyecciones. Haz clic en las celdas del año futuro para editar proyecciones.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -724,19 +720,17 @@ export default function ProyeccionManualPage() {
                             <TableRow key={client.clientCode} className="cursor-pointer hover:bg-muted/50">
                               <TableCell className="sticky left-0 bg-background z-10">
                                 <div className="flex items-center gap-2">
-                                  {!showMonthlyView && (
-                                    <button
-                                      onClick={() => toggleRowExpansion(client.clientCode)}
-                                      className="hover:bg-accent rounded p-1"
-                                      data-testid={`button-expand-${client.clientCode}`}
-                                    >
-                                      {isExpanded ? (
-                                        <ChevronDown className="w-4 h-4" />
-                                      ) : (
-                                        <ChevronRight className="w-4 h-4" />
-                                      )}
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() => toggleRowExpansion(client.clientCode)}
+                                    className="hover:bg-accent rounded p-1"
+                                    data-testid={`button-expand-${client.clientCode}`}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronDown className="w-4 h-4" />
+                                    ) : (
+                                      <ChevronRight className="w-4 h-4" />
+                                    )}
+                                  </button>
                                   <span className="font-medium">{client.clientName}</span>
                                 </div>
                               </TableCell>
@@ -947,9 +941,11 @@ export default function ProyeccionManualPage() {
                             </TableRow>
                             
                             {/* Monthly breakdown rows when expanded */}
-                            {isExpanded && !showMonthlyView && (
+                            {isExpanded && (
                               <>
-                                {MONTHS.map(month => {
+                                {MONTHS.filter(month => 
+                                  selectedMonths.length === 0 || selectedMonths.includes(month.value)
+                                ).map(month => {
                                   const monthNum = month.value;
                                   const monthLabel = month.label;
                                   
