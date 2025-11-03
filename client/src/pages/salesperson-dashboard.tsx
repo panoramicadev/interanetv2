@@ -16,6 +16,9 @@ import SalesChart from "@/components/dashboard/sales-chart";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
 import NotificationsPanel from "@/components/dashboard/notifications-panel";
+import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
+import { useFilter } from "@/contexts/FilterContext";
+import type { DateRange } from "react-day-picker";
 import { 
   TrendingUp, 
   Users, 
@@ -77,13 +80,53 @@ type ClientData = any; // Can be refined later if needed
 export default function SalespersonDashboard() {
   const { user, isAuthenticated, isLoading } = useAuth() as { user: (User & { salespersonName?: string }) | null; isAuthenticated: boolean; isLoading: boolean };
   const { toast } = useToast();
-  const [selectedPeriod, setSelectedPeriod] = useState("current-month");
-  const [filterType, setFilterType] = useState<"day" | "month" | "range">("month");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   
-  // Date range state for custom range selection
-  const [startDate, setStartDate] = useState<Date | undefined>();
-  const [endDate, setEndDate] = useState<Date | undefined>();
+  // Use global filter context
+  const { selection, setSelection } = useFilter();
+  
+  // Derived values from selection
+  const selectedPeriod = (() => {
+    if ((selection.period === "month" || selection.period === "months") && selection.months && selection.months.length > 0) {
+      const year = selection.years[0];
+      const month = selection.months[0]; // Already in 1-12 format from YearMonthSelector
+      return `${year}-${String(month).padStart(2, '0')}`;
+    } else if (selection.period === "full-year") {
+      return `${selection.years[0]}-01`; // Placeholder for year view
+    } else if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] : 1;
+      const day = selection.days[0];
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    } else if (selection.period === "custom-range") {
+      return "custom-range";
+    }
+    return format(new Date(), "yyyy-MM");
+  })();
+  
+  const filterType: "day" | "month" | "year" | "range" = (() => {
+    if (selection.period === "day" || selection.period === "days") return "day";
+    if (selection.period === "month" || selection.period === "months") return "month";
+    if (selection.period === "full-year") return "year";
+    if (selection.period === "custom-range") return "range";
+    return "month";
+  })();
+  
+  const selectedDate = (() => {
+    if ((selection.period === "day" || selection.period === "days") && selection.days && selection.days.length > 0) {
+      const year = selection.years[0];
+      const month = selection.months && selection.months.length > 0 ? selection.months[0] - 1 : 0;
+      const day = selection.days[0];
+      return new Date(year, month, day);
+    }
+    return new Date();
+  })();
+  
+  const dateRange: DateRange | undefined = (() => {
+    if (selection.period === "custom-range" && selection.startDate && selection.endDate) {
+      return { from: selection.startDate, to: selection.endDate };
+    }
+    return undefined;
+  })();
   
   // Client search state
   const [clientSearch, setClientSearch] = useState("");
@@ -100,29 +143,6 @@ export default function SalespersonDashboard() {
       setClientSearch("");
     }
   }, [showClientsDialog]);
-  
-  // Update selected period when filter type changes
-  useEffect(() => {
-    switch (filterType) {
-      case "day":
-        if (selectedDate) {
-          setSelectedPeriod(format(selectedDate, "yyyy-MM-dd"));
-        } else {
-          setSelectedPeriod(format(new Date(), "yyyy-MM-dd"));
-        }
-        break;
-      case "month":
-        setSelectedPeriod("current-month");
-        break;
-      case "range":
-        if (startDate && endDate) {
-          setSelectedPeriod(`${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`);
-        } else {
-          setSelectedPeriod("last-30-days");
-        }
-        break;
-    }
-  }, [filterType, selectedDate, startDate, endDate]);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -235,110 +255,34 @@ export default function SalespersonDashboard() {
     <>
       {/* Header */}
       <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
-        <div className="flex flex-col space-y-4 lg:space-y-0 lg:flex-row lg:items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
-              Dashboard Vendedor - {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
-            </h1>
-            <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
-              Panel de control personalizado para gestión de ventas
-            </p>
-          </div>
+        <div className="flex flex-col space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
+                Dashboard Vendedor - {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
+              </h1>
+              <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
+                Panel de control personalizado para gestión de ventas
+              </p>
+            </div>
 
-          {/* Controles de Período y Notificaciones */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
             {/* Panel de Notificaciones */}
-            {user?.salespersonName && (
-              <NotificationsPanel 
-                salespersonName={user.salespersonName} 
-                salespersonId={user.id}
-              />
-            )}
-            
-            <Select value={filterType} onValueChange={(value: "day" | "month" | "range") => setFilterType(value)}>
-              <SelectTrigger className="w-full sm:w-[140px] rounded-xl">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="day">Por día</SelectItem>
-                <SelectItem value="month">Por mes</SelectItem>
-                <SelectItem value="range">Rango</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {filterType === "day" && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full sm:w-[200px] justify-start text-left font-normal rounded-xl">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, "PPP") : "Seleccionar fecha"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            )}
-
-            {filterType === "range" && (
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full sm:w-[140px] justify-start text-left font-normal rounded-xl">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {startDate ? format(startDate, "dd/MM") : "Inicio"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={startDate}
-                      onSelect={setStartDate}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full sm:w-[140px] justify-start text-left font-normal rounded-xl">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {endDate ? format(endDate, "dd/MM") : "Fin"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={endDate}
-                      onSelect={setEndDate}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            )}
-
-            {filterType === "month" && (
-              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                <SelectTrigger className="w-full sm:w-[200px] rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="current-month">{getCurrentMonthLabel()}</SelectItem>
-                  <SelectItem value="2025-09">Septiembre 2025</SelectItem>
-                  <SelectItem value="2025-08">Agosto 2025</SelectItem>
-                  <SelectItem value="2025-07">Julio 2025</SelectItem>
-                  <SelectItem value="2025-06">Junio 2025</SelectItem>
-                  <SelectItem value="2025-05">Mayo 2025</SelectItem>
-                  <SelectItem value="last-month">Mes anterior</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
+            <div className="flex items-center gap-2">
+              {user?.salespersonName && (
+                <NotificationsPanel 
+                  salespersonName={user.salespersonName} 
+                  salespersonId={user.id}
+                />
+              )}
+            </div>
+          </div>
+          
+          {/* Year/Month Selector */}
+          <div className="w-full">
+            <YearMonthSelector
+              selection={selection}
+              onSelectionChange={setSelection}
+            />
           </div>
         </div>
       </header>
