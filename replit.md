@@ -8,6 +8,15 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 3, 2025 - Sidebar with Notifications Panel in Salesperson Dashboard
+**Added sidebar layout with dedicated notifications panel:**
+- Created responsive sidebar visible on desktop (lg+ breakpoints) with fixed width (w-80 xl:w-96)
+- Notifications panel now displays in sidebar for desktop users, showing all notifications with priority-based styling
+- Mobile users see compact NotificationsPanel popover in header (lg:hidden)
+- Desktop notification banner hidden (lg:hidden) to avoid duplication with sidebar
+- Maintained full mobile responsiveness and filter functionality
+- All YearMonthSelector filters remain unchanged and functional
+
 ### November 3, 2025 - React Hooks Order Fix in Salesperson Dashboard
 **Fixed "Rendered more hooks than during the previous render" error:**
 - Root cause: Hooks (`useMemo`, `useQuery`) were executing AFTER conditional returns, causing inconsistent hook count between renders
