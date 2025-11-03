@@ -14453,25 +14453,21 @@ export class DatabaseStorage implements IStorage {
     try {
       const results = await db
         .selectDistinct({
-          code: salesTransactions.kofudo,
           name: salesTransactions.nokofu,
-          displayName: sql<string>`CONCAT(${salesTransactions.nokofu}, ' (', ${salesTransactions.kofudo}, ')')`,
         })
         .from(salesTransactions)
         .where(
           and(
-            isNotNull(salesTransactions.kofudo),
             isNotNull(salesTransactions.nokofu),
-            sql`${salesTransactions.kofudo} != ''`,
             sql`${salesTransactions.nokofu} != ''`,
             sql`${salesTransactions.nokofu} != '.'`
           )
         )
-        .orderBy(sql<string>`CONCAT(${salesTransactions.nokofu}, ' (', ${salesTransactions.kofudo}, ')')`);
+        .orderBy(salesTransactions.nokofu);
 
       return results.map(r => ({
-        code: r.code!,
-        name: r.displayName!,
+        code: r.name!,
+        name: r.name!,
       }));
     } catch (error: any) {
       console.error('Error fetching salespeople list:', error.message);
