@@ -167,8 +167,8 @@ export default function SalespersonDashboard() {
 
   // Usar el mismo endpoint que el panel de clientes del dashboard
   const { data: clientsResponse, isLoading: loadingClients } = useQuery<{ items: any[] }>({
-    queryKey: [`/api/sales/top-clients?limit=5000&period=${selectedPeriod}&filterType=${filterType}${user?.salespersonName ? `&salesperson=${encodeURIComponent(user.salespersonName)}` : ''}`],
-    enabled: !!user?.salespersonName,
+    queryKey: [`/api/sales/top-clients?limit=5000&period=${selectedPeriod}&filterType=${filterType}${salespersonName ? `&salesperson=${encodeURIComponent(salespersonName)}` : ''}`],
+    enabled: !!salespersonName,
   });
 
   const { data: goalsData, isLoading: loadingGoals } = useQuery<GoalProgress[]>({
@@ -228,13 +228,15 @@ export default function SalespersonDashboard() {
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
   // Fetch notificaciones
+  const salespersonName = user?.salespersonName || user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  
   const { data: notifications } = useQuery({
-    queryKey: [`/api/alerts/salesperson/${user?.salespersonName}`],
-    enabled: !!user?.salespersonName,
+    queryKey: [`/api/alerts/salesperson/${salespersonName}`],
+    enabled: !!salespersonName && !!user,
     refetchInterval: 5 * 60 * 1000, // Actualizar cada 5 minutos
   });
 
-  const notificationsList = notifications || [];
+  const notificationsList = Array.isArray(notifications) ? notifications : [];
 
   // Helper function to get icon for notification type
   const getIcon = (type: string, icon?: string) => {
@@ -301,9 +303,9 @@ export default function SalespersonDashboard() {
 
             {/* Panel de Notificaciones */}
             <div className="flex items-center gap-2">
-              {user?.salespersonName && (
+              {salespersonName && user && (
                 <NotificationsPanel 
-                  salespersonName={user.salespersonName} 
+                  salespersonName={salespersonName} 
                   salespersonId={user.id}
                 />
               )}
