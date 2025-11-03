@@ -14459,8 +14459,12 @@ export class DatabaseStorage implements IStorage {
 
       const includeMonthlyBreakdown = filters?.months && filters.months.length > 0;
       
-      // Always get yearly totals - GROUP BY client only (not by salesperson)
-      const yearlyResults = await db
+      let allResults: any[] = [];
+      
+      // Only get yearly totals if NO months are selected
+      // If months are selected, we'll only show monthly breakdown
+      if (!includeMonthlyBreakdown) {
+        const yearlyResults = await db
         .select({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
           month: sql<number>`NULL`,
@@ -14508,11 +14512,10 @@ export class DatabaseStorage implements IStorage {
           desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
           desc(sql`SUM(${salesTransactions.monto})`)
         );
-
-      let allResults = yearlyResults;
-
-      // If months are selected, also get monthly breakdown
-      if (includeMonthlyBreakdown) {
+        
+        allResults = yearlyResults;
+      } else {
+        // If months are selected, ONLY get monthly breakdown (not yearly totals)
         const monthConditions = [...conditions];
         const monthFilters = filters.months!.map(month => 
           sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int = ${month}`
@@ -14573,8 +14576,7 @@ export class DatabaseStorage implements IStorage {
             desc(sql`SUM(${salesTransactions.monto})`)
           );
 
-        // Combine yearly and monthly results
-        allResults = [...yearlyResults, ...monthlyResults];
+        allResults = monthlyResults;
       }
 
       return allResults.map(row => ({
