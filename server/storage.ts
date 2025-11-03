@@ -13808,9 +13808,9 @@ export class DatabaseStorage implements IStorage {
 
   async updateInactiveClients(): Promise<number> {
     try {
-      // Detectar clientes con última compra >30 días pero <365 días
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      // Detectar clientes con última compra >45 días pero <365 días
+      const fortyFiveDaysAgo = new Date();
+      fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
       
       const oneYearAgo = new Date();
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -13818,7 +13818,7 @@ export class DatabaseStorage implements IStorage {
       // Consulta SQL para detectar clientes inactivos desde fact_ventas
       // Nota: fact_ventas no tiene vendedor_nombre, solo usamos nokoen y noruen
       const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
-      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+      const fortyFiveDaysAgoStr = fortyFiveDaysAgo.toISOString().split('T')[0];
       
       const inactiveClientsQuery = await db.execute(sql`
         WITH client_stats AS (
@@ -13834,7 +13834,7 @@ export class DatabaseStorage implements IStorage {
           FROM ventas.fact_ventas fv
           WHERE fv.feemdo >= ${sql.raw(`'${oneYearAgoStr}'::date`)}
           GROUP BY fv.nokoen, fv.noruen
-          HAVING MAX(fv.feemdo) < ${sql.raw(`'${thirtyDaysAgoStr}'::date`)}
+          HAVING MAX(fv.feemdo) < ${sql.raw(`'${fortyFiveDaysAgoStr}'::date`)}
             AND MAX(fv.feemdo) >= ${sql.raw(`'${oneYearAgoStr}'::date`)}
         )
         SELECT * FROM client_stats
