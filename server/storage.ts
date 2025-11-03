@@ -14598,7 +14598,8 @@ export class DatabaseStorage implements IStorage {
 
   async getYearsWithData(): Promise<number[]> {
     try {
-      const results = await db
+      // Get years from historical sales
+      const salesYears = await db
         .selectDistinct({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
         })
@@ -14606,7 +14607,22 @@ export class DatabaseStorage implements IStorage {
         .where(isNotNull(salesTransactions.feemdo))
         .orderBy(desc(sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`));
 
-      return results.map(r => r.year);
+      // Get years from manual projections
+      const projectionYears = await db
+        .selectDistinct({
+          year: proyeccionesVentas.year,
+        })
+        .from(proyeccionesVentas)
+        .orderBy(desc(proyeccionesVentas.year));
+
+      // Combine and deduplicate years
+      const allYears = new Set([
+        ...salesYears.map(r => r.year),
+        ...projectionYears.map(r => r.year)
+      ]);
+
+      // Return sorted array (descending)
+      return Array.from(allYears).sort((a, b) => b - a);
     } catch (error: any) {
       console.error('Error fetching years with data:', error.message);
       return [];
