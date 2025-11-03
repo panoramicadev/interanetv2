@@ -14434,19 +14434,15 @@ export class DatabaseStorage implements IStorage {
 
   async getYearsWithData(): Promise<number[]> {
     try {
-      const connection = await getDbConnection();
-      
-      const query = `
-        SELECT DISTINCT EXTRACT(YEAR FROM feemdo)::int as year
-        FROM sales_transactions
-        WHERE feemdo IS NOT NULL
-        ORDER BY year DESC
-      `;
+      const results = await db
+        .selectDistinct({
+          year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
+        })
+        .from(salesTransactions)
+        .where(isNotNull(salesTransactions.feemdo))
+        .orderBy(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) DESC`);
 
-      const result = await connection.query(query);
-      connection.release();
-
-      return result.rows.map(row => row.year);
+      return results.map(r => r.year);
     } catch (error: any) {
       console.error('Error fetching years with data:', error.message);
       return [];
@@ -14455,24 +14451,23 @@ export class DatabaseStorage implements IStorage {
 
   async getSalespeopleList(): Promise<Array<{ code: string; name: string }>> {
     try {
-      const connection = await getDbConnection();
-      
-      const query = `
-        SELECT DISTINCT 
-          fmpr as code,
-          nofmpr as name
-        FROM sales_transactions
-        WHERE fmpr IS NOT NULL 
-          AND nofmpr IS NOT NULL
-        ORDER BY nofmpr
-      `;
+      const results = await db
+        .selectDistinct({
+          code: salesTransactions.fmpr,
+          name: salesTransactions.nofmpr,
+        })
+        .from(salesTransactions)
+        .where(
+          and(
+            isNotNull(salesTransactions.fmpr),
+            isNotNull(salesTransactions.nofmpr)
+          )
+        )
+        .orderBy(salesTransactions.nofmpr);
 
-      const result = await connection.query(query);
-      connection.release();
-
-      return result.rows.map(row => ({
-        code: row.code,
-        name: row.name
+      return results.map(r => ({
+        code: r.code!,
+        name: r.name!,
       }));
     } catch (error: any) {
       console.error('Error fetching salespeople list:', error.message);
