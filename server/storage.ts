@@ -14464,12 +14464,12 @@ export class DatabaseStorage implements IStorage {
       }
 
       const includeMonthlyBreakdown = filters?.months && filters.months.length > 0;
+      const specificMonthsRequested = includeMonthlyBreakdown;
       
       let allResults: any[] = [];
       
-      // Only get yearly totals if NO months are selected
-      // If months are selected, we'll only show monthly breakdown
-      if (!includeMonthlyBreakdown) {
+      // Always get yearly totals (main rows in table)
+      if (!specificMonthsRequested) {
         const yearlyResults = await db
         .select({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
@@ -14519,9 +14519,63 @@ export class DatabaseStorage implements IStorage {
           desc(sql`SUM(${salesTransactions.monto})`)
         );
         
-        allResults = yearlyResults;
+        allResults = [...yearlyResults];
+        
+        // ALWAYS get monthly breakdown for expandable rows (all 12 months)
+        const monthlyResults = await db
+          .select({
+            year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
+            month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
+            salespersonCode: sql<string>`(
+              SELECT ${salesTransactions.nokofu}
+              FROM ${salesTransactions} AS st
+              WHERE st.nokoen = ${salesTransactions.nokoen}
+                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
+                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
+              GROUP BY st.nokofu
+              ORDER BY SUM(st.monto) DESC
+              LIMIT 1
+            )`,
+            salespersonName: sql<string>`(
+              SELECT ${salesTransactions.nokofu}
+              FROM ${salesTransactions} AS st
+              WHERE st.nokoen = ${salesTransactions.nokoen}
+                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
+                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
+              GROUP BY st.nokofu
+              ORDER BY SUM(st.monto) DESC
+              LIMIT 1
+            )`,
+            clientCode: salesTransactions.nokoen,
+            clientName: salesTransactions.nokoen,
+            segment: sql<string>`(
+              SELECT ${salesTransactions.noruen}
+              FROM ${salesTransactions} AS st
+              WHERE st.nokoen = ${salesTransactions.nokoen}
+                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
+                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
+              GROUP BY st.noruen
+              ORDER BY SUM(st.monto) DESC
+              LIMIT 1
+            )`,
+            totalSales: sql<number>`SUM(${salesTransactions.monto})`,
+            purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+          })
+          .from(salesTransactions)
+          .where(and(...conditions))
+          .groupBy(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
+            sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
+            salesTransactions.nokoen
+          )
+          .orderBy(
+            desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
+            desc(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`)
+          );
+        
+        allResults = [...allResults, ...monthlyResults];
       } else {
-        // If months are selected, ONLY get monthly breakdown (not yearly totals)
+        // If specific months are selected, ONLY get those monthly breakdowns (not yearly totals)
         const monthConditions = [...conditions];
         const monthFilters = filters.months!.map(month => 
           sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int = ${month}`
