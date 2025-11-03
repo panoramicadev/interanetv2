@@ -6,10 +6,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Save, X, Calendar, TrendingUp, Users } from "lucide-react";
+import { Plus, Save, X, Calendar, TrendingUp, Users, ChevronDown } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface HistoricalSalesData {
   year: number;
@@ -220,26 +222,65 @@ export default function ProyeccionManualPage() {
             {/* Year Multi-select */}
             <div className="space-y-2">
               <Label>Años Históricos</Label>
-              <div className="flex flex-wrap gap-2">
-                {availableYears.map(year => (
+              <Popover>
+                <PopoverTrigger asChild>
                   <Button
-                    key={year}
-                    variant={selectedYears.includes(year) ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      if (selectedYears.includes(year)) {
-                        setSelectedYears(selectedYears.filter(y => y !== year));
-                      } else {
-                        setSelectedYears([...selectedYears, year].sort((a, b) => a - b));
-                      }
-                    }}
-                    data-testid={`year-${year}`}
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between"
+                    data-testid="select-years"
                   >
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {year}
+                    {selectedYears.length > 0 
+                      ? `${selectedYears.length} año${selectedYears.length > 1 ? 's' : ''} seleccionado${selectedYears.length > 1 ? 's' : ''}`
+                      : "Seleccionar años"}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
-                ))}
-              </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-3" align="start">
+                  <div className="space-y-2">
+                    {availableYears.map(year => (
+                      <div key={year} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`year-${year}`}
+                          checked={selectedYears.includes(year)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedYears([...selectedYears, year].sort((a, b) => a - b));
+                            } else {
+                              setSelectedYears(selectedYears.filter(y => y !== year));
+                            }
+                          }}
+                          data-testid={`checkbox-year-${year}`}
+                        />
+                        <label
+                          htmlFor={`year-${year}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {year}
+                        </label>
+                      </div>
+                    ))}
+                    {availableYears.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No hay años disponibles</p>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {selectedYears.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedYears.map(year => (
+                    <Badge key={year} variant="secondary" className="text-xs">
+                      {year}
+                      <button
+                        className="ml-1 hover:text-destructive"
+                        onClick={() => setSelectedYears(selectedYears.filter(y => y !== year))}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Salesperson Filter */}
@@ -253,7 +294,7 @@ export default function ProyeccionManualPage() {
                   <SelectItem value="all">Todos los vendedores</SelectItem>
                   {salespeople.map(sp => (
                     <SelectItem key={sp.code} value={sp.code}>
-                      {sp.name} ({sp.code})
+                      {sp.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
