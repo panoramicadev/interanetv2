@@ -3338,7 +3338,8 @@ export const insertReclamoGeneralSchema = createInsertSchema(reclamosGenerales).
   gravedad: z.enum(["baja", "media", "alta", "critica"]),
   estado: z.enum(["registrado", "en_revision_tecnica", "en_area_responsable", "en_laboratorio", "en_produccion", "resuelto", "cerrado"]).optional(),
   motivo: z.string().optional(),
-  areaAsignadaInicial: z.enum(["materia_prima", "colores", "aplicacion", "envase", "etiqueta"]).optional(),
+  // Expanded to include all valid area values
+  areaAsignadaInicial: z.enum(["produccion", "laboratorio", "logistica", "aplicacion", "envase", "etiqueta", "materia_prima", "colores"]).optional(),
 });
 
 export const insertReclamoGeneralPhotoSchema = createInsertSchema(reclamosGeneralesPhotos).omit({

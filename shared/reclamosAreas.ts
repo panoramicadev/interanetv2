@@ -48,6 +48,17 @@ export const ROLE_TO_AREA_MAP: Record<string, ReclamoArea> = {
  */
 export function getRoleArea(userRole: string | undefined | null): ReclamoArea | null {
   if (!userRole) return null;
+  
+  // First, check if it's an area_ role and extract the suffix automatically
+  if (userRole.startsWith('area_')) {
+    const areaSuffix = userRole.replace('area_', '');
+    // Validate that the extracted suffix is a valid area
+    if (RECLAMOS_AREAS_VALUES.includes(areaSuffix as ReclamoArea)) {
+      return areaSuffix as ReclamoArea;
+    }
+  }
+  
+  // Otherwise, use the explicit mapping for organizational roles
   return ROLE_TO_AREA_MAP[userRole] || null;
 }
 
