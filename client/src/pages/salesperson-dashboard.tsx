@@ -279,10 +279,12 @@ export default function SalespersonDashboard() {
     enabled: !!user?.id,
   });
 
-  // Fetch notificaciones - MUST be before any conditional returns
+  // Fetch notificaciones generales del sistema - MUST be before any conditional returns
   const { data: notifications, isLoading: loadingNotifications, error: notificationsError } = useQuery({
-    queryKey: [`/api/alerts/salesperson/${salespersonName || ''}`],
-    enabled: !!salespersonName && !!user,
+    queryKey: ['/api/notifications', { 
+      isArchived: 'false', // Solo notificaciones activas
+    }],
+    enabled: !!user,
     refetchInterval: 5 * 60 * 1000, // Actualizar cada 5 minutos
   });
 
@@ -384,27 +386,36 @@ export default function SalespersonDashboard() {
   console.log('[SALESPERSON DASHBOARD] loadingNotifications:', loadingNotifications);
   console.log('[SALESPERSON DASHBOARD] notificationsError:', notificationsError);
 
-  // Helper function to get icon for notification type
+  // Helper function to get icon for notification type (general system notifications)
   const getIcon = (type: string, icon?: string) => {
     if (icon) return icon;
     
     switch (type) {
-      case 'inactive_client':
-        return '😴';
-      case 'recurring_client':
-        return '🔄';
-      case 'goal_risk':
+      case 'reclamo':
+      case 'reclamo_status':
+      case 'reclamo_resuelto':
         return '⚠️';
-      case 'opportunity':
+      case 'stock_alert':
+      case 'stock_bajo':
+      case 'stock_critico':
+      case 'producto_agotado':
+        return '📦';
+      case 'venta':
+        return '💰';
+      case 'crm_lead':
+      case 'crm_stage_change':
+        return '👥';
+      case 'maintenance':
+      case 'mantencion_resuelta':
+        return '🔧';
+      case 'sales_goal':
         return '🎯';
-      case 'high_value':
-        return '💎';
-      case 'seasonal_pattern':
-        return '📅';
-      case 'cross_sell':
-        return '🛍️';
-      default:
+      case 'ecommerce':
+        return '🛒';
+      case 'manual':
         return '📢';
+      default:
+        return '💬';
     }
   };
 
@@ -469,19 +480,20 @@ export default function SalespersonDashboard() {
           ) : (
             <div className="space-y-3">
               {notificationsList.map((notification, index) => {
-                const priorityColor = notification.priority === 'high' 
+                // Map priority to colors (critica, alta, media, baja)
+                const priorityColor = notification.priority === 'critica' || notification.priority === 'alta'
                   ? 'border-l-red-400 bg-red-50/50' 
-                  : notification.priority === 'medium'
+                  : notification.priority === 'media'
                   ? 'border-l-amber-400 bg-amber-50/50'
                   : 'border-l-blue-400 bg-blue-50/50';
 
                 return (
                   <div
-                    key={index}
+                    key={notification.id || index}
                     className={`border-l-4 rounded-lg p-3 ${priorityColor} transition-all hover:shadow-md`}
                   >
                     <div className="flex items-start gap-2">
-                      <span className="text-2xl flex-shrink-0">{getIcon(notification.type, notification.icon)}</span>
+                      <span className="text-2xl flex-shrink-0">{getIcon(notification.type, (notification as any).icon)}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-1">
                           <p className="font-semibold text-sm text-gray-900">{notification.title}</p>
@@ -489,21 +501,24 @@ export default function SalespersonDashboard() {
                             <Badge 
                               variant="outline" 
                               className={`text-xs flex-shrink-0 ${
-                                notification.priority === 'high' 
+                                notification.priority === 'critica' 
                                   ? 'bg-red-100 text-red-700 border-red-300' 
-                                  : notification.priority === 'medium'
+                                  : notification.priority === 'alta'
+                                  ? 'bg-orange-100 text-orange-700 border-orange-300'
+                                  : notification.priority === 'media'
                                   ? 'bg-amber-100 text-amber-700 border-amber-300'
                                   : 'bg-blue-100 text-blue-700 border-blue-300'
                               }`}
                             >
-                              {notification.priority === 'high' ? 'Urgente' : 
-                               notification.priority === 'medium' ? 'Importante' : 'Info'}
+                              {notification.priority === 'critica' ? 'Crítica' : 
+                               notification.priority === 'alta' ? 'Alta' : 
+                               notification.priority === 'media' ? 'Media' : 'Baja'}
                             </Badge>
                           )}
                         </div>
                         <p className="text-xs text-gray-600">{notification.message}</p>
-                        {notification.details && (
-                          <p className="text-xs text-gray-500 mt-1 italic">{notification.details}</p>
+                        {notification.createdByName && (
+                          <p className="text-xs text-gray-500 mt-1">Por: {notification.createdByName}</p>
                         )}
                       </div>
                     </div>
@@ -569,7 +584,7 @@ export default function SalespersonDashboard() {
                       className="flex items-center justify-between p-3 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors"
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <span className="text-2xl flex-shrink-0">{getIcon(notification.type, notification.icon)}</span>
+                        <span className="text-2xl flex-shrink-0">{getIcon(notification.type, (notification as any).icon)}</span>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 truncate">{notification.title}</p>
                           <p className="text-sm text-gray-600 truncate">{notification.message}</p>
@@ -578,12 +593,18 @@ export default function SalespersonDashboard() {
                       <Badge 
                         variant="outline" 
                         className={`ml-2 flex-shrink-0 ${
-                          notification.priority === 'high' 
+                          notification.priority === 'critica' 
                             ? 'bg-red-100 text-red-700 border-red-300' 
-                            : 'bg-amber-100 text-amber-700 border-amber-300'
+                            : notification.priority === 'alta'
+                            ? 'bg-orange-100 text-orange-700 border-orange-300'
+                            : notification.priority === 'media'
+                            ? 'bg-amber-100 text-amber-700 border-amber-300'
+                            : 'bg-blue-100 text-blue-700 border-blue-300'
                         }`}
                       >
-                        {notification.priority === 'high' ? 'Urgente' : 'Importante'}
+                        {notification.priority === 'critica' ? 'Crítica' : 
+                         notification.priority === 'alta' ? 'Alta' : 
+                         notification.priority === 'media' ? 'Media' : 'Baja'}
                       </Badge>
                     </div>
                   ))}
