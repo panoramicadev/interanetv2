@@ -85,6 +85,9 @@ export default function SegmentDetail({
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("segmento");
   
+  // State for showing more clients
+  const [showAllClients, setShowAllClients] = useState(false);
+  
   // Ref to store scroll position
   const scrollPositionRef = useRef<number>(0);
   const shouldRestoreScrollRef = useRef<boolean>(false);
@@ -815,26 +818,40 @@ export default function SegmentDetail({
                 ) : clients.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No hay clientes en este segmento</p>
                 ) : (
-                  clients.slice(0, 10).map((client) => (
-                    <div key={client.clientName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {client.clientName}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatNumber(client.transactionCount)} transacciones
-                        </p>
+                  <>
+                    {clients.slice(0, showAllClients ? clients.length : 10).map((client) => (
+                      <div key={client.clientName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {client.clientName}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatNumber(client.transactionCount)} transacciones
+                          </p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {formatCurrency(client.totalSales)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {client.percentage.toFixed(1)}%
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right ml-4">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {formatCurrency(client.totalSales)}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {client.percentage.toFixed(1)}%
-                        </p>
+                    ))}
+                    {clients.length > 10 && (
+                      <div className="text-center pt-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowAllClients(!showAllClients)}
+                          data-testid="button-toggle-all-clients"
+                        >
+                          {showAllClients ? 'Ver menos' : `Ver más (${clients.length - 10} más)`}
+                        </Button>
                       </div>
-                    </div>
-                  ))
+                    )}
+                  </>
                 )}
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { UserCheck } from "lucide-react";
+import { UserCheck, Download } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -58,6 +58,36 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
     percentage: periodTotal > 0 ? (salesperson.totalSales / periodTotal) * 100 : 0
   }));
 
+  const exportToCSV = () => {
+    if (!salespeopleWithPercentage || salespeopleWithPercentage.length === 0) return;
+
+    // Preparar datos CSV
+    const headers = ['Vendedor', 'Total Ventas', 'Transacciones', 'Porcentaje'];
+    const rows = salespeopleWithPercentage.map(sp => [
+      sp.salesperson,
+      sp.totalSales.toString(),
+      sp.transactionCount.toString(),
+      sp.percentage.toFixed(2)
+    ]);
+
+    // Crear CSV
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Descargar archivo
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ventas_por_vendedor_${selectedPeriod}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -68,6 +98,17 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Vendedores</h2>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportToCSV}
+            disabled={isLoading || !salespeopleWithPercentage || salespeopleWithPercentage.length === 0}
+            data-testid="button-export-salespeople-csv"
+          >
+            <Download className="h-4 w-4 mr-1" />
+            <span className="hidden sm:inline">Exportar CSV</span>
+            <span className="sm:hidden">CSV</span>
+          </Button>
           <Link href="/mis-vendedores">
             <Button
               variant="ghost"
