@@ -14458,16 +14458,25 @@ export class DatabaseStorage implements IStorage {
 
       const includeMonthlyBreakdown = filters?.months && filters.months.length > 0;
       
-      // Always get yearly totals
+      // Always get yearly totals - GROUP BY client only (not by salesperson)
       const yearlyResults = await db
         .select({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
           month: sql<number>`NULL`,
-          salespersonCode: salesTransactions.nokofu,
-          salespersonName: salesTransactions.nokofu,
+          salespersonCode: sql<string>`''`,
+          salespersonName: sql<string>`''`,
           clientCode: salesTransactions.koprct,
           clientName: sql<string>`MAX(${salesTransactions.nokoen})`,
-          segment: sql<string>`MAX(${salesTransactions.noruen})`,
+          // Get the segment with the most sales for this client
+          segment: sql<string>`(
+            SELECT ${salesTransactions.noruen}
+            FROM ${salesTransactions} AS st
+            WHERE st.koprct = ${salesTransactions.koprct}
+              AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
+            GROUP BY st.noruen
+            ORDER BY SUM(st.monto) DESC
+            LIMIT 1
+          )`,
           totalSales: sql<number>`SUM(${salesTransactions.monto})`,
           purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
         })
@@ -14475,12 +14484,10 @@ export class DatabaseStorage implements IStorage {
         .where(and(...conditions))
         .groupBy(
           sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
-          salesTransactions.nokofu,
           salesTransactions.koprct
         )
         .orderBy(
           desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
-          salesTransactions.nokofu,
           desc(sql`SUM(${salesTransactions.monto})`)
         );
 
@@ -14498,11 +14505,21 @@ export class DatabaseStorage implements IStorage {
           .select({
             year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
             month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
-            salespersonCode: salesTransactions.nokofu,
-            salespersonName: salesTransactions.nokofu,
+            salespersonCode: sql<string>`''`,
+            salespersonName: sql<string>`''`,
             clientCode: salesTransactions.koprct,
             clientName: sql<string>`MAX(${salesTransactions.nokoen})`,
-            segment: sql<string>`MAX(${salesTransactions.noruen})`,
+            // Get the segment with the most sales for this client in this month
+            segment: sql<string>`(
+              SELECT ${salesTransactions.noruen}
+              FROM ${salesTransactions} AS st
+              WHERE st.koprct = ${salesTransactions.koprct}
+                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
+                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
+              GROUP BY st.noruen
+              ORDER BY SUM(st.monto) DESC
+              LIMIT 1
+            )`,
             totalSales: sql<number>`SUM(${salesTransactions.monto})`,
             purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
           })
@@ -14511,13 +14528,11 @@ export class DatabaseStorage implements IStorage {
           .groupBy(
             sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
             sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
-            salesTransactions.nokofu,
             salesTransactions.koprct
           )
           .orderBy(
             desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
             asc(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`),
-            salesTransactions.nokofu,
             desc(sql`SUM(${salesTransactions.monto})`)
           );
 
