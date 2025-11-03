@@ -4274,8 +4274,7 @@ export const proyeccionesVentas = pgTable("proyecciones_ventas", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  // Índice compuesto único: un vendedor solo puede tener una proyección por cliente por año/mes
-  uniqueProjection: uniqueIndex("UQ_proyecciones_year_month_salesperson_client").on(table.year, sql`COALESCE(${table.month}, 0)`, table.salespersonCode, table.clientCode),
+  // Índices para búsqueda eficiente
   yearIdx: index("IDX_proyecciones_year").on(table.year),
   monthIdx: index("IDX_proyecciones_month").on(table.month),
   salespersonIdx: index("IDX_proyecciones_salesperson").on(table.salespersonCode),
