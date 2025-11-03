@@ -14381,7 +14381,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const connection = await getDbConnection();
       
-      let conditions = ['1=1', 'fmpr IS NOT NULL', 'koprct IS NOT NULL'];
+      let conditions = ['kofudo IS NOT NULL', 'nokofu IS NOT NULL', 'koprct IS NOT NULL', "nokofu != '.'"];
       const params: any[] = [];
       let paramCount = 1;
 
@@ -14392,7 +14392,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       if (filters?.salespersonCode) {
-        conditions.push(`fmpr = $${paramCount}`);
+        conditions.push(`nokofu = $${paramCount}`);
         params.push(filters.salespersonCode);
         paramCount++;
       }
@@ -14400,17 +14400,17 @@ export class DatabaseStorage implements IStorage {
       const query = `
         SELECT 
           EXTRACT(YEAR FROM feemdo)::int as year,
-          fmpr as salesperson_code,
-          MAX(nofmpr) as salesperson_name,
+          kofudo as salesperson_code,
+          MAX(nokofu) as salesperson_name,
           koprct as client_code,
           MAX(nokoen) as client_name,
-          '' as segment,
+          MAX(caprad2) as segment,
           SUM(monto) as total_sales,
           COUNT(DISTINCT id) as purchase_frequency
         FROM sales_transactions
         WHERE ${conditions.join(' AND ')}
-        GROUP BY EXTRACT(YEAR FROM feemdo), fmpr, koprct
-        ORDER BY year DESC, salesperson_code, total_sales DESC
+        GROUP BY EXTRACT(YEAR FROM feemdo), kofudo, nokofu, koprct
+        ORDER BY year DESC, salesperson_name, total_sales DESC
       `;
 
       const result = await connection.query(query, params);
