@@ -208,7 +208,7 @@ import {
   type InsertNotificationRead,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count } from "drizzle-orm";
+import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count, not } from "drizzle-orm";
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 import mssql from 'mssql';
@@ -13850,7 +13850,7 @@ export class DatabaseStorage implements IStorage {
       if (currentKoens.length > 0) {
         await db
           .delete(clientesInactivos)
-          .where(sql`${clientesInactivos.clientKoen} NOT IN (${sql.join(currentKoens.map(k => sql`${k}`), sql`, `)})`);
+          .where(not(inArray(clientesInactivos.clientKoen, currentKoens)));
       } else {
         // Si no hay clientes inactivos, limpiar toda la tabla
         await db.delete(clientesInactivos);
