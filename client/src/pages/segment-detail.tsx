@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -404,6 +404,77 @@ export default function SegmentDetail({
     return new Intl.NumberFormat('es-CL').format(num);
   };
 
+  // Export data to CSV
+  const exportSegmentDataToCSV = () => {
+    const csvData = [];
+    
+    // Add header
+    csvData.push(['REPORTE DE SEGMENTO - ' + segmentName]);
+    csvData.push(['Período: ' + selection.display]);
+    csvData.push(['Generado: ' + format(new Date(), "dd/MM/yyyy HH:mm")]);
+    csvData.push([]); // Empty row
+    
+    // KPIs Summary
+    csvData.push(['RESUMEN GENERAL']);
+    csvData.push(['Total Ventas', totalSales]);
+    csvData.push(['Total Clientes', totalClients]);
+    csvData.push(['Total Vendedores', totalSalespeople]);
+    csvData.push(['Total Transacciones', totalTransactions]);
+    csvData.push(['Ticket Promedio', averageTicket]);
+    csvData.push([]); // Empty row
+    
+    // Clients data
+    csvData.push(['CLIENTES DEL SEGMENTO']);
+    csvData.push(['Cliente', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Porcentaje']);
+    clients.forEach(client => {
+      csvData.push([
+        client.clientName,
+        client.totalSales,
+        client.transactionCount,
+        client.averageTicket,
+        client.percentage.toFixed(2) + '%'
+      ]);
+    });
+    csvData.push([]); // Empty row
+    
+    // Salespeople data
+    csvData.push(['VENDEDORES DEL SEGMENTO']);
+    csvData.push(['Vendedor', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Porcentaje']);
+    salespeople.forEach(salesperson => {
+      csvData.push([
+        salesperson.salespersonName,
+        salesperson.totalSales,
+        salesperson.transactionCount,
+        salesperson.averageTicket,
+        salesperson.percentage.toFixed(2) + '%'
+      ]);
+    });
+    
+    // Create CSV content
+    const csvContent = csvData.map(row => 
+      row.map(cell => {
+        // Escape commas and quotes in cell values
+        const stringCell = String(cell);
+        if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
+          return '"' + stringCell.replace(/"/g, '""') + '"';
+        }
+        return stringCell;
+      }).join(',')
+    ).join('\n');
+    
+    // Download file
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const fileName = `segmento_${segmentName}_${selectedPeriod.replace(/[\/\\:]/g, '-')}.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Format period display
   const getPeriodDisplay = () => {
     switch (filterType) {
@@ -629,6 +700,23 @@ export default function SegmentDetail({
                   </div>
                 </div>
               </div>
+
+              {/* Export CSV Button */}
+              {!isComparativeMode && (
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportSegmentDataToCSV}
+                    disabled={isLoadingClients || isLoadingSalespeople}
+                    className="w-full"
+                    data-testid="button-export-segment-csv"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportar datos del segmento a CSV
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </header>
