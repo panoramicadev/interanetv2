@@ -279,6 +279,65 @@ export default function SalespersonDashboard() {
     enabled: !!user?.id,
   });
 
+  // Fetch notificaciones - MUST be before any conditional returns
+  const { data: notifications, isLoading: loadingNotifications, error: notificationsError } = useQuery({
+    queryKey: [`/api/alerts/salesperson/${salespersonName || ''}`],
+    enabled: !!salespersonName && !!user,
+    refetchInterval: 5 * 60 * 1000, // Actualizar cada 5 minutos
+  });
+
+  // Group clients by name and aggregate their data - MUST be before any conditional returns
+  const groupedClients = useMemo(() => {
+    const items = Array.isArray(clientsData) ? clientsData : [];
+    const clientMap = new Map<string, any>();
+    
+    items.forEach((client: any) => {
+      const clientName = client.clientName || client.name || 'Sin nombre';
+      
+      if (clientMap.has(clientName)) {
+        const existing = clientMap.get(clientName);
+        existing.totalSales += client.totalSales || 0;
+        existing.transactionCount += client.transactionCount || 0;
+        
+        // Keep the most recent purchase date
+        if (client.lastPurchaseDate) {
+          if (!existing.lastPurchaseDate || new Date(client.lastPurchaseDate) > new Date(existing.lastPurchaseDate)) {
+            existing.lastPurchaseDate = client.lastPurchaseDate;
+          }
+        }
+      } else {
+        clientMap.set(clientName, {
+          clientName,
+          name: clientName,
+          totalSales: client.totalSales || 0,
+          transactionCount: client.transactionCount || 0,
+          lastPurchaseDate: client.lastPurchaseDate,
+          segment: client.segment,
+        });
+      }
+    });
+    
+    return Array.from(clientMap.values()).sort((a, b) => b.totalSales - a.totalSales);
+  }, [clientsData]);
+
+  // Safe data access with proper defaults - matching salesperson-detail structure
+  const salesData = useMemo(() => ({
+    totalSales: salespersonData?.totalSales || 0,
+    transactions: salespersonData?.transactionCount || 0,
+    avgTicket: salespersonData?.averageTicket || 0,
+    topProducts: productsData?.slice(0, 5) || [],
+    recentSales: transactionsData || [],
+    clientCount: salespersonData?.totalClients || 0,
+    daysSinceLastSale: salespersonData?.daysSinceLastSale || 0,
+    productivity: salespersonData?.salesFrequency || 0
+  }), [salespersonData, productsData, transactionsData]);
+
+  const clients = groupedClients;
+  const goals = Array.isArray(goalsData) ? goalsData : [];
+  const primaryGoal = goals.length > 0 ? goals[0] : null;
+  const notificationsList = Array.isArray(notifications) ? notifications : [];
+
+  // ALL HOOKS MUST BE ABOVE THIS LINE - Now we can have conditional returns
   if (isLoading || loadingSalesperson || loadingClients || loadingGoals || isLoadingSalespeopleFallback) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -318,65 +377,6 @@ export default function SalespersonDashboard() {
     );
   }
 
-  // Safe data access with proper defaults - matching salesperson-detail structure
-  const salesData = {
-    totalSales: salespersonData?.totalSales || 0,
-    transactions: salespersonData?.transactionCount || 0,
-    avgTicket: salespersonData?.averageTicket || 0,
-    topProducts: productsData?.slice(0, 5) || [],
-    recentSales: transactionsData || [],
-    clientCount: salespersonData?.totalClients || 0,
-    daysSinceLastSale: salespersonData?.daysSinceLastSale || 0,
-    productivity: salespersonData?.salesFrequency || 0
-  };
-
-  // Group clients by name and aggregate their data
-  const groupedClients = useMemo(() => {
-    const items = Array.isArray(clientsData) ? clientsData : [];
-    const clientMap = new Map<string, any>();
-    
-    items.forEach((client: any) => {
-      const clientName = client.clientName || client.name || 'Sin nombre';
-      
-      if (clientMap.has(clientName)) {
-        const existing = clientMap.get(clientName);
-        existing.totalSales += client.totalSales || 0;
-        existing.transactionCount += client.transactionCount || 0;
-        
-        // Keep the most recent purchase date
-        if (client.lastPurchaseDate) {
-          if (!existing.lastPurchaseDate || new Date(client.lastPurchaseDate) > new Date(existing.lastPurchaseDate)) {
-            existing.lastPurchaseDate = client.lastPurchaseDate;
-          }
-        }
-      } else {
-        clientMap.set(clientName, {
-          clientName,
-          name: clientName,
-          totalSales: client.totalSales || 0,
-          transactionCount: client.transactionCount || 0,
-          lastPurchaseDate: client.lastPurchaseDate,
-          segment: client.segment,
-        });
-      }
-    });
-    
-    return Array.from(clientMap.values()).sort((a, b) => b.totalSales - a.totalSales);
-  }, [clientsData]);
-  
-  const clients = groupedClients;
-  const goals = Array.isArray(goalsData) ? goalsData : [];
-  const primaryGoal = goals.length > 0 ? goals[0] : null;
-
-  // Fetch notificaciones
-  const { data: notifications, isLoading: loadingNotifications, error: notificationsError } = useQuery({
-    queryKey: [`/api/alerts/salesperson/${salespersonName}`],
-    enabled: !!salespersonName && !!user,
-    refetchInterval: 5 * 60 * 1000, // Actualizar cada 5 minutos
-  });
-
-  const notificationsList = Array.isArray(notifications) ? notifications : [];
-  
   // Debug: log notifications data
   console.log('[SALESPERSON DASHBOARD] salespersonName:', salespersonName);
   console.log('[SALESPERSON DASHBOARD] notifications:', notifications);
