@@ -45,12 +45,12 @@ export default function ApiKeysPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: typeof newKeyData) => {
+    mutationFn: async (keyData: typeof newKeyData) => {
       const response = await apiRequest("/api/api-keys", {
         method: "POST",
-        body: JSON.stringify(data),
+        data: keyData,
       });
-      return response;
+      return response.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/api-keys"] });
@@ -74,10 +74,11 @@ export default function ApiKeysPage() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      return await apiRequest(`/api/api-keys/${id}/toggle`, {
+      const response = await apiRequest(`/api/api-keys/${id}/toggle`, {
         method: "PATCH",
-        body: JSON.stringify({ isActive }),
+        data: { isActive },
       });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/api-keys"] });
