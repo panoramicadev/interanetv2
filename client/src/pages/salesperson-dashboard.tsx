@@ -433,44 +433,127 @@ export default function SalespersonDashboard() {
   };
 
   return (
-    <>
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
-        <div className="flex flex-col space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
-                Dashboard Vendedor - {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
-              </h1>
-              <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
-                Panel de control personalizado para gestión de ventas
-              </p>
+    <div className="flex min-h-screen bg-background">
+      {/* Sidebar con Notificaciones */}
+      <aside className="hidden lg:block w-80 xl:w-96 bg-white border-r border-gray-200 p-4 overflow-y-auto">
+        <div className="sticky top-4">
+          {/* Título del Sidebar */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="bg-amber-500 rounded-full p-2">
+              <Bell className="h-5 w-5 text-white" />
             </div>
+            <h2 className="text-lg font-bold text-gray-900">
+              Notificaciones
+            </h2>
+            {notificationsList.length > 0 && (
+              <Badge variant="destructive" className="ml-auto">
+                {notificationsList.length}
+              </Badge>
+            )}
+          </div>
 
-            {/* Panel de Notificaciones */}
-            <div className="flex items-center gap-2">
-              <NotificationsPanel 
-                salespersonName={salespersonName || ''} 
-                salespersonId={user?.id || ''}
+          {/* Panel de Notificaciones Completo */}
+          {loadingNotifications ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto"></div>
+              <p className="text-sm text-gray-500 mt-2">Cargando notificaciones...</p>
+            </div>
+          ) : notificationsList.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="bg-gray-100 rounded-full p-4 w-16 h-16 mx-auto flex items-center justify-center mb-3">
+                <Bell className="h-8 w-8 text-gray-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-900">Sin notificaciones</p>
+              <p className="text-xs text-gray-500 mt-1">Estás al día con tus tareas</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {notificationsList.map((notification, index) => {
+                const priorityColor = notification.priority === 'high' 
+                  ? 'border-l-red-400 bg-red-50/50' 
+                  : notification.priority === 'medium'
+                  ? 'border-l-amber-400 bg-amber-50/50'
+                  : 'border-l-blue-400 bg-blue-50/50';
+
+                return (
+                  <div
+                    key={index}
+                    className={`border-l-4 rounded-lg p-3 ${priorityColor} transition-all hover:shadow-md`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="text-2xl flex-shrink-0">{getIcon(notification.type, notification.icon)}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="font-semibold text-sm text-gray-900">{notification.title}</p>
+                          {notification.priority && (
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs flex-shrink-0 ${
+                                notification.priority === 'high' 
+                                  ? 'bg-red-100 text-red-700 border-red-300' 
+                                  : notification.priority === 'medium'
+                                  ? 'bg-amber-100 text-amber-700 border-amber-300'
+                                  : 'bg-blue-100 text-blue-700 border-blue-300'
+                              }`}
+                            >
+                              {notification.priority === 'high' ? 'Urgente' : 
+                               notification.priority === 'medium' ? 'Importante' : 'Info'}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600">{notification.message}</p>
+                        {notification.details && (
+                          <p className="text-xs text-gray-500 mt-1 italic">{notification.details}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Contenido Principal */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
+          <div className="flex flex-col space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
+                  Dashboard Vendedor - {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
+                </h1>
+                <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
+                  Panel de control personalizado para gestión de ventas
+                </p>
+              </div>
+
+              {/* Panel de Notificaciones móvil */}
+              <div className="flex lg:hidden items-center gap-2">
+                <NotificationsPanel 
+                  salespersonName={salespersonName || ''} 
+                  salespersonId={user?.id || ''}
+                />
+              </div>
+            </div>
+            
+            {/* Year/Month Selector */}
+            <div className="w-full">
+              <YearMonthSelector
+                value={selection}
+                onChange={(newSelection) => newSelection && setSelection(newSelection)}
               />
             </div>
           </div>
-          
-          {/* Year/Month Selector */}
-          <div className="w-full">
-            <YearMonthSelector
-              value={selection}
-              onChange={(newSelection) => newSelection && setSelection(newSelection)}
-            />
-          </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Contenido Principal */}
-      <main className="px-4 lg:px-6 pb-6 space-y-6">
-        {/* Notificaciones Destacadas */}
-        {notificationsList.length > 0 && (
-          <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-l-4 border-amber-400 rounded-xl shadow-md p-4 lg:p-6">
+        {/* Contenido Principal */}
+        <main className="px-4 lg:px-6 pb-6 space-y-6">
+          {/* Notificaciones Destacadas - Solo en móvil */}
+          {notificationsList.length > 0 && (
+          <div className="lg:hidden bg-gradient-to-r from-amber-50 to-yellow-50 border-l-4 border-amber-400 rounded-xl shadow-md p-4 lg:p-6">
             <div className="flex items-start gap-4">
               <div className="bg-amber-500 rounded-full p-3 flex-shrink-0">
                 <Bell className="h-6 w-6 text-white" />
@@ -884,6 +967,8 @@ export default function SalespersonDashboard() {
           />
         </div>
       </main>
+      </div>
+      {/* Fin del contenido principal */}
 
       {/* Diálogo de Clientes */}
       <Dialog open={showClientsDialog} onOpenChange={setShowClientsDialog}>
@@ -989,6 +1074,6 @@ export default function SalespersonDashboard() {
           </div>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
