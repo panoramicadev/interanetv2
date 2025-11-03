@@ -14472,7 +14472,7 @@ export class DatabaseStorage implements IStorage {
           salespersonCode: sql<string>`(
             SELECT ${salesTransactions.nokofu}
             FROM ${salesTransactions} AS st
-            WHERE st.koprct = ${salesTransactions.koprct}
+            WHERE st.nokoen = ${salesTransactions.nokoen}
               AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
             GROUP BY st.nokofu
             ORDER BY SUM(st.monto) DESC
