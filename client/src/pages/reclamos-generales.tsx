@@ -45,7 +45,7 @@ import {
   ChevronUp
 } from "lucide-react";
 import type { ReclamoGeneral, ReclamoGeneralPhoto } from "@shared/schema";
-import { RECLAMOS_AREAS, AREA_LABELS, getAreaLabel } from "@shared/reclamosAreas";
+import { RECLAMOS_AREAS, AREA_LABELS, getAreaLabel, getRoleArea } from "@shared/reclamosAreas";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -990,7 +990,6 @@ export default function ReclamosGeneralesPage() {
 
   // Get user's area from role using shared taxonomy
   const getUserArea = () => {
-    const { getRoleArea } = require('@shared/reclamosAreas');
     return getRoleArea(user?.role);
   };
 
@@ -1049,6 +1048,19 @@ export default function ReclamosGeneralesPage() {
         } else if (user?.role?.startsWith('area_') || (user?.role && organizationalRoles.includes(user.role))) {
           // Area roles and organizational roles: reclamos where areaResponsableActual matches and estado === "en_area_responsable"
           const userArea = getUserArea();
+          console.log('[DEBUG] Filtering asignados-area:', {
+            userRole: user?.role,
+            userArea,
+            totalReclamos: reclamos.length,
+            reclamosWithDetails: reclamos.map(r => ({
+              id: r.id,
+              estado: r.estado,
+              areaResponsableActual: r.areaResponsableActual,
+              matchesArea: r.areaResponsableActual === userArea,
+              matchesEstado: r.estado === 'en_area_responsable',
+              matchesBoth: r.areaResponsableActual === userArea && r.estado === 'en_area_responsable'
+            }))
+          });
           return reclamos.filter(r => 
             r.areaResponsableActual === userArea && r.estado === 'en_area_responsable'
           );
