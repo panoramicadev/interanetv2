@@ -497,38 +497,27 @@ export default function ProyeccionManualPage() {
             {/* Add Future Year */}
             <div className="space-y-2">
               <Label htmlFor="futureYear">Agregar Año Futuro</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="futureYear"
-                  type="number"
-                  min={new Date().getFullYear()}
-                  max={2050}
-                  placeholder="Ej: 2026"
-                  data-testid="input-future-year"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const value = parseInt((e.target as HTMLInputElement).value);
-                      if (value && value >= new Date().getFullYear()) {
-                        setFutureYear(value);
-                      }
-                    }
-                  }}
-                />
-                <Button
-                  size="icon"
-                  onClick={() => {
-                    const input = document.getElementById('futureYear') as HTMLInputElement;
-                    const value = parseInt(input.value);
-                    if (value && value >= new Date().getFullYear()) {
-                      setFutureYear(value);
-                      input.value = '';
-                    }
-                  }}
-                  data-testid="button-add-future-year"
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
+              <Select
+                value={futureYear?.toString() || ''}
+                onValueChange={(value) => {
+                  if (value) {
+                    setFutureYear(parseInt(value));
+                  } else {
+                    setFutureYear(null);
+                  }
+                }}
+              >
+                <SelectTrigger id="futureYear" data-testid="select-future-year">
+                  <SelectValue placeholder="Ej: 2026" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map(year => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {futureYear && (
                 <Badge variant="secondary" className="mt-2">
                   Año futuro: {futureYear}
@@ -537,6 +526,7 @@ export default function ProyeccionManualPage() {
                     size="sm"
                     className="ml-2 h-4 w-4 p-0"
                     onClick={() => setFutureYear(null)}
+                    data-testid="button-remove-future-year"
                   >
                     <X className="w-3 h-3" />
                   </Button>
