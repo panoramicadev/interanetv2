@@ -285,7 +285,7 @@ export default function ProyeccionPage() {
       </div>
 
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "automatica" | "manual")}>
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="manual" className="flex items-center gap-2" data-testid="tab-manual">
             <TrendingUp className="h-4 w-4" />
             Proyección Manual
