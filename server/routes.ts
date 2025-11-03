@@ -2390,6 +2390,72 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Proyección de Ventas - Historical data endpoint
+  app.get('/api/proyeccion/historical', requireAuth, async (req, res) => {
+    try {
+      const { type } = req.query;
+      const viewType = (type as string) || 'salesperson';
+      
+      // Get data from the last 36 months for better forecasting
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 36);
+      
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      // Query historical monthly sales from fact_ventas
+      const query = `
+        SELECT 
+          ${viewType === 'salesperson' ? 'nokofu as entity' : 'noruen as entity'},
+          TO_CHAR(feemdo::date, 'YYYY-MM') as period,
+          SUM(CAST(vaivne AS NUMERIC)) as total_sales
+        FROM ventas.fact_ventas
+        WHERE feemdo >= $1 
+          AND feemdo <= $2
+          AND tido NOT IN ('GDV')
+          ${viewType === 'salesperson' ? 'AND nokofu IS NOT NULL AND nokofu != \'.\'' : 'AND noruen IS NOT NULL'}
+        GROUP BY ${viewType === 'salesperson' ? 'nokofu' : 'noruen'}, TO_CHAR(feemdo::date, 'YYYY-MM')
+        ORDER BY entity, period
+      `;
+      
+      const result = await db.execute(sql.raw(query.replace('$1', `'${startDateStr}'`).replace('$2', `'${endDateStr}'`)));
+      
+      // Group by entity (salesperson or segment)
+      const groupedData: Record<string, any[]> = {};
+      
+      for (const row of result.rows as any[]) {
+        const entity = row.entity;
+        if (!groupedData[entity]) {
+          groupedData[entity] = [];
+        }
+        groupedData[entity].push({
+          period: row.period,
+          totalSales: parseFloat(row.total_sales) || 0,
+        });
+      }
+      
+      // Convert to array format
+      const historicalData = Object.entries(groupedData).map(([entity, monthlySales]) => {
+        // Sort by period
+        monthlySales.sort((a, b) => a.period.localeCompare(b.period));
+        
+        return {
+          [viewType === 'salesperson' ? 'salesperson' : 'segment']: entity,
+          monthlySales,
+        };
+      });
+      
+      // Filter out entities with insufficient data (less than 12 months)
+      const filteredData = historicalData.filter(item => item.monthlySales.length >= 12);
+      
+      res.json(filteredData);
+    } catch (error) {
+      console.error('Error fetching projection historical data:', error);
+      res.status(500).json({ message: 'Error al obtener datos históricos para proyección' });
+    }
+  });
+
   // Salesperson users management endpoints
   app.get('/api/users/salespeople', async (req, res) => {
     try {

@@ -60,14 +60,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Target,
     },
     {
-      href: "/ordenes",
+      href: "/facturas",
       label: "Facturas",
       icon: Receipt,
-    },
-    {
-      href: "/nvv",
-      label: "Notas de Venta (NVV)",
-      icon: TrendingUp,
     },
     {
       href: "/usuarios",
@@ -183,14 +178,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Target,
     },
     {
-      href: "/ordenes",
+      href: "/facturas",
       label: "Facturas",
       icon: Receipt,
-    },
-    {
-      href: "/nvv",
-      label: "Notas de Venta (NVV)",
-      icon: TrendingUp,
     },
     {
       href: "/usuarios",
@@ -467,14 +457,9 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: LayoutDashboard,
     },
     {
-      href: "/ordenes",
+      href: "/facturas",
       label: "Facturas",
       icon: Receipt,
-    },
-    {
-      href: "/nvv",
-      label: "Notas de Venta (NVV)",
-      icon: TrendingUp,
     },
     {
       href: "/inventario",

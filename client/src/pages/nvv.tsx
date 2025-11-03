@@ -21,11 +21,11 @@ export default function NVVPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="border-b border-gray-200 pb-4">
-        <h1 className="text-3xl font-bold text-gray-900">Notas de Venta (NVV)</h1>
-        <p className="text-gray-600 mt-2">
+      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Notas de Venta (NVV)</h2>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">
           Gestiona las notas de venta importadas desde archivos CSV
         </p>
       </div>

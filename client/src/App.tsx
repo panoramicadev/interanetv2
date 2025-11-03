@@ -52,6 +52,7 @@ import TintometriaAdmin from "@/pages/tintometria-admin";
 import TintometriaCalculadora from "@/pages/tintometria-calculadora";
 import TintometriaSelector from "@/pages/tintometria-selector";
 import Facturas from "@/pages/facturas";
+import FacturasMainPage from "@/pages/facturas-main";
 import MetricasProductos from "@/pages/metricas-productos";
 import ETLMonitor from "@/pages/etl-monitor";
 import DateSelectorDemo from "@/pages/date-selector-demo";
@@ -125,7 +126,8 @@ function Router() {
             }} />
             
             {/* Rutas específicas de admin */}
-            <Route path="/nvv" component={NVVPage} />
+            <Route path="/facturas" component={FacturasMainPage} />
+            <Route path="/nvv" component={FacturasMainPage} />
             <Route path="/crm" component={() => {
               // Solo admin, supervisor y salesperson pueden acceder al CRM
               if (!user?.role || !['admin', 'supervisor', 'salesperson'].includes(user.role)) {
@@ -152,7 +154,6 @@ function Router() {
               return null;
             }} />
             <Route path="/metas" component={Metas} />
-            <Route path="/facturas" component={Facturas} />
             <Route path="/tomador-pedidos" component={TomadorPedidos} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
