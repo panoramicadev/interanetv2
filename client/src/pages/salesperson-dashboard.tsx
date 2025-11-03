@@ -227,6 +227,39 @@ export default function SalespersonDashboard() {
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
+  // Fetch notificaciones
+  const { data: notifications } = useQuery({
+    queryKey: [`/api/alerts/salesperson/${user?.salespersonName}`],
+    enabled: !!user?.salespersonName,
+    refetchInterval: 5 * 60 * 1000, // Actualizar cada 5 minutos
+  });
+
+  const notificationsList = notifications || [];
+
+  // Helper function to get icon for notification type
+  const getIcon = (type: string, icon?: string) => {
+    if (icon) return icon;
+    
+    switch (type) {
+      case 'inactive_client':
+        return '😴';
+      case 'recurring_client':
+        return '🔄';
+      case 'goal_risk':
+        return '⚠️';
+      case 'opportunity':
+        return '🎯';
+      case 'high_value':
+        return '💎';
+      case 'seasonal_pattern':
+        return '📅';
+      case 'cross_sell':
+        return '🛍️';
+      default:
+        return '📢';
+    }
+  };
+
   // Helper functions for promesas week selector
   const getWeekLabel = (date: Date) => {
     const monthStart = startOfMonth(date);
@@ -289,6 +322,53 @@ export default function SalespersonDashboard() {
 
       {/* Contenido Principal */}
       <main className="px-4 lg:px-6 pb-6 space-y-6">
+        {/* Notificaciones Destacadas */}
+        {notificationsList.length > 0 && (
+          <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border-l-4 border-amber-400 rounded-xl shadow-md p-4 lg:p-6">
+            <div className="flex items-start gap-4">
+              <div className="bg-amber-500 rounded-full p-3 flex-shrink-0">
+                <Bell className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">
+                  Notificaciones Importantes ({notificationsList.length})
+                </h3>
+                <div className="space-y-2">
+                  {notificationsList.slice(0, 3).map((notification, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className="text-2xl flex-shrink-0">{getIcon(notification.type, notification.icon)}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{notification.title}</p>
+                          <p className="text-sm text-gray-600 truncate">{notification.message}</p>
+                        </div>
+                      </div>
+                      <Badge 
+                        variant="outline" 
+                        className={`ml-2 flex-shrink-0 ${
+                          notification.priority === 'high' 
+                            ? 'bg-red-100 text-red-700 border-red-300' 
+                            : 'bg-amber-100 text-amber-700 border-amber-300'
+                        }`}
+                      >
+                        {notification.priority === 'high' ? 'Urgente' : 'Importante'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                {notificationsList.length > 3 && (
+                  <p className="text-sm text-gray-600 mt-3">
+                    +{notificationsList.length - 3} notificaciones más en el panel
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Progreso de Meta Principal - Solo si hay metas */}
         {primaryGoal && (
           <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
