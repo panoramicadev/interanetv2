@@ -14426,6 +14426,7 @@ export class DatabaseStorage implements IStorage {
     years?: number[];
     months?: number[];
     salespersonCode?: string;
+    segment?: string;
   }): Promise<Array<{
     year: number;
     month?: number;
@@ -14455,6 +14456,11 @@ export class DatabaseStorage implements IStorage {
       // Apply salesperson filter if specified (filter records before grouping)
       if (filters?.salespersonCode) {
         conditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
+      }
+
+      // Apply segment filter if specified
+      if (filters?.segment) {
+        conditions.push(eq(salesTransactions.noruen, filters.segment));
       }
 
       const includeMonthlyBreakdown = filters?.months && filters.months.length > 0;
@@ -14751,6 +14757,7 @@ export class DatabaseStorage implements IStorage {
     years?: number[];
     months?: number[];
     salespersonCode?: string;
+    segment?: string;
   }): Promise<ProyeccionVenta[]> {
     const conditions = [];
     
@@ -14770,6 +14777,10 @@ export class DatabaseStorage implements IStorage {
 
     if (filters?.salespersonCode) {
       conditions.push(eq(proyeccionesVentas.salespersonCode, filters.salespersonCode));
+    }
+
+    if (filters?.segment) {
+      conditions.push(eq(proyeccionesVentas.segment, filters.segment));
     }
 
     const result = await db

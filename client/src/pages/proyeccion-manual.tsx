@@ -81,6 +81,7 @@ export default function ProyeccionManualPage() {
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("all");
+  const [selectedSegment, setSelectedSegment] = useState<string>("all");
   const [futureYear, setFutureYear] = useState<number | null>(null);
   const [editingCells, setEditingCells] = useState<Record<string, number>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -111,9 +112,14 @@ export default function ProyeccionManualPage() {
     queryKey: ['/api/proyecciones/salespeople'],
   });
 
+  // Fetch segments list
+  const { data: segmentsData = [] } = useQuery<Array<{ code: string; name: string }>>({
+    queryKey: ['/api/proyecciones/segments'],
+  });
+
   // Fetch historical data
   const { data: historicalData = [], isLoading: isLoadingHistorical } = useQuery<HistoricalSalesData[]>({
-    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson],
+    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, selectedSegment],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedYears.length > 0) {
@@ -124,6 +130,9 @@ export default function ProyeccionManualPage() {
       }
       if (selectedSalesperson !== 'all') {
         params.append('salespersonCode', selectedSalesperson);
+      }
+      if (selectedSegment !== 'all') {
+        params.append('segment', selectedSegment);
       }
       const response = await fetch(`/api/proyecciones/historico?${params}`, {
         credentials: 'include'
@@ -136,7 +145,7 @@ export default function ProyeccionManualPage() {
 
   // Fetch manual projections
   const { data: manualProjections = [] } = useQuery<ManualProjection[]>({
-    queryKey: ['/api/proyecciones/manual', futureYear ? [...selectedYears, futureYear].join(',') : selectedYears.join(','), selectedMonths.join(','), selectedSalesperson],
+    queryKey: ['/api/proyecciones/manual', futureYear ? [...selectedYears, futureYear].join(',') : selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, selectedSegment],
     queryFn: async () => {
       const params = new URLSearchParams();
       const years = futureYear ? [...selectedYears, futureYear] : selectedYears;
@@ -148,6 +157,9 @@ export default function ProyeccionManualPage() {
       }
       if (selectedSalesperson !== 'all') {
         params.append('salespersonCode', selectedSalesperson);
+      }
+      if (selectedSegment !== 'all') {
+        params.append('segment', selectedSegment);
       }
       const response = await fetch(`/api/proyecciones/manual?${params}`, {
         credentials: 'include'
@@ -492,6 +504,24 @@ export default function ProyeccionManualPage() {
                   {salespeople.map(sp => (
                     <SelectItem key={sp.code} value={sp.code}>
                       {sp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Segment Filter */}
+            <div className="space-y-2">
+              <Label htmlFor="segment">Segmento</Label>
+              <Select value={selectedSegment} onValueChange={setSelectedSegment}>
+                <SelectTrigger id="segment" data-testid="select-segment">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los segmentos</SelectItem>
+                  {segmentsData.map(seg => (
+                    <SelectItem key={seg.code} value={seg.code}>
+                      {seg.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
