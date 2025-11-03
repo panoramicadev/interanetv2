@@ -292,13 +292,17 @@ export default function ProyeccionManualPage() {
   }, [selectedYears, futureYear]);
 
   const handleSaveProjection = (clientCode: string, clientName: string, segment: string, year: number, value: number, month?: number) => {
-    const salespersonData = historicalData.find(h => h.clientCode === clientCode);
+    // Always use the selected salesperson, never use 'all'
+    const salespersonCode = selectedSalesperson !== 'all' ? selectedSalesperson : '';
+    
+    // Find salesperson name from the salespeople list
+    const salespersonInfo = salespeopleData.find(s => s.code === salespersonCode);
     
     saveProjectionMutation.mutate({
-      year,
-      month,
-      salespersonCode: selectedSalesperson !== 'all' ? selectedSalesperson : salespersonData?.salespersonCode || '',
-      salespersonName: salespersonData?.salespersonName || '',
+      year, // Use the year being projected (futureYear), not from filters
+      month, // Optional month if editing monthly breakdown
+      salespersonCode: salespersonCode,
+      salespersonName: salespersonInfo?.name || salespersonCode,
       clientCode,
       clientName,
       segment,
