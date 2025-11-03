@@ -14387,9 +14387,10 @@ export class DatabaseStorage implements IStorage {
       ];
 
       if (filters?.years && filters.years.length > 0) {
-        conditions.push(
-          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ANY(${filters.years})`
+        const yearConditions = filters.years.map(year => 
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
         );
+        conditions.push(or(...yearConditions)!);
       }
 
       if (filters?.salespersonCode) {
