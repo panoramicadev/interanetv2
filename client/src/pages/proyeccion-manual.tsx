@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 interface HistoricalSalesData {
   year: number;
+  month?: number;
   salespersonCode: string;
   salespersonName: string;
   clientCode: string;
@@ -27,6 +28,7 @@ interface HistoricalSalesData {
 interface ManualProjection {
   id?: string;
   year: number;
+  month?: number;
   salespersonCode: string;
   salespersonName?: string;
   clientCode: string;
@@ -42,6 +44,8 @@ interface ClientYearlyData {
   purchaseFrequency: number;
   yearlyData: Record<number, number>; // year -> totalSales
   projectedData: Record<number, number>; // year -> projectedAmount
+  monthlyData?: Record<string, number>; // "year-month" -> totalSales
+  monthlyProjectedData?: Record<string, number>; // "year-month" -> projectedAmount
 }
 
 const MONTHS = [
@@ -61,14 +65,15 @@ const MONTHS = [
 
 // Map segment codes to readable names
 const SEGMENT_NAMES: Record<string, string> = {
-  '207.00': 'Ferretería',
-  '718.00': 'Construcción',
-  '42.00': 'Construcción',
-  '0.00': 'Digital',
-  '1.00': 'Digital',
-  '180.00': 'Ferretería',
-  '15.00': 'Ferretería',
-  '76.00': 'Construcción',
+  'FERRETERIAS': 'Ferretería',
+  'CONSTRUCCION': 'Construcción',
+  'DIGITAL': 'Digital',
+  'MCT': 'Fábrica',
+  'PANORAMICA STORE': 'Panorámica Store',
+  'FABRICACION MODULAR': 'Fábrica',
+  'CLIENTES NO HABITUALES': 'No Habituales',
+  'RETAIL': 'Retail',
+  'MERCADO PUBLICO': 'Mercado Público',
 };
 
 export default function ProyeccionManualPage() {
@@ -194,10 +199,21 @@ export default function ProyeccionManualPage() {
           purchaseFrequency: item.purchaseFrequency,
           yearlyData: {},
           projectedData: {},
+          monthlyData: {},
+          monthlyProjectedData: {},
         });
       }
       const client = clientMap.get(key)!;
-      client.yearlyData[item.year] = item.totalSales;
+      
+      // If month is specified, it's monthly data
+      if (item.month) {
+        const monthKey = `${item.year}-${item.month}`;
+        client.monthlyData = client.monthlyData || {};
+        client.monthlyData[monthKey] = item.totalSales;
+      } else {
+        // Yearly aggregated data
+        client.yearlyData[item.year] = item.totalSales;
+      }
     });
 
     // Process manual projections
@@ -211,10 +227,21 @@ export default function ProyeccionManualPage() {
           purchaseFrequency: 0,
           yearlyData: {},
           projectedData: {},
+          monthlyData: {},
+          monthlyProjectedData: {},
         });
       }
       const client = clientMap.get(key)!;
-      client.projectedData[proj.year] = proj.projectedAmount;
+      
+      // If month is specified, it's monthly projection
+      if (proj.month) {
+        const monthKey = `${proj.year}-${proj.month}`;
+        client.monthlyProjectedData = client.monthlyProjectedData || {};
+        client.monthlyProjectedData[monthKey] = proj.projectedAmount;
+      } else {
+        // Yearly projection
+        client.projectedData[proj.year] = proj.projectedAmount;
+      }
     });
 
     return Array.from(clientMap.values()).sort((a, b) => {
@@ -234,11 +261,12 @@ export default function ProyeccionManualPage() {
     return years.sort((a, b) => a - b);
   }, [selectedYears, futureYear]);
 
-  const handleSaveProjection = (clientCode: string, clientName: string, segment: string, year: number, value: number) => {
+  const handleSaveProjection = (clientCode: string, clientName: string, segment: string, year: number, value: number, month?: number) => {
     const salespersonData = historicalData.find(h => h.clientCode === clientCode);
     
     saveProjectionMutation.mutate({
       year,
+      month,
       salespersonCode: selectedSalesperson !== 'all' ? selectedSalesperson : salespersonData?.salespersonCode || '',
       salespersonName: salespersonData?.salespersonName || '',
       clientCode,
@@ -248,14 +276,14 @@ export default function ProyeccionManualPage() {
     });
 
     // Clear editing state
-    const key = `${clientCode}_${year}`;
+    const key = month ? `${clientCode}_${year}_${month}` : `${clientCode}_${year}`;
     const newEditingCells = { ...editingCells };
     delete newEditingCells[key];
     setEditingCells(newEditingCells);
   };
 
-  const handleCellEdit = (clientCode: string, year: number, value: string) => {
-    const key = `${clientCode}_${year}`;
+  const handleCellEdit = (clientCode: string, year: number, value: string, month?: number) => {
+    const key = month ? `${clientCode}_${year}_${month}` : `${clientCode}_${year}`;
     const numValue = parseFloat(value) || 0;
     setEditingCells({ ...editingCells, [key]: numValue });
   };
@@ -686,16 +714,83 @@ export default function ProyeccionManualPage() {
                                       </TableCell>
                                       <TableCell colSpan={2}></TableCell>
                                       {allYears.map(year => {
-                                        // For monthly breakdown, we'd need to fetch monthly data from the server
-                                        // For now, show placeholder or aggregate data
-                                        return (
-                                          <TableCell key={year} className="text-right text-sm text-muted-foreground">
-                                            -
-                                          </TableCell>
-                                        );
+                                        const monthKey = `${year}-${monthNum}`;
+                                        const cellKey = `${client.clientCode}_${year}_${monthNum}`;
+                                        const monthlyValue = client.monthlyData?.[monthKey] || 0;
+                                        const monthlyProjectedValue = client.monthlyProjectedData?.[monthKey] || 0;
+                                        const isEditingMonth = cellKey in editingCells;
+                                        const isFuture = year === futureYear;
+                                        
+                                        if (isFuture) {
+                                          // Editable cell for future year months
+                                          return (
+                                            <TableCell key={year} className="text-right text-sm">
+                                              {isEditingMonth ? (
+                                                <div className="flex items-center gap-1">
+                                                  <Input
+                                                    type="number"
+                                                    defaultValue={editingCells[cellKey] || monthlyProjectedValue || ''}
+                                                    onChange={(e) => handleCellEdit(client.clientCode, year, e.target.value, monthNum)}
+                                                    className="w-full text-sm"
+                                                    autoFocus
+                                                  />
+                                                  <Button
+                                                    size="sm"
+                                                    onClick={() => {
+                                                      const value = editingCells[cellKey] || monthlyProjectedValue || 0;
+                                                      handleSaveProjection(
+                                                        client.clientCode,
+                                                        client.clientName,
+                                                        client.segment,
+                                                        year,
+                                                        value,
+                                                        monthNum
+                                                      );
+                                                    }}
+                                                  >
+                                                    <Save className="w-3 h-3" />
+                                                  </Button>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  onClick={() => setEditingCells({ ...editingCells, [cellKey]: monthlyProjectedValue })}
+                                                  className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
+                                                >
+                                                  {monthlyProjectedValue > 0 ? (
+                                                    <span className="text-blue-600 font-semibold text-sm">
+                                                      {formatCurrency(monthlyProjectedValue)}
+                                                    </span>
+                                                  ) : (
+                                                    <span className="text-muted-foreground">-</span>
+                                                  )}
+                                                </button>
+                                              )}
+                                            </TableCell>
+                                          );
+                                        } else {
+                                          // Historical monthly data (read-only)
+                                          return (
+                                            <TableCell key={year} className="text-right text-sm text-muted-foreground">
+                                              {monthlyValue > 0 ? formatCurrency(monthlyValue) : '-'}
+                                            </TableCell>
+                                          );
+                                        }
                                       })}
                                       <TableCell className="text-right text-sm text-muted-foreground">
-                                        -
+                                        {/* Total for this month across all years */}
+                                        {allYears.reduce((sum, year) => {
+                                          const monthKey = `${year}-${monthNum}`;
+                                          const monthlyValue = client.monthlyData?.[monthKey] || 0;
+                                          const monthlyProjectedValue = client.monthlyProjectedData?.[monthKey] || 0;
+                                          return sum + monthlyValue + monthlyProjectedValue;
+                                        }, 0) > 0 ? formatCurrency(
+                                          allYears.reduce((sum, year) => {
+                                            const monthKey = `${year}-${monthNum}`;
+                                            const monthlyValue = client.monthlyData?.[monthKey] || 0;
+                                            const monthlyProjectedValue = client.monthlyProjectedData?.[monthKey] || 0;
+                                            return sum + monthlyValue + monthlyProjectedValue;
+                                          }, 0)
+                                        ) : '-'}
                                       </TableCell>
                                     </TableRow>
                                   );
