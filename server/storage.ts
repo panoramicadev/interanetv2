@@ -13888,20 +13888,22 @@ export class DatabaseStorage implements IStorage {
           }
         } else {
           // Si no se encontró vendedor por nombre, buscar por segmento
-          const supervisorBySegment = await db
-            .select()
-            .from(salespeopleUsers)
-            .where(
-              and(
-                eq(salespeopleUsers.role, 'supervisor'),
-                sql`${salespeopleUsers.noruen} = ${client.segment}`
+          if (client.segment) {
+            const supervisorBySegment = await db
+              .select()
+              .from(salespeopleUsers)
+              .where(
+                and(
+                  eq(salespeopleUsers.role, 'supervisor'),
+                  eq(salespeopleUsers.noruen, client.segment)
+                )
               )
-            )
-            .limit(1);
+              .limit(1);
 
-          if (supervisorBySegment.length > 0) {
-            supervisorId = supervisorBySegment[0].id;
-            supervisorName = supervisorBySegment[0].name;
+            if (supervisorBySegment.length > 0) {
+              supervisorId = supervisorBySegment[0].id;
+              supervisorName = supervisorBySegment[0].name;
+            }
           }
         }
 
