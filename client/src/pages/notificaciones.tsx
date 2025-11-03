@@ -187,10 +187,10 @@ export default function NotificacionesPage() {
       return;
     }
 
-    if (form.targetType === 'personal' && !form.department) {
+    if (form.targetType === 'departamento' && !form.department) {
       toast({ 
         title: 'Error', 
-        description: 'Debe especificar un departamento para notificaciones personales',
+        description: 'Debe especificar un departamento',
         variant: 'destructive'
       });
       return;
