@@ -483,10 +483,18 @@ export interface IStorage {
   // Segment detail operations
   getSegmentClients(segmentName: string, period?: string, filterType?: string): Promise<Array<{
     clientName: string;
+    salespersonName: string;
     totalSales: number;
     transactionCount: number;
     averageTicket: number;
     percentage: number;
+  }>>;
+  getSegmentMonthlyBreakdown(segmentName: string, year: string): Promise<Array<{
+    month: number;
+    monthName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
   }>>;
   getSegmentSalespeople(segmentName: string, period?: string, filterType?: string): Promise<Array<{
     salespersonName: string;
@@ -3039,6 +3047,7 @@ export class DatabaseStorage implements IStorage {
 
   async getSegmentClients(segmentName: string, period?: string, filterType: string = 'month'): Promise<Array<{
     clientName: string;
+    salespersonName: string;
     totalSales: number;
     transactionCount: number;
     averageTicket: number;
@@ -3104,6 +3113,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         clientName: salesTransactions.nokoen,
+        salespersonName: sql<string>`MAX(${salesTransactions.nokofu})`,
         totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
         averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
@@ -3118,10 +3128,50 @@ export class DatabaseStorage implements IStorage {
     
     return result.map(client => ({
       clientName: client.clientName || 'Cliente desconocido',
+      salespersonName: client.salespersonName || '',
       totalSales: Number(client.totalSales),
       transactionCount: Number(client.transactionCount),
       averageTicket: Number(client.averageTicket),
       percentage: segmentTotal > 0 ? (Number(client.totalSales) / segmentTotal) * 100 : 0
+    }));
+  }
+
+  async getSegmentMonthlyBreakdown(segmentName: string, year: string): Promise<Array<{
+    month: number;
+    monthName: string;
+    totalSales: number;
+    transactionCount: number;
+    averageTicket: number;
+  }>> {
+    const conditions = [
+      eq(salesTransactions.noruen, segmentName),
+      ne(salesTransactions.tido, 'GDV'),
+      sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year}`
+    ];
+
+    const result = await db
+      .select({
+        month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(...conditions))
+      .groupBy(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`)
+      .orderBy(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`);
+
+    const monthNames = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+
+    return result.map(row => ({
+      month: Number(row.month),
+      monthName: monthNames[Number(row.month) - 1],
+      totalSales: Number(row.totalSales),
+      transactionCount: Number(row.transactionCount),
+      averageTicket: Number(row.averageTicket)
     }));
   }
 

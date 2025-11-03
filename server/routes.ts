@@ -1718,6 +1718,24 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Segment monthly breakdown (for year exports)
+  app.get("/api/sales/segment/:segmentName/monthly-breakdown", requireAuth, async (req, res) => {
+    try {
+      const { segmentName } = req.params;
+      const { year } = req.query;
+      
+      if (!year) {
+        return res.status(400).json({ message: "Year parameter is required" });
+      }
+      
+      const monthlyData = await storage.getSegmentMonthlyBreakdown(segmentName, year as string);
+      res.json(monthlyData);
+    } catch (error) {
+      console.error("Error fetching segment monthly breakdown:", error);
+      res.status(500).json({ message: "Failed to fetch segment monthly breakdown" });
+    }
+  });
+
   // Segment detail route - salespeople by segment
   app.get("/api/sales/segment/:segmentName/salespeople", requireAuth, async (req, res) => {
     try {
