@@ -14579,7 +14579,7 @@ export class DatabaseStorage implements IStorage {
         allResults = monthlyResults;
       }
 
-      return allResults.map(row => ({
+      const results = allResults.map(row => ({
         year: row.year,
         month: row.month || undefined,
         salespersonCode: row.salespersonCode || '',
@@ -14590,6 +14590,25 @@ export class DatabaseStorage implements IStorage {
         totalSales: Number(row.totalSales) || 0,
         purchaseFrequency: Number(row.purchaseFrequency) || 0,
       }));
+      
+      // Debug logging to detect duplicates
+      const clientNameCounts: Record<string, Array<{code: string; sales: number}>> = {};
+      results.forEach(r => {
+        if (!clientNameCounts[r.clientName]) {
+          clientNameCounts[r.clientName] = [];
+        }
+        clientNameCounts[r.clientName].push({ code: r.clientCode, sales: r.totalSales });
+      });
+      
+      const duplicateNames = Object.entries(clientNameCounts).filter(([, codes]) => codes.length > 1);
+      if (duplicateNames.length > 0) {
+        console.log('⚠️  CLIENT NAME DUPLICATES DETECTED:');
+        duplicateNames.slice(0, 3).forEach(([name, codes]) => {
+          console.log(`  - "${name}": ${codes.length} codes:`, codes);
+        });
+      }
+      
+      return results;
     } catch (error: any) {
       console.error('Error fetching historical sales by year:', error.message);
       return [];
