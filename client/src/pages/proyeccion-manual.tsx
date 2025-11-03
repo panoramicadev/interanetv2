@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Save, X, Calendar, TrendingUp, Users, ChevronDown } from "lucide-react";
+import { Plus, Save, X, Calendar, TrendingUp, Users, ChevronDown, ChevronRight } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
@@ -59,6 +59,18 @@ const MONTHS = [
   { value: 12, label: 'Diciembre' },
 ];
 
+// Map segment codes to readable names
+const SEGMENT_NAMES: Record<string, string> = {
+  '207.00': 'Ferretería',
+  '718.00': 'Construcción',
+  '42.00': 'Construcción',
+  '0.00': 'Digital',
+  '1.00': 'Digital',
+  '180.00': 'Ferretería',
+  '15.00': 'Ferretería',
+  '76.00': 'Construcción',
+};
+
 export default function ProyeccionManualPage() {
   const { toast } = useToast();
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
@@ -66,6 +78,23 @@ export default function ProyeccionManualPage() {
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("all");
   const [futureYear, setFutureYear] = useState<number | null>(null);
   const [editingCells, setEditingCells] = useState<Record<string, number>>({});
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Helper function to get segment display name
+  const getSegmentName = (segmentCode: string): string => {
+    return SEGMENT_NAMES[segmentCode] || segmentCode;
+  };
+
+  // Toggle row expansion
+  const toggleRowExpansion = (clientCode: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(clientCode)) {
+      newExpanded.delete(clientCode);
+    } else {
+      newExpanded.add(clientCode);
+    }
+    setExpandedRows(newExpanded);
+  };
 
   // Fetch available years
   const { data: availableYears = [] } = useQuery<number[]>({
@@ -551,15 +580,33 @@ export default function ProyeccionManualPage() {
                           return sum + (client.yearlyData[year] || 0) + (client.projectedData[year] || 0);
                         }, 0);
 
+                        const isExpanded = expandedRows.has(client.clientCode);
+                        
                         return (
-                          <TableRow key={client.clientCode}>
-                            <TableCell className="sticky left-0 bg-background z-10 font-medium">
-                              {client.clientName}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">{client.segment}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">{client.purchaseFrequency}</TableCell>
+                          <>
+                            <TableRow key={client.clientCode} className="cursor-pointer hover:bg-muted/50">
+                              <TableCell className="sticky left-0 bg-background z-10">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => toggleRowExpansion(client.clientCode)}
+                                    className="hover:bg-accent rounded p-1"
+                                    data-testid={`button-expand-${client.clientCode}`}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronDown className="w-4 h-4" />
+                                    ) : (
+                                      <ChevronRight className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                  <span className="font-medium">{client.clientName}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary">{getSegmentName(client.segment)}</Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {client.purchaseFrequency} días
+                              </TableCell>
                             {allYears.map(year => {
                               const cellKey = `${client.clientCode}_${year}`;
                               const historicalValue = client.yearlyData[year] || 0;
@@ -621,10 +668,41 @@ export default function ProyeccionManualPage() {
                                 );
                               }
                             })}
-                            <TableCell className="text-right font-bold">
-                              {formatCurrency(totalPeriod)}
-                            </TableCell>
-                          </TableRow>
+                              <TableCell className="text-right font-bold">
+                                {formatCurrency(totalPeriod)}
+                              </TableCell>
+                            </TableRow>
+                            
+                            {/* Monthly breakdown rows when expanded */}
+                            {isExpanded && selectedMonths.length > 0 && (
+                              <>
+                                {selectedMonths.map(monthNum => {
+                                  const monthLabel = MONTHS.find(m => m.value === monthNum)?.label || `Mes ${monthNum}`;
+                                  
+                                  return (
+                                    <TableRow key={`${client.clientCode}-month-${monthNum}`} className="bg-muted/30">
+                                      <TableCell className="sticky left-0 bg-muted/30 z-10 pl-12 text-sm text-muted-foreground">
+                                        {monthLabel}
+                                      </TableCell>
+                                      <TableCell colSpan={2}></TableCell>
+                                      {allYears.map(year => {
+                                        // For monthly breakdown, we'd need to fetch monthly data from the server
+                                        // For now, show placeholder or aggregate data
+                                        return (
+                                          <TableCell key={year} className="text-right text-sm text-muted-foreground">
+                                            -
+                                          </TableCell>
+                                        );
+                                      })}
+                                      <TableCell className="text-right text-sm text-muted-foreground">
+                                        -
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </>
+                            )}
+                          </>
                         );
                       })}
                       {/* Total Row */}
