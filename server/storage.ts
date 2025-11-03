@@ -14464,8 +14464,25 @@ export class DatabaseStorage implements IStorage {
         .select({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
           month: sql<number>`NULL`,
-          salespersonCode: sql<string>`''`,
-          salespersonName: sql<string>`''`,
+          // Get the salesperson with most sales for this client
+          salespersonCode: sql<string>`(
+            SELECT ${salesTransactions.nokofu}
+            FROM ${salesTransactions} AS st
+            WHERE st.koprct = ${salesTransactions.koprct}
+              AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
+            GROUP BY st.nokofu
+            ORDER BY SUM(st.monto) DESC
+            LIMIT 1
+          )`,
+          salespersonName: sql<string>`(
+            SELECT ${salesTransactions.nokofu}
+            FROM ${salesTransactions} AS st
+            WHERE st.koprct = ${salesTransactions.koprct}
+              AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
+            GROUP BY st.nokofu
+            ORDER BY SUM(st.monto) DESC
+            LIMIT 1
+          )`,
           clientCode: salesTransactions.koprct,
           clientName: sql<string>`MAX(${salesTransactions.nokoen})`,
           // Get the segment with the most sales for this client
@@ -14506,8 +14523,27 @@ export class DatabaseStorage implements IStorage {
           .select({
             year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
             month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
-            salespersonCode: sql<string>`''`,
-            salespersonName: sql<string>`''`,
+            // Get the salesperson with most sales for this client in this month
+            salespersonCode: sql<string>`(
+              SELECT ${salesTransactions.nokofu}
+              FROM ${salesTransactions} AS st
+              WHERE st.koprct = ${salesTransactions.koprct}
+                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
+                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
+              GROUP BY st.nokofu
+              ORDER BY SUM(st.monto) DESC
+              LIMIT 1
+            )`,
+            salespersonName: sql<string>`(
+              SELECT ${salesTransactions.nokofu}
+              FROM ${salesTransactions} AS st
+              WHERE st.koprct = ${salesTransactions.koprct}
+                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
+                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
+              GROUP BY st.nokofu
+              ORDER BY SUM(st.monto) DESC
+              LIMIT 1
+            )`,
             clientCode: salesTransactions.koprct,
             clientName: sql<string>`MAX(${salesTransactions.nokoen})`,
             // Get the segment with the most sales for this client in this month
