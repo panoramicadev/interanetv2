@@ -16,7 +16,7 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Tailwind CSS
 - **Charts**: Chart.js
 - **Build Tool**: Vite
-- **PWA**: Service Worker for caching and update detection.
+- **PWA**: Service Worker v2.0.0 with Network-First strategy for HTML and Stale-While-Revalidate for static assets. Minimal precaching (only favicon and manifest) to prevent users getting stuck with old versions.
 
 ### Backend
 - **Runtime**: Node.js with Express.js
