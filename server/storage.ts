@@ -14381,7 +14381,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const connection = await getDbConnection();
       
-      let conditions = ['kofudo IS NOT NULL', 'nokofu IS NOT NULL', 'koprct IS NOT NULL', "nokofu != '.'"];
+      let conditions = ['nokofu IS NOT NULL', 'koprct IS NOT NULL', "nokofu != '.'", "tido != 'GDV'"];
       const params: any[] = [];
       let paramCount = 1;
 
@@ -14400,16 +14400,16 @@ export class DatabaseStorage implements IStorage {
       const query = `
         SELECT 
           EXTRACT(YEAR FROM feemdo)::int as year,
-          kofudo as salesperson_code,
-          MAX(nokofu) as salesperson_name,
+          nokofu as salesperson_code,
+          nokofu as salesperson_name,
           koprct as client_code,
           MAX(nokoen) as client_name,
           MAX(caprad2) as segment,
           SUM(monto) as total_sales,
-          COUNT(DISTINCT id) as purchase_frequency
+          COUNT(DISTINCT nudo) as purchase_frequency
         FROM sales_transactions
         WHERE ${conditions.join(' AND ')}
-        GROUP BY EXTRACT(YEAR FROM feemdo), kofudo, nokofu, koprct
+        GROUP BY EXTRACT(YEAR FROM feemdo), nokofu, koprct
         ORDER BY year DESC, salesperson_name, total_sales DESC
       `;
 
