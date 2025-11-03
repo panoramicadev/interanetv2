@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -492,6 +492,101 @@ export default function SalespersonDetail({
     return currentWeekStart.getTime() === selectedWeekStart.getTime();
   };
 
+  // Export salesperson data to CSV
+  const exportSalespersonDataToCSV = () => {
+    const csvData = [];
+    
+    // Add header
+    csvData.push(['REPORTE DE VENDEDOR - ' + salespersonName]);
+    csvData.push(['Período: ' + selection.display]);
+    csvData.push(['Generado: ' + format(new Date(), "dd/MM/yyyy HH:mm")]);
+    csvData.push([]); // Empty row
+    
+    // KPIs Summary
+    csvData.push(['RESUMEN GENERAL']);
+    csvData.push(['Total Ventas', details?.totalSales || 0]);
+    csvData.push(['Total Clientes', details?.totalClients || 0]);
+    csvData.push(['Total Transacciones', details?.transactionCount || 0]);
+    csvData.push(['Ticket Promedio', details?.averageTicket || 0]);
+    csvData.push(['Frecuencia de Ventas (días)', details?.salesFrequency || 0]);
+    csvData.push(['Días desde última venta', details?.daysSinceLastSale || 0]);
+    if (details?.lastSaleDate) {
+      csvData.push(['Última venta', formatDate(details.lastSaleDate)]);
+    }
+    csvData.push([]); // Empty row
+    
+    // Segments data
+    if (segments && segments.length > 0) {
+      csvData.push(['SEGMENTOS DEL VENDEDOR']);
+      csvData.push(['Segmento', 'Total Ventas', 'Porcentaje']);
+      segments.forEach(segment => {
+        csvData.push([
+          segment.segment,
+          segment.totalSales,
+          segment.percentage.toFixed(2) + '%'
+        ]);
+      });
+      csvData.push([]); // Empty row
+    }
+    
+    // Clients data
+    if (clients && clients.length > 0) {
+      csvData.push(['CLIENTES DEL VENDEDOR']);
+      csvData.push(['Cliente', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Última Venta', 'Días desde última venta']);
+      clients.forEach(client => {
+        csvData.push([
+          client.clientName,
+          client.totalSales,
+          client.transactionCount,
+          client.averageTicket,
+          formatDate(client.lastSale),
+          client.daysSinceLastSale
+        ]);
+      });
+      csvData.push([]); // Empty row
+    }
+    
+    // Products data
+    if (products && products.length > 0) {
+      csvData.push(['PRODUCTOS VENDIDOS']);
+      csvData.push(['Producto', 'Total Ventas', 'Unidades', 'Transacciones', 'Precio Promedio', 'Última Venta']);
+      products.forEach(product => {
+        csvData.push([
+          product.productName,
+          product.totalSales,
+          product.totalUnits,
+          product.transactionCount,
+          product.averagePrice,
+          formatDate(product.lastSale)
+        ]);
+      });
+    }
+    
+    // Create CSV content
+    const csvContent = csvData.map(row => 
+      row.map(cell => {
+        // Escape commas and quotes in cell values
+        const stringCell = String(cell);
+        if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
+          return '"' + stringCell.replace(/"/g, '""') + '"';
+        }
+        return stringCell;
+      }).join(',')
+    ).join('\n');
+    
+    // Download file
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const fileName = `vendedor_${salespersonName}_${selectedPeriod.replace(/[\/\\:]/g, '-')}.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-screen">
       <div className="w-full">
@@ -706,6 +801,23 @@ export default function SalespersonDetail({
                   </div>
                 </div>
               </div>
+
+              {/* Export CSV Button */}
+              {!isComparativeMode && (
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={exportSalespersonDataToCSV}
+                    disabled={isLoadingDetails || isLoadingClients}
+                    className="w-full bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-400 hover:border-emerald-500 hover:from-emerald-100 hover:to-green-100 text-emerald-700 font-semibold shadow-sm hover:shadow-md transition-all duration-300 animate-pulse-slow"
+                    data-testid="button-export-salesperson-csv"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportar datos del vendedor a CSV
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </header>
