@@ -942,9 +942,23 @@ export default function ProyeccionManualPage() {
                             {/* Monthly breakdown rows when expanded */}
                             {isExpanded && (
                               <>
-                                {MONTHS.filter(month => 
-                                  selectedMonths.length === 0 || selectedMonths.includes(month.value)
-                                ).map(month => {
+                                {MONTHS.filter(month => {
+                                  // If no filter, show all months
+                                  if (selectedMonths.length === 0) return true;
+                                  
+                                  // If month is in filter, show it
+                                  if (selectedMonths.includes(month.value)) return true;
+                                  
+                                  // If month has any data (historical or projected) in any year, show it
+                                  const hasData = allYears.some(year => {
+                                    const monthKey = `${year}-${month.value}`;
+                                    const hasHistorical = (client.monthlyData?.[monthKey] || 0) > 0;
+                                    const hasProjected = (client.monthlyProjectedData?.[monthKey] || 0) > 0;
+                                    return hasHistorical || hasProjected;
+                                  });
+                                  
+                                  return hasData;
+                                }).map(month => {
                                   const monthNum = month.value;
                                   const monthLabel = month.label;
                                   
