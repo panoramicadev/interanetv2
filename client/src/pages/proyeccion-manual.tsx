@@ -63,19 +63,42 @@ export default function ProyeccionManualPage() {
 
   // Fetch historical data
   const { data: historicalData = [], isLoading: isLoadingHistorical } = useQuery<HistoricalSalesData[]>({
-    queryKey: ['/api/proyecciones/historico', { 
-      years: selectedYears.join(','),
-      salespersonCode: selectedSalesperson !== 'all' ? selectedSalesperson : undefined,
-    }],
+    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedSalesperson],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedYears.length > 0) {
+        params.append('years', selectedYears.join(','));
+      }
+      if (selectedSalesperson !== 'all') {
+        params.append('salespersonCode', selectedSalesperson);
+      }
+      const response = await fetch(`/api/proyecciones/historico?${params}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch historical data');
+      return response.json();
+    },
     enabled: selectedYears.length > 0,
   });
 
   // Fetch manual projections
   const { data: manualProjections = [] } = useQuery<ManualProjection[]>({
-    queryKey: ['/api/proyecciones/manual', {
-      years: futureYear ? [...selectedYears, futureYear].join(',') : selectedYears.join(','),
-      salespersonCode: selectedSalesperson !== 'all' ? selectedSalesperson : undefined,
-    }],
+    queryKey: ['/api/proyecciones/manual', futureYear ? [...selectedYears, futureYear].join(',') : selectedYears.join(','), selectedSalesperson],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      const years = futureYear ? [...selectedYears, futureYear] : selectedYears;
+      if (years.length > 0) {
+        params.append('years', years.join(','));
+      }
+      if (selectedSalesperson !== 'all') {
+        params.append('salespersonCode', selectedSalesperson);
+      }
+      const response = await fetch(`/api/proyecciones/manual?${params}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch manual projections');
+      return response.json();
+    },
     enabled: selectedYears.length > 0 || !!futureYear,
   });
 
