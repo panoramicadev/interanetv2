@@ -94,8 +94,7 @@ export default function NotificacionesPage() {
     mutationFn: async (data: any) => {
       return await apiRequest('/api/notifications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        data: data,
       });
     },
     onSuccess: () => {
