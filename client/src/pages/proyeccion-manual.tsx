@@ -230,6 +230,7 @@ export default function ProyeccionManualPage() {
       // ALWAYS store in monthly data for consistency
       if (item.month) {
         const monthKey = `${item.year}-${item.month}`;
+        if (!client.monthlyData) client.monthlyData = {};
         client.monthlyData[monthKey] = (client.monthlyData[monthKey] || 0) + item.totalSales;
       } else {
         // If no month specified, it's yearly total - add directly to yearlyData
@@ -247,14 +248,16 @@ export default function ProyeccionManualPage() {
       }
       
       // If we have monthly data but no yearly totals, calculate yearly totals from monthly
-      Object.keys(client.monthlyData).forEach(monthKey => {
-        const year = parseInt(monthKey.split('-')[0]);
-        if (!client.yearlyData[year]) {
-          client.yearlyData[year] = 0;
-        }
-        // Sum monthly data into yearly totals
-        client.yearlyData[year] += client.monthlyData[monthKey];
-      });
+      if (client.monthlyData) {
+        Object.keys(client.monthlyData).forEach(monthKey => {
+          const year = parseInt(monthKey.split('-')[0]);
+          if (!client.yearlyData[year]) {
+            client.yearlyData[year] = 0;
+          }
+          // Sum monthly data into yearly totals
+          client.yearlyData[year] += client.monthlyData![monthKey];
+        });
+      }
     });
 
     // Process manual projections - use clientCode (which is now clientName)
@@ -303,6 +306,29 @@ export default function ProyeccionManualPage() {
     return years.sort((a, b) => a - b);
   }, [selectedYears, futureYear]);
 
+  // Determine if we should show monthly view
+  const showMonthlyView = selectedMonths.length > 0;
+
+  // All periods to display (months or years)
+  const allPeriods = useMemo(() => {
+    if (showMonthlyView) {
+      // Generate year-month combinations
+      const periods: Array<{ year: number; month: number; label: string }> = [];
+      allYears.forEach(year => {
+        selectedMonths.forEach(month => {
+          const monthLabel = MONTHS.find(m => m.value === month)?.label || `Mes ${month}`;
+          periods.push({
+            year,
+            month,
+            label: `${monthLabel} ${year}`
+          });
+        });
+      });
+      return periods;
+    }
+    return [];
+  }, [allYears, selectedMonths, showMonthlyView]);
+
   const handleSaveProjection = (clientCode: string, clientName: string, segment: string, year: number, value: number, month?: number) => {
     // Always use the selected salesperson, never use 'all'
     const salespersonCode = selectedSalesperson !== 'all' ? selectedSalesperson : '';
@@ -344,16 +370,31 @@ export default function ProyeccionManualPage() {
   };
 
   const totalRow = useMemo(() => {
-    const totals: Record<number, number> = {};
-    allYears.forEach(year => {
-      totals[year] = processedData.reduce((sum, client) => {
-        const historicalValue = client.yearlyData[year] || 0;
-        const projectedValue = client.projectedData[year] || 0;
-        return sum + historicalValue + projectedValue;
-      }, 0);
-    });
-    return totals;
-  }, [allYears, processedData]);
+    if (showMonthlyView) {
+      // Calculate totals by period (year-month)
+      const totals: Record<string, number> = {};
+      allPeriods.forEach(period => {
+        const key = `${period.year}-${period.month}`;
+        totals[key] = processedData.reduce((sum, client) => {
+          const historicalValue = client.monthlyData?.[key] || 0;
+          const projectedValue = client.monthlyProjectedData?.[key] || 0;
+          return sum + historicalValue + projectedValue;
+        }, 0);
+      });
+      return totals as Record<string | number, number>;
+    } else {
+      // Calculate totals by year
+      const totals: Record<number, number> = {};
+      allYears.forEach(year => {
+        totals[year] = processedData.reduce((sum, client) => {
+          const historicalValue = client.yearlyData[year] || 0;
+          const projectedValue = client.projectedData[year] || 0;
+          return sum + historicalValue + projectedValue;
+        }, 0);
+      });
+      return totals as Record<string | number, number>;
+    }
+  }, [allYears, processedData, allPeriods, showMonthlyView]);
 
   return (
     <div className="space-y-6">
@@ -618,9 +659,12 @@ export default function ProyeccionManualPage() {
       {selectedYears.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Ventas por Cliente y Año</CardTitle>
+            <CardTitle>{showMonthlyView ? 'Ventas por Cliente y Mes' : 'Ventas por Cliente y Año'}</CardTitle>
             <CardDescription>
-              Histórico de ventas y proyecciones. Haz clic en las celdas del año futuro para editar proyecciones.
+              {showMonthlyView 
+                ? 'Proyecciones mensuales. Haz clic en las celdas del año futuro para editar. El total anual se calcula automáticamente.'
+                : 'Histórico de ventas y proyecciones. Haz clic en las celdas del año futuro para editar proyecciones.'
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -631,14 +675,25 @@ export default function ProyeccionManualPage() {
                     <TableHead className="sticky left-0 bg-background z-10">Cliente</TableHead>
                     <TableHead>Segmento</TableHead>
                     <TableHead className="text-right">Frecuencia</TableHead>
-                    {allYears.map(year => (
-                      <TableHead key={year} className="text-right min-w-[150px]">
-                        {year}
-                        {futureYear === year && (
-                          <Badge variant="outline" className="ml-2">Futuro</Badge>
-                        )}
-                      </TableHead>
-                    ))}
+                    {showMonthlyView ? (
+                      allPeriods.map(period => (
+                        <TableHead key={`${period.year}-${period.month}`} className="text-right min-w-[130px]">
+                          {period.label}
+                          {futureYear === period.year && (
+                            <Badge variant="outline" className="ml-1 text-xs">Futuro</Badge>
+                          )}
+                        </TableHead>
+                      ))
+                    ) : (
+                      allYears.map(year => (
+                        <TableHead key={year} className="text-right min-w-[150px]">
+                          {year}
+                          {futureYear === year && (
+                            <Badge variant="outline" className="ml-2">Futuro</Badge>
+                          )}
+                        </TableHead>
+                      ))
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -688,97 +743,204 @@ export default function ProyeccionManualPage() {
                               <TableCell className="text-right">
                                 {client.purchaseFrequency} días
                               </TableCell>
-                            {allYears.map((year, yearIndex) => {
-                              const cellKey = `${client.clientCode}_${year}`;
-                              const historicalValue = client.yearlyData[year] || 0;
-                              const projectedValue = client.projectedData[year] || 0;
-                              const currentTotal = historicalValue + projectedValue;
-                              const isEditing = cellKey in editingCells;
-                              const isFuture = year === futureYear;
+                            {showMonthlyView ? (
+                              // MONTHLY VIEW: Show columns for each selected month
+                              allPeriods.map((period, periodIndex) => {
+                                const monthKey = `${period.year}-${period.month}`;
+                                const cellKey = `${client.clientCode}_${period.year}_${period.month}`;
+                                const historicalValue = client.monthlyData?.[monthKey] || 0;
+                                const projectedValue = client.monthlyProjectedData?.[monthKey] || 0;
+                                const currentTotal = historicalValue + projectedValue;
+                                const isEditing = cellKey in editingCells;
+                                const isFuture = period.year === futureYear;
 
-                              // Calculate percentage vs previous year
-                              let percentageChange: number | null = null;
-                              if (yearIndex > 0) {
-                                const previousYear = allYears[yearIndex - 1];
-                                const previousHistorical = client.yearlyData[previousYear] || 0;
-                                const previousProjected = client.projectedData[previousYear] || 0;
-                                const previousTotal = previousHistorical + previousProjected;
-                                
-                                if (previousTotal > 0 && currentTotal > 0) {
-                                  percentageChange = ((currentTotal - previousTotal) / previousTotal) * 100;
+                                // Calculate percentage vs previous period
+                                let percentageChange: number | null = null;
+                                if (periodIndex > 0) {
+                                  const previousPeriod = allPeriods[periodIndex - 1];
+                                  const previousKey = `${previousPeriod.year}-${previousPeriod.month}`;
+                                  const previousHistorical = client.monthlyData?.[previousKey] || 0;
+                                  const previousProjected = client.monthlyProjectedData?.[previousKey] || 0;
+                                  const previousTotal = previousHistorical + previousProjected;
+                                  
+                                  if (previousTotal > 0 && currentTotal > 0) {
+                                    percentageChange = ((currentTotal - previousTotal) / previousTotal) * 100;
+                                  }
                                 }
-                              }
 
-                              if (isFuture) {
-                                // Editable cell for future year
-                                return (
-                                  <TableCell key={year} className="text-right">
-                                    {isEditing ? (
-                                      <div className="flex items-center gap-1">
-                                        <Input
-                                          type="number"
-                                          defaultValue={editingCells[cellKey] || projectedValue || ''}
-                                          onChange={(e) => handleCellEdit(client.clientCode, year, e.target.value)}
-                                          className="w-full"
-                                          autoFocus
-                                        />
-                                        <Button
-                                          size="sm"
-                                          onClick={() => {
-                                            const value = editingCells[cellKey] || projectedValue || 0;
-                                            handleSaveProjection(
-                                              client.clientCode,
-                                              client.clientName,
-                                              client.segment,
-                                              year,
-                                              value
-                                            );
-                                          }}
+                                if (isFuture) {
+                                  // Editable cell for future month
+                                  return (
+                                    <TableCell key={monthKey} className="text-right">
+                                      {isEditing ? (
+                                        <div className="flex items-center gap-1">
+                                          <Input
+                                            type="number"
+                                            defaultValue={editingCells[cellKey] || projectedValue || ''}
+                                            onChange={(e) => handleCellEdit(client.clientCode, period.year, e.target.value, period.month)}
+                                            className="w-full text-sm"
+                                            autoFocus
+                                          />
+                                          <Button
+                                            size="sm"
+                                            onClick={() => {
+                                              const value = editingCells[cellKey] || projectedValue || 0;
+                                              handleSaveProjection(
+                                                client.clientCode,
+                                                client.clientName,
+                                                client.segment,
+                                                period.year,
+                                                value,
+                                                period.month
+                                              );
+                                            }}
+                                          >
+                                            <Save className="w-3 h-3" />
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => setEditingCells({ ...editingCells, [cellKey]: projectedValue })}
+                                          className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
                                         >
-                                          <Save className="w-3 h-3" />
-                                        </Button>
-                                      </div>
-                                    ) : (
-                                      <button
-                                        onClick={() => setEditingCells({ ...editingCells, [cellKey]: projectedValue })}
-                                        className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
-                                      >
-                                        {projectedValue > 0 ? (
-                                          <div className="flex flex-col items-end">
-                                            <span className="text-blue-600 font-semibold">
-                                              {formatCurrency(projectedValue)}
-                                            </span>
-                                            {percentageChange !== null && (
-                                              <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                          {projectedValue > 0 ? (
+                                            <div className="flex flex-col items-end">
+                                              <span className="text-blue-600 font-semibold text-sm">
+                                                {formatCurrency(projectedValue)}
                                               </span>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <span className="text-muted-foreground">-</span>
-                                        )}
-                                      </button>
-                                    )}
-                                  </TableCell>
-                                );
-                              } else {
-                                // Historical data (read-only)
-                                return (
-                                  <TableCell key={year} className="text-right">
-                                    {historicalValue > 0 ? (
-                                      <div className="flex flex-col items-end">
-                                        <span>{formatCurrency(historicalValue)}</span>
-                                        {percentageChange !== null && (
-                                          <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : '-'}
-                                  </TableCell>
-                                );
-                              }
-                            })}
+                                              {percentageChange !== null && (
+                                                <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                  {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                                </span>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <span className="text-muted-foreground text-sm">-</span>
+                                          )}
+                                        </button>
+                                      )}
+                                    </TableCell>
+                                  );
+                                } else {
+                                  // Historical monthly data (read-only)
+                                  return (
+                                    <TableCell key={monthKey} className="text-right">
+                                      {historicalValue > 0 ? (
+                                        <div className="flex flex-col items-end">
+                                          <span className="text-sm">{formatCurrency(historicalValue)}</span>
+                                          {percentageChange !== null && (
+                                            <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : '-'}
+                                    </TableCell>
+                                  );
+                                }
+                              })
+                            ) : (
+                              // YEARLY VIEW: Show columns for each year
+                              allYears.map((year, yearIndex) => {
+                                const cellKey = `${client.clientCode}_${year}`;
+                                const historicalValue = client.yearlyData[year] || 0;
+                                const projectedValue = client.projectedData[year] || 0;
+                                const currentTotal = historicalValue + projectedValue;
+                                const isEditing = cellKey in editingCells;
+                                const isFuture = year === futureYear;
+
+                                // Calculate percentage vs previous year
+                                let percentageChange: number | null = null;
+                                if (yearIndex > 0) {
+                                  const previousYear = allYears[yearIndex - 1];
+                                  const previousHistorical = client.yearlyData[previousYear] || 0;
+                                  const previousProjected = client.projectedData[previousYear] || 0;
+                                  const previousTotal = previousHistorical + previousProjected;
+                                  
+                                  if (previousTotal > 0 && currentTotal > 0) {
+                                    percentageChange = ((currentTotal - previousTotal) / previousTotal) * 100;
+                                  }
+                                }
+
+                                if (isFuture) {
+                                  // Calculate total from monthly projections if available
+                                  const monthlyTotal = selectedMonths.reduce((sum, month) => {
+                                    const monthKey = `${year}-${month}`;
+                                    return sum + (client.monthlyProjectedData?.[monthKey] || 0);
+                                  }, 0);
+                                  
+                                  const displayValue = showMonthlyView && monthlyTotal > 0 ? monthlyTotal : projectedValue;
+
+                                  // Editable cell for future year
+                                  return (
+                                    <TableCell key={year} className="text-right">
+                                      {isEditing ? (
+                                        <div className="flex items-center gap-1">
+                                          <Input
+                                            type="number"
+                                            defaultValue={editingCells[cellKey] || displayValue || ''}
+                                            onChange={(e) => handleCellEdit(client.clientCode, year, e.target.value)}
+                                            className="w-full"
+                                            autoFocus
+                                          />
+                                          <Button
+                                            size="sm"
+                                            onClick={() => {
+                                              const value = editingCells[cellKey] || displayValue || 0;
+                                              handleSaveProjection(
+                                                client.clientCode,
+                                                client.clientName,
+                                                client.segment,
+                                                year,
+                                                value
+                                              );
+                                            }}
+                                          >
+                                            <Save className="w-3 h-3" />
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => setEditingCells({ ...editingCells, [cellKey]: displayValue })}
+                                          className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
+                                        >
+                                          {displayValue > 0 ? (
+                                            <div className="flex flex-col items-end">
+                                              <span className="text-blue-600 font-semibold">
+                                                {formatCurrency(displayValue)}
+                                              </span>
+                                              {percentageChange !== null && (
+                                                <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                  {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                                </span>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <span className="text-muted-foreground">-</span>
+                                          )}
+                                        </button>
+                                      )}
+                                    </TableCell>
+                                  );
+                                } else {
+                                  // Historical data (read-only)
+                                  return (
+                                    <TableCell key={year} className="text-right">
+                                      {historicalValue > 0 ? (
+                                        <div className="flex flex-col items-end">
+                                          <span>{formatCurrency(historicalValue)}</span>
+                                          {percentageChange !== null && (
+                                            <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                              {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : '-'}
+                                    </TableCell>
+                                  );
+                                }
+                              })
+                            )}
                             </TableRow>
                             
                             {/* Monthly breakdown rows when expanded */}
@@ -868,11 +1030,19 @@ export default function ProyeccionManualPage() {
                       <TableRow className="bg-accent font-bold">
                         <TableCell className="sticky left-0 bg-accent z-10">TOTAL</TableCell>
                         <TableCell colSpan={2}></TableCell>
-                        {allYears.map(year => (
-                          <TableCell key={year} className="text-right">
-                            {formatCurrency(totalRow[year] || 0)}
-                          </TableCell>
-                        ))}
+                        {showMonthlyView ? (
+                          allPeriods.map(period => (
+                            <TableCell key={`${period.year}-${period.month}`} className="text-right">
+                              {formatCurrency(totalRow[`${period.year}-${period.month}`] || 0)}
+                            </TableCell>
+                          ))
+                        ) : (
+                          allYears.map(year => (
+                            <TableCell key={year} className="text-right">
+                              {formatCurrency(totalRow[year] || 0)}
+                            </TableCell>
+                          ))
+                        )}
                       </TableRow>
                     </>
                   )}
