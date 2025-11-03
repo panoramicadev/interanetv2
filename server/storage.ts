@@ -204,8 +204,14 @@ import {
   notificationReads,
   type Notification,
   type InsertNotification,
+  type InsertNotificationInput,
   type NotificationRead,
   type InsertNotificationRead,
+  // Proyecciones de ventas
+  proyeccionesVentas,
+  type ProyeccionVenta,
+  type InsertProyeccionVenta,
+  type InsertProyeccionVentaInput,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNull, ilike, count, not } from "drizzle-orm";
@@ -1348,6 +1354,35 @@ export interface IStorage {
     userName: string;
     readAt: Date;
   }>>;
+
+  // ==================================================================================
+  // PROYECCIONES DE VENTAS operations - Sistema de proyección manual
+  // ==================================================================================
+  
+  getHistoricoVentasPorAnio(filters?: {
+    years?: number[];
+    salespersonCode?: string;
+  }): Promise<Array<{
+    year: number;
+    salespersonCode: string;
+    salespersonName: string;
+    clientCode: string;
+    clientName: string;
+    segment: string;
+    totalSales: number;
+    purchaseFrequency: number;
+  }>>;
+  
+  getYearsWithData(): Promise<number[]>;
+  
+  upsertProyeccionVenta(proyeccion: InsertProyeccionVentaInput): Promise<ProyeccionVenta>;
+  
+  getProyeccionesVentas(filters?: {
+    years?: number[];
+    salespersonCode?: string;
+  }): Promise<ProyeccionVenta[]>;
+  
+  deleteProyeccionVenta(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -14319,6 +14354,148 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updated || null;
+  }
+
+  // ============================================
+  // Proyecciones de Ventas - Manual Forecasting
+  // ============================================
+
+  async getHistoricoVentasPorAnio(filters?: {
+    years?: number[];
+    salespersonCode?: string;
+  }): Promise<Array<{
+    year: number;
+    salespersonCode: string;
+    salespersonName: string;
+    clientCode: string;
+    clientName: string;
+    segment: string;
+    totalSales: number;
+    purchaseFrequency: number;
+  }>> {
+    try {
+      const connection = await getDbConnection();
+      
+      let conditions = ['1=1'];
+      const params: any[] = [];
+      let paramCount = 1;
+
+      if (filters?.years && filters.years.length > 0) {
+        conditions.push(`EXTRACT(YEAR FROM feemdo) = ANY($${paramCount}::int[])`);
+        params.push(filters.years);
+        paramCount++;
+      }
+
+      if (filters?.salespersonCode) {
+        conditions.push(`vavven = $${paramCount}`);
+        params.push(filters.salespersonCode);
+        paramCount++;
+      }
+
+      const query = `
+        SELECT 
+          EXTRACT(YEAR FROM feemdo)::int as year,
+          vavven as salesperson_code,
+          MAX(vavnve) as salesperson_name,
+          vakoen as client_code,
+          MAX(vanoen) as client_name,
+          MAX(noruen) as segment,
+          SUM(vabrdo) as total_sales,
+          COUNT(DISTINCT iduddo) as purchase_frequency
+        FROM fact_ventas
+        WHERE ${conditions.join(' AND ')}
+        GROUP BY EXTRACT(YEAR FROM feemdo), vavven, vakoen
+        ORDER BY year DESC, salesperson_code, total_sales DESC
+      `;
+
+      const result = await connection.query(query, params);
+      connection.release();
+
+      return result.rows.map(row => ({
+        year: row.year,
+        salespersonCode: row.salesperson_code,
+        salespersonName: row.salesperson_name || '',
+        clientCode: row.client_code,
+        clientName: row.client_name || '',
+        segment: row.segment || '',
+        totalSales: parseFloat(row.total_sales) || 0,
+        purchaseFrequency: parseInt(row.purchase_frequency) || 0,
+      }));
+    } catch (error: any) {
+      console.error('Error fetching historical sales by year:', error.message);
+      return [];
+    }
+  }
+
+  async getYearsWithData(): Promise<number[]> {
+    try {
+      const connection = await getDbConnection();
+      
+      const query = `
+        SELECT DISTINCT EXTRACT(YEAR FROM feemdo)::int as year
+        FROM fact_ventas
+        ORDER BY year DESC
+      `;
+
+      const result = await connection.query(query);
+      connection.release();
+
+      return result.rows.map(row => row.year);
+    } catch (error: any) {
+      console.error('Error fetching years with data:', error.message);
+      return [];
+    }
+  }
+
+  async upsertProyeccionVenta(proyeccion: InsertProyeccionVentaInput): Promise<ProyeccionVenta> {
+    const [result] = await db
+      .insert(proyeccionesVentas)
+      .values({
+        ...proyeccion,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [proyeccionesVentas.year, proyeccionesVentas.salespersonCode, proyeccionesVentas.clientCode],
+        set: {
+          projectedAmount: proyeccion.projectedAmount,
+          salespersonName: proyeccion.salespersonName,
+          clientName: proyeccion.clientName,
+          segment: proyeccion.segment,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    return result;
+  }
+
+  async getProyeccionesVentas(filters?: {
+    years?: number[];
+    salespersonCode?: string;
+  }): Promise<ProyeccionVenta[]> {
+    const conditions = [];
+    
+    if (filters?.years && filters.years.length > 0) {
+      conditions.push(inArray(proyeccionesVentas.year, filters.years));
+    }
+
+    if (filters?.salespersonCode) {
+      conditions.push(eq(proyeccionesVentas.salespersonCode, filters.salespersonCode));
+    }
+
+    const result = await db
+      .select()
+      .from(proyeccionesVentas)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(proyeccionesVentas.year), proyeccionesVentas.salespersonCode);
+
+    return result;
+  }
+
+  async deleteProyeccionVenta(id: string): Promise<void> {
+    await db
+      .delete(proyeccionesVentas)
+      .where(eq(proyeccionesVentas.id, id));
   }
 
 }

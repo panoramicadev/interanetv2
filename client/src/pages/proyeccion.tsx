@@ -9,6 +9,7 @@ import { TrendingUp, Users, Target, Calendar, AlertCircle, BarChart3 } from "luc
 import { format, addMonths, startOfYear } from "date-fns";
 import { es } from "date-fns/locale";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import ProyeccionManual from "./proyeccion-manual";
 
 interface MonthlySales {
   period: string; // YYYY-MM
@@ -164,7 +165,8 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export default function ProyeccionPage() {
+// Component for automatic projections
+function ProyeccionAutomatica() {
   const [viewType, setViewType] = useState<"salesperson" | "segment">("salesperson");
   const [selectedYear, setSelectedYear] = useState<string>(format(addMonths(new Date(), 1), 'yyyy'));
   
@@ -264,6 +266,42 @@ export default function ProyeccionPage() {
         
         <TabsContent value="segment" className="mt-6 space-y-6">
           <ProjectionsList projections={filteredProjections} type="segmento" />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+export default function ProyeccionPage() {
+  const [mainTab, setMainTab] = useState<"automatica" | "manual">("automatica");
+  
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Proyecciones de Ventas</h1>
+        <p className="text-muted-foreground">
+          Herramientas de análisis y proyección de ventas
+        </p>
+      </div>
+
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "automatica" | "manual")}>
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="automatica" className="flex items-center gap-2" data-testid="tab-automatica">
+            <BarChart3 className="h-4 w-4" />
+            Proyección Automática
+          </TabsTrigger>
+          <TabsTrigger value="manual" className="flex items-center gap-2" data-testid="tab-manual">
+            <TrendingUp className="h-4 w-4" />
+            Proyección Manual
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="automatica" className="mt-6">
+          <ProyeccionAutomatica />
+        </TabsContent>
+
+        <TabsContent value="manual" className="mt-6">
+          <ProyeccionManual />
         </TabsContent>
       </Tabs>
     </div>
