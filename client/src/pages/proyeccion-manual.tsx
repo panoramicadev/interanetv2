@@ -585,7 +585,6 @@ export default function ProyeccionManualPage() {
                         )}
                       </TableHead>
                     ))}
-                    <TableHead className="text-right font-bold">Total Período</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -726,9 +725,6 @@ export default function ProyeccionManualPage() {
                                 );
                               }
                             })}
-                              <TableCell className="text-right font-bold">
-                                {formatCurrency(totalPeriod)}
-                              </TableCell>
                             </TableRow>
                             
                             {/* Monthly breakdown rows when expanded */}
@@ -806,22 +802,6 @@ export default function ProyeccionManualPage() {
                                           );
                                         }
                                       })}
-                                      <TableCell className="text-right text-sm text-muted-foreground">
-                                        {/* Total for this month across all years */}
-                                        {allYears.reduce((sum, year) => {
-                                          const monthKey = `${year}-${monthNum}`;
-                                          const monthlyValue = client.monthlyData?.[monthKey] || 0;
-                                          const monthlyProjectedValue = client.monthlyProjectedData?.[monthKey] || 0;
-                                          return sum + monthlyValue + monthlyProjectedValue;
-                                        }, 0) > 0 ? formatCurrency(
-                                          allYears.reduce((sum, year) => {
-                                            const monthKey = `${year}-${monthNum}`;
-                                            const monthlyValue = client.monthlyData?.[monthKey] || 0;
-                                            const monthlyProjectedValue = client.monthlyProjectedData?.[monthKey] || 0;
-                                            return sum + monthlyValue + monthlyProjectedValue;
-                                          }, 0)
-                                        ) : '-'}
-                                      </TableCell>
                                     </TableRow>
                                   );
                                 })}
@@ -839,9 +819,6 @@ export default function ProyeccionManualPage() {
                             {formatCurrency(totalRow[year] || 0)}
                           </TableCell>
                         ))}
-                        <TableCell className="text-right">
-                          {formatCurrency(Object.values(totalRow).reduce((sum, val) => sum + val, 0))}
-                        </TableCell>
                       </TableRow>
                     </>
                   )}

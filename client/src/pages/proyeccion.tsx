@@ -169,9 +169,36 @@ function formatCurrency(value: number): string {
 function ProyeccionAutomatica() {
   const [viewType, setViewType] = useState<"salesperson" | "segment">("salesperson");
   const [selectedYear, setSelectedYear] = useState<string>(format(addMonths(new Date(), 1), 'yyyy'));
+  const [selectedSalesperson, setSelectedSalesperson] = useState<string>("all");
+  const [selectedSegment, setSelectedSegment] = useState<string>("all");
+  
+  // Fetch salespeople list
+  const { data: salespeopleData = [] } = useQuery<Array<{ code: string; name: string }>>({
+    queryKey: ['/api/proyecciones/salespeople'],
+  });
+  
+  // Fetch segments from historical data
+  const { data: segmentsData = [] } = useQuery<Array<{ segment: string }>>({
+    queryKey: ['/api/proyecciones/segments'],
+  });
   
   const { data: historicalData, isLoading } = useQuery<HistoricalData[]>({
-    queryKey: ['/api/proyeccion/historical', viewType],
+    queryKey: ['/api/proyeccion/historical', viewType, selectedSalesperson, selectedSegment],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('type', viewType);
+      if (viewType === 'salesperson' && selectedSalesperson !== 'all') {
+        params.append('salespersonCode', selectedSalesperson);
+      }
+      if (viewType === 'segment' && selectedSegment !== 'all') {
+        params.append('segment', selectedSegment);
+      }
+      const response = await fetch(`/api/proyeccion/historical?${params}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch historical data');
+      return response.json();
+    },
   });
   
   const projections = useMemo(() => {
@@ -245,6 +272,44 @@ function ProyeccionAutomatica() {
             </SelectContent>
           </Select>
         </div>
+        
+        {viewType === 'salesperson' && (
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-gray-500" />
+            <Select value={selectedSalesperson} onValueChange={setSelectedSalesperson}>
+              <SelectTrigger className="w-[250px]">
+                <SelectValue placeholder="Seleccionar vendedor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los vendedores</SelectItem>
+                {salespeopleData.map((sp) => (
+                  <SelectItem key={sp.code} value={sp.code}>
+                    {sp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        
+        {viewType === 'segment' && (
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-gray-500" />
+            <Select value={selectedSegment} onValueChange={setSelectedSegment}>
+              <SelectTrigger className="w-[250px]">
+                <SelectValue placeholder="Seleccionar segmento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los segmentos</SelectItem>
+                {segmentsData.map((seg) => (
+                  <SelectItem key={seg.segment} value={seg.segment}>
+                    {seg.segment}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
       
       {/* Tabs for view type */}
