@@ -161,5 +161,36 @@ app.use((req, res, next) => {
     } catch (error: any) {
       console.error('Failed to initialize inactive clients scheduler:', error.message);
     }
+
+    // Start low stock check scheduler (runs every hour)
+    try {
+      const LOW_STOCK_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
+      
+      log('📦 Low stock alert scheduler initialized (runs every hour)');
+      
+      // Run on startup after 2 minutes (give the app time to fully initialize)
+      setTimeout(async () => {
+        try {
+          log('📦 Running initial low stock check on startup...');
+          await storage.checkAndNotifyLowStock();
+          log('✅ Low stock check completed');
+        } catch (error: any) {
+          console.error('Initial low stock check failed:', error.message);
+        }
+      }, 120000);
+      
+      // Run every hour
+      setInterval(async () => {
+        try {
+          log('📦 Running scheduled low stock check...');
+          await storage.checkAndNotifyLowStock();
+          log('✅ Low stock check completed');
+        } catch (error: any) {
+          console.error('Scheduled low stock check failed:', error.message);
+        }
+      }, LOW_STOCK_CHECK_INTERVAL);
+    } catch (error: any) {
+      console.error('Failed to initialize low stock scheduler:', error.message);
+    }
   });
 })();
