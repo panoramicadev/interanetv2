@@ -1390,6 +1390,10 @@ export interface IStorage {
     name: string;
   }>>;
   
+  getSegmentsList(): Promise<Array<{
+    segment: string;
+  }>>;
+  
   upsertProyeccionVenta(proyeccion: InsertProyeccionVentaInput): Promise<ProyeccionVenta>;
   
   getProyeccionesVentas(filters?: {
@@ -14577,6 +14581,30 @@ export class DatabaseStorage implements IStorage {
       }));
     } catch (error: any) {
       console.error('Error fetching salespeople list:', error.message);
+      return [];
+    }
+  }
+
+  async getSegmentsList(): Promise<Array<{ segment: string }>> {
+    try {
+      const results = await db
+        .selectDistinct({
+          segment: salesTransactions.caprad2,
+        })
+        .from(salesTransactions)
+        .where(
+          and(
+            isNotNull(salesTransactions.caprad2),
+            sql`${salesTransactions.caprad2} != ''`
+          )
+        )
+        .orderBy(salesTransactions.caprad2);
+
+      return results.map(r => ({
+        segment: r.segment!,
+      }));
+    } catch (error: any) {
+      console.error('Error fetching segments list:', error.message);
       return [];
     }
   }

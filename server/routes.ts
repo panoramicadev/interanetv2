@@ -2411,7 +2411,7 @@ export function registerRoutes(app: Express): Server {
   // Proyección de Ventas - Historical data endpoint
   app.get('/api/proyeccion/historical', requireAuth, async (req, res) => {
     try {
-      const { type } = req.query;
+      const { type, salespersonCode, segment } = req.query;
       const viewType = (type as string) || 'salesperson';
       
       // Get data from the last 36 months for better forecasting
@@ -2421,6 +2421,15 @@ export function registerRoutes(app: Express): Server {
       
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
+      
+      // Build additional filters
+      let additionalFilters = '';
+      if (viewType === 'salesperson' && salespersonCode && salespersonCode !== 'all') {
+        additionalFilters += ` AND nokofu = '${salespersonCode}'`;
+      }
+      if (viewType === 'segment' && segment && segment !== 'all') {
+        additionalFilters += ` AND noruen = '${segment}'`;
+      }
       
       // Query historical monthly sales from fact_ventas
       const query = `
@@ -2433,6 +2442,7 @@ export function registerRoutes(app: Express): Server {
           AND feemdo <= $2
           AND tido NOT IN ('GDV')
           ${viewType === 'salesperson' ? 'AND nokofu IS NOT NULL AND nokofu != \'.\'' : 'AND noruen IS NOT NULL'}
+          ${additionalFilters}
         GROUP BY ${viewType === 'salesperson' ? 'nokofu' : 'noruen'}, TO_CHAR(feemdo::date, 'YYYY-MM')
         ORDER BY entity, period
       `;
@@ -10588,6 +10598,17 @@ export function registerRoutes(app: Express): Server {
       res.json(salespeople);
     } catch (error: any) {
       console.error('Error fetching salespeople list:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }));
+
+  // Get segments list
+  app.get('/api/proyecciones/segments', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const segments = await storage.getSegmentsList();
+      res.json(segments);
+    } catch (error: any) {
+      console.error('Error fetching segments list:', error);
       res.status(500).json({ error: error.message });
     }
   }));
