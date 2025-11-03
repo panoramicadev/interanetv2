@@ -307,7 +307,8 @@ export default function ProyeccionManualPage() {
   }, [selectedYears, futureYear]);
 
   // Determine if we should show monthly view
-  const showMonthlyView = selectedMonths.length > 0;
+  // Only show monthly columns if specific months are selected (not all 12)
+  const showMonthlyView = selectedMonths.length > 0 && selectedMonths.length < 12;
 
   // All periods to display (months or years)
   const allPeriods = useMemo(() => {
@@ -723,17 +724,19 @@ export default function ProyeccionManualPage() {
                             <TableRow key={client.clientCode} className="cursor-pointer hover:bg-muted/50">
                               <TableCell className="sticky left-0 bg-background z-10">
                                 <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => toggleRowExpansion(client.clientCode)}
-                                    className="hover:bg-accent rounded p-1"
-                                    data-testid={`button-expand-${client.clientCode}`}
-                                  >
-                                    {isExpanded ? (
-                                      <ChevronDown className="w-4 h-4" />
-                                    ) : (
-                                      <ChevronRight className="w-4 h-4" />
-                                    )}
-                                  </button>
+                                  {!showMonthlyView && (
+                                    <button
+                                      onClick={() => toggleRowExpansion(client.clientCode)}
+                                      className="hover:bg-accent rounded p-1"
+                                      data-testid={`button-expand-${client.clientCode}`}
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronDown className="w-4 h-4" />
+                                      ) : (
+                                        <ChevronRight className="w-4 h-4" />
+                                      )}
+                                    </button>
+                                  )}
                                   <span className="font-medium">{client.clientName}</span>
                                 </div>
                               </TableCell>
@@ -944,10 +947,11 @@ export default function ProyeccionManualPage() {
                             </TableRow>
                             
                             {/* Monthly breakdown rows when expanded */}
-                            {isExpanded && selectedMonths.length > 0 && (
+                            {isExpanded && !showMonthlyView && (
                               <>
-                                {selectedMonths.map(monthNum => {
-                                  const monthLabel = MONTHS.find(m => m.value === monthNum)?.label || `Mes ${monthNum}`;
+                                {MONTHS.map(month => {
+                                  const monthNum = month.value;
+                                  const monthLabel = month.label;
                                   
                                   return (
                                     <TableRow key={`${client.clientCode}-month-${monthNum}`} className="bg-muted/30">
@@ -955,13 +959,28 @@ export default function ProyeccionManualPage() {
                                         {monthLabel}
                                       </TableCell>
                                       <TableCell colSpan={2}></TableCell>
-                                      {allYears.map(year => {
+                                      {allYears.map((year, monthYearIndex) => {
                                         const monthKey = `${year}-${monthNum}`;
                                         const cellKey = `${client.clientCode}_${year}_${monthNum}`;
                                         const monthlyValue = client.monthlyData?.[monthKey] || 0;
                                         const monthlyProjectedValue = client.monthlyProjectedData?.[monthKey] || 0;
+                                        const currentTotal = monthlyValue + monthlyProjectedValue;
                                         const isEditingMonth = cellKey in editingCells;
                                         const isFuture = year === futureYear;
+
+                                        // Calculate percentage vs same month previous year
+                                        let percentageChange: number | null = null;
+                                        if (monthYearIndex > 0) {
+                                          const previousYear = allYears[monthYearIndex - 1];
+                                          const previousKey = `${previousYear}-${monthNum}`;
+                                          const previousMonthly = client.monthlyData?.[previousKey] || 0;
+                                          const previousProjected = client.monthlyProjectedData?.[previousKey] || 0;
+                                          const previousTotal = previousMonthly + previousProjected;
+                                          
+                                          if (previousTotal > 0 && currentTotal > 0) {
+                                            percentageChange = ((currentTotal - previousTotal) / previousTotal) * 100;
+                                          }
+                                        }
                                         
                                         if (isFuture) {
                                           // Editable cell for future year months
@@ -999,11 +1018,18 @@ export default function ProyeccionManualPage() {
                                                   className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
                                                 >
                                                   {monthlyProjectedValue > 0 ? (
-                                                    <span className="text-blue-600 font-semibold text-sm">
-                                                      {formatCurrency(monthlyProjectedValue)}
-                                                    </span>
+                                                    <div className="flex flex-col items-end">
+                                                      <span className="text-blue-600 font-semibold text-sm">
+                                                        {formatCurrency(monthlyProjectedValue)}
+                                                      </span>
+                                                      {percentageChange !== null && (
+                                                        <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                          {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                                        </span>
+                                                      )}
+                                                    </div>
                                                   ) : (
-                                                    <span className="text-muted-foreground">-</span>
+                                                    <span className="text-muted-foreground text-sm">-</span>
                                                   )}
                                                 </button>
                                               )}
@@ -1012,8 +1038,19 @@ export default function ProyeccionManualPage() {
                                         } else {
                                           // Historical monthly data (read-only)
                                           return (
-                                            <TableCell key={year} className="text-right text-sm text-muted-foreground">
-                                              {monthlyValue > 0 ? formatCurrency(monthlyValue) : '-'}
+                                            <TableCell key={year} className="text-right text-sm">
+                                              {monthlyValue > 0 ? (
+                                                <div className="flex flex-col items-end">
+                                                  <span className="text-muted-foreground">{formatCurrency(monthlyValue)}</span>
+                                                  {percentageChange !== null && (
+                                                    <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                      {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <span className="text-muted-foreground">-</span>
+                                              )}
                                             </TableCell>
                                           );
                                         }
