@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import type { User, SalespersonUser } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -223,7 +223,41 @@ export default function SalespersonDashboard() {
     productivity: salespersonData?.productivity || 0
   };
 
-  const clients = Array.isArray(clientsResponse?.items) ? clientsResponse.items : [];
+  // Group clients by name and aggregate their data
+  const groupedClients = useMemo(() => {
+    const items = Array.isArray(clientsResponse?.items) ? clientsResponse.items : [];
+    const clientMap = new Map<string, any>();
+    
+    items.forEach((client: any) => {
+      const clientName = client.clientName || client.name || 'Sin nombre';
+      
+      if (clientMap.has(clientName)) {
+        const existing = clientMap.get(clientName);
+        existing.totalSales += client.totalSales || 0;
+        existing.transactionCount += client.transactionCount || 0;
+        
+        // Keep the most recent purchase date
+        if (client.lastPurchaseDate) {
+          if (!existing.lastPurchaseDate || new Date(client.lastPurchaseDate) > new Date(existing.lastPurchaseDate)) {
+            existing.lastPurchaseDate = client.lastPurchaseDate;
+          }
+        }
+      } else {
+        clientMap.set(clientName, {
+          clientName,
+          name: clientName,
+          totalSales: client.totalSales || 0,
+          transactionCount: client.transactionCount || 0,
+          lastPurchaseDate: client.lastPurchaseDate,
+          segment: client.segment,
+        });
+      }
+    });
+    
+    return Array.from(clientMap.values()).sort((a, b) => b.totalSales - a.totalSales);
+  }, [clientsResponse]);
+  
+  const clients = groupedClients;
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
