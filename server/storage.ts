@@ -751,6 +751,10 @@ export interface IStorage {
   // Helper operations
   getAdminUserId(): Promise<string | null>;
   
+  // Notification automation methods
+  checkAndNotifyLowStock(): Promise<void>;
+  notifyNewSale(saleData: { clientName: string; amount: number; salesperson: string; documentNumber: string }): Promise<void>;
+  
   // Product stock operations (KOPR-based)
   getProductStock(kopr: string): Promise<ProductStock[]>;
   getProductStockByWarehouse(kopr: string, kobo: string, kosu?: string): Promise<ProductStock[]>;
@@ -11040,6 +11044,25 @@ export class DatabaseStorage implements IStorage {
       notas: 'Reclamo creado',
     });
     
+    // Crear notificación para admins y supervisors
+    const adminsAndSupervisors = await db
+      .select({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+      .from(users)
+      .where(or(eq(users.role, 'admin'), eq(users.role, 'supervisor')));
+    
+    const notificationPromises = adminsAndSupervisors.map(user =>
+      this.createNotification({
+        userId: user.id,
+        type: 'reclamo_nuevo',
+        title: 'Nuevo Reclamo Registrado',
+        message: `Nuevo reclamo #${newReclamo.numeroReclamo} del cliente "${newReclamo.clientName}" (${newReclamo.gravedad})`,
+        relatedReclamoId: newReclamo.id,
+        read: false,
+      })
+    );
+    
+    await Promise.all(notificationPromises);
+    
     return newReclamo;
   }
 
@@ -11249,6 +11272,37 @@ export class DatabaseStorage implements IStorage {
       userName,
       notas: notas || `Estado actualizado a ${nuevoEstado}`,
     });
+    
+    // Notificar cambio de estado al vendedor y técnico
+    const notificationPromises = [];
+    
+    if (updated.vendedorId && updated.vendedorId !== userId) {
+      notificationPromises.push(
+        this.createNotification({
+          userId: updated.vendedorId,
+          type: 'reclamo_estado_cambiado',
+          title: 'Cambio de Estado en Reclamo',
+          message: `El reclamo #${updated.numeroReclamo} cambió de "${reclamo.estado}" a "${nuevoEstado}"`,
+          relatedReclamoId: updated.id,
+          read: false,
+        })
+      );
+    }
+    
+    if (updated.tecnicoId && updated.tecnicoId !== userId) {
+      notificationPromises.push(
+        this.createNotification({
+          userId: updated.tecnicoId,
+          type: 'reclamo_estado_cambiado',
+          title: 'Cambio de Estado en Reclamo',
+          message: `El reclamo #${updated.numeroReclamo} cambió de "${reclamo.estado}" a "${nuevoEstado}"`,
+          relatedReclamoId: updated.id,
+          read: false,
+        })
+      );
+    }
+    
+    await Promise.all(notificationPromises);
     
     return updated;
   }
@@ -13732,15 +13786,73 @@ export class DatabaseStorage implements IStorage {
 
   async createLead(lead: InsertCrmLead): Promise<CrmLead> {
     const [newLead] = await db.insert(crmLeads).values(lead).returning();
+    
+    // Notificar a admins y supervisors sobre nuevo lead
+    const adminsAndSupervisors = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(or(eq(users.role, 'admin'), eq(users.role, 'supervisor')));
+    
+    const notificationPromises = adminsAndSupervisors.map(user =>
+      this.createNotification({
+        userId: user.id,
+        type: 'crm_nuevo_lead',
+        title: 'Nuevo Lead en CRM',
+        message: `Nuevo lead creado: "${newLead.clientName}" - ${newLead.contactPerson}`,
+        relatedReclamoId: null,
+        read: false,
+      })
+    );
+    
+    await Promise.all(notificationPromises);
+    
     return newLead;
   }
 
   async updateLead(id: string, updates: Partial<InsertCrmLead>): Promise<CrmLead | undefined> {
+    const oldLead = await db.select().from(crmLeads).where(eq(crmLeads.id, id)).limit(1);
+    
     const [updatedLead] = await db
       .update(crmLeads)
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(crmLeads.id, id))
       .returning();
+    
+    // Notificar si cambió la etapa o el assignee
+    if (oldLead[0] && (updates.stageId !== undefined || updates.assignedTo !== undefined)) {
+      const notificationPromises = [];
+      
+      // Notificar al asignado si cambió
+      if (updates.assignedTo && updates.assignedTo !== oldLead[0].assignedTo) {
+        notificationPromises.push(
+          this.createNotification({
+            userId: updates.assignedTo,
+            type: 'crm_lead_asignado',
+            title: 'Lead Asignado',
+            message: `Se te asignó el lead: "${updatedLead.clientName}"`,
+            relatedReclamoId: null,
+            read: false,
+          })
+        );
+      }
+      
+      // Notificar al asignado actual si cambió la etapa
+      if (updates.stageId && updates.stageId !== oldLead[0].stageId && updatedLead.assignedTo) {
+        notificationPromises.push(
+          this.createNotification({
+            userId: updatedLead.assignedTo,
+            type: 'crm_lead_cambio_etapa',
+            title: 'Cambio de Etapa en Lead',
+            message: `El lead "${updatedLead.clientName}" cambió de etapa`,
+            relatedReclamoId: null,
+            read: false,
+          })
+        );
+      }
+      
+      await Promise.all(notificationPromises);
+    }
+    
     return updatedLead;
   }
 
@@ -14850,6 +14962,124 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(proyeccionesVentas)
       .where(eq(proyeccionesVentas.id, id));
+  }
+
+  // ==================================================================================
+  // NOTIFICATION AUTOMATION METHODS
+  // ==================================================================================
+
+  async checkAndNotifyLowStock(): Promise<void> {
+    try {
+      // Obtener todos los productos con stock bajo (stock < minStock)
+      const lowStockProducts = await db
+        .select({
+          productSku: productStock.productSku,
+          productName: productStock.productName,
+          warehouseCode: productStock.warehouseCode,
+          warehouseName: productStock.warehouseName,
+          currentStock: productStock.currentStock,
+          minStock: productStock.minStock,
+        })
+        .from(productStock)
+        .where(
+          and(
+            isNotNull(productStock.minStock),
+            sql`${productStock.currentStock} < ${productStock.minStock}`
+          )
+        );
+
+      if (lowStockProducts.length === 0) {
+        return; // No hay productos con stock bajo
+      }
+
+      // Agrupar por bodega para enviar una notificación consolidada por bodega
+      const stockByWarehouse = lowStockProducts.reduce((acc, product) => {
+        const key = product.warehouseCode;
+        if (!acc[key]) {
+          acc[key] = {
+            warehouseName: product.warehouseName || product.warehouseCode,
+            products: []
+          };
+        }
+        acc[key].products.push(product);
+        return acc;
+      }, {} as Record<string, { warehouseName: string; products: typeof lowStockProducts }>);
+
+      // Obtener usuarios admin y de bodega
+      const usersToNotify = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(or(
+          eq(users.role, 'admin'),
+          eq(users.role, 'bodega')
+        ));
+
+      const notificationPromises = [];
+
+      // Crear notificaciones para cada bodega con stock bajo
+      for (const [warehouseCode, data] of Object.entries(stockByWarehouse)) {
+        const productCount = data.products.length;
+        const productList = data.products
+          .slice(0, 3)
+          .map(p => `${p.productName} (${p.currentStock}/${p.minStock})`)
+          .join(', ');
+        const moreText = productCount > 3 ? ` y ${productCount - 3} más` : '';
+
+        for (const user of usersToNotify) {
+          notificationPromises.push(
+            this.createNotification({
+              userId: user.id,
+              type: 'stock_bajo',
+              title: `Stock Bajo en ${data.warehouseName}`,
+              message: `${productCount} producto(s) con stock bajo: ${productList}${moreText}`,
+              relatedReclamoId: null,
+              read: false,
+            })
+          );
+        }
+      }
+
+      await Promise.all(notificationPromises);
+      
+      console.log(`[NOTIF] Stock bajo: ${lowStockProducts.length} productos, ${Object.keys(stockByWarehouse).length} bodegas notificadas`);
+    } catch (error: any) {
+      console.error('[NOTIF] Error checking low stock:', error.message);
+    }
+  }
+
+  async notifyNewSale(saleData: { 
+    clientName: string; 
+    amount: number; 
+    salesperson: string; 
+    documentNumber: string;
+  }): Promise<void> {
+    try {
+      // Notificar a admins y supervisors sobre venta nueva
+      const adminsAndSupervisors = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(or(eq(users.role, 'admin'), eq(users.role, 'supervisor')));
+
+      const formattedAmount = new Intl.NumberFormat('es-CL', {
+        style: 'currency',
+        currency: 'CLP'
+      }).format(saleData.amount);
+
+      const notificationPromises = adminsAndSupervisors.map(user =>
+        this.createNotification({
+          userId: user.id,
+          type: 'venta_nueva',
+          title: 'Nueva Venta Registrada',
+          message: `${saleData.salesperson} vendió ${formattedAmount} a ${saleData.clientName} (Doc: ${saleData.documentNumber})`,
+          relatedReclamoId: null,
+          read: false,
+        })
+      );
+
+      await Promise.all(notificationPromises);
+    } catch (error: any) {
+      console.error('[NOTIF] Error notifying new sale:', error.message);
+    }
   }
 
 }
