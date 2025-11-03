@@ -2409,7 +2409,7 @@ export function registerRoutes(app: Express): Server {
         SELECT 
           ${viewType === 'salesperson' ? 'nokofu as entity' : 'noruen as entity'},
           TO_CHAR(feemdo::date, 'YYYY-MM') as period,
-          SUM(CAST(vaivne AS NUMERIC)) as total_sales
+          SUM(CAST(vabrdo AS NUMERIC)) as total_sales
         FROM ventas.fact_ventas
         WHERE feemdo >= $1 
           AND feemdo <= $2
