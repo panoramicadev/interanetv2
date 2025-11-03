@@ -635,12 +635,26 @@ export default function ProyeccionManualPage() {
                               <TableCell className="text-right">
                                 {client.purchaseFrequency} días
                               </TableCell>
-                            {allYears.map(year => {
+                            {allYears.map((year, yearIndex) => {
                               const cellKey = `${client.clientCode}_${year}`;
                               const historicalValue = client.yearlyData[year] || 0;
                               const projectedValue = client.projectedData[year] || 0;
+                              const currentTotal = historicalValue + projectedValue;
                               const isEditing = cellKey in editingCells;
                               const isFuture = year === futureYear;
+
+                              // Calculate percentage vs previous year
+                              let percentageChange: number | null = null;
+                              if (yearIndex > 0) {
+                                const previousYear = allYears[yearIndex - 1];
+                                const previousHistorical = client.yearlyData[previousYear] || 0;
+                                const previousProjected = client.projectedData[previousYear] || 0;
+                                const previousTotal = previousHistorical + previousProjected;
+                                
+                                if (previousTotal > 0 && currentTotal > 0) {
+                                  percentageChange = ((currentTotal - previousTotal) / previousTotal) * 100;
+                                }
+                              }
 
                               if (isFuture) {
                                 // Editable cell for future year
@@ -677,9 +691,16 @@ export default function ProyeccionManualPage() {
                                         className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
                                       >
                                         {projectedValue > 0 ? (
-                                          <span className="text-blue-600 font-semibold">
-                                            {formatCurrency(projectedValue)}
-                                          </span>
+                                          <div className="flex flex-col items-end">
+                                            <span className="text-blue-600 font-semibold">
+                                              {formatCurrency(projectedValue)}
+                                            </span>
+                                            {percentageChange !== null && (
+                                              <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                              </span>
+                                            )}
+                                          </div>
                                         ) : (
                                           <span className="text-muted-foreground">-</span>
                                         )}
@@ -691,7 +712,16 @@ export default function ProyeccionManualPage() {
                                 // Historical data (read-only)
                                 return (
                                   <TableCell key={year} className="text-right">
-                                    {historicalValue > 0 ? formatCurrency(historicalValue) : '-'}
+                                    {historicalValue > 0 ? (
+                                      <div className="flex flex-col items-end">
+                                        <span>{formatCurrency(historicalValue)}</span>
+                                        {percentageChange !== null && (
+                                          <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : '-'}
                                   </TableCell>
                                 );
                               }
