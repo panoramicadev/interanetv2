@@ -10,10 +10,12 @@ Preferred communication style: Simple, everyday language.
 
 ### November 3, 2025 - React Hooks Order Fix in Salesperson Dashboard
 **Fixed "Rendered more hooks than during the previous render" error:**
-- Removed conditional rendering of `NotificationsPanel` component that was causing hook count to change between renders
-- Component now always renders with empty string fallbacks, queries remain protected by `enabled` flags
-- Fixed backend column names in `getSalespersonProducts`: changed `nokopr` → `nokoprct` (product name) and `cant` → `caprco1` (quantity)
-- Stabilized hook execution order ensuring consistent rendering behavior
+- Root cause: Hooks (`useMemo`, `useQuery`) were executing AFTER conditional returns, causing inconsistent hook count between renders
+- Solution: Moved ALL hooks (notifications query, groupedClients memo, salesData memo) BEFORE all conditional returns
+- Added clear sentinel comment "ALL HOOKS MUST BE ABOVE THIS LINE" to prevent future regressions
+- Removed conditional rendering of `NotificationsPanel` - now always renders with empty string fallbacks
+- Fixed backend column names in `getSalespersonProducts`: `nokopr` → `nokoprct`, `cant` → `caprco1`
+- All queries remain protected by `enabled` flags for optimal performance
 
 ### November 3, 2025 - Salesperson Dashboard Data Parity Fix
 **Fixed critical data inconsistency between salesperson dashboard and admin panel:**
