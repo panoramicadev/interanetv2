@@ -1394,6 +1394,7 @@ export interface IStorage {
   
   getProyeccionesVentas(filters?: {
     years?: number[];
+    months?: number[];
     salespersonCode?: string;
   }): Promise<ProyeccionVenta[]>;
   
@@ -14581,35 +14582,67 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertProyeccionVenta(proyeccion: InsertProyeccionVentaInput): Promise<ProyeccionVenta> {
-    const [result] = await db
-      .insert(proyeccionesVentas)
-      .values({
-        ...proyeccion,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [proyeccionesVentas.year, proyeccionesVentas.salespersonCode, proyeccionesVentas.clientCode],
-        set: {
+    // Check if a projection already exists
+    const conditions = [
+      eq(proyeccionesVentas.year, proyeccion.year),
+      eq(proyeccionesVentas.salespersonCode, proyeccion.salespersonCode),
+      eq(proyeccionesVentas.clientCode, proyeccion.clientCode),
+    ];
+    
+    if (proyeccion.month) {
+      conditions.push(eq(proyeccionesVentas.month, proyeccion.month));
+    } else {
+      conditions.push(isNull(proyeccionesVentas.month));
+    }
+    
+    const existing = await db
+      .select()
+      .from(proyeccionesVentas)
+      .where(and(...conditions))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      // Update existing projection
+      const [result] = await db
+        .update(proyeccionesVentas)
+        .set({
           projectedAmount: proyeccion.projectedAmount,
           salespersonName: proyeccion.salespersonName,
           clientName: proyeccion.clientName,
           segment: proyeccion.segment,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-
-    return result;
+        })
+        .where(eq(proyeccionesVentas.id, existing[0].id))
+        .returning();
+      
+      return result;
+    } else {
+      // Insert new projection
+      const [result] = await db
+        .insert(proyeccionesVentas)
+        .values({
+          ...proyeccion,
+          updatedAt: new Date(),
+        })
+        .returning();
+      
+      return result;
+    }
   }
 
   async getProyeccionesVentas(filters?: {
     years?: number[];
+    months?: number[];
     salespersonCode?: string;
   }): Promise<ProyeccionVenta[]> {
     const conditions = [];
     
     if (filters?.years && filters.years.length > 0) {
       conditions.push(inArray(proyeccionesVentas.year, filters.years));
+    }
+    
+    if (filters?.months && filters.months.length > 0) {
+      conditions.push(inArray(proyeccionesVentas.month, filters.months));
     }
 
     if (filters?.salespersonCode) {

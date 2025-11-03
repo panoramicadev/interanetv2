@@ -10595,12 +10595,16 @@ export function registerRoutes(app: Express): Server {
   // Get manual projections
   app.get('/api/proyecciones/manual', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { years, salespersonCode } = req.query;
+      const { years, months, salespersonCode } = req.query;
       
       const filters: any = {};
       
       if (years) {
         filters.years = years.split(',').map((y: string) => parseInt(y));
+      }
+      
+      if (months) {
+        filters.months = months.split(',').map((m: string) => parseInt(m));
       }
       
       if (salespersonCode) {
