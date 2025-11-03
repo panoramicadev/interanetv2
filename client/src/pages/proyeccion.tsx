@@ -273,7 +273,7 @@ function ProyeccionAutomatica() {
 }
 
 export default function ProyeccionPage() {
-  const [mainTab, setMainTab] = useState<"automatica" | "manual">("automatica");
+  const [mainTab, setMainTab] = useState<"automatica" | "manual">("manual");
   
   return (
     <div className="space-y-6">
@@ -286,22 +286,22 @@ export default function ProyeccionPage() {
 
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "automatica" | "manual")}>
         <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="automatica" className="flex items-center gap-2" data-testid="tab-automatica">
-            <BarChart3 className="h-4 w-4" />
-            Proyección Automática
-          </TabsTrigger>
           <TabsTrigger value="manual" className="flex items-center gap-2" data-testid="tab-manual">
             <TrendingUp className="h-4 w-4" />
             Proyección Manual
           </TabsTrigger>
+          <TabsTrigger value="automatica" className="flex items-center gap-2" data-testid="tab-automatica">
+            <BarChart3 className="h-4 w-4" />
+            Proyección Automática
+          </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="automatica" className="mt-6">
-          <ProyeccionAutomatica />
-        </TabsContent>
 
         <TabsContent value="manual" className="mt-6">
           <ProyeccionManual />
+        </TabsContent>
+
+        <TabsContent value="automatica" className="mt-6">
+          <ProyeccionAutomatica />
         </TabsContent>
       </Tabs>
     </div>
