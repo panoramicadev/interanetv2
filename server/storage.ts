@@ -14641,8 +14641,14 @@ export class DatabaseStorage implements IStorage {
       conditions.push(inArray(proyeccionesVentas.year, filters.years));
     }
     
+    // When filtering by months, include BOTH monthly projections AND annual projections (month=null)
     if (filters?.months && filters.months.length > 0) {
-      conditions.push(inArray(proyeccionesVentas.month, filters.months));
+      conditions.push(
+        or(
+          inArray(proyeccionesVentas.month, filters.months),
+          isNull(proyeccionesVentas.month)
+        )!
+      );
     }
 
     if (filters?.salespersonCode) {
