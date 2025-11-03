@@ -8,6 +8,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 3, 2025 - React Hooks Order Fix in Salesperson Dashboard
+**Fixed "Rendered more hooks than during the previous render" error:**
+- Removed conditional rendering of `NotificationsPanel` component that was causing hook count to change between renders
+- Component now always renders with empty string fallbacks, queries remain protected by `enabled` flags
+- Fixed backend column names in `getSalespersonProducts`: changed `nokopr` → `nokoprct` (product name) and `cant` → `caprco1` (quantity)
+- Stabilized hook execution order ensuring consistent rendering behavior
+
 ### November 3, 2025 - Salesperson Dashboard Data Parity Fix
 **Fixed critical data inconsistency between salesperson dashboard and admin panel:**
 - Dashboard now uses identical endpoints to salesperson-detail view: `/api/sales/salesperson/{name}/details`, `/clients`, `/products`, and `/api/sales/transactions`
