@@ -1375,6 +1375,11 @@ export interface IStorage {
   
   getYearsWithData(): Promise<number[]>;
   
+  getSalespeopleList(): Promise<Array<{
+    code: string;
+    name: string;
+  }>>;
+  
   upsertProyeccionVenta(proyeccion: InsertProyeccionVentaInput): Promise<ProyeccionVenta>;
   
   getProyeccionesVentas(filters?: {
@@ -14443,6 +14448,33 @@ export class DatabaseStorage implements IStorage {
       return result.rows.map(row => row.year);
     } catch (error: any) {
       console.error('Error fetching years with data:', error.message);
+      return [];
+    }
+  }
+
+  async getSalespeopleList(): Promise<Array<{ code: string; name: string }>> {
+    try {
+      const connection = await getDbConnection();
+      
+      const query = `
+        SELECT DISTINCT 
+          vecode as code,
+          venomb as name
+        FROM fact_ventas
+        WHERE vecode IS NOT NULL 
+          AND venomb IS NOT NULL
+        ORDER BY venomb
+      `;
+
+      const result = await connection.query(query);
+      connection.release();
+
+      return result.rows.map(row => ({
+        code: row.code,
+        name: row.name
+      }));
+    } catch (error: any) {
+      console.error('Error fetching salespeople list:', error.message);
       return [];
     }
   }

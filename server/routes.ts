@@ -10559,6 +10559,17 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get salespeople list
+  app.get('/api/proyecciones/salespeople', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const salespeople = await storage.getSalespeopleList();
+      res.json(salespeople);
+    } catch (error: any) {
+      console.error('Error fetching salespeople list:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }));
+
   // Get manual projections
   app.get('/api/proyecciones/manual', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
