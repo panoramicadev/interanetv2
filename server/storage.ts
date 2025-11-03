@@ -14452,6 +14452,7 @@ export class DatabaseStorage implements IStorage {
         conditions.push(or(...yearConditions)!);
       }
 
+      // Apply salesperson filter if specified (filter records before grouping)
       if (filters?.salespersonCode) {
         conditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
       }
