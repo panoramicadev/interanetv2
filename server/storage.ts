@@ -3784,16 +3784,16 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db
       .select({
-        productName: salesTransactions.nokopr,
+        productName: salesTransactions.nokoprct,
         totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
         averagePrice: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         lastSale: sql<string>`MAX(${salesTransactions.feemdo})`,
-        totalUnits: sql<number>`COALESCE(SUM(CAST(${salesTransactions.cant} AS NUMERIC)), 0)`
+        totalUnits: sql<number>`COALESCE(SUM(CAST(${salesTransactions.caprco1} AS NUMERIC)), 0)`
       })
       .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(salesTransactions.nokopr)
+      .groupBy(salesTransactions.nokoprct)
       .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
 
     return result.map(product => ({

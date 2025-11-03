@@ -160,7 +160,9 @@ export default function SalespersonDashboard() {
   }, [isAuthenticated, isLoading, toast]);
 
   // Try to get salesperson name from user, otherwise fetch from salespeople list
-  const rawSalespersonName = user?.salespersonName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  const rawSalespersonName = useMemo(() => {
+    return user?.salespersonName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  }, [user?.salespersonName, user?.firstName, user?.lastName]);
   
   // Fetch salespeople list to get name if not available on user object
   const { data: salespeopleList, isLoading: isLoadingSalespeopleFallback } = useQuery({
@@ -173,12 +175,13 @@ export default function SalespersonDashboard() {
     enabled: !rawSalespersonName && !!user?.id,
   });
   
-  // Determine final salesperson name
-  const salespersonName = rawSalespersonName || (() => {
+  // Determine final salesperson name using useMemo to prevent hook order issues
+  const salespersonName = useMemo(() => {
+    if (rawSalespersonName) return rawSalespersonName;
     if (!salespeopleList || !user) return '';
     const currentSalesperson = salespeopleList.find((sp: any) => sp.id === user.id);
     return currentSalesperson?.salespersonName || currentSalesperson?.fullName || `${currentSalesperson?.firstName || ''} ${currentSalesperson?.lastName || ''}`.trim();
-  })();
+  }, [rawSalespersonName, salespeopleList, user]);
 
   // Use the same endpoints as salesperson-detail to ensure consistency
   // Enable queries only after fallback loading is complete
