@@ -38,26 +38,47 @@ export default function SegmentChart({ selectedPeriod, filterType, onSegmentClic
   const exportToCSV = () => {
     if (!segmentData || segmentData.length === 0) return;
 
-    // Preparar datos CSV
-    const headers = ['Segmento', 'Total Ventas', 'Porcentaje'];
-    const rows = segmentData.map(seg => [
-      seg.segment,
-      seg.totalSales.toString(),
-      seg.percentage.toFixed(2)
-    ]);
+    const csvData = [];
+    
+    // Add header
+    const totalVentas = segmentData.reduce((sum, seg) => sum + seg.totalSales, 0);
+    csvData.push(['REPORTE DE VENTAS POR SEGMENTO']);
+    csvData.push(['Período: ' + selectedPeriod]);
+    csvData.push(['Total de segmentos: ' + segmentData.length]);
+    csvData.push(['Total del periodo: ' + totalVentas.toLocaleString('es-CL')]);
+    csvData.push(['Generado: ' + new Date().toLocaleString('es-CL')]);
+    csvData.push([]); // Empty row
 
-    // Crear CSV
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
+    // Preparar datos CSV con más detalles
+    const headers = ['#', 'Segmento', 'Total Ventas', 'Porcentaje del Total'];
+    csvData.push(headers);
+    
+    segmentData.forEach((seg, index) => {
+      csvData.push([
+        (index + 1).toString(),
+        seg.segment,
+        seg.totalSales.toString(),
+        seg.percentage.toFixed(2) + '%'
+      ]);
+    });
+
+    // Create CSV content
+    const csvContent = csvData.map(row => 
+      row.map(cell => {
+        const stringCell = String(cell);
+        if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
+          return '"' + stringCell.replace(/"/g, '""') + '"';
+        }
+        return stringCell;
+      }).join(',')
+    ).join('\n');
 
     // Descargar archivo
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `ventas_por_segmento_${selectedPeriod}.csv`);
+    link.setAttribute('download', `ventas_por_segmento_${selectedPeriod.replace(/[\/\\:]/g, '-')}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
