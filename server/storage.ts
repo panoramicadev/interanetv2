@@ -14447,24 +14447,17 @@ export class DatabaseStorage implements IStorage {
         conditions.push(or(...yearConditions)!);
       }
 
-      if (filters?.months && filters.months.length > 0) {
-        const monthConditions = filters.months.map(month => 
-          sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int = ${month}`
-        );
-        conditions.push(or(...monthConditions)!);
-      }
-
       if (filters?.salespersonCode) {
         conditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
       }
 
-      // If months are selected, group by month as well
-      const includeMonth = filters?.months && filters.months.length > 0;
-
-      const results = await db
+      const includeMonthlyBreakdown = filters?.months && filters.months.length > 0;
+      
+      // Always get yearly totals
+      const yearlyResults = await db
         .select({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
-          month: includeMonth ? sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int` : sql<number>`NULL`,
+          month: sql<number>`NULL`,
           salespersonCode: salesTransactions.nokofu,
           salespersonName: salesTransactions.nokofu,
           clientCode: salesTransactions.koprct,
@@ -14476,18 +14469,58 @@ export class DatabaseStorage implements IStorage {
         .from(salesTransactions)
         .where(and(...conditions))
         .groupBy(
-          includeMonth 
-            ? sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}), EXTRACT(MONTH FROM ${salesTransactions.feemdo}), ${salesTransactions.nokofu}, ${salesTransactions.koprct}`
-            : sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}), ${salesTransactions.nokofu}, ${salesTransactions.koprct}`
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
+          salesTransactions.nokofu,
+          salesTransactions.koprct
         )
         .orderBy(
           desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
-          includeMonth ? asc(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`) : sql`1`,
           salesTransactions.nokofu,
           desc(sql`SUM(${salesTransactions.monto})`)
         );
 
-      return results.map(row => ({
+      let allResults = yearlyResults;
+
+      // If months are selected, also get monthly breakdown
+      if (includeMonthlyBreakdown) {
+        const monthConditions = [...conditions];
+        const monthFilters = filters.months!.map(month => 
+          sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int = ${month}`
+        );
+        monthConditions.push(or(...monthFilters)!);
+
+        const monthlyResults = await db
+          .select({
+            year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
+            month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
+            salespersonCode: salesTransactions.nokofu,
+            salespersonName: salesTransactions.nokofu,
+            clientCode: salesTransactions.koprct,
+            clientName: sql<string>`MAX(${salesTransactions.nokoen})`,
+            segment: sql<string>`MAX(${salesTransactions.noruen})`,
+            totalSales: sql<number>`SUM(${salesTransactions.monto})`,
+            purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+          })
+          .from(salesTransactions)
+          .where(and(...monthConditions))
+          .groupBy(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
+            sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
+            salesTransactions.nokofu,
+            salesTransactions.koprct
+          )
+          .orderBy(
+            desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
+            asc(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`),
+            salesTransactions.nokofu,
+            desc(sql`SUM(${salesTransactions.monto})`)
+          );
+
+        // Combine yearly and monthly results
+        allResults = [...yearlyResults, ...monthlyResults];
+      }
+
+      return allResults.map(row => ({
         year: row.year,
         month: row.month || undefined,
         salespersonCode: row.salespersonCode || '',
