@@ -4251,3 +4251,48 @@ export const insertApiKeySchema = createInsertSchema(apiKeys, {
 });
 
 export type InsertApiKeyInput = z.infer<typeof insertApiKeySchema>;
+
+// Proyecciones Manuales de Ventas - Planificación futura por vendedor y cliente
+export const proyeccionesVentas = pgTable("proyecciones_ventas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Información de la proyección
+  year: integer("year").notNull(), // Año de la proyección
+  salespersonCode: varchar("salesperson_code").notNull(), // Código del vendedor (vavven de fact_ventas)
+  salespersonName: text("salesperson_name"), // Nombre del vendedor para referencia
+  clientCode: varchar("client_code").notNull(), // Código del cliente (vakoen de fact_ventas)
+  clientName: text("client_name"), // Nombre del cliente para referencia
+  
+  // Datos de la proyección
+  projectedAmount: numeric("projected_amount", { precision: 15, scale: 2 }).default('0'), // Monto proyectado
+  segment: varchar("segment"), // Segmento del cliente (noruen)
+  
+  // Metadata
+  createdBy: varchar("created_by").notNull(), // Usuario que creó la proyección
+  createdByName: text("created_by_name"), // Nombre del usuario
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Índice compuesto único: un vendedor solo puede tener una proyección por cliente por año
+  uniqueProjection: uniqueIndex("UQ_proyecciones_year_salesperson_client").on(table.year, table.salespersonCode, table.clientCode),
+  yearIdx: index("IDX_proyecciones_year").on(table.year),
+  salespersonIdx: index("IDX_proyecciones_salesperson").on(table.salespersonCode),
+  clientIdx: index("IDX_proyecciones_client").on(table.clientCode),
+}));
+
+export type ProyeccionVenta = typeof proyeccionesVentas.$inferSelect;
+export type InsertProyeccionVenta = typeof proyeccionesVentas.$inferInsert;
+
+export const insertProyeccionVentaSchema = createInsertSchema(proyeccionesVentas, {
+  year: z.number().int().min(2020).max(2050),
+  salespersonCode: z.string().min(1, "Código de vendedor es requerido"),
+  clientCode: z.string().min(1, "Código de cliente es requerido"),
+  projectedAmount: z.string().or(z.number()).transform(val => String(val)).default('0'),
+  createdBy: z.string().min(1, "Usuario creador es requerido"),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProyeccionVentaInput = z.infer<typeof insertProyeccionVentaSchema>;

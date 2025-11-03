@@ -288,7 +288,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
@@ -10518,6 +10518,106 @@ export function registerRoutes(app: Express): Server {
         success: false,
         error: error.message 
       });
+    }
+  }));
+
+  // ============================================================================================
+  // PROYECCIONES DE VENTAS - Manual Forecasting System
+  // ============================================================================================
+
+  // Get historical sales data aggregated by year
+  app.get('/api/proyecciones/historico', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { years, salespersonCode } = req.query;
+      
+      const filters: any = {};
+      
+      if (years) {
+        filters.years = years.split(',').map((y: string) => parseInt(y));
+      }
+      
+      if (salespersonCode) {
+        filters.salespersonCode = salespersonCode;
+      }
+      
+      const data = await storage.getHistoricoVentasPorAnio(filters);
+      res.json(data);
+    } catch (error: any) {
+      console.error('Error fetching historical sales:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }));
+
+  // Get available years with sales data
+  app.get('/api/proyecciones/years', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const years = await storage.getYearsWithData();
+      res.json(years);
+    } catch (error: any) {
+      console.error('Error fetching years with data:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }));
+
+  // Get manual projections
+  app.get('/api/proyecciones/manual', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { years, salespersonCode } = req.query;
+      
+      const filters: any = {};
+      
+      if (years) {
+        filters.years = years.split(',').map((y: string) => parseInt(y));
+      }
+      
+      if (salespersonCode) {
+        filters.salespersonCode = salespersonCode;
+      }
+      
+      const projections = await storage.getProyeccionesVentas(filters);
+      res.json(projections);
+    } catch (error: any) {
+      console.error('Error fetching manual projections:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }));
+
+  // Upsert (create or update) manual projection
+  app.post('/api/proyecciones/manual', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Validate request body
+      const validated = insertProyeccionVentaSchema.parse({
+        ...req.body,
+        createdBy: user.id,
+        createdByName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+      });
+      
+      const proyeccion = await storage.upsertProyeccionVenta(validated);
+      
+      res.status(201).json(proyeccion);
+    } catch (error: any) {
+      console.error('Error upserting manual projection:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({
+          message: "Datos inválidos",
+          details: error.issues.map((issue: any) => `${issue.path.join('.')}: ${issue.message}`).join(', ')
+        });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  }));
+
+  // Delete manual projection
+  app.delete('/api/proyecciones/manual/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteProyeccionVenta(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Error deleting manual projection:', error);
+      res.status(500).json({ error: error.message });
     }
   }));
 
