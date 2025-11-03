@@ -188,9 +188,9 @@ export default function ProyeccionManualPage() {
   const processedData = useMemo(() => {
     const clientMap = new Map<string, ClientYearlyData & { segmentSales: Record<string, number> }>();
 
-    // Process historical sales - ALWAYS group by client only
+    // Process historical sales - backend already groups by client name
     historicalData.forEach(item => {
-      const key = item.clientCode; // CRITICAL: Only group by client code
+      const key = item.clientCode; // Backend now uses clientName as clientCode
       if (!clientMap.has(key)) {
         clientMap.set(key, {
           clientCode: item.clientCode,
@@ -245,9 +245,9 @@ export default function ProyeccionManualPage() {
       });
     });
 
-    // Process manual projections - also group by client only
+    // Process manual projections - use clientCode (which is now clientName)
     manualProjections.forEach(proj => {
-      const key = proj.clientCode; // Solo agrupar por cliente
+      const key = proj.clientCode;
       if (!clientMap.has(key)) {
         clientMap.set(key, {
           clientCode: proj.clientCode,

@@ -14440,7 +14440,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const conditions = [
         isNotNull(salesTransactions.nokofu),
-        isNotNull(salesTransactions.koprct),
+        isNotNull(salesTransactions.nokoen), // Client name must exist
         ne(salesTransactions.nokofu, '.'),
         ne(salesTransactions.tido, 'GDV')
       ];
@@ -14481,19 +14481,19 @@ export class DatabaseStorage implements IStorage {
           salespersonName: sql<string>`(
             SELECT ${salesTransactions.nokofu}
             FROM ${salesTransactions} AS st
-            WHERE st.koprct = ${salesTransactions.koprct}
+            WHERE st.nokoen = ${salesTransactions.nokoen}
               AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
             GROUP BY st.nokofu
             ORDER BY SUM(st.monto) DESC
             LIMIT 1
           )`,
-          clientCode: salesTransactions.koprct,
-          clientName: sql<string>`MAX(${salesTransactions.nokoen})`,
+          clientCode: salesTransactions.nokoen, // Use client name as code
+          clientName: salesTransactions.nokoen,
           // Get the segment with the most sales for this client
           segment: sql<string>`(
             SELECT ${salesTransactions.noruen}
             FROM ${salesTransactions} AS st
-            WHERE st.koprct = ${salesTransactions.koprct}
+            WHERE st.nokoen = ${salesTransactions.nokoen}
               AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
             GROUP BY st.noruen
             ORDER BY SUM(st.monto) DESC
@@ -14506,7 +14506,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(...conditions))
         .groupBy(
           sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
-          salesTransactions.koprct
+          salesTransactions.nokoen
         )
         .orderBy(
           desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
@@ -14530,7 +14530,7 @@ export class DatabaseStorage implements IStorage {
             salespersonCode: sql<string>`(
               SELECT ${salesTransactions.nokofu}
               FROM ${salesTransactions} AS st
-              WHERE st.koprct = ${salesTransactions.koprct}
+              WHERE st.nokoen = ${salesTransactions.nokoen}
                 AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
                 AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
               GROUP BY st.nokofu
@@ -14540,20 +14540,20 @@ export class DatabaseStorage implements IStorage {
             salespersonName: sql<string>`(
               SELECT ${salesTransactions.nokofu}
               FROM ${salesTransactions} AS st
-              WHERE st.koprct = ${salesTransactions.koprct}
+              WHERE st.nokoen = ${salesTransactions.nokoen}
                 AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
                 AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
               GROUP BY st.nokofu
               ORDER BY SUM(st.monto) DESC
               LIMIT 1
             )`,
-            clientCode: salesTransactions.koprct,
-            clientName: sql<string>`MAX(${salesTransactions.nokoen})`,
+            clientCode: salesTransactions.nokoen, // Use client name as code
+            clientName: salesTransactions.nokoen,
             // Get the segment with the most sales for this client in this month
             segment: sql<string>`(
               SELECT ${salesTransactions.noruen}
               FROM ${salesTransactions} AS st
-              WHERE st.koprct = ${salesTransactions.koprct}
+              WHERE st.nokoen = ${salesTransactions.nokoen}
                 AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
                 AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
               GROUP BY st.noruen
@@ -14568,7 +14568,7 @@ export class DatabaseStorage implements IStorage {
           .groupBy(
             sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
             sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
-            salesTransactions.koprct
+            salesTransactions.nokoen
           )
           .orderBy(
             desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
