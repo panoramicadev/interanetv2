@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Archive, Plus, Check, Eye } from 'lucide-react';
+import { Bell, Archive, Plus, Check, Eye, AlertTriangle, Package, TrendingUp, MessageSquare, Wrench, Target, ShoppingCart, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -187,6 +187,44 @@ export default function NotificacionesPage() {
     }
   };
 
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'reclamo':
+      case 'reclamo_status':
+      case 'reclamo_resuelto':
+        return <AlertTriangle className="w-5 h-5" />;
+      case 'stock_alert':
+      case 'stock_bajo':
+      case 'stock_critico':
+      case 'producto_agotado':
+        return <Package className="w-5 h-5" />;
+      case 'venta':
+        return <TrendingUp className="w-5 h-5" />;
+      case 'crm_lead':
+      case 'crm_stage_change':
+        return <Users className="w-5 h-5" />;
+      case 'maintenance':
+      case 'mantencion_resuelta':
+        return <Wrench className="w-5 h-5" />;
+      case 'sales_goal':
+        return <Target className="w-5 h-5" />;
+      case 'ecommerce':
+        return <ShoppingCart className="w-5 h-5" />;
+      default:
+        return <MessageSquare className="w-5 h-5" />;
+    }
+  };
+
+  const getPriorityBorderColor = (priority: string) => {
+    switch (priority) {
+      case 'critica': return 'border-l-red-500';
+      case 'alta': return 'border-l-orange-500';
+      case 'media': return 'border-l-yellow-500';
+      case 'baja': return 'border-l-blue-500';
+      default: return 'border-l-gray-500';
+    }
+  };
+
   const departamentos = [
     { value: 'laboratorio', label: 'Laboratorio' },
     { value: 'logistica', label: 'Logística' },
@@ -293,65 +331,91 @@ export default function NotificacionesPage() {
               <p className="text-center text-muted-foreground py-8">No hay notificaciones activas</p>
             ) : (
               notifications.map((notification) => (
-                <Card key={notification.id} className={!notification.hasRead ? 'border-l-4 border-l-blue-500' : ''}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold">{notification.title}</h3>
-                          <div className={`h-2 w-2 rounded-full ${getPriorityColor(notification.priority)}`} />
-                          {!notification.hasRead && (
-                            <Badge variant="secondary" className="text-xs">Nuevo</Badge>
-                          )}
+                <Card 
+                  key={notification.id} 
+                  className={`border-l-4 ${getPriorityBorderColor(notification.priority)} transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5`}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-4">
+                      {/* Icono del tipo de notificación */}
+                      <div className={`flex-shrink-0 p-2.5 rounded-lg ${getPriorityColor(notification.priority)} bg-opacity-10`}>
+                        <div className={`${notification.priority === 'critica' ? 'text-red-600' : notification.priority === 'alta' ? 'text-orange-600' : notification.priority === 'media' ? 'text-yellow-600' : 'text-blue-600'}`}>
+                          {getNotificationIcon(notification.type)}
                         </div>
-                        <p className="text-sm text-muted-foreground">{notification.message}</p>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span>Por: {notification.createdByName || 'Sistema'}</span>
+                      </div>
+
+                      {/* Contenido principal */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold text-base">{notification.title}</h3>
+                            {!notification.hasRead && (
+                              <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-0.5">
+                                ● Nuevo
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{notification.message}</p>
+                        
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                          <span className="flex items-center gap-1">
+                            Por: <span className="font-medium">{notification.createdByName || 'Sistema'}</span>
+                          </span>
                           <span>•</span>
                           <span>
-                            {formatDistanceToNow(new Date(notification.createdAt), {
-                              addSuffix: true,
+                            hace {formatDistanceToNow(new Date(notification.createdAt), {
                               locale: es,
                             })}
                           </span>
                           <span>•</span>
-                          <span className="capitalize">{getPriorityLabel(notification.priority)}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {getPriorityLabel(notification.priority)}
+                          </Badge>
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-2">
+                      {/* Acciones */}
+                      <div className="flex flex-col gap-1.5">
                         {!notification.hasRead && (
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="ghost"
+                            className="h-8 px-2"
                             onClick={() => markAsReadMutation.mutate(notification.id)}
                             data-testid={`mark-read-${notification.id}`}
+                            title="Marcar leída"
+                            aria-label="Marcar notificación como leída"
                           >
-                            <Check className="w-4 h-4 mr-1" />
-                            Marcar leída
+                            <Check className="w-4 h-4" />
                           </Button>
                         )}
                         <Button
                           size="sm"
-                          variant="outline"
+                          variant="ghost"
+                          className="h-8 px-2"
                           onClick={() => {
                             setSelectedNotification(notification);
                             setShowReadsDialog(true);
                           }}
                           data-testid={`view-reads-${notification.id}`}
+                          title="Ver lecturas"
+                          aria-label="Ver quién ha leído esta notificación"
                         >
-                          <Eye className="w-4 h-4 mr-1" />
-                          Ver lecturas
+                          <Eye className="w-4 h-4" />
                         </Button>
                         {canArchiveNotifications && (
                           <Button
                             size="sm"
                             variant="ghost"
+                            className="h-8 px-2"
                             onClick={() => archiveMutation.mutate(notification.id)}
                             data-testid={`archive-${notification.id}`}
+                            title="Archivar"
+                            aria-label="Archivar notificación"
                           >
-                            <Archive className="w-4 h-4 mr-1" />
-                            Archivar
+                            <Archive className="w-4 h-4" />
                           </Button>
                         )}
                       </div>
@@ -372,23 +436,45 @@ export default function NotificacionesPage() {
               <p className="text-center text-muted-foreground py-8">No hay notificaciones archivadas</p>
             ) : (
               notifications.map((notification) => (
-                <Card key={notification.id}>
-                  <CardContent className="p-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{notification.title}</h3>
-                        <div className={`h-2 w-2 rounded-full ${getPriorityColor(notification.priority)}`} />
+                <Card 
+                  key={notification.id}
+                  className={`border-l-4 ${getPriorityBorderColor(notification.priority)} opacity-75 transition-all duration-200 hover:opacity-100 hover:shadow-md`}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-4">
+                      {/* Icono del tipo de notificación */}
+                      <div className={`flex-shrink-0 p-2.5 rounded-lg ${getPriorityColor(notification.priority)} bg-opacity-10`}>
+                        <div className={`${notification.priority === 'critica' ? 'text-red-600' : notification.priority === 'alta' ? 'text-orange-600' : notification.priority === 'media' ? 'text-yellow-600' : 'text-blue-600'}`}>
+                          {getNotificationIcon(notification.type)}
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">{notification.message}</p>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span>Por: {notification.createdByName || 'Sistema'}</span>
-                        <span>•</span>
-                        <span>
-                          {formatDistanceToNow(new Date(notification.createdAt), {
-                            addSuffix: true,
-                            locale: es,
-                          })}
-                        </span>
+
+                      {/* Contenido principal */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
+                          <h3 className="font-semibold text-base">{notification.title}</h3>
+                          <Badge variant="secondary" className="text-xs">
+                            Archivada
+                          </Badge>
+                        </div>
+                        
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{notification.message}</p>
+                        
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                          <span className="flex items-center gap-1">
+                            Por: <span className="font-medium">{notification.createdByName || 'Sistema'}</span>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            hace {formatDistanceToNow(new Date(notification.createdAt), {
+                              locale: es,
+                            })}
+                          </span>
+                          <span>•</span>
+                          <Badge variant="outline" className="text-xs">
+                            {getPriorityLabel(notification.priority)}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
