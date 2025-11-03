@@ -10556,7 +10556,7 @@ export function registerRoutes(app: Express): Server {
   // Get historical sales data aggregated by year
   app.get('/api/proyecciones/historico', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { years, months, salespersonCode } = req.query;
+      const { years, months, salespersonCode, segment } = req.query;
       
       const filters: any = {};
       
@@ -10570,6 +10570,10 @@ export function registerRoutes(app: Express): Server {
       
       if (salespersonCode) {
         filters.salespersonCode = salespersonCode;
+      }
+      
+      if (segment) {
+        filters.segment = segment;
       }
       
       const data = await storage.getHistoricoVentasPorAnio(filters);
@@ -10616,7 +10620,7 @@ export function registerRoutes(app: Express): Server {
   // Get manual projections
   app.get('/api/proyecciones/manual', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { years, months, salespersonCode } = req.query;
+      const { years, months, salespersonCode, segment } = req.query;
       
       const filters: any = {};
       
@@ -10630,6 +10634,10 @@ export function registerRoutes(app: Express): Server {
       
       if (salespersonCode) {
         filters.salespersonCode = salespersonCode;
+      }
+      
+      if (segment) {
+        filters.segment = segment;
       }
       
       const projections = await storage.getProyeccionesVentas(filters);
