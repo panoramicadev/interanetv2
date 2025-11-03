@@ -745,7 +745,7 @@ export default function SalespersonDetail({
                   <div className="h-9 px-3 rounded-lg border border-gray-200 bg-white flex items-center">
                     <YearMonthSelector
                       value={selection}
-                      onChange={handleSelectionChange}
+                      onChange={(newSelection) => newSelection && handleSelectionChange(newSelection)}
                     />
                   </div>
                 </div>
@@ -758,7 +758,7 @@ export default function SalespersonDetail({
                   <span className="text-sm font-medium text-gray-700">Período:</span>
                   <YearMonthSelector
                     value={selection}
-                    onChange={handleSelectionChange}
+                    onChange={(newSelection) => newSelection && handleSelectionChange(newSelection)}
                   />
                 </div>
               )}
