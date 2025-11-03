@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Archive, Plus, Check, Eye, AlertTriangle, Package, TrendingUp, MessageSquare, Wrench, Target, ShoppingCart, Users } from 'lucide-react';
+import { Bell, Archive, Plus, Check, Eye, AlertTriangle, Package, TrendingUp, MessageSquare, Wrench, Target, ShoppingCart, Users, MoreVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -20,6 +20,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface Notification {
   id: string;
@@ -50,6 +61,27 @@ export default function NotificacionesPage() {
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [showReadsDialog, setShowReadsDialog] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(true); // Abierto por defecto
+
+  // Asegurar que los filtros estén siempre abiertos en desktop
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 640px)'); // sm breakpoint
+    
+    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      if (e.matches) {
+        // Desktop: siempre abierto
+        setFiltersOpen(true);
+      }
+    };
+    
+    // Verificar al montar
+    handleChange(mediaQuery);
+    
+    // Escuchar cambios
+    mediaQuery.addEventListener('change', handleChange);
+    
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Authorized roles - must match server-side constants
   const NOTIFICATION_CREATOR_ROLES = ['admin', 'supervisor', 'logistica_bodega', 'logistica', 'laboratorio', 'area_produccion', 'area_logistica', 'area_aplicacion', 'produccion', 'planificacion'];
@@ -240,11 +272,11 @@ export default function NotificacionesPage() {
   ];
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-6">
+    <div className="container mx-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Notificaciones</h1>
-          <p className="text-muted-foreground">Gestiona las comunicaciones internas del equipo</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Notificaciones</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Gestiona las comunicaciones internas del equipo</p>
         </div>
       </div>
 
@@ -267,61 +299,81 @@ export default function NotificacionesPage() {
         </TabsList>
 
         {/* Activas Tab */}
-        <TabsContent value="activas" className="space-y-4">
-          {/* Filtros */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Filtros</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <Label>Tipo</Label>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger data-testid="filter-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="manual">Manual</SelectItem>
-                    <SelectItem value="stock_bajo">Stock Bajo</SelectItem>
-                    <SelectItem value="stock_critico">Stock Crítico</SelectItem>
-                    <SelectItem value="producto_agotado">Producto Agotado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+        <TabsContent value="activas" className="space-y-3 sm:space-y-4">
+          {/* Filtros - Colapsables solo en móvil */}
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <Card>
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex items-center justify-between w-full">
+                  <CardTitle className="text-base sm:text-lg">Filtros</CardTitle>
+                  {/* Trigger solo visible en móvil */}
+                  <CollapsibleTrigger asChild className="sm:hidden">
+                    <button 
+                      className="flex items-center justify-center p-1"
+                      aria-label={filtersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+                      data-testid="toggle-filters"
+                    >
+                      {filtersOpen ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                </div>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-0">
+                  <div>
+                    <Label className="text-sm">Tipo</Label>
+                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                      <SelectTrigger data-testid="filter-type" className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="manual">Manual</SelectItem>
+                        <SelectItem value="stock_bajo">Stock Bajo</SelectItem>
+                        <SelectItem value="stock_critico">Stock Crítico</SelectItem>
+                        <SelectItem value="producto_agotado">Producto Agotado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div>
-                <Label>Prioridad</Label>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger data-testid="filter-priority">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas</SelectItem>
-                    <SelectItem value="baja">Baja</SelectItem>
-                    <SelectItem value="media">Media</SelectItem>
-                    <SelectItem value="alta">Alta</SelectItem>
-                    <SelectItem value="critica">Crítica</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div>
+                    <Label className="text-sm">Prioridad</Label>
+                    <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                      <SelectTrigger data-testid="filter-priority" className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        <SelectItem value="baja">Baja</SelectItem>
+                        <SelectItem value="media">Media</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="critica">Crítica</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div>
-                <Label>Departamento</Label>
-                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                  <SelectTrigger data-testid="filter-department">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {departamentos.map(dept => (
-                      <SelectItem key={dept.value} value={dept.value}>{dept.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+                  <div>
+                    <Label className="text-sm">Departamento</Label>
+                    <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                      <SelectTrigger data-testid="filter-department" className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {departamentos.map(dept => (
+                          <SelectItem key={dept.value} value={dept.value}>{dept.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           {/* Lista de notificaciones */}
           <div className="space-y-3">
@@ -335,89 +387,140 @@ export default function NotificacionesPage() {
                   key={notification.id} 
                   className={`border-l-4 ${getPriorityBorderColor(notification.priority)} transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5`}
                 >
-                  <CardContent className="p-5">
-                    <div className="flex items-start gap-4">
+                  <CardContent className="p-3 sm:p-5">
+                    <div className="flex items-start gap-2 sm:gap-4">
                       {/* Icono del tipo de notificación */}
-                      <div className={`flex-shrink-0 p-2.5 rounded-lg ${getPriorityColor(notification.priority)} bg-opacity-10`}>
+                      <div className={`flex-shrink-0 p-2 sm:p-2.5 rounded-lg ${getPriorityColor(notification.priority)} bg-opacity-10`}>
                         <div className={`${notification.priority === 'critica' ? 'text-red-600' : notification.priority === 'alta' ? 'text-orange-600' : notification.priority === 'media' ? 'text-yellow-600' : 'text-blue-600'}`}>
-                          {getNotificationIcon(notification.type)}
+                          <div className="w-4 h-4 sm:w-5 sm:h-5">
+                            {getNotificationIcon(notification.type)}
+                          </div>
                         </div>
                       </div>
 
                       {/* Contenido principal */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-semibold text-base">{notification.title}</h3>
+                        <div className="flex items-start justify-between gap-2 mb-1.5 sm:mb-2">
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <h3 className="font-semibold text-sm sm:text-base">{notification.title}</h3>
                             {!notification.hasRead && (
-                              <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-0.5">
+                              <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] sm:text-xs px-1.5 py-0 sm:px-2 sm:py-0.5">
                                 ● Nuevo
                               </Badge>
                             )}
                           </div>
                         </div>
                         
-                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{notification.message}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3 line-clamp-2">{notification.message}</p>
                         
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                        <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
                           <span className="flex items-center gap-1">
                             Por: <span className="font-medium">{notification.createdByName || 'Sistema'}</span>
                           </span>
-                          <span>•</span>
-                          <span>
+                          <span className="hidden sm:inline">•</span>
+                          <span className="hidden sm:inline">
                             hace {formatDistanceToNow(new Date(notification.createdAt), {
                               locale: es,
                             })}
                           </span>
-                          <span>•</span>
-                          <Badge variant="outline" className="text-xs">
+                          <span className="hidden sm:inline">•</span>
+                          <Badge variant="outline" className="text-[10px] sm:text-xs px-1.5 py-0 sm:px-2">
                             {getPriorityLabel(notification.priority)}
                           </Badge>
                         </div>
                       </div>
 
-                      {/* Acciones */}
-                      <div className="flex flex-col gap-1.5">
-                        {!notification.hasRead && (
+                      {/* Acciones - Desktop: columna de botones, Móvil: dropdown */}
+                      <div className="flex-shrink-0">
+                        {/* Desktop: Botones visibles */}
+                        <div className="hidden sm:flex flex-col gap-1.5">
+                          {!notification.hasRead && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 px-2"
+                              onClick={() => markAsReadMutation.mutate(notification.id)}
+                              data-testid={`mark-read-${notification.id}`}
+                              title="Marcar leída"
+                              aria-label="Marcar notificación como leída"
+                            >
+                              <Check className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
                             className="h-8 px-2"
-                            onClick={() => markAsReadMutation.mutate(notification.id)}
-                            data-testid={`mark-read-${notification.id}`}
-                            title="Marcar leída"
-                            aria-label="Marcar notificación como leída"
+                            onClick={() => {
+                              setSelectedNotification(notification);
+                              setShowReadsDialog(true);
+                            }}
+                            data-testid={`view-reads-${notification.id}`}
+                            title="Ver lecturas"
+                            aria-label="Ver quién ha leído esta notificación"
                           >
-                            <Check className="w-4 h-4" />
+                            <Eye className="w-4 h-4" />
                           </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 px-2"
-                          onClick={() => {
-                            setSelectedNotification(notification);
-                            setShowReadsDialog(true);
-                          }}
-                          data-testid={`view-reads-${notification.id}`}
-                          title="Ver lecturas"
-                          aria-label="Ver quién ha leído esta notificación"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        {canArchiveNotifications && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 px-2"
-                            onClick={() => archiveMutation.mutate(notification.id)}
-                            data-testid={`archive-${notification.id}`}
-                            title="Archivar"
-                            aria-label="Archivar notificación"
-                          >
-                            <Archive className="w-4 h-4" />
-                          </Button>
-                        )}
+                          {canArchiveNotifications && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 px-2"
+                              onClick={() => archiveMutation.mutate(notification.id)}
+                              data-testid={`archive-${notification.id}`}
+                              title="Archivar"
+                              aria-label="Archivar notificación"
+                            >
+                              <Archive className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Móvil: Dropdown menu */}
+                        <div className="sm:hidden">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-8 w-8 p-0"
+                                data-testid={`actions-menu-${notification.id}`}
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {!notification.hasRead && (
+                                <DropdownMenuItem 
+                                  onClick={() => markAsReadMutation.mutate(notification.id)}
+                                  data-testid={`mark-read-${notification.id}`}
+                                >
+                                  <Check className="w-4 h-4 mr-2" />
+                                  Marcar leída
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setSelectedNotification(notification);
+                                  setShowReadsDialog(true);
+                                }}
+                                data-testid={`view-reads-${notification.id}`}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                Ver lecturas
+                              </DropdownMenuItem>
+                              {canArchiveNotifications && (
+                                <DropdownMenuItem 
+                                  onClick={() => archiveMutation.mutate(notification.id)}
+                                  data-testid={`archive-${notification.id}`}
+                                >
+                                  <Archive className="w-4 h-4 mr-2" />
+                                  Archivar
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -428,7 +531,7 @@ export default function NotificacionesPage() {
         </TabsContent>
 
         {/* Archivadas Tab */}
-        <TabsContent value="archivadas" className="space-y-4">
+        <TabsContent value="archivadas" className="space-y-3 sm:space-y-4">
           <div className="space-y-3">
             {isLoading ? (
               <p className="text-center text-muted-foreground py-8">Cargando...</p>
@@ -440,38 +543,40 @@ export default function NotificacionesPage() {
                   key={notification.id}
                   className={`border-l-4 ${getPriorityBorderColor(notification.priority)} opacity-75 transition-all duration-200 hover:opacity-100 hover:shadow-md`}
                 >
-                  <CardContent className="p-5">
-                    <div className="flex items-start gap-4">
+                  <CardContent className="p-3 sm:p-5">
+                    <div className="flex items-start gap-2 sm:gap-4">
                       {/* Icono del tipo de notificación */}
-                      <div className={`flex-shrink-0 p-2.5 rounded-lg ${getPriorityColor(notification.priority)} bg-opacity-10`}>
+                      <div className={`flex-shrink-0 p-2 sm:p-2.5 rounded-lg ${getPriorityColor(notification.priority)} bg-opacity-10`}>
                         <div className={`${notification.priority === 'critica' ? 'text-red-600' : notification.priority === 'alta' ? 'text-orange-600' : notification.priority === 'media' ? 'text-yellow-600' : 'text-blue-600'}`}>
-                          {getNotificationIcon(notification.type)}
+                          <div className="w-4 h-4 sm:w-5 sm:h-5">
+                            {getNotificationIcon(notification.type)}
+                          </div>
                         </div>
                       </div>
 
                       {/* Contenido principal */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <h3 className="font-semibold text-base">{notification.title}</h3>
-                          <Badge variant="secondary" className="text-xs">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap mb-1.5 sm:mb-2">
+                          <h3 className="font-semibold text-sm sm:text-base">{notification.title}</h3>
+                          <Badge variant="secondary" className="text-[10px] sm:text-xs px-1.5 py-0 sm:px-2">
                             Archivada
                           </Badge>
                         </div>
                         
-                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{notification.message}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3 line-clamp-2">{notification.message}</p>
                         
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                        <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
                           <span className="flex items-center gap-1">
                             Por: <span className="font-medium">{notification.createdByName || 'Sistema'}</span>
                           </span>
-                          <span>•</span>
-                          <span>
+                          <span className="hidden sm:inline">•</span>
+                          <span className="hidden sm:inline">
                             hace {formatDistanceToNow(new Date(notification.createdAt), {
                               locale: es,
                             })}
                           </span>
-                          <span>•</span>
-                          <Badge variant="outline" className="text-xs">
+                          <span className="hidden sm:inline">•</span>
+                          <Badge variant="outline" className="text-[10px] sm:text-xs px-1.5 py-0 sm:px-2">
                             {getPriorityLabel(notification.priority)}
                           </Badge>
                         </div>
