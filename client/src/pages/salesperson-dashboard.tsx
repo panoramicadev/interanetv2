@@ -159,6 +159,9 @@ export default function SalespersonDashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
+  // Get salesperson name BEFORE using it in queries
+  const salespersonName = user?.salespersonName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+
   const { data: salespersonData, isLoading: loadingSalesperson } = useQuery<SalespersonDashboardData>({
     queryKey: [`/api/salesperson/${user?.id}/dashboard?period=${selectedPeriod}&filterType=${filterType}`],
     enabled: !!user?.id,
@@ -262,8 +265,6 @@ export default function SalespersonDashboard() {
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
   // Fetch notificaciones
-  const salespersonName = user?.salespersonName || user?.fullName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
-  
   const { data: notifications, isLoading: loadingNotifications, error: notificationsError } = useQuery({
     queryKey: [`/api/alerts/salesperson/${salespersonName}`],
     enabled: !!salespersonName && !!user,
@@ -356,8 +357,8 @@ export default function SalespersonDashboard() {
           {/* Year/Month Selector */}
           <div className="w-full">
             <YearMonthSelector
-              selection={selection}
-              onSelectionChange={setSelection}
+              value={selection}
+              onChange={(newSelection) => newSelection && setSelection(newSelection)}
             />
           </div>
         </div>
