@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
@@ -82,6 +83,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Obtener configuración del sidebar según el rol
   const sidebarItems = SIDEBAR_CONFIG[user?.role || ''] || [];
+
+  // Fetch unread notifications count
+  const { data: unreadCount = 0 } = useQuery<number>({
+    queryKey: ['/api/notifications/unread-count'],
+    refetchInterval: 30000, // Refetch every 30 seconds
+    enabled: !!user, // Only fetch if user is authenticated
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -208,7 +216,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       <Button
                         variant="ghost"
                         onClick={() => setIsMobileOpen(false)}
-                        className={`w-full justify-start ${
+                        className={`w-full justify-start relative ${
                           item.href === '/notificaciones'
                             ? 'text-amber-400 hover:text-amber-300 border border-amber-500/40 rounded-lg bg-gradient-to-r from-amber-500/5 to-orange-500/5 hover:from-amber-500/10 hover:to-orange-500/10 shadow-sm hover:shadow-amber-500/20'
                             : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
@@ -223,6 +231,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       >
                         <Icon className={`w-5 h-5 mr-3 ${item.href === '/notificaciones' ? 'drop-shadow-sm' : ''}`} />
                         {item.label}
+                        {item.href === '/notificaciones' && unreadCount > 0 && (
+                          <span 
+                            className="absolute top-1 right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full border border-red-700 shadow-md"
+                            data-testid="notification-badge"
+                          >
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
                       </Button>
                     </Link>
                   )}
