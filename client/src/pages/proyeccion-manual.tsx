@@ -54,6 +54,11 @@ export default function ProyeccionManualPage() {
     queryKey: ['/api/proyecciones/years'],
   });
 
+  // Fetch salespeople list
+  const { data: salespeopleData = [] } = useQuery<Array<{ code: string; name: string }>>({
+    queryKey: ['/api/proyecciones/salespeople'],
+  });
+
   // Fetch historical data
   const { data: historicalData = [], isLoading: isLoadingHistorical } = useQuery<HistoricalSalesData[]>({
     queryKey: ['/api/proyecciones/historico', { 
@@ -93,19 +98,10 @@ export default function ProyeccionManualPage() {
     },
   });
 
-  // Get unique salespeople
+  // Use salespeople from API
   const salespeople = useMemo(() => {
-    const unique = new Set<string>();
-    historicalData.forEach(item => {
-      if (item.salespersonCode) {
-        unique.add(`${item.salespersonCode}|${item.salespersonName}`);
-      }
-    });
-    return Array.from(unique).map(item => {
-      const [code, name] = item.split('|');
-      return { code, name };
-    }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [historicalData]);
+    return salespeopleData.sort((a, b) => a.name.localeCompare(b.name));
+  }, [salespeopleData]);
 
   // Process data for table display
   const processedData = useMemo(() => {
