@@ -661,7 +661,7 @@ export default function ProyeccionManualPage() {
           <CardHeader>
             <CardTitle>Ventas por Cliente y Año</CardTitle>
             <CardDescription>
-              Histórico de ventas y proyecciones. Haz clic en las celdas del año futuro para editar proyecciones.
+              Histórico de ventas y proyecciones mensuales. Expande cada cliente para ver el desglose por mes. El total anual se calcula automáticamente sumando los 12 meses.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -860,13 +860,14 @@ export default function ProyeccionManualPage() {
                                 }
 
                                 if (isFuture) {
-                                  // Calculate total from monthly projections if available
-                                  const monthlyTotal = selectedMonths.reduce((sum, month) => {
-                                    const monthKey = `${year}-${month}`;
+                                  // Calculate total from ALL 12 monthly projections
+                                  const monthlyTotal = MONTHS.reduce((sum, month) => {
+                                    const monthKey = `${year}-${month.value}`;
                                     return sum + (client.monthlyProjectedData?.[monthKey] || 0);
                                   }, 0);
                                   
-                                  const displayValue = showMonthlyView && monthlyTotal > 0 ? monthlyTotal : projectedValue;
+                                  // Always show monthly total if any month has a projection
+                                  const displayValue = monthlyTotal > 0 ? monthlyTotal : projectedValue;
 
                                   // Editable cell for future year
                                   return (
