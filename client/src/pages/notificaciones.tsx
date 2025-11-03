@@ -61,7 +61,10 @@ export default function NotificacionesPage() {
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [showReadsDialog, setShowReadsDialog] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(true); // Abierto por defecto
+  // Inicializar filtros contraídos en móvil, abiertos en desktop
+  const [filtersOpen, setFiltersOpen] = useState(() => {
+    return window.matchMedia('(min-width: 640px)').matches;
+  });
 
   // Asegurar que los filtros estén siempre abiertos en desktop
   useEffect(() => {
@@ -88,10 +91,10 @@ export default function NotificacionesPage() {
   const NOTIFICATION_ARCHIVER_ROLES = ['admin', 'supervisor'];
   
   // Check if user can create notifications
-  const canCreateNotifications = user && NOTIFICATION_CREATOR_ROLES.includes(user.role);
+  const canCreateNotifications = user && user.role && NOTIFICATION_CREATOR_ROLES.includes(user.role);
   
   // Check if user can archive notifications
-  const canArchiveNotifications = user && NOTIFICATION_ARCHIVER_ROLES.includes(user.role);
+  const canArchiveNotifications = user && user.role && NOTIFICATION_ARCHIVER_ROLES.includes(user.role);
 
   // Form state for creating new notification
   const [form, setForm] = useState({
