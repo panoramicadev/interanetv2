@@ -1,0 +1,98 @@
+/**
+ * Shared taxonomy for Reclamos Generales areas
+ * Used by both backend filtering and frontend display
+ */
+
+// Canonical area values for areaResponsableActual and areaAsignadaInicial
+export const RECLAMOS_AREAS = {
+  PRODUCCION: 'produccion',
+  LABORATORIO: 'laboratorio',
+  LOGISTICA: 'logistica',
+  APLICACION: 'aplicacion',
+  ENVASE: 'envase',
+  ETIQUETA: 'etiqueta',
+  MATERIA_PRIMA: 'materia_prima',
+  COLORES: 'colores',
+} as const;
+
+export type ReclamoArea = typeof RECLAMOS_AREAS[keyof typeof RECLAMOS_AREAS];
+
+// All valid area values as array for schema enums
+export const RECLAMOS_AREAS_VALUES: ReclamoArea[] = Object.values(RECLAMOS_AREAS);
+
+// Role to area mapping - converts user roles to their responsible area(s)
+export const ROLE_TO_AREA_MAP: Record<string, ReclamoArea> = {
+  // Area roles (with area_ prefix)
+  'area_produccion': RECLAMOS_AREAS.PRODUCCION,
+  'area_logistica': RECLAMOS_AREAS.LOGISTICA,
+  'area_aplicacion': RECLAMOS_AREAS.APLICACION,
+  'area_materia_prima': RECLAMOS_AREAS.MATERIA_PRIMA,
+  'area_colores': RECLAMOS_AREAS.COLORES,
+  'area_envase': RECLAMOS_AREAS.ENVASE,
+  'area_etiqueta': RECLAMOS_AREAS.ETIQUETA,
+  
+  // Organizational roles (without area_ prefix)
+  'produccion': RECLAMOS_AREAS.PRODUCCION,
+  'logistica_bodega': RECLAMOS_AREAS.LOGISTICA,
+  'planificacion': RECLAMOS_AREAS.PRODUCCION,
+  'bodega_materias_primas': RECLAMOS_AREAS.LOGISTICA,
+  'prevencion_riesgos': RECLAMOS_AREAS.PRODUCCION,
+  
+  // Special roles
+  'laboratorio': RECLAMOS_AREAS.LABORATORIO,
+};
+
+/**
+ * Get the responsible area for a user role
+ * Returns null if role doesn't map to an area
+ */
+export function getRoleArea(userRole: string | undefined | null): ReclamoArea | null {
+  if (!userRole) return null;
+  return ROLE_TO_AREA_MAP[userRole] || null;
+}
+
+/**
+ * Check if a user role has area responsibilities
+ */
+export function isAreaRole(userRole: string | undefined | null): boolean {
+  if (!userRole) return false;
+  return userRole in ROLE_TO_AREA_MAP;
+}
+
+/**
+ * Get normalized area name from a string (handles variations)
+ */
+export function normalizeAreaName(area: string | undefined | null): ReclamoArea | null {
+  if (!area) return null;
+  
+  // Direct match
+  const directMatch = RECLAMOS_AREAS_VALUES.find(a => a === area);
+  if (directMatch) return directMatch;
+  
+  // Handle colores_variacion -> colores
+  if (area === 'colores_variacion') return RECLAMOS_AREAS.COLORES;
+  
+  return null;
+}
+
+// Display labels for areas (Spanish)
+export const AREA_LABELS: Record<ReclamoArea, string> = {
+  [RECLAMOS_AREAS.PRODUCCION]: 'Producción',
+  [RECLAMOS_AREAS.LABORATORIO]: 'Laboratorio',
+  [RECLAMOS_AREAS.LOGISTICA]: 'Logística',
+  [RECLAMOS_AREAS.APLICACION]: 'Aplicación/Cliente',
+  [RECLAMOS_AREAS.ENVASE]: 'Envase',
+  [RECLAMOS_AREAS.ETIQUETA]: 'Etiqueta',
+  [RECLAMOS_AREAS.MATERIA_PRIMA]: 'Materia Prima',
+  [RECLAMOS_AREAS.COLORES]: 'Colores',
+};
+
+/**
+ * Get display label for an area
+ */
+export function getAreaLabel(area: ReclamoArea | string | null | undefined): string {
+  if (!area) return 'Sin asignar';
+  const normalized = normalizeAreaName(area);
+  if (!normalized) return area;
+  return AREA_LABELS[normalized] || area;
+}

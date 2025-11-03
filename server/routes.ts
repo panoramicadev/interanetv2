@@ -8325,10 +8325,11 @@ export function registerRoutes(app: Express): Server {
       if (req.query.offset) filters.offset = parseInt(req.query.offset);
       
       // Filtrar automáticamente por área responsable si el usuario tiene rol de área
-      if (user.role && user.role.startsWith('area_')) {
-        // Extraer el área del rol (ej: area_materia_prima -> materia_prima)
-        const area = user.role.replace('area_', '');
-        filters.areaResponsable = area;
+      // Usa taxonomía compartida para roles de área y organizacionales
+      const { getRoleArea } = await import('@shared/reclamosAreas');
+      const userArea = getRoleArea(user.role);
+      if (userArea) {
+        filters.areaResponsable = userArea;
         // Mostrar solo reclamos asignados a su área (todos los estados)
       }
       
