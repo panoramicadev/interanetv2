@@ -14381,7 +14381,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const connection = await getDbConnection();
       
-      let conditions = ['1=1'];
+      let conditions = ['1=1', 'fmpr IS NOT NULL', 'koprct IS NOT NULL'];
       const params: any[] = [];
       let paramCount = 1;
 
@@ -14392,7 +14392,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       if (filters?.salespersonCode) {
-        conditions.push(`vavven = $${paramCount}`);
+        conditions.push(`fmpr = $${paramCount}`);
         params.push(filters.salespersonCode);
         paramCount++;
       }
@@ -14400,16 +14400,16 @@ export class DatabaseStorage implements IStorage {
       const query = `
         SELECT 
           EXTRACT(YEAR FROM feemdo)::int as year,
-          vavven as salesperson_code,
-          MAX(vavnve) as salesperson_name,
-          vakoen as client_code,
-          MAX(vanoen) as client_name,
-          MAX(noruen) as segment,
-          SUM(vabrdo) as total_sales,
-          COUNT(DISTINCT iduddo) as purchase_frequency
-        FROM fact_ventas
+          fmpr as salesperson_code,
+          MAX(nofmpr) as salesperson_name,
+          koprct as client_code,
+          MAX(nokoen) as client_name,
+          '' as segment,
+          SUM(monto) as total_sales,
+          COUNT(DISTINCT id) as purchase_frequency
+        FROM sales_transactions
         WHERE ${conditions.join(' AND ')}
-        GROUP BY EXTRACT(YEAR FROM feemdo), vavven, vakoen
+        GROUP BY EXTRACT(YEAR FROM feemdo), fmpr, koprct
         ORDER BY year DESC, salesperson_code, total_sales DESC
       `;
 
@@ -14438,7 +14438,8 @@ export class DatabaseStorage implements IStorage {
       
       const query = `
         SELECT DISTINCT EXTRACT(YEAR FROM feemdo)::int as year
-        FROM fact_ventas
+        FROM sales_transactions
+        WHERE feemdo IS NOT NULL
         ORDER BY year DESC
       `;
 
@@ -14458,12 +14459,12 @@ export class DatabaseStorage implements IStorage {
       
       const query = `
         SELECT DISTINCT 
-          vecode as code,
-          venomb as name
-        FROM fact_ventas
-        WHERE vecode IS NOT NULL 
-          AND venomb IS NOT NULL
-        ORDER BY venomb
+          fmpr as code,
+          nofmpr as name
+        FROM sales_transactions
+        WHERE fmpr IS NOT NULL 
+          AND nofmpr IS NOT NULL
+        ORDER BY nofmpr
       `;
 
       const result = await connection.query(query);
