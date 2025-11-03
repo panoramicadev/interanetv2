@@ -10528,12 +10528,16 @@ export function registerRoutes(app: Express): Server {
   // Get historical sales data aggregated by year
   app.get('/api/proyecciones/historico', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const { years, salespersonCode } = req.query;
+      const { years, months, salespersonCode } = req.query;
       
       const filters: any = {};
       
       if (years) {
         filters.years = years.split(',').map((y: string) => parseInt(y));
+      }
+      
+      if (months) {
+        filters.months = months.split(',').map((m: string) => parseInt(m));
       }
       
       if (salespersonCode) {

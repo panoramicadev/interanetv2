@@ -14367,6 +14367,7 @@ export class DatabaseStorage implements IStorage {
 
   async getHistoricoVentasPorAnio(filters?: {
     years?: number[];
+    months?: number[];
     salespersonCode?: string;
   }): Promise<Array<{
     year: number;
@@ -14391,6 +14392,13 @@ export class DatabaseStorage implements IStorage {
           sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
         );
         conditions.push(or(...yearConditions)!);
+      }
+
+      if (filters?.months && filters.months.length > 0) {
+        const monthConditions = filters.months.map(month => 
+          sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int = ${month}`
+        );
+        conditions.push(or(...monthConditions)!);
       }
 
       if (filters?.salespersonCode) {

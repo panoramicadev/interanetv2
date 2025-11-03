@@ -44,9 +44,25 @@ interface ClientYearlyData {
   projectedData: Record<number, number>; // year -> projectedAmount
 }
 
+const MONTHS = [
+  { value: 1, label: 'Enero' },
+  { value: 2, label: 'Febrero' },
+  { value: 3, label: 'Marzo' },
+  { value: 4, label: 'Abril' },
+  { value: 5, label: 'Mayo' },
+  { value: 6, label: 'Junio' },
+  { value: 7, label: 'Julio' },
+  { value: 8, label: 'Agosto' },
+  { value: 9, label: 'Septiembre' },
+  { value: 10, label: 'Octubre' },
+  { value: 11, label: 'Noviembre' },
+  { value: 12, label: 'Diciembre' },
+];
+
 export default function ProyeccionManualPage() {
   const { toast } = useToast();
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("all");
   const [futureYear, setFutureYear] = useState<number | null>(null);
   const [editingCells, setEditingCells] = useState<Record<string, number>>({});
@@ -63,11 +79,14 @@ export default function ProyeccionManualPage() {
 
   // Fetch historical data
   const { data: historicalData = [], isLoading: isLoadingHistorical } = useQuery<HistoricalSalesData[]>({
-    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedSalesperson],
+    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedYears.length > 0) {
         params.append('years', selectedYears.join(','));
+      }
+      if (selectedMonths.length > 0) {
+        params.append('months', selectedMonths.join(','));
       }
       if (selectedSalesperson !== 'all') {
         params.append('salespersonCode', selectedSalesperson);
@@ -83,12 +102,15 @@ export default function ProyeccionManualPage() {
 
   // Fetch manual projections
   const { data: manualProjections = [] } = useQuery<ManualProjection[]>({
-    queryKey: ['/api/proyecciones/manual', futureYear ? [...selectedYears, futureYear].join(',') : selectedYears.join(','), selectedSalesperson],
+    queryKey: ['/api/proyecciones/manual', futureYear ? [...selectedYears, futureYear].join(',') : selectedYears.join(','), selectedMonths.join(','), selectedSalesperson],
     queryFn: async () => {
       const params = new URLSearchParams();
       const years = futureYear ? [...selectedYears, futureYear] : selectedYears;
       if (years.length > 0) {
         params.append('years', years.join(','));
+      }
+      if (selectedMonths.length > 0) {
+        params.append('months', selectedMonths.join(','));
       }
       if (selectedSalesperson !== 'all') {
         params.append('salespersonCode', selectedSalesperson);
@@ -241,7 +263,7 @@ export default function ProyeccionManualPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Year Multi-select */}
             <div className="space-y-2">
               <Label>Años Históricos</Label>
@@ -297,6 +319,67 @@ export default function ProyeccionManualPage() {
                       <button
                         className="ml-1 hover:text-destructive"
                         onClick={() => setSelectedYears(selectedYears.filter(y => y !== year))}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Month Multi-select */}
+            <div className="space-y-2">
+              <Label>Meses</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between"
+                    data-testid="select-months"
+                  >
+                    {selectedMonths.length > 0 
+                      ? `${selectedMonths.length} mes${selectedMonths.length > 1 ? 'es' : ''} seleccionado${selectedMonths.length > 1 ? 's' : ''}`
+                      : "Todos los meses"}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-3 max-h-80 overflow-y-auto" align="start">
+                  <div className="space-y-2">
+                    {MONTHS.map(month => (
+                      <div key={month.value} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`month-${month.value}`}
+                          checked={selectedMonths.includes(month.value)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedMonths([...selectedMonths, month.value].sort((a, b) => a - b));
+                            } else {
+                              setSelectedMonths(selectedMonths.filter(m => m !== month.value));
+                            }
+                          }}
+                          data-testid={`checkbox-month-${month.value}`}
+                        />
+                        <label
+                          htmlFor={`month-${month.value}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {month.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {selectedMonths.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedMonths.map(month => (
+                    <Badge key={month} variant="secondary" className="text-xs">
+                      {MONTHS.find(m => m.value === month)?.label}
+                      <button
+                        className="ml-1 hover:text-destructive"
+                        onClick={() => setSelectedMonths(selectedMonths.filter(m => m !== month))}
                       >
                         <X className="h-3 w-3" />
                       </button>
