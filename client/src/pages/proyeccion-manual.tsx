@@ -407,7 +407,7 @@ export default function ProyeccionManualPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* Year Multi-select */}
             <div className="space-y-2">
               <Label>Años Históricos</Label>
