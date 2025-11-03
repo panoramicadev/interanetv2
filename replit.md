@@ -6,6 +6,16 @@
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### November 3, 2025 - Salesperson Dashboard Data Parity Fix
+**Fixed critical data inconsistency between salesperson dashboard and admin panel:**
+- Dashboard now uses identical endpoints to salesperson-detail view: `/api/sales/salesperson/{name}/details`, `/clients`, `/products`, and `/api/sales/transactions`
+- Implemented robust fallback for users without `salespersonName`: automatically fetches from `/api/users/salespeople` by user ID
+- All queries properly gated with `enabled: !!salespersonName && !isLoadingSalespeopleFallback` to prevent race conditions
+- Transactions data now correctly extracts `items` array from paginated response
+- Loading states improved to prevent premature configuration errors during fallback lookup
+
 ## System Architecture
 
 ### Frontend

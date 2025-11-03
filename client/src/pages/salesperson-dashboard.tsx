@@ -159,24 +159,101 @@ export default function SalespersonDashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
-  // Get salesperson name BEFORE using it in queries
-  const salespersonName = user?.salespersonName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  // Try to get salesperson name from user, otherwise fetch from salespeople list
+  const rawSalespersonName = user?.salespersonName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  
+  // Fetch salespeople list to get name if not available on user object
+  const { data: salespeopleList, isLoading: isLoadingSalespeopleFallback } = useQuery({
+    queryKey: ["/api/users/salespeople"],
+    queryFn: async () => {
+      const res = await fetch('/api/users/salespeople', { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !rawSalespersonName && !!user?.id,
+  });
+  
+  // Determine final salesperson name
+  const salespersonName = rawSalespersonName || (() => {
+    if (!salespeopleList || !user) return '';
+    const currentSalesperson = salespeopleList.find((sp: any) => sp.id === user.id);
+    return currentSalesperson?.salespersonName || currentSalesperson?.fullName || `${currentSalesperson?.firstName || ''} ${currentSalesperson?.lastName || ''}`.trim();
+  })();
 
-  const { data: salespersonData, isLoading: loadingSalesperson } = useQuery<SalespersonDashboardData>({
-    queryKey: [`/api/salesperson/${user?.id}/dashboard?period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: !!user?.id,
+  // Use the same endpoints as salesperson-detail to ensure consistency
+  // Enable queries only after fallback loading is complete
+  const { data: salespersonData, isLoading: loadingSalesperson } = useQuery({
+    queryKey: ['/api/sales/salesperson', salespersonName, 'details', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/salesperson/${encodeURIComponent(salespersonName)}/details?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && !isLoadingSalespeopleFallback,
     staleTime: 300000, // 5 minutos
   });
 
-  // Usar el mismo endpoint que el panel de clientes del dashboard
-  const { data: clientsResponse, isLoading: loadingClients } = useQuery<{ items: any[] }>({
-    queryKey: [`/api/sales/top-clients?limit=5000&period=${selectedPeriod}&filterType=${filterType}${salespersonName ? `&salesperson=${encodeURIComponent(salespersonName)}` : ''}`],
-    enabled: !!salespersonName,
+  // Use the same salesperson clients endpoint as the main panel
+  const { data: clientsData, isLoading: loadingClients } = useQuery({
+    queryKey: ['/api/sales/salesperson', salespersonName, 'clients', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/salesperson/${encodeURIComponent(salespersonName)}/clients?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && !isLoadingSalespeopleFallback,
   });
 
+  // Fetch products data (for topProducts) - matching salesperson-detail
+  const { data: productsData = [] } = useQuery({
+    queryKey: ['/api/sales/salesperson', salespersonName, 'products', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/salesperson/${encodeURIComponent(salespersonName)}/products?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && !isLoadingSalespeopleFallback,
+  });
+
+  // Fetch recent transactions for the salesperson - extract items array
+  const { data: transactionsResponse } = useQuery({
+    queryKey: ['/api/sales/transactions', salespersonName, selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      params.append('salesperson', salespersonName);
+      params.append('limit', '10');
+      const res = await fetch(`/api/sales/transactions?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && !isLoadingSalespeopleFallback,
+  });
+  
+  const transactionsData = Array.isArray(transactionsResponse) ? transactionsResponse : (transactionsResponse?.items || []);
+
   const { data: goalsData, isLoading: loadingGoals } = useQuery<GoalProgress[]>({
-    queryKey: [`/api/salesperson/${user?.id}/goals?period=${selectedPeriod}&filterType=${filterType}`],
-    enabled: !!user?.id,
+    queryKey: ['/api/goals/progress', selectedPeriod, 'salesperson', salespersonName],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('selectedPeriod', selectedPeriod);
+      params.append('type', 'salesperson');
+      params.append('target', salespersonName || '');
+      const res = await fetch(`/api/goals/progress?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && !isLoadingSalespeopleFallback,
   });
 
   // Calculate week boundaries for promesas
@@ -199,7 +276,7 @@ export default function SalespersonDashboard() {
     enabled: !!user?.id,
   });
 
-  if (isLoading || loadingSalesperson || loadingClients || loadingGoals) {
+  if (isLoading || loadingSalesperson || loadingClients || loadingGoals || isLoadingSalespeopleFallback) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -214,21 +291,45 @@ export default function SalespersonDashboard() {
     return null;
   }
 
-  // Safe data access with proper defaults
-  const salesData: SalespersonDashboardData = {
+  // If salesperson name is not available after fallback attempt, show error message
+  if (!salespersonName) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Error de Configuración
+            </CardTitle>
+            <CardDescription>
+              Tu cuenta de vendedor no está configurada correctamente. Por favor contacta al administrador para configurar tu nombre de vendedor.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Usuario: {user?.email}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Safe data access with proper defaults - matching salesperson-detail structure
+  const salesData = {
     totalSales: salespersonData?.totalSales || 0,
-    transactions: salespersonData?.transactions || 0,
-    avgTicket: salespersonData?.avgTicket || 0,
-    topProducts: salespersonData?.topProducts || [],
-    recentSales: salespersonData?.recentSales || [],
-    clientCount: salespersonData?.clientCount || 0,
+    transactions: salespersonData?.transactionCount || 0,
+    avgTicket: salespersonData?.averageTicket || 0,
+    topProducts: productsData?.slice(0, 5) || [],
+    recentSales: transactionsData || [],
+    clientCount: salespersonData?.totalClients || 0,
     daysSinceLastSale: salespersonData?.daysSinceLastSale || 0,
-    productivity: salespersonData?.productivity || 0
+    productivity: salespersonData?.salesFrequency || 0
   };
 
   // Group clients by name and aggregate their data
   const groupedClients = useMemo(() => {
-    const items = Array.isArray(clientsResponse?.items) ? clientsResponse.items : [];
+    const items = Array.isArray(clientsData) ? clientsData : [];
     const clientMap = new Map<string, any>();
     
     items.forEach((client: any) => {
@@ -258,7 +359,7 @@ export default function SalespersonDashboard() {
     });
     
     return Array.from(clientMap.values()).sort((a, b) => b.totalSales - a.totalSales);
-  }, [clientsResponse]);
+  }, [clientsData]);
   
   const clients = groupedClients;
   const goals = Array.isArray(goalsData) ? goalsData : [];
