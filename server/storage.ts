@@ -14455,6 +14455,7 @@ export class DatabaseStorage implements IStorage {
         .selectDistinct({
           code: salesTransactions.kofudo,
           name: salesTransactions.nokofu,
+          displayName: sql<string>`CONCAT(${salesTransactions.nokofu}, ' (', ${salesTransactions.kofudo}, ')')`,
         })
         .from(salesTransactions)
         .where(
@@ -14462,14 +14463,15 @@ export class DatabaseStorage implements IStorage {
             isNotNull(salesTransactions.kofudo),
             isNotNull(salesTransactions.nokofu),
             sql`${salesTransactions.kofudo} != ''`,
-            sql`${salesTransactions.nokofu} != ''`
+            sql`${salesTransactions.nokofu} != ''`,
+            sql`${salesTransactions.nokofu} != '.'`
           )
         )
-        .orderBy(salesTransactions.nokofu);
+        .orderBy(sql<string>`CONCAT(${salesTransactions.nokofu}, ' (', ${salesTransactions.kofudo}, ')')`);
 
       return results.map(r => ({
         code: r.code!,
-        name: r.name!,
+        name: r.displayName!,
       }));
     } catch (error: any) {
       console.error('Error fetching salespeople list:', error.message);
