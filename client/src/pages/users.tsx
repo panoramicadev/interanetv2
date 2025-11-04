@@ -390,7 +390,7 @@ export default function UsersPage() {
                                 <Input
                                   placeholder="Ingresa el nombre del vendedor"
                                   value={field.value || ''}
-                                  onChange={field.onChange}
+                                  onChange={(e) => field.onChange(e.target.value)}
                                   data-testid="input-salesperson-name"
                                 />
                               </FormControl>
