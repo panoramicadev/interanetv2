@@ -14756,50 +14756,33 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
   }>> {
     try {
-      // PRODUCTION LOGIC: Get ALL unique clients for salesperson (NO year filter)
-      // This ensures we show all historical clients even if they have no sales in selected years
+      // DASHBOARD LOGIC: Use EXACT same logic as getSalespersonClients
+      // Filter by salesperson directly (no "last vendor" logic)
       
-      // Step 1: Build CTE to find last vendor per client (NO VENDOR FILTER YET)
-      // This determines the actual owner and segment of each client
-      const lastVendorCTE = db.$with('last_vendor').as(
-        db.select({
-          nokoen: salesTransactions.nokoen,
-          nokofu: salesTransactions.nokofu,
-          noruen: salesTransactions.noruen,
-          rowNum: sql<number>`ROW_NUMBER() OVER (PARTITION BY ${salesTransactions.nokoen} ORDER BY ${salesTransactions.feemdo} DESC)`.as('row_num')
-        })
-        .from(salesTransactions)
-        .where(and(
-          isNotNull(salesTransactions.nokofu),
-          isNotNull(salesTransactions.nokoen),
-          ne(salesTransactions.nokofu, '.'),
-          ne(salesTransactions.tido, 'GDV')
-          // NOTE: Do NOT filter by salesperson here - we need to find the true last vendor first
-        ))
-      );
+      // Step 1: Get ALL unique clients for this salesperson (NO year filter)
+      const allClientsConditions = [
+        isNotNull(salesTransactions.nokofu),
+        isNotNull(salesTransactions.nokoen),
+        ne(salesTransactions.nokofu, '.'),
+        ne(salesTransactions.tido, 'GDV')
+      ];
 
-      // Step 2: Get all unique clients, THEN filter by salesperson
-      // The last vendor determines ownership and segment assignment
-      const allClientsConditions = [eq(lastVendorCTE.rowNum, 1)];
-      
-      // Filter by salesperson AFTER determining last vendor
       if (filters?.salespersonCode) {
-        allClientsConditions.push(eq(lastVendorCTE.nokofu, filters.salespersonCode));
+        allClientsConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
       }
 
-      const allClientsQuery = db
-        .with(lastVendorCTE)
+      // Get unique clients with their segment from ANY transaction
+      const allUniqueClients = await db
         .select({
-          clientName: lastVendorCTE.nokoen,
-          salespersonCode: lastVendorCTE.nokofu,
-          noruen: lastVendorCTE.noruen,
+          clientName: salesTransactions.nokoen,
+          salespersonCode: salesTransactions.nokofu,
+          segment: sql<string>`MAX(${salesTransactions.noruen})`, // Take any segment from transactions
         })
-        .from(lastVendorCTE)
-        .where(and(...allClientsConditions));
+        .from(salesTransactions)
+        .where(and(...allClientsConditions))
+        .groupBy(salesTransactions.nokoen, salesTransactions.nokofu);
 
-      const allUniqueClients = await allClientsQuery;
-
-      // Step 3: Get sales data ONLY for selected years
+      // Step 2: Get sales data ONLY for selected years
       const salesConditions = [
         isNotNull(salesTransactions.nokofu),
         isNotNull(salesTransactions.nokoen),
@@ -14832,20 +14815,7 @@ export class DatabaseStorage implements IStorage {
           salesTransactions.nokoen
         );
 
-      // Step 4: Get vendor segments from salespeople_users table
-      const salespeopleWithSegments = await db
-        .select({
-          name: salespeopleUsers.salespersonName,
-          segment: salespeopleUsers.assignedSegment,
-        })
-        .from(salespeopleUsers)
-        .where(isNotNull(salespeopleUsers.assignedSegment));
-      
-      const vendorSegmentMap = new Map(
-        salespeopleWithSegments.map(sp => [sp.name, sp.segment])
-      );
-
-      // Step 5: Generate rows for ALL clients × ALL selected years (LEFT JOIN logic)
+      // Step 3: Generate rows for ALL clients × ALL selected years (LEFT JOIN logic)
       const years = filters?.years || [];
       const allResults: any[] = [];
 
@@ -14856,8 +14826,6 @@ export class DatabaseStorage implements IStorage {
             s => s.clientName === client.clientName && s.year === year
           );
 
-          const vendorSegment = vendorSegmentMap.get(client.salespersonCode);
-
           allResults.push({
             year,
             month: undefined,
@@ -14865,7 +14833,7 @@ export class DatabaseStorage implements IStorage {
             salespersonName: client.salespersonCode,
             clientCode: client.clientName,
             clientName: client.clientName,
-            segment: vendorSegment || client.noruen || '',
+            segment: client.segment || '', // Use segment from transaction (noruen)
             totalSales: sales ? Number(sales.totalSales) : 0,
             purchaseFrequency: sales ? Number(sales.purchaseFrequency) : 0,
           });
