@@ -1418,7 +1418,8 @@ export interface IStorage {
   }>>;
   
   getSegmentsList(): Promise<Array<{
-    segment: string;
+    code: string;
+    name: string;
   }>>;
   
   upsertProyeccionVenta(proyeccion: InsertProyeccionVentaInput): Promise<ProyeccionVenta>;
@@ -15044,7 +15045,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getSegmentsList(): Promise<Array<{ segment: string }>> {
+  async getSegmentsList(): Promise<Array<{ code: string; name: string }>> {
     try {
       const results = await db
         .selectDistinct({
@@ -15060,7 +15061,8 @@ export class DatabaseStorage implements IStorage {
         .orderBy(salesTransactions.caprad2);
 
       return results.map(r => ({
-        segment: r.segment!,
+        code: r.segment!,
+        name: r.segment!,
       }));
     } catch (error: any) {
       console.error('Error fetching segments list:', error.message);
