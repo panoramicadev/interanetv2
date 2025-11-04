@@ -782,7 +782,7 @@ export default function ProyeccionManualPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Clientes</p>
-                  <p className="text-2xl font-bold">{filteredData.length}</p>
+                  <p className="text-2xl font-bold">{totalClients}</p>
                 </div>
                 <Users className="w-8 h-8 text-blue-500" />
               </div>
