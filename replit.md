@@ -8,6 +8,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 4, 2025 - Manual Projections UX Improvements
+**Enhanced usability and data accuracy:**
+- **Auto-select Last 3 Years**: System now preselects the three most recent years by default (can be deselected)
+- **Removed Purchase Frequency Column**: Eliminated unreliable purchase frequency data from table display
+- **Segment Accuracy**: Confirmed backend correctly assigns client segments based on segment with highest sales (using `noruen` field)
+- **Cleaner Interface**: Streamlined table layout for better readability
+
 ### November 4, 2025 - Segment Filter Fixed for Manual Projections
 **Fixed segment filter behavior to be display-only without breaking save functionality:**
 - **Frontend-Only Filtering**: Segment filter now applies only in the frontend for visualization

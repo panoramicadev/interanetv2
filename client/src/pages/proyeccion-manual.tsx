@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -117,6 +117,14 @@ export default function ProyeccionManualPage() {
   const availableYears = useMemo(() => {
     return rawAvailableYears.filter(year => year < 2026);
   }, [rawAvailableYears]);
+
+  // Auto-select last 3 years when availableYears loads
+  useEffect(() => {
+    if (availableYears.length > 0 && selectedYears.length === 0) {
+      const last3Years = availableYears.slice(-3);
+      setSelectedYears(last3Years);
+    }
+  }, [availableYears]);
 
   // Fetch salespeople list
   const { data: salespeopleData = [] } = useQuery<Array<{ code: string; name: string }>>({
@@ -828,7 +836,6 @@ export default function ProyeccionManualPage() {
                   <TableRow>
                     <TableHead className="sticky left-0 bg-background z-10">Cliente</TableHead>
                     <TableHead>Segmento</TableHead>
-                    <TableHead className="text-right">Frecuencia</TableHead>
                     {showMonthlyView ? (
                       allPeriods.map(period => (
                         <TableHead key={`${period.year}-${period.month}`} className="text-right min-w-[130px]">
@@ -855,13 +862,13 @@ export default function ProyeccionManualPage() {
                 <TableBody>
                   {isLoadingHistorical ? (
                     <TableRow>
-                      <TableCell colSpan={allYears.length + 4} className="text-center">
+                      <TableCell colSpan={allYears.length + 3} className="text-center">
                         Cargando datos...
                       </TableCell>
                     </TableRow>
                   ) : filteredData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={allYears.length + 4} className="text-center">
+                      <TableCell colSpan={allYears.length + 3} className="text-center">
                         No hay datos disponibles para los filtros seleccionados
                       </TableCell>
                     </TableRow>
@@ -895,9 +902,6 @@ export default function ProyeccionManualPage() {
                               </TableCell>
                               <TableCell>
                                 <Badge variant="secondary">{getSegmentName(client.segment)}</Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {client.purchaseFrequency} días
                               </TableCell>
                             {showMonthlyView ? (
                               // MONTHLY VIEW: Show columns for each selected month
@@ -1130,7 +1134,7 @@ export default function ProyeccionManualPage() {
                                       <TableCell className="sticky left-0 bg-muted/30 z-10 pl-12 text-sm text-muted-foreground">
                                         {monthLabel}
                                       </TableCell>
-                                      <TableCell colSpan={2}></TableCell>
+                                      <TableCell></TableCell>
                                       {allYears.map((year, monthYearIndex) => {
                                         const monthKey = `${year}-${monthNum}`;
                                         const cellKey = `${client.clientCode}_${year}_${monthNum}`;
@@ -1250,7 +1254,7 @@ export default function ProyeccionManualPage() {
                       {/* Total Row */}
                       <TableRow className="bg-accent font-bold">
                         <TableCell className="sticky left-0 bg-accent z-10">TOTAL</TableCell>
-                        <TableCell colSpan={2}></TableCell>
+                        <TableCell></TableCell>
                         {showMonthlyView ? (
                           allPeriods.map(period => (
                             <TableCell key={`${period.year}-${period.month}`} className="text-right">
