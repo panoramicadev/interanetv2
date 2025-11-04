@@ -91,6 +91,9 @@ export default function ProyeccionManualPage() {
   const [showAddClientDialog, setShowAddClientDialog] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientSegment, setNewClientSegment] = useState("");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const itemsPerPage = 10;
 
   // Helper function to get segment display name
   const getSegmentName = (segmentCode: string): string => {
@@ -136,9 +139,18 @@ export default function ProyeccionManualPage() {
     queryKey: ['/api/proyecciones/segments'],
   });
 
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   // Fetch historical data (segment filter applied in frontend only)
-  const { data: historicalData = [], isLoading: isLoadingHistorical } = useQuery<HistoricalSalesData[]>({
-    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson],
+  const { data: historicalDataResponse, isLoading: isLoadingHistorical } = useQuery<{
+    data: HistoricalSalesData[];
+    total: number;
+    totalClients: number;
+  }>({
+    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, searchTerm, currentPage],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedYears.length > 0) {
@@ -150,6 +162,11 @@ export default function ProyeccionManualPage() {
       if (selectedSalesperson !== 'all') {
         params.append('salespersonCode', selectedSalesperson);
       }
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+      }
+      params.append('limit', itemsPerPage.toString());
+      params.append('offset', ((currentPage - 1) * itemsPerPage).toString());
       // NOTE: segment filter NOT sent to backend - applied in frontend for display only
       const response = await fetch(`/api/proyecciones/historico?${params}`, {
         credentials: 'include'
@@ -159,6 +176,10 @@ export default function ProyeccionManualPage() {
     },
     enabled: selectedYears.length > 0,
   });
+
+  const historicalData = historicalDataResponse?.data || [];
+  const totalClients = historicalDataResponse?.totalClients || 0;
+  const totalPages = Math.ceil(totalClients / itemsPerPage);
 
   // Fetch manual projections (segment filter applied in frontend only)
   const { data: manualProjections = [] } = useQuery<ManualProjection[]>({
@@ -831,6 +852,29 @@ export default function ProyeccionManualPage() {
             </div>
           </CardHeader>
           <CardContent>
+            {/* Search and Pagination Info */}
+            <div className="mb-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div className="w-full sm:w-96">
+                <Input
+                  placeholder="Buscar cliente..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                  data-testid="input-search-client"
+                />
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {isLoadingHistorical ? (
+                  "Cargando..."
+                ) : (
+                  <>
+                    Mostrando {Math.min((currentPage - 1) * itemsPerPage + 1, totalClients)} - {Math.min(currentPage * itemsPerPage, totalClients)} de {totalClients} clientes
+                    {searchTerm && ` (filtrados)`}
+                  </>
+                )}
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1275,6 +1319,53 @@ export default function ProyeccionManualPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-4 flex flex-col sm:flex-row gap-4 items-center justify-between border-t pt-4">
+                <div className="text-sm text-muted-foreground">
+                  Página {currentPage} de {totalPages}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    data-testid="button-first-page"
+                  >
+                    Primera
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    data-testid="button-prev-page"
+                  >
+                    Anterior
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    data-testid="button-next-page"
+                  >
+                    Siguiente
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    data-testid="button-last-page"
+                  >
+                    Última
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
