@@ -14756,27 +14756,6 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
   }>> {
     try {
-      // Build conditions for the sales query
-      const conditions = [
-        isNotNull(salesTransactions.nokofu),
-        isNotNull(salesTransactions.nokoen),
-        ne(salesTransactions.nokofu, '.'),
-        ne(salesTransactions.tido, 'GDV')
-      ];
-
-      // Filter by years
-      if (filters?.years && filters.years.length > 0) {
-        const yearConditions = filters.years.map(year => 
-          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
-        );
-        conditions.push(or(...yearConditions)!);
-      }
-
-      // Filter by salesperson if specified
-      if (filters?.salespersonCode) {
-        conditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
-      }
-
       // Get vendor segments from salespeople_users table
       const salespeopleWithSegments = await db
         .select({
@@ -14790,169 +14769,95 @@ export class DatabaseStorage implements IStorage {
         salespeopleWithSegments.map(sp => [sp.name, sp.segment])
       );
 
-      // NOTE: Segment filtering is now done in the frontend only
-      // We need to return ALL data so the frontend can filter by segment without breaking save functionality
+      // Step 1: Get ALL unique clients for the selected salesperson (across all time)
+      const clientConditions = [
+        isNotNull(salesTransactions.nokofu),
+        isNotNull(salesTransactions.nokoen),
+        ne(salesTransactions.nokofu, '.'),
+        ne(salesTransactions.tido, 'GDV')
+      ];
 
-      const includeMonthlyBreakdown = filters?.months && filters.months.length > 0;
-      const specificMonthsRequested = includeMonthlyBreakdown;
-      
-      let allResults: any[] = [];
-      
-      // Always get yearly totals (main rows in table)
-      if (!specificMonthsRequested) {
-        const yearlyResults = await db
+      if (filters?.salespersonCode) {
+        clientConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
+      }
+
+      const allClientsForSalesperson = await db
+        .selectDistinct({
+          clientName: salesTransactions.nokoen,
+          salespersonCode: salesTransactions.nokofu,
+        })
+        .from(salesTransactions)
+        .where(and(...clientConditions));
+
+      // Step 2: Build conditions for sales data in selected years
+      const salesConditions = [
+        isNotNull(salesTransactions.nokofu),
+        isNotNull(salesTransactions.nokoen),
+        ne(salesTransactions.nokofu, '.'),
+        ne(salesTransactions.tido, 'GDV')
+      ];
+
+      // Filter by years
+      if (filters?.years && filters.years.length > 0) {
+        const yearConditions = filters.years.map(year => 
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
+        );
+        salesConditions.push(or(...yearConditions)!);
+      }
+
+      // Filter by salesperson if specified
+      if (filters?.salespersonCode) {
+        salesConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
+      }
+
+      // Step 3: Get actual sales data for the selected years
+      const yearlyResults = await db
         .select({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
-          month: sql<number>`NULL`,
-          // Get the salesperson with most sales for this client
-          salespersonCode: sql<string>`(
-            SELECT ${salesTransactions.nokofu}
-            FROM ${salesTransactions} AS st
-            WHERE st.nokoen = ${salesTransactions.nokoen}
-              AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
-            GROUP BY st.nokofu
-            ORDER BY SUM(st.monto) DESC
-            LIMIT 1
-          )`,
-          salespersonName: sql<string>`(
-            SELECT ${salesTransactions.nokofu}
-            FROM ${salesTransactions} AS st
-            WHERE st.nokoen = ${salesTransactions.nokoen}
-              AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
-            GROUP BY st.nokofu
-            ORDER BY SUM(st.monto) DESC
-            LIMIT 1
-          )`,
-          clientCode: salesTransactions.nokoen, // Use client name as code
           clientName: salesTransactions.nokoen,
+          salespersonCode: salesTransactions.nokofu,
           totalSales: sql<number>`SUM(${salesTransactions.monto})`,
           purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
         })
         .from(salesTransactions)
-        .where(and(...conditions))
+        .where(and(...salesConditions))
         .groupBy(
           sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
-          salesTransactions.nokoen
-        )
-        .orderBy(
-          desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
-          desc(sql`SUM(${salesTransactions.monto})`)
+          salesTransactions.nokoen,
+          salesTransactions.nokofu
         );
-        
-        allResults = [...yearlyResults];
-        
-        // ALWAYS get monthly breakdown for expandable rows (all 12 months)
-        const monthlyResults = await db
-          .select({
-            year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
-            month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
-            salespersonCode: sql<string>`(
-              SELECT ${salesTransactions.nokofu}
-              FROM ${salesTransactions} AS st
-              WHERE st.nokoen = ${salesTransactions.nokoen}
-                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
-                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
-              GROUP BY st.nokofu
-              ORDER BY SUM(st.monto) DESC
-              LIMIT 1
-            )`,
-            salespersonName: sql<string>`(
-              SELECT ${salesTransactions.nokofu}
-              FROM ${salesTransactions} AS st
-              WHERE st.nokoen = ${salesTransactions.nokoen}
-                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
-                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
-              GROUP BY st.nokofu
-              ORDER BY SUM(st.monto) DESC
-              LIMIT 1
-            )`,
-            clientCode: salesTransactions.nokoen,
-            clientName: salesTransactions.nokoen,
-            totalSales: sql<number>`SUM(${salesTransactions.monto})`,
-            purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
-          })
-          .from(salesTransactions)
-          .where(and(...conditions))
-          .groupBy(
-            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
-            sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
-            salesTransactions.nokoen
-          )
-          .orderBy(
-            desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
-            desc(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`)
-          );
-        
-        allResults = [...allResults, ...monthlyResults];
-      } else {
-        // If specific months are selected, ONLY get those monthly breakdowns (not yearly totals)
-        const monthConditions = [...conditions];
-        const monthFilters = filters.months!.map(month => 
-          sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int = ${month}`
-        );
-        monthConditions.push(or(...monthFilters)!);
 
-        const monthlyResults = await db
-          .select({
-            year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
-            month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
-            // Get the salesperson with most sales for this client in this month
-            salespersonCode: sql<string>`(
-              SELECT ${salesTransactions.nokofu}
-              FROM ${salesTransactions} AS st
-              WHERE st.nokoen = ${salesTransactions.nokoen}
-                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
-                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
-              GROUP BY st.nokofu
-              ORDER BY SUM(st.monto) DESC
-              LIMIT 1
-            )`,
-            salespersonName: sql<string>`(
-              SELECT ${salesTransactions.nokofu}
-              FROM ${salesTransactions} AS st
-              WHERE st.nokoen = ${salesTransactions.nokoen}
-                AND EXTRACT(YEAR FROM st.feemdo) = EXTRACT(YEAR FROM ${salesTransactions.feemdo})
-                AND EXTRACT(MONTH FROM st.feemdo) = EXTRACT(MONTH FROM ${salesTransactions.feemdo})
-              GROUP BY st.nokofu
-              ORDER BY SUM(st.monto) DESC
-              LIMIT 1
-            )`,
-            clientCode: salesTransactions.nokoen, // Use client name as code
-            clientName: salesTransactions.nokoen,
-            totalSales: sql<number>`SUM(${salesTransactions.monto})`,
-            purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
-          })
-          .from(salesTransactions)
-          .where(and(...monthConditions))
-          .groupBy(
-            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
-            sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
-            salesTransactions.nokoen
-          )
-          .orderBy(
-            desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
-            asc(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`),
-            desc(sql`SUM(${salesTransactions.monto})`)
+      // Step 4: Create a complete list of ALL client-year combinations
+      const years = filters?.years || [];
+      const allResults: any[] = [];
+
+      for (const client of allClientsForSalesperson) {
+        for (const year of years) {
+          // Find actual sales data for this client-year combination
+          const salesData = yearlyResults.find(
+            s => s.clientName === client.clientName && s.year === year
           );
 
-        allResults = monthlyResults;
+          const segment = vendorSegmentMap.get(client.salespersonCode) || '';
+
+          allResults.push({
+            year,
+            month: undefined,
+            salespersonCode: client.salespersonCode,
+            salespersonName: client.salespersonCode,
+            clientCode: client.clientName,
+            clientName: client.clientName,
+            segment,
+            totalSales: salesData ? Number(salesData.totalSales) : 0,
+            purchaseFrequency: salesData ? Number(salesData.purchaseFrequency) : 0,
+          });
+        }
       }
 
-      const results = allResults.map(row => {
-        // Get segment from vendor's assigned segment in salespeople_users table
-        const segment = vendorSegmentMap.get(row.salespersonCode) || '';
-        
-        return {
-          year: row.year,
-          month: row.month || undefined,
-          salespersonCode: row.salespersonCode || '',
-          salespersonName: row.salespersonName || '',
-          clientCode: row.clientCode || '',
-          clientName: row.clientName || '',
-          segment, // Segment comes from vendor, not transaction
-          totalSales: Number(row.totalSales) || 0,
-          purchaseFrequency: Number(row.purchaseFrequency) || 0,
-        };
+      // Sort by year desc, then by total sales desc
+      const results = allResults.sort((a, b) => {
+        if (b.year !== a.year) return b.year - a.year;
+        return b.totalSales - a.totalSales;
       });
       
       // Debug logging to detect duplicates
