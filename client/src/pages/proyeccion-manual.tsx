@@ -400,7 +400,26 @@ export default function ProyeccionManualPage() {
     });
 
     return Array.from(clientMap.values()).sort((a, b) => {
-      // Sort by total sales across all years (descending)
+      // Prioritize future clients (FUTURO-*) when viewing future year
+      const aIsFuture = a.clientCode.startsWith('FUTURO-');
+      const bIsFuture = b.clientCode.startsWith('FUTURO-');
+      
+      // If one is future and other is not, future clients go first
+      if (aIsFuture && !bIsFuture) return -1;
+      if (!aIsFuture && bIsFuture) return 1;
+      
+      // If both are future clients, sort by total projected amount (descending)
+      if (aIsFuture && bIsFuture) {
+        const totalProjectedA = Object.values(a.projectedData).reduce((sum, val) => sum + val, 0);
+        const totalProjectedB = Object.values(b.projectedData).reduce((sum, val) => sum + val, 0);
+        // If same projected amount, sort alphabetically
+        if (totalProjectedB === totalProjectedA) {
+          return a.clientName.localeCompare(b.clientName);
+        }
+        return totalProjectedB - totalProjectedA;
+      }
+      
+      // For non-future clients, sort by total sales across all years (descending)
       const totalA = Object.values(a.yearlyData).reduce((sum, val) => sum + val, 0);
       const totalB = Object.values(b.yearlyData).reduce((sum, val) => sum + val, 0);
       return totalB - totalA;
