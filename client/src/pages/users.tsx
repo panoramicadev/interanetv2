@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -384,24 +384,39 @@ export default function UsersPage() {
                         name="salespersonName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Seleccionar Vendedor</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-salesperson-name">
-                                  <SelectValue placeholder="Selecciona un vendedor" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {availableSalespeople
-                                  .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
-                                  .map((salesperson) => (
-                                    <SelectItem key={salesperson} value={salesperson}>
-                                      {salesperson}
-                                    </SelectItem>
-                                  ))
-                                }
-                              </SelectContent>
-                            </Select>
+                            <FormLabel>Nombre del Vendedor</FormLabel>
+                            <FormControl>
+                              <div className="space-y-2">
+                                <Input
+                                  placeholder="Ingresa el nombre del vendedor"
+                                  {...field}
+                                  data-testid="input-salesperson-name"
+                                />
+                                {availableSalespeople.filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp)).length > 0 && (
+                                  <div className="text-sm text-muted-foreground">
+                                    <p className="mb-1">O selecciona de vendedores con ventas registradas:</p>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                      <SelectTrigger data-testid="select-salesperson-name" className="bg-white">
+                                        <SelectValue placeholder="Seleccionar de la lista" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {availableSalespeople
+                                          .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
+                                          .map((salesperson) => (
+                                            <SelectItem key={salesperson} value={salesperson}>
+                                              {salesperson}
+                                            </SelectItem>
+                                          ))
+                                        }
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+                              </div>
+                            </FormControl>
+                            <FormDescription>
+                              Puedes escribir el nombre del vendedor directamente o seleccionar de la lista si ya tiene ventas registradas
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
