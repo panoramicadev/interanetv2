@@ -14766,7 +14766,33 @@ export class DatabaseStorage implements IStorage {
       // NEW LOGIC: Use clients table as base to show ALL 13,424 clients
       // LEFT JOIN with sales_transactions to get sales data
       
-      // Step 1: Get ALL clients from clients table with their most recent segment
+      // Step 1: Get segment for each client (most recent transaction)
+      const clientSegments = await db
+        .select({
+          clientName: salesTransactions.nokoen,
+          segment: salesTransactions.noruen,
+          lastDate: sql<string>`MAX(${salesTransactions.feemdo})`,
+        })
+        .from(salesTransactions)
+        .where(
+          and(
+            isNotNull(salesTransactions.nokoen),
+            isNotNull(salesTransactions.noruen),
+            sql`TRIM(${salesTransactions.noruen}) != ''`
+          )
+        )
+        .groupBy(salesTransactions.nokoen, salesTransactions.noruen)
+        .orderBy(sql`MAX(${salesTransactions.feemdo}) DESC`);
+
+      // Create a map of client -> segment (most recent)
+      const segmentMap = new Map<string, string>();
+      clientSegments.forEach(cs => {
+        if (!segmentMap.has(cs.clientName!)) {
+          segmentMap.set(cs.clientName!, cs.segment!);
+        }
+      });
+
+      // Step 2: Get ALL clients from clients table
       const clientConditions = [
         isNotNull(clients.nokoen),
         sql`TRIM(${clients.nokoen}) != ''`
@@ -14779,24 +14805,20 @@ export class DatabaseStorage implements IStorage {
         );
       }
 
-      // Get all clients with their most recent segment from ANY transaction
-      const allClientsWithSegment = await db
+      const allClients = await db
         .select({
           clientName: clients.nokoen,
-          segment: sql<string>`(
-            SELECT noruen 
-            FROM sales_transactions 
-            WHERE nokoen = ${clients.nokoen} 
-              AND noruen IS NOT NULL 
-              AND TRIM(noruen) != ''
-            ORDER BY feemdo DESC 
-            LIMIT 1
-          )`,
         })
         .from(clients)
         .where(and(...clientConditions));
 
-      // Step 2: Get sales data with vendor and segment info for each client
+      // Step 3: Attach segments to clients
+      const allClientsWithSegment = allClients.map(client => ({
+        clientName: client.clientName!,
+        segment: segmentMap.get(client.clientName!) || '',
+      }));
+
+      // Step 4: Get sales data with vendor and segment info for each client
       const salesConditions = [
         isNotNull(salesTransactions.nokofu),
         isNotNull(salesTransactions.nokoen),
@@ -14833,7 +14855,7 @@ export class DatabaseStorage implements IStorage {
           salesTransactions.noruen
         );
 
-      // Step 3: Apply filters (salesperson and segment)
+      // Step 5: Apply filters (salesperson and segment)
       let filteredClients = allClientsWithSegment;
       
       // Filter by salesperson: only show clients that have sales with that vendor
@@ -14849,12 +14871,12 @@ export class DatabaseStorage implements IStorage {
 
       const totalClients = filteredClients.length;
 
-      // Step 3.5: Apply pagination to clients
+      // Step 6: Apply pagination to clients
       const limit = filters?.limit || 10;
       const offset = filters?.offset || 0;
       const paginatedClients = filteredClients.slice(offset, offset + limit);
 
-      // Step 4: Generate rows for paginated clients × ALL selected years (LEFT JOIN logic)
+      // Step 7: Generate rows for paginated clients × ALL selected years (LEFT JOIN logic)
       const years = filters?.years || [];
       const allResults: any[] = [];
 
