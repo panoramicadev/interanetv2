@@ -279,14 +279,6 @@ export default function SalespersonDashboard() {
     enabled: !!user?.id,
   });
 
-  // Fetch notificaciones generales del sistema - MUST be before any conditional returns
-  const { data: notifications, isLoading: loadingNotifications, error: notificationsError } = useQuery({
-    queryKey: ['/api/notifications', { 
-      isArchived: 'false', // Solo notificaciones activas
-    }],
-    enabled: !!user,
-    refetchInterval: 5 * 60 * 1000, // Actualizar cada 5 minutos
-  });
 
   // Group clients by name and aggregate their data - MUST be before any conditional returns
   const groupedClients = useMemo(() => {
@@ -337,7 +329,6 @@ export default function SalespersonDashboard() {
   const clients = groupedClients;
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
-  const notificationsList = Array.isArray(notifications) ? notifications : [];
 
   // ALL HOOKS MUST BE ABOVE THIS LINE - Now we can have conditional returns
   if (isLoading || loadingSalesperson || loadingClients || loadingGoals || isLoadingSalespeopleFallback) {
@@ -379,45 +370,7 @@ export default function SalespersonDashboard() {
     );
   }
 
-  // Debug: log notifications data
-  console.log('[SALESPERSON DASHBOARD] salespersonName:', salespersonName);
-  console.log('[SALESPERSON DASHBOARD] notifications:', notifications);
-  console.log('[SALESPERSON DASHBOARD] notificationsList:', notificationsList);
-  console.log('[SALESPERSON DASHBOARD] loadingNotifications:', loadingNotifications);
-  console.log('[SALESPERSON DASHBOARD] notificationsError:', notificationsError);
 
-  // Helper function to get icon for notification type (general system notifications)
-  const getIcon = (type: string, icon?: string) => {
-    if (icon) return icon;
-    
-    switch (type) {
-      case 'reclamo':
-      case 'reclamo_status':
-      case 'reclamo_resuelto':
-        return '⚠️';
-      case 'stock_alert':
-      case 'stock_bajo':
-      case 'stock_critico':
-      case 'producto_agotado':
-        return '📦';
-      case 'venta':
-        return '💰';
-      case 'crm_lead':
-      case 'crm_stage_change':
-        return '👥';
-      case 'maintenance':
-      case 'mantencion_resuelta':
-        return '🔧';
-      case 'sales_goal':
-        return '🎯';
-      case 'ecommerce':
-        return '🛒';
-      case 'manual':
-        return '📢';
-      default:
-        return '💬';
-    }
-  };
 
   // Helper functions for promesas week selector
   const getWeekLabel = (date: Date) => {
@@ -444,94 +397,7 @@ export default function SalespersonDashboard() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Sidebar con Notificaciones */}
-      <aside className="hidden lg:block w-80 xl:w-96 bg-white border-r border-gray-200 p-4 overflow-y-auto">
-        <div className="sticky top-4">
-          {/* Título del Sidebar */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className="bg-amber-500 rounded-full p-2">
-              <Bell className="h-5 w-5 text-white" />
-            </div>
-            <h2 className="text-lg font-bold text-gray-900">
-              Notificaciones
-            </h2>
-            {notificationsList.length > 0 && (
-              <Badge variant="destructive" className="ml-auto">
-                {notificationsList.length}
-              </Badge>
-            )}
-          </div>
-
-          {/* Panel de Notificaciones Completo */}
-          {loadingNotifications ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mx-auto"></div>
-              <p className="text-sm text-gray-500 mt-2">Cargando notificaciones...</p>
-            </div>
-          ) : notificationsList.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="bg-gray-100 rounded-full p-4 w-16 h-16 mx-auto flex items-center justify-center mb-3">
-                <Bell className="h-8 w-8 text-gray-400" />
-              </div>
-              <p className="text-sm font-medium text-gray-900">Sin notificaciones</p>
-              <p className="text-xs text-gray-500 mt-1">Estás al día con tus tareas</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {notificationsList.map((notification, index) => {
-                // Map priority to colors (critica, alta, media, baja)
-                const priorityColor = notification.priority === 'critica' || notification.priority === 'alta'
-                  ? 'border-l-red-400 bg-red-50/50' 
-                  : notification.priority === 'media'
-                  ? 'border-l-amber-400 bg-amber-50/50'
-                  : 'border-l-blue-400 bg-blue-50/50';
-
-                return (
-                  <div
-                    key={notification.id || index}
-                    className={`border-l-4 rounded-lg p-3 ${priorityColor} transition-all hover:shadow-md`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className="text-2xl flex-shrink-0">{getIcon(notification.type, (notification as any).icon)}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <p className="font-semibold text-sm text-gray-900">{notification.title}</p>
-                          {notification.priority && (
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs flex-shrink-0 ${
-                                notification.priority === 'critica' 
-                                  ? 'bg-red-100 text-red-700 border-red-300' 
-                                  : notification.priority === 'alta'
-                                  ? 'bg-orange-100 text-orange-700 border-orange-300'
-                                  : notification.priority === 'media'
-                                  ? 'bg-amber-100 text-amber-700 border-amber-300'
-                                  : 'bg-blue-100 text-blue-700 border-blue-300'
-                              }`}
-                            >
-                              {notification.priority === 'critica' ? 'Crítica' : 
-                               notification.priority === 'alta' ? 'Alta' : 
-                               notification.priority === 'media' ? 'Media' : 'Baja'}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-600">{notification.message}</p>
-                        {notification.createdByName && (
-                          <p className="text-xs text-gray-500 mt-1">Por: {notification.createdByName}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* Contenido Principal */}
-      <div className="flex-1 flex flex-col">
+    <>
         {/* Header */}
         <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
           <div className="flex flex-col space-y-4">
@@ -545,13 +411,6 @@ export default function SalespersonDashboard() {
                 </p>
               </div>
 
-              {/* Panel de Notificaciones móvil */}
-              <div className="flex lg:hidden items-center gap-2">
-                <NotificationsPanel 
-                  salespersonName={salespersonName || ''} 
-                  salespersonId={user?.id || ''}
-                />
-              </div>
             </div>
             
             {/* Year/Month Selector */}
@@ -566,58 +425,6 @@ export default function SalespersonDashboard() {
 
         {/* Contenido Principal */}
         <main className="px-4 lg:px-6 pb-6 space-y-6">
-          {/* Notificaciones Destacadas - Solo en móvil */}
-          {notificationsList.length > 0 && (
-          <div className="lg:hidden bg-gradient-to-r from-amber-50 to-yellow-50 border-l-4 border-amber-400 rounded-xl shadow-md p-4 lg:p-6">
-            <div className="flex items-start gap-4">
-              <div className="bg-amber-500 rounded-full p-3 flex-shrink-0">
-                <Bell className="h-6 w-6 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                  Notificaciones Importantes ({notificationsList.length})
-                </h3>
-                <div className="space-y-2">
-                  {notificationsList.slice(0, 3).map((notification, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-white border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <span className="text-2xl flex-shrink-0">{getIcon(notification.type, (notification as any).icon)}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{notification.title}</p>
-                          <p className="text-sm text-gray-600 truncate">{notification.message}</p>
-                        </div>
-                      </div>
-                      <Badge 
-                        variant="outline" 
-                        className={`ml-2 flex-shrink-0 ${
-                          notification.priority === 'critica' 
-                            ? 'bg-red-100 text-red-700 border-red-300' 
-                            : notification.priority === 'alta'
-                            ? 'bg-orange-100 text-orange-700 border-orange-300'
-                            : notification.priority === 'media'
-                            ? 'bg-amber-100 text-amber-700 border-amber-300'
-                            : 'bg-blue-100 text-blue-700 border-blue-300'
-                        }`}
-                      >
-                        {notification.priority === 'critica' ? 'Crítica' : 
-                         notification.priority === 'alta' ? 'Alta' : 
-                         notification.priority === 'media' ? 'Media' : 'Baja'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-                {notificationsList.length > 3 && (
-                  <p className="text-sm text-gray-600 mt-3">
-                    +{notificationsList.length - 3} notificaciones más en el panel
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
         
         {/* Progreso de Meta Principal - Solo si hay metas */}
         {primaryGoal && (
@@ -988,8 +795,6 @@ export default function SalespersonDashboard() {
           />
         </div>
       </main>
-      </div>
-      {/* Fin del contenido principal */}
 
       {/* Diálogo de Clientes */}
       <Dialog open={showClientsDialog} onOpenChange={setShowClientsDialog}>
@@ -1095,6 +900,6 @@ export default function SalespersonDashboard() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
