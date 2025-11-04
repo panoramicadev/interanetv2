@@ -14756,6 +14756,30 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
   }>> {
     try {
+      // Step 1: If filtering by salesperson, get ALL clients that have ever bought from them
+      let clientNamesFilter: string[] | null = null;
+      
+      if (filters?.salespersonCode) {
+        const clientsForSalesperson = await db
+          .selectDistinct({ clientName: salesTransactions.nokoen })
+          .from(salesTransactions)
+          .where(
+            and(
+              eq(salesTransactions.nokofu, filters.salespersonCode),
+              isNotNull(salesTransactions.nokoen),
+              ne(salesTransactions.tido, 'GDV')
+            )
+          );
+        
+        clientNamesFilter = clientsForSalesperson.map(c => c.clientName);
+        
+        // If no clients found for this salesperson, return empty
+        if (clientNamesFilter.length === 0) {
+          return [];
+        }
+      }
+      
+      // Step 2: Build conditions for the main query
       const conditions = [
         isNotNull(salesTransactions.nokofu),
         isNotNull(salesTransactions.nokoen), // Client name must exist
@@ -14770,9 +14794,12 @@ export class DatabaseStorage implements IStorage {
         conditions.push(or(...yearConditions)!);
       }
 
-      // Apply salesperson filter if specified (filter records before grouping)
-      if (filters?.salespersonCode) {
-        conditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
+      // Apply client filter if we filtered by salesperson
+      if (clientNamesFilter && clientNamesFilter.length > 0) {
+        const clientConditions = clientNamesFilter.map(clientName =>
+          eq(salesTransactions.nokoen, clientName)
+        );
+        conditions.push(or(...clientConditions)!);
       }
 
       // Apply segment filter if specified
@@ -15158,6 +15185,30 @@ export class DatabaseStorage implements IStorage {
     salespersonCode?: string;
     segment?: string;
   }): Promise<ProyeccionVenta[]> {
+    // Step 1: If filtering by salesperson, get ALL clients that have ever bought from them
+    let clientNamesFilter: string[] | null = null;
+    
+    if (filters?.salespersonCode) {
+      const clientsForSalesperson = await db
+        .selectDistinct({ clientName: salesTransactions.nokoen })
+        .from(salesTransactions)
+        .where(
+          and(
+            eq(salesTransactions.nokofu, filters.salespersonCode),
+            isNotNull(salesTransactions.nokoen),
+            ne(salesTransactions.tido, 'GDV')
+          )
+        );
+      
+      clientNamesFilter = clientsForSalesperson.map(c => c.clientName);
+      
+      // If no clients found for this salesperson, return empty
+      if (clientNamesFilter.length === 0) {
+        return [];
+      }
+    }
+    
+    // Step 2: Build conditions for the main query
     const conditions = [];
     
     if (filters?.years && filters.years.length > 0) {
@@ -15174,8 +15225,12 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
-    if (filters?.salespersonCode) {
-      conditions.push(eq(proyeccionesVentas.salespersonCode, filters.salespersonCode));
+    // Apply client filter if we filtered by salesperson
+    if (clientNamesFilter && clientNamesFilter.length > 0) {
+      const clientConditions = clientNamesFilter.map(clientName =>
+        eq(proyeccionesVentas.clientCode, clientName)
+      );
+      conditions.push(or(...clientConditions)!);
     }
 
     if (filters?.segment) {
