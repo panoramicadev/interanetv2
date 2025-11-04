@@ -14768,14 +14768,16 @@ export class DatabaseStorage implements IStorage {
         allClientsConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
       }
 
+      // Use GROUP BY to ensure we get only one row per client
       const allUniqueClients = await db
-        .selectDistinct({
+        .select({
           clientName: salesTransactions.nokoen,
           salespersonCode: salesTransactions.nokofu,
-          noruen: salesTransactions.noruen,
+          noruen: sql<string>`MAX(${salesTransactions.noruen})`, // Take any noruen (for fallback)
         })
         .from(salesTransactions)
-        .where(and(...allClientsConditions));
+        .where(and(...allClientsConditions))
+        .groupBy(salesTransactions.nokoen, salesTransactions.nokofu);
 
       // Step 2: Get actual sales data for the selected years
       const salesConditions = [
