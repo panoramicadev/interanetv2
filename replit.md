@@ -8,6 +8,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 4, 2025 - Manual Salesperson Name Input in User Creation
+**Enhanced user creation form to support new salespeople:**
+- **Manual Input Field**: Replaced dropdown-only salesperson selection with a text input field
+- **Dual Entry Method**: Users can now either:
+  - Type the salesperson name directly (for new salespeople without sales history)
+  - Select from existing salespeople with registered sales
+- **Improved UX**: Clear instructions guide users on both input methods
+- **Solves Bootstrap Problem**: Administrators can now create user accounts for salespeople before they have any sales transactions in the system
+- Maintains data integrity while allowing flexible user creation workflow
+
 ### November 4, 2025 - Projection Visualization System with Interactive Charts
 **Implemented comprehensive visualization system for manual sales projections:**
 - **New Visualization Page**: Created dedicated "Visualización" tab in Proyección section with interactive bar charts
