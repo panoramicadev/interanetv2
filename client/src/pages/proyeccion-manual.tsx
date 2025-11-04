@@ -519,7 +519,33 @@ export default function ProyeccionManualPage() {
     if (selectedSegment === 'all') {
       return processedData;
     }
-    return processedData.filter(client => client.segment === selectedSegment);
+    
+    // Debug: log available segments in the data
+    const uniqueSegments = Array.from(new Set(processedData.map(c => c.segment)));
+    console.log('[SEGMENT FILTER]', {
+      selectedSegment,
+      uniqueSegments,
+      totalClients: processedData.length
+    });
+    
+    const filtered = processedData.filter(client => {
+      const match = client.segment === selectedSegment;
+      if (!match && client.segment) {
+        console.log('[SEGMENT MISMATCH]', {
+          clientSegment: client.segment,
+          selectedSegment,
+          clientName: client.clientName
+        });
+      }
+      return match;
+    });
+    
+    console.log('[FILTERED RESULT]', {
+      filteredCount: filtered.length,
+      totalCount: processedData.length
+    });
+    
+    return filtered;
   }, [processedData, selectedSegment]);
 
   const totalRow = useMemo(() => {
