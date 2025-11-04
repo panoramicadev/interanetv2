@@ -8,22 +8,25 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 4, 2025 - Search, Pagination & Segment Filtering
+**Enhanced client browsing with efficient data loading:**
+- **Search Functionality**: Client name search with case-insensitive LIKE matching
+- **Pagination**: 10 clients per page with First/Previous/Next/Last navigation
+- **Backend Segment Filtering**: Segment filter now applied in backend for accurate pagination
+  - Shows correct client count per segment
+  - Pagination works correctly with filtered results
+  - Resets to page 1 when filters change
+- **Historical Segment Assignment**: Clients assigned segment from their most recent transaction (any year)
+  - Fallback to historical segment if no sales in selected years
+  - Enables accurate segment filtering even for inactive clients
+- **Performance**: Efficient loading of 13,424+ clients with server-side filtering and pagination
+
 ### November 4, 2025 - Manual Projections UX Improvements
 **Enhanced usability and data accuracy:**
 - **Auto-select Last 3 Years**: System now preselects the three most recent years by default (can be deselected)
 - **Removed Purchase Frequency Column**: Eliminated unreliable purchase frequency data from table display
-- **Segment Accuracy**: Confirmed backend correctly assigns client segments based on segment with highest sales (using `noruen` field)
+- **Segment Accuracy**: Backend correctly assigns client segments based on `noruen` field from transactions
 - **Cleaner Interface**: Streamlined table layout for better readability
-
-### November 4, 2025 - Segment Filter Fixed for Manual Projections
-**Fixed segment filter behavior to be display-only without breaking save functionality:**
-- **Frontend-Only Filtering**: Segment filter now applies only in the frontend for visualization
-  - Backend queries no longer receive segment parameter
-  - All client data is loaded regardless of segment selection
-  - Filtering happens client-side using `filteredData` computed from `processedData`
-- **Preserved Save Functionality**: Users can now save projections regardless of selected segment filter
-- **Consistent User Experience**: Filter updates are immediate and don't affect data availability
-- **Performance**: Maintains efficient data loading while allowing flexible filtering
 
 ### November 4, 2025 - Manual Salesperson Name Input in User Creation
 **Enhanced user creation form to support new salespeople:**

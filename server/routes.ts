@@ -10624,7 +10624,8 @@ export function registerRoutes(app: Express): Server {
         if (salespersonCode) {
           filters.salespersonCode = salespersonCode;
         }
-        if (segment) {
+        // Allow segment filter for display (does not affect save operations)
+        if (segment && segment !== 'all') {
           filters.segment = segment;
         }
       }

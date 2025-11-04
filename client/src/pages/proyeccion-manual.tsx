@@ -139,18 +139,18 @@ export default function ProyeccionManualPage() {
     queryKey: ['/api/proyecciones/segments'],
   });
 
-  // Reset to page 1 when search term changes
+  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, selectedSegment, selectedSalesperson]);
 
-  // Fetch historical data (segment filter applied in frontend only)
+  // Fetch historical data (segment filter now applied in backend for proper pagination)
   const { data: historicalDataResponse, isLoading: isLoadingHistorical } = useQuery<{
     data: HistoricalSalesData[];
     total: number;
     totalClients: number;
   }>({
-    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, searchTerm, currentPage],
+    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, selectedSegment, searchTerm, currentPage],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedYears.length > 0) {
@@ -162,12 +162,14 @@ export default function ProyeccionManualPage() {
       if (selectedSalesperson !== 'all') {
         params.append('salespersonCode', selectedSalesperson);
       }
+      if (selectedSegment !== 'all') {
+        params.append('segment', selectedSegment);
+      }
       if (searchTerm.trim()) {
         params.append('search', searchTerm.trim());
       }
       params.append('limit', itemsPerPage.toString());
       params.append('offset', ((currentPage - 1) * itemsPerPage).toString());
-      // NOTE: segment filter NOT sent to backend - applied in frontend for display only
       const response = await fetch(`/api/proyecciones/historico?${params}`, {
         credentials: 'include'
       });
@@ -535,14 +537,8 @@ export default function ProyeccionManualPage() {
     }).format(value);
   };
 
-  // Apply segment filter in frontend for display only
-  const filteredData = useMemo(() => {
-    if (selectedSegment === 'all') {
-      return processedData;
-    }
-    
-    return processedData.filter(client => client.segment === selectedSegment);
-  }, [processedData, selectedSegment]);
+  // No need for frontend segment filtering anymore - it's handled in backend
+  const filteredData = processedData;
 
   const totalRow = useMemo(() => {
     if (showMonthlyView) {

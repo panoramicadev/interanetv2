@@ -14833,11 +14833,18 @@ export class DatabaseStorage implements IStorage {
           salesTransactions.noruen
         );
 
-      // Step 3: If filtering by salesperson, only show clients that have sales with that vendor
+      // Step 3: Apply filters (salesperson and segment)
       let filteredClients = allClientsWithSegment;
+      
+      // Filter by salesperson: only show clients that have sales with that vendor
       if (filters?.salespersonCode) {
         const clientsWithSales = new Set(salesData.map(s => s.clientName));
-        filteredClients = allClientsWithSegment.filter(c => clientsWithSales.has(c.clientName));
+        filteredClients = filteredClients.filter(c => clientsWithSales.has(c.clientName));
+      }
+
+      // Filter by segment: only show clients from selected segment
+      if (filters?.segment && filters.segment !== 'all') {
+        filteredClients = filteredClients.filter(c => c.segment === filters.segment);
       }
 
       const totalClients = filteredClients.length;
