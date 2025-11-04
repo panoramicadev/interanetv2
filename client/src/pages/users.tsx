@@ -386,14 +386,12 @@ export default function UsersPage() {
                           <FormItem>
                             <FormLabel>Nombre del Vendedor</FormLabel>
                             <div className="space-y-2">
-                              <FormControl>
-                                <Input
-                                  placeholder="Ingresa el nombre del vendedor"
-                                  value={field.value || ''}
-                                  onChange={(e) => field.onChange(e.target.value)}
-                                  data-testid="input-salesperson-name"
-                                />
-                              </FormControl>
+                              <Input
+                                placeholder="Ingresa el nombre del vendedor"
+                                value={field.value || ''}
+                                onChange={(e) => field.onChange(e.target.value)}
+                                data-testid="input-salesperson-name"
+                              />
                               {availableSalespeople.filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp)).length > 0 && (
                                 <div className="text-sm text-muted-foreground">
                                   <p className="mb-1">O selecciona de vendedores con ventas registradas:</p>
