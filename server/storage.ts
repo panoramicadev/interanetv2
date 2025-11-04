@@ -14756,7 +14756,53 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
   }>> {
     try {
-      // Get vendor segments from salespeople_users table
+      // Build conditions for the sales query (PRODUCTION LOGIC)
+      const conditions = [
+        isNotNull(salesTransactions.nokofu),
+        isNotNull(salesTransactions.nokoen),
+        ne(salesTransactions.nokofu, '.'),
+        ne(salesTransactions.tido, 'GDV')
+      ];
+
+      // Filter by years
+      if (filters?.years && filters.years.length > 0) {
+        const yearConditions = filters.years.map(year => 
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
+        );
+        conditions.push(or(...yearConditions)!);
+      }
+
+      // Filter by salesperson if specified
+      if (filters?.salespersonCode) {
+        conditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
+      }
+
+      // NOTE: Segment filtering is done in frontend only (to avoid breaking save functionality)
+
+      // Get yearly aggregated sales data
+      const yearlyResults = await db
+        .select({
+          year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
+          salespersonCode: salesTransactions.nokofu,
+          clientName: salesTransactions.nokoen,
+          noruen: salesTransactions.noruen, // Original segment from transaction
+          totalSales: sql<number>`SUM(${salesTransactions.monto})`,
+          purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+        })
+        .from(salesTransactions)
+        .where(and(...conditions))
+        .groupBy(
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
+          salesTransactions.nokofu,
+          salesTransactions.nokoen,
+          salesTransactions.noruen
+        )
+        .orderBy(
+          desc(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`),
+          desc(sql`SUM(${salesTransactions.monto})`)
+        );
+
+      // Get vendor segments from salespeople_users table (for override)
       const salespeopleWithSegments = await db
         .select({
           name: salespeopleUsers.salespersonName,
@@ -14769,95 +14815,21 @@ export class DatabaseStorage implements IStorage {
         salespeopleWithSegments.map(sp => [sp.name, sp.segment])
       );
 
-      // Step 1: Get ALL unique clients for the selected salesperson (across all time)
-      const clientConditions = [
-        isNotNull(salesTransactions.nokofu),
-        isNotNull(salesTransactions.nokoen),
-        ne(salesTransactions.nokofu, '.'),
-        ne(salesTransactions.tido, 'GDV')
-      ];
-
-      if (filters?.salespersonCode) {
-        clientConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
-      }
-
-      const allClientsForSalesperson = await db
-        .selectDistinct({
-          clientName: salesTransactions.nokoen,
-          salespersonCode: salesTransactions.nokofu,
-        })
-        .from(salesTransactions)
-        .where(and(...clientConditions));
-
-      // Step 2: Build conditions for sales data in selected years
-      const salesConditions = [
-        isNotNull(salesTransactions.nokofu),
-        isNotNull(salesTransactions.nokoen),
-        ne(salesTransactions.nokofu, '.'),
-        ne(salesTransactions.tido, 'GDV')
-      ];
-
-      // Filter by years
-      if (filters?.years && filters.years.length > 0) {
-        const yearConditions = filters.years.map(year => 
-          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
-        );
-        salesConditions.push(or(...yearConditions)!);
-      }
-
-      // Filter by salesperson if specified
-      if (filters?.salespersonCode) {
-        salesConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
-      }
-
-      // Step 3: Get actual sales data for the selected years
-      const yearlyResults = await db
-        .select({
-          year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
-          clientName: salesTransactions.nokoen,
-          salespersonCode: salesTransactions.nokofu,
-          totalSales: sql<number>`SUM(${salesTransactions.monto})`,
-          purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
-        })
-        .from(salesTransactions)
-        .where(and(...salesConditions))
-        .groupBy(
-          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
-          salesTransactions.nokoen,
-          salesTransactions.nokofu
-        );
-
-      // Step 4: Create a complete list of ALL client-year combinations
-      const years = filters?.years || [];
-      const allResults: any[] = [];
-
-      for (const client of allClientsForSalesperson) {
-        for (const year of years) {
-          // Find actual sales data for this client-year combination
-          const salesData = yearlyResults.find(
-            s => s.clientName === client.clientName && s.year === year
-          );
-
-          const segment = vendorSegmentMap.get(client.salespersonCode) || '';
-
-          allResults.push({
-            year,
-            month: undefined,
-            salespersonCode: client.salespersonCode,
-            salespersonName: client.salespersonCode,
-            clientCode: client.clientName,
-            clientName: client.clientName,
-            segment,
-            totalSales: salesData ? Number(salesData.totalSales) : 0,
-            purchaseFrequency: salesData ? Number(salesData.purchaseFrequency) : 0,
-          });
-        }
-      }
-
-      // Sort by year desc, then by total sales desc
-      const results = allResults.sort((a, b) => {
-        if (b.year !== a.year) return b.year - a.year;
-        return b.totalSales - a.totalSales;
+      // Map results and use vendor segment if available, otherwise use noruen
+      const results = yearlyResults.map(row => {
+        const vendorSegment = vendorSegmentMap.get(row.salespersonCode);
+        
+        return {
+          year: row.year,
+          month: undefined,
+          salespersonCode: row.salespersonCode,
+          salespersonName: row.salespersonCode,
+          clientCode: row.clientName,
+          clientName: row.clientName,
+          segment: vendorSegment || row.noruen || '', // Use vendor segment if available, fallback to noruen
+          totalSales: Number(row.totalSales) || 0,
+          purchaseFrequency: Number(row.purchaseFrequency) || 0,
+        };
       });
       
       // Debug logging to detect duplicates
