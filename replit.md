@@ -8,6 +8,29 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 4, 2025 - Projection Visualization System with Interactive Charts
+**Implemented comprehensive visualization system for manual sales projections:**
+- **New Visualization Page**: Created dedicated "Visualización" tab in Proyección section with interactive bar charts
+- **Backend Endpoint**: New `/api/proyecciones/charts` endpoint aggregates manual projection data with role-based filtering
+  - Aggregates data by client, segment, and salesperson
+  - Supports filtering by year, month, segment, and salesperson
+  - Respects role permissions (salesperson sees only their data, supervisor sees their segment, admin sees all)
+  - Only includes future projections (those with month specified)
+- **Interactive Filtering**: Multi-dimensional filters allowing users to analyze projections by:
+  - Year (current and future years)
+  - Month (individual months or all months)
+  - Segment (specific segment or all segments)
+  - Salesperson (specific salesperson or all salespeople)
+  - View Mode (by client, by segment, or by salesperson)
+- **Chart Visualizations**:
+  - Main bar chart showing top 15 clients or aggregated segment/salesperson data
+  - Monthly breakdown chart displaying distribution across months
+  - Real-time totals and statistics cards
+- **Data Type Corrections**: Fixed PostgreSQL NUMERIC to JavaScript Number conversion in manual projections to prevent string concatenation
+- **Tab Integration**: Reorganized Proyección page with tabs for "Proyección Manual" and "Visualización"
+- Built with Chart.js for responsive, professional-looking charts
+- All visualizations update in real-time as filters change
+
 ### November 4, 2025 - CRM Smart Inactivity Alerts
 **Added intelligent inactivity alerts in CRM lead cards:**
 - Automatic calculation of days since last update for each lead
