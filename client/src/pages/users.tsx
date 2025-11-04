@@ -385,35 +385,35 @@ export default function UsersPage() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Nombre del Vendedor</FormLabel>
-                            <FormControl>
-                              <div className="space-y-2">
+                            <div className="space-y-2">
+                              <FormControl>
                                 <Input
                                   placeholder="Ingresa el nombre del vendedor"
                                   {...field}
                                   data-testid="input-salesperson-name"
                                 />
-                                {availableSalespeople.filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp)).length > 0 && (
-                                  <div className="text-sm text-muted-foreground">
-                                    <p className="mb-1">O selecciona de vendedores con ventas registradas:</p>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                      <SelectTrigger data-testid="select-salesperson-name" className="bg-white">
-                                        <SelectValue placeholder="Seleccionar de la lista" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {availableSalespeople
-                                          .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
-                                          .map((salesperson) => (
-                                            <SelectItem key={salesperson} value={salesperson}>
-                                              {salesperson}
-                                            </SelectItem>
-                                          ))
-                                        }
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                )}
-                              </div>
-                            </FormControl>
+                              </FormControl>
+                              {availableSalespeople.filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp)).length > 0 && (
+                                <div className="text-sm text-muted-foreground">
+                                  <p className="mb-1">O selecciona de vendedores con ventas registradas:</p>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <SelectTrigger data-testid="select-salesperson-name" className="bg-white">
+                                      <SelectValue placeholder="Seleccionar de la lista" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {availableSalespeople
+                                        .filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp))
+                                        .map((salesperson) => (
+                                          <SelectItem key={salesperson} value={salesperson}>
+                                            {salesperson}
+                                          </SelectItem>
+                                        ))
+                                      }
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
+                            </div>
                             <FormDescription>
                               Puedes escribir el nombre del vendedor directamente o seleccionar de la lista si ya tiene ventas registradas
                             </FormDescription>
