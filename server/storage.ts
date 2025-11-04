@@ -14756,30 +14756,41 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
   }>> {
     try {
-      // Step 1: Get ALL unique clients for the salesperson (from ALL years, not just selected years)
-      const allClientsConditions = [
-        isNotNull(salesTransactions.nokofu),
-        isNotNull(salesTransactions.nokoen),
-        ne(salesTransactions.nokofu, '.'),
-        ne(salesTransactions.tido, 'GDV')
-      ];
-
-      if (filters?.salespersonCode) {
-        allClientsConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
-      }
-
-      // Use GROUP BY to ensure we get only one row per client
-      const allUniqueClients = await db
-        .select({
-          clientName: salesTransactions.nokoen,
-          salespersonCode: salesTransactions.nokofu,
-          noruen: sql<string>`MAX(${salesTransactions.noruen})`, // Take any noruen (for fallback)
+      // PRODUCTION LOGIC: Get ALL unique clients for salesperson (NO year filter)
+      // This ensures we show all historical clients even if they have no sales in selected years
+      
+      // Step 1: Build CTE to find last vendor per client (for segment assignment)
+      const lastVendorCTE = db.$with('last_vendor').as(
+        db.select({
+          nokoen: salesTransactions.nokoen,
+          nokofu: salesTransactions.nokofu,
+          noruen: salesTransactions.noruen,
+          rowNum: sql<number>`ROW_NUMBER() OVER (PARTITION BY ${salesTransactions.nokoen} ORDER BY ${salesTransactions.feemdo} DESC)`.as('row_num')
         })
         .from(salesTransactions)
-        .where(and(...allClientsConditions))
-        .groupBy(salesTransactions.nokoen, salesTransactions.nokofu);
+        .where(and(
+          isNotNull(salesTransactions.nokofu),
+          isNotNull(salesTransactions.nokoen),
+          ne(salesTransactions.nokofu, '.'),
+          ne(salesTransactions.tido, 'GDV'),
+          ...(filters?.salespersonCode ? [eq(salesTransactions.nokofu, filters.salespersonCode)] : [])
+        ))
+      );
 
-      // Step 2: Get actual sales data for the selected years
+      // Step 2: Get all unique clients (their last vendor determines segment)
+      const allClientsQuery = db
+        .with(lastVendorCTE)
+        .select({
+          clientName: lastVendorCTE.nokoen,
+          salespersonCode: lastVendorCTE.nokofu,
+          noruen: lastVendorCTE.noruen,
+        })
+        .from(lastVendorCTE)
+        .where(eq(lastVendorCTE.rowNum, 1));
+
+      const allUniqueClients = await allClientsQuery;
+
+      // Step 3: Get sales data ONLY for selected years
       const salesConditions = [
         isNotNull(salesTransactions.nokofu),
         isNotNull(salesTransactions.nokoen),
@@ -14801,7 +14812,6 @@ export class DatabaseStorage implements IStorage {
       const salesData = await db
         .select({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
-          salespersonCode: salesTransactions.nokofu,
           clientName: salesTransactions.nokoen,
           totalSales: sql<number>`SUM(${salesTransactions.monto})`,
           purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
@@ -14810,11 +14820,10 @@ export class DatabaseStorage implements IStorage {
         .where(and(...salesConditions))
         .groupBy(
           sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
-          salesTransactions.nokofu,
           salesTransactions.nokoen
         );
 
-      // Step 3: Get vendor segments from salespeople_users table
+      // Step 4: Get vendor segments from salespeople_users table
       const salespeopleWithSegments = await db
         .select({
           name: salespeopleUsers.salespersonName,
@@ -14827,7 +14836,7 @@ export class DatabaseStorage implements IStorage {
         salespeopleWithSegments.map(sp => [sp.name, sp.segment])
       );
 
-      // Step 4: Generate rows for ALL clients × ALL selected years
+      // Step 5: Generate rows for ALL clients × ALL selected years (LEFT JOIN logic)
       const years = filters?.years || [];
       const allResults: any[] = [];
 
