@@ -14756,11 +14756,24 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
   }>> {
     try {
-      // DASHBOARD LOGIC: Use EXACT same logic as getSalespersonClients
-      // Filter by salesperson directly (no "last vendor" logic)
+      // NEW LOGIC: Use clients table as base to show ALL 13,424 clients
+      // LEFT JOIN with sales_transactions to get sales data
       
-      // Step 1: Get ALL unique clients for this salesperson (NO year filter)
-      const allClientsConditions = [
+      // Step 1: Get ALL clients from clients table
+      const allClients = await db
+        .select({
+          clientName: clients.nokoen,
+        })
+        .from(clients)
+        .where(
+          and(
+            isNotNull(clients.nokoen),
+            sql`TRIM(${clients.nokoen}) != ''`
+          )
+        );
+
+      // Step 2: Get sales data with vendor and segment info for each client
+      const salesConditions = [
         isNotNull(salesTransactions.nokofu),
         isNotNull(salesTransactions.nokoen),
         ne(salesTransactions.nokofu, '.'),
@@ -14768,28 +14781,8 @@ export class DatabaseStorage implements IStorage {
       ];
 
       if (filters?.salespersonCode) {
-        allClientsConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
+        salesConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
       }
-
-      // Get unique clients with their segment from ANY transaction
-      // GROUP BY only nokoen (client) to avoid duplicates when client has multiple segments
-      const allUniqueClients = await db
-        .select({
-          clientName: salesTransactions.nokoen,
-          salespersonCode: sql<string>`MAX(${salesTransactions.nokofu})`, // Take any vendor (should be same)
-          segment: sql<string>`MAX(${salesTransactions.noruen})`, // Take any segment from transactions
-        })
-        .from(salesTransactions)
-        .where(and(...allClientsConditions))
-        .groupBy(salesTransactions.nokoen);
-
-      // Step 2: Get sales data ONLY for selected years
-      const salesConditions = [
-        isNotNull(salesTransactions.nokofu),
-        isNotNull(salesTransactions.nokoen),
-        ne(salesTransactions.nokofu, '.'),
-        ne(salesTransactions.tido, 'GDV')
-      ];
 
       if (filters?.years && filters.years.length > 0) {
         const yearConditions = filters.years.map(year => 
@@ -14798,14 +14791,12 @@ export class DatabaseStorage implements IStorage {
         salesConditions.push(or(...yearConditions)!);
       }
 
-      if (filters?.salespersonCode) {
-        salesConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
-      }
-
       const salesData = await db
         .select({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
           clientName: salesTransactions.nokoen,
+          salespersonCode: salesTransactions.nokofu,
+          segment: salesTransactions.noruen,
           totalSales: sql<number>`SUM(${salesTransactions.monto})`,
           purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
         })
@@ -14813,14 +14804,23 @@ export class DatabaseStorage implements IStorage {
         .where(and(...salesConditions))
         .groupBy(
           sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
-          salesTransactions.nokoen
+          salesTransactions.nokoen,
+          salesTransactions.nokofu,
+          salesTransactions.noruen
         );
 
-      // Step 3: Generate rows for ALL clients × ALL selected years (LEFT JOIN logic)
+      // Step 3: If filtering by salesperson, only show clients that have sales with that vendor
+      let filteredClients = allClients;
+      if (filters?.salespersonCode) {
+        const clientsWithSales = new Set(salesData.map(s => s.clientName));
+        filteredClients = allClients.filter(c => clientsWithSales.has(c.clientName));
+      }
+
+      // Step 4: Generate rows for ALL clients × ALL selected years (LEFT JOIN logic)
       const years = filters?.years || [];
       const allResults: any[] = [];
 
-      for (const client of allUniqueClients) {
+      for (const client of filteredClients) {
         for (const year of years) {
           // Find actual sales for this client-year combination
           const sales = salesData.find(
@@ -14830,11 +14830,11 @@ export class DatabaseStorage implements IStorage {
           allResults.push({
             year,
             month: undefined,
-            salespersonCode: client.salespersonCode,
-            salespersonName: client.salespersonCode,
+            salespersonCode: sales?.salespersonCode || '',
+            salespersonName: sales?.salespersonCode || '',
             clientCode: client.clientName,
             clientName: client.clientName,
-            segment: client.segment || '', // Use segment from transaction (noruen)
+            segment: sales?.segment || '',
             totalSales: sales ? Number(sales.totalSales) : 0,
             purchaseFrequency: sales ? Number(sales.purchaseFrequency) : 0,
           });
