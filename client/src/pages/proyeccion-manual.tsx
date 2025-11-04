@@ -355,10 +355,13 @@ export default function ProyeccionManualPage() {
       if (proj.month) {
         const monthKey = `${proj.year}-${proj.month}`;
         client.monthlyProjectedData = client.monthlyProjectedData || {};
-        client.monthlyProjectedData[monthKey] = (client.monthlyProjectedData[monthKey] || 0) + proj.projectedAmount;
+        // Convert to number to ensure proper addition (not string concatenation)
+        const projectedValue = Number(proj.projectedAmount);
+        client.monthlyProjectedData[monthKey] = (client.monthlyProjectedData[monthKey] || 0) + projectedValue;
       } else {
         // Yearly projection - sum if multiple projections exist (legacy, should not be used)
-        client.projectedData[proj.year] = (client.projectedData[proj.year] || 0) + proj.projectedAmount;
+        const projectedValue = Number(proj.projectedAmount);
+        client.projectedData[proj.year] = (client.projectedData[proj.year] || 0) + projectedValue;
       }
     });
     
@@ -1014,16 +1017,6 @@ export default function ProyeccionManualPage() {
                                   const monthKey = `${year}-${month.value}`;
                                   return sum + (client.monthlyProjectedData?.[monthKey] || 0);
                                 }, 0);
-
-                                // Debug: Log projected data for future year
-                                if (year === futureYear && client.clientName.includes('DOBLE')) {
-                                  console.log(`🔍 [${client.clientName}] Year ${year}:`, {
-                                    monthlyProjectedData: client.monthlyProjectedData,
-                                    monthlyProjectedTotal,
-                                    futureYear,
-                                    isFuture: year === futureYear
-                                  });
-                                }
 
                                 // Total for this year (sum of all 12 months historical + projected)
                                 const currentTotal = monthlyHistoricalTotal + monthlyProjectedTotal;
