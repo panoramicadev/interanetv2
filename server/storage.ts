@@ -14766,7 +14766,7 @@ export class DatabaseStorage implements IStorage {
       // NEW LOGIC: Use clients table as base to show ALL 13,424 clients
       // LEFT JOIN with sales_transactions to get sales data
       
-      // Step 1: Get ALL clients from clients table
+      // Step 1: Get ALL clients from clients table with their most recent segment
       const clientConditions = [
         isNotNull(clients.nokoen),
         sql`TRIM(${clients.nokoen}) != ''`
@@ -14779,9 +14779,19 @@ export class DatabaseStorage implements IStorage {
         );
       }
 
-      const allClients = await db
+      // Get all clients with their most recent segment from ANY transaction
+      const allClientsWithSegment = await db
         .select({
           clientName: clients.nokoen,
+          segment: sql<string>`(
+            SELECT noruen 
+            FROM sales_transactions 
+            WHERE nokoen = ${clients.nokoen} 
+              AND noruen IS NOT NULL 
+              AND TRIM(noruen) != ''
+            ORDER BY feemdo DESC 
+            LIMIT 1
+          )`,
         })
         .from(clients)
         .where(and(...clientConditions));
@@ -14824,10 +14834,10 @@ export class DatabaseStorage implements IStorage {
         );
 
       // Step 3: If filtering by salesperson, only show clients that have sales with that vendor
-      let filteredClients = allClients;
+      let filteredClients = allClientsWithSegment;
       if (filters?.salespersonCode) {
         const clientsWithSales = new Set(salesData.map(s => s.clientName));
-        filteredClients = allClients.filter(c => clientsWithSales.has(c.clientName));
+        filteredClients = allClientsWithSegment.filter(c => clientsWithSales.has(c.clientName));
       }
 
       const totalClients = filteredClients.length;
@@ -14855,7 +14865,7 @@ export class DatabaseStorage implements IStorage {
             salespersonName: sales?.salespersonCode || '',
             clientCode: client.clientName,
             clientName: client.clientName,
-            segment: sales?.segment || '',
+            segment: sales?.segment || client.segment || '', // Use segment from sales, fallback to client's historical segment
             totalSales: sales ? Number(sales.totalSales) : 0,
             purchaseFrequency: sales ? Number(sales.purchaseFrequency) : 0,
           });
