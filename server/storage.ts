@@ -14763,62 +14763,8 @@ export class DatabaseStorage implements IStorage {
     totalClients: number;
   }> {
     try {
-      // NEW LOGIC: Use clients table as base to show ALL 13,424 clients
-      // LEFT JOIN with sales_transactions to get sales data
-      
-      // Step 1: Get segment for each client (most recent transaction)
-      const clientSegments = await db
-        .select({
-          clientName: salesTransactions.nokoen,
-          segment: salesTransactions.noruen,
-          lastDate: sql<string>`MAX(${salesTransactions.feemdo})`,
-        })
-        .from(salesTransactions)
-        .where(
-          and(
-            isNotNull(salesTransactions.nokoen),
-            isNotNull(salesTransactions.noruen),
-            sql`TRIM(${salesTransactions.noruen}) != ''`
-          )
-        )
-        .groupBy(salesTransactions.nokoen, salesTransactions.noruen)
-        .orderBy(sql`MAX(${salesTransactions.feemdo}) DESC`);
-
-      // Create a map of client -> segment (most recent)
-      const segmentMap = new Map<string, string>();
-      clientSegments.forEach(cs => {
-        if (!segmentMap.has(cs.clientName!)) {
-          segmentMap.set(cs.clientName!, cs.segment!);
-        }
-      });
-
-      // Step 2: Get ALL clients from clients table
-      const clientConditions = [
-        isNotNull(clients.nokoen),
-        sql`TRIM(${clients.nokoen}) != ''`
-      ];
-
-      // Apply search filter
-      if (filters?.search && filters.search.trim() !== '') {
-        clientConditions.push(
-          sql`LOWER(${clients.nokoen}) LIKE LOWER(${'%' + filters.search + '%'})`
-        );
-      }
-
-      const allClients = await db
-        .select({
-          clientName: clients.nokoen,
-        })
-        .from(clients)
-        .where(and(...clientConditions));
-
-      // Step 3: Attach segments to clients
-      const allClientsWithSegment = allClients.map(client => ({
-        clientName: client.clientName!,
-        segment: segmentMap.get(client.clientName!) || '',
-      }));
-
-      // Step 4: Get sales data with vendor and segment info for each client
+      // USE EXACTLY THE SAME FILTERING LOGIC AS DASHBOARD
+      // Build conditions for sales_transactions query
       const salesConditions = [
         isNotNull(salesTransactions.nokofu),
         isNotNull(salesTransactions.nokoen),
@@ -14826,10 +14772,7 @@ export class DatabaseStorage implements IStorage {
         ne(salesTransactions.tido, 'GDV')
       ];
 
-      if (filters?.salespersonCode) {
-        salesConditions.push(eq(salesTransactions.nokofu, filters.salespersonCode));
-      }
-
+      // Add year filter if provided
       if (filters?.years && filters.years.length > 0) {
         const yearConditions = filters.years.map(year => 
           sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
@@ -14837,6 +14780,17 @@ export class DatabaseStorage implements IStorage {
         salesConditions.push(or(...yearConditions)!);
       }
 
+      // SAME AS DASHBOARD: Filter by salesperson (line 2199)
+      if (filters?.salespersonCode) {
+        salesConditions.push(sql`${salesTransactions.nokofu} = ${filters.salespersonCode}`);
+      }
+
+      // SAME AS DASHBOARD: Filter by segment (line 2202)
+      if (filters?.segment && filters.segment !== 'all') {
+        salesConditions.push(sql`${salesTransactions.noruen} = ${filters.segment}`);
+      }
+
+      // Get sales data with filters applied
       const salesData = await db
         .select({
           year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
@@ -14855,36 +14809,36 @@ export class DatabaseStorage implements IStorage {
           salesTransactions.noruen
         );
 
-      // Step 5: Apply filters (salesperson and segment)
-      let filteredClients = allClientsWithSegment;
-      
-      // Filter by salesperson: only show clients that have sales with that vendor
-      if (filters?.salespersonCode) {
-        const clientsWithSales = new Set(salesData.map(s => s.clientName));
-        filteredClients = filteredClients.filter(c => clientsWithSales.has(c.clientName));
-      }
+      // Get unique clients from filtered sales data
+      const uniqueClients = Array.from(
+        new Set(salesData.map((s) => s.clientName))
+      ).sort();
 
-      // Filter by segment: only show clients from selected segment
-      if (filters?.segment && filters.segment !== 'all') {
-        filteredClients = filteredClients.filter(c => c.segment === filters.segment);
+      // Apply search filter to client names
+      let filteredClients = uniqueClients;
+      if (filters?.search && filters.search.trim() !== '') {
+        const searchTerm = filters.search.trim().toLowerCase();
+        filteredClients = uniqueClients.filter((clientName) =>
+          clientName!.toLowerCase().includes(searchTerm)
+        );
       }
 
       const totalClients = filteredClients.length;
 
-      // Step 6: Apply pagination to clients
+      // Apply pagination to clients
       const limit = filters?.limit || 10;
       const offset = filters?.offset || 0;
       const paginatedClients = filteredClients.slice(offset, offset + limit);
 
-      // Step 7: Generate rows for paginated clients × ALL selected years (LEFT JOIN logic)
+      // Generate rows for paginated clients × ALL selected years
       const years = filters?.years || [];
       const allResults: any[] = [];
 
-      for (const client of paginatedClients) {
+      for (const clientName of paginatedClients) {
         for (const year of years) {
           // Find actual sales for this client-year combination
           const sales = salesData.find(
-            s => s.clientName === client.clientName && s.year === year
+            s => s.clientName === clientName && s.year === year
           );
 
           allResults.push({
@@ -14892,9 +14846,9 @@ export class DatabaseStorage implements IStorage {
             month: undefined,
             salespersonCode: sales?.salespersonCode || '',
             salespersonName: sales?.salespersonCode || '',
-            clientCode: client.clientName,
-            clientName: client.clientName,
-            segment: sales?.segment || client.segment || '', // Use segment from sales, fallback to client's historical segment
+            clientCode: clientName!,
+            clientName: clientName!,
+            segment: sales?.segment || '',
             totalSales: sales ? Number(sales.totalSales) : 0,
             purchaseFrequency: sales ? Number(sales.purchaseFrequency) : 0,
           });
@@ -14906,24 +14860,7 @@ export class DatabaseStorage implements IStorage {
         if (b.year !== a.year) return b.year - a.year;
         return b.totalSales - a.totalSales;
       });
-      
-      // Debug logging to detect TRUE duplicates (same client, same year appearing multiple times)
-      const clientYearCounts: Record<string, number> = {};
-      results.forEach(r => {
-        const key = `${r.clientName}|${r.year}`;
-        clientYearCounts[key] = (clientYearCounts[key] || 0) + 1;
-      });
-      
-      const trueDuplicates = Object.entries(clientYearCounts).filter(([, count]) => count > 1);
-      if (trueDuplicates.length > 0) {
-        console.log('⚠️  TRUE DUPLICATES DETECTED (same client, same year):');
-        trueDuplicates.slice(0, 5).forEach(([key, count]) => {
-          const [client, year] = key.split('|');
-          console.log(`  - "${client}" in year ${year}: ${count} times`);
-        });
-      }
 
-      
       return {
         data: results,
         total: results.length,
