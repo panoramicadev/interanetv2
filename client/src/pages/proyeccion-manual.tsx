@@ -679,7 +679,7 @@ export default function ProyeccionManualPage() {
               <Label htmlFor="salesperson">Vendedor</Label>
               <Select value={selectedSalesperson} onValueChange={setSelectedSalesperson}>
                 <SelectTrigger id="salesperson" data-testid="select-salesperson">
-                  <SelectValue />
+                  <SelectValue placeholder="Todos los vendedores" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los vendedores</SelectItem>
@@ -697,7 +697,7 @@ export default function ProyeccionManualPage() {
               <Label htmlFor="segment">Segmento</Label>
               <Select value={selectedSegment} onValueChange={setSelectedSegment}>
                 <SelectTrigger id="segment" data-testid="select-segment">
-                  <SelectValue />
+                  <SelectValue placeholder="Todos los segmentos" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los segmentos</SelectItem>
@@ -1135,6 +1135,8 @@ export default function ProyeccionManualPage() {
                                         const currentTotal = monthlyValue + monthlyProjectedValue;
                                         const isEditingMonth = cellKey in editingCells;
                                         const isFuture = year === futureYear;
+                                        const isFutureClient = client.clientCode.startsWith('FUTURO-');
+                                        const isEditable = isFuture || isFutureClient;
 
                                         // Calculate percentage vs same month previous year
                                         let percentageChange: number | null = null;
@@ -1150,8 +1152,8 @@ export default function ProyeccionManualPage() {
                                           }
                                         }
                                         
-                                        if (isFuture) {
-                                          // Editable cell for future year months
+                                        if (isEditable) {
+                                          // Editable cell for future year months OR future clients (all years)
                                           return (
                                             <TableCell key={year} className="text-right text-sm">
                                               {isEditingMonth ? (
