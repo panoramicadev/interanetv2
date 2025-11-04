@@ -396,6 +396,22 @@ export default function SalespersonDashboard() {
     }).format(amount);
   };
 
+  // Format selected period for display
+  const getPeriodLabel = () => {
+    if (filterType === "day") {
+      return `Día: ${format(selectedDate, "dd 'de' MMMM yyyy", { locale: es })}`;
+    } else if (filterType === "month") {
+      const [year, month] = selectedPeriod.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+      return `Mes: ${format(date, "MMMM yyyy", { locale: es })}`;
+    } else if (filterType === "year") {
+      return `Año: ${selection.years[0]}`;
+    } else if (filterType === "range" && dateRange?.from && dateRange?.to) {
+      return `Rango: ${format(dateRange.from, "dd/MM/yy", { locale: es })} - ${format(dateRange.to, "dd/MM/yy", { locale: es })}`;
+    }
+    return "Período no seleccionado";
+  };
+
   return (
     <>
         {/* Header */}
@@ -419,6 +435,17 @@ export default function SalespersonDashboard() {
                 value={selection}
                 onChange={(newSelection) => newSelection && setSelection(newSelection)}
               />
+            </div>
+            
+            {/* Selected Period Display */}
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">
+                Período actual:
+              </span>
+              <Badge variant="secondary" className="text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200">
+                {getPeriodLabel()}
+              </Badge>
             </div>
           </div>
         </header>
