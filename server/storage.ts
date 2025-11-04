@@ -1429,6 +1429,8 @@ export interface IStorage {
     salespersonCode?: string;
   }): Promise<ProyeccionVenta[]>;
   
+  getProyeccionById(id: string): Promise<ProyeccionVenta | undefined>;
+  
   deleteProyeccionVenta(id: string): Promise<void>;
 }
 
@@ -15151,6 +15153,16 @@ export class DatabaseStorage implements IStorage {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(proyeccionesVentas.year), proyeccionesVentas.salespersonCode);
 
+    return result;
+  }
+
+  async getProyeccionById(id: string): Promise<ProyeccionVenta | undefined> {
+    const [result] = await db
+      .select()
+      .from(proyeccionesVentas)
+      .where(eq(proyeccionesVentas.id, id))
+      .limit(1);
+    
     return result;
   }
 
