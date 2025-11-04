@@ -10574,6 +10574,7 @@ export function registerRoutes(app: Express): Server {
   // Get historical sales data aggregated by year
   app.get('/api/proyecciones/historico', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
+      const user = req.user;
       const { years, months, salespersonCode, segment } = req.query;
       
       const filters: any = {};
@@ -10586,12 +10587,34 @@ export function registerRoutes(app: Express): Server {
         filters.months = months.split(',').map((m: string) => parseInt(m));
       }
       
-      if (salespersonCode) {
-        filters.salespersonCode = salespersonCode;
-      }
-      
-      if (segment) {
-        filters.segment = segment;
+      // Role-based filtering
+      if (user.role === 'salesperson') {
+        // Salespeople can only see their own historical data
+        const salespersonUser = await storage.getSalespersonUser(user.id);
+        const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
+        
+        if (!userSalespersonCode) {
+          return res.status(403).json({ 
+            message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador." 
+          });
+        }
+        filters.salespersonCode = userSalespersonCode;
+      } else if (user.role === 'supervisor') {
+        // Supervisors can only see data from their segment
+        if (!user.assignedSegment) {
+          return res.status(403).json({ 
+            message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador." 
+          });
+        }
+        filters.segment = user.assignedSegment;
+      } else if (user.role === 'admin') {
+        // Admins can filter by any salesperson or segment
+        if (salespersonCode) {
+          filters.salespersonCode = salespersonCode;
+        }
+        if (segment) {
+          filters.segment = segment;
+        }
       }
       
       const data = await storage.getHistoricoVentasPorAnio(filters);
@@ -10664,13 +10687,16 @@ export function registerRoutes(app: Express): Server {
       // Role-based filtering
       if (user.role === 'salesperson') {
         // Salespeople can only see their own projections
+        // Check both salespeople_users table and regular users table with salespersonName
         const salespersonUser = await storage.getSalespersonUser(user.id);
-        if (!salespersonUser?.salespersonCode) {
+        const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
+        
+        if (!userSalespersonCode) {
           return res.status(403).json({ 
             message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador." 
           });
         }
-        filters.salespersonCode = salespersonUser.salespersonCode;
+        filters.salespersonCode = userSalespersonCode;
       } else if (user.role === 'supervisor') {
         // Supervisors can only see projections from their segment
         if (!user.assignedSegment) {
@@ -10712,8 +10738,17 @@ export function registerRoutes(app: Express): Server {
       // Role-based authorization
       if (user.role === 'salesperson') {
         // Salespeople can only create/edit projections for themselves
+        // Check both salespeople_users table and regular users table with salespersonName
         const salespersonUser = await storage.getSalespersonUser(user.id);
-        if (!salespersonUser?.salespersonCode || validated.salespersonCode !== salespersonUser.salespersonCode) {
+        const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
+        
+        if (!userSalespersonCode) {
+          return res.status(403).json({ 
+            message: "Tu usuario no tiene un código de vendedor asignado" 
+          });
+        }
+        
+        if (validated.salespersonCode !== userSalespersonCode) {
           return res.status(403).json({ 
             message: "No tienes permiso para crear proyecciones para otros vendedores" 
           });
@@ -10758,8 +10793,17 @@ export function registerRoutes(app: Express): Server {
       // Role-based authorization
       if (user.role === 'salesperson') {
         // Salespeople can only delete their own projections
+        // Check both salespeople_users table and regular users table with salespersonName
         const salespersonUser = await storage.getSalespersonUser(user.id);
-        if (!salespersonUser?.salespersonCode || projection.salespersonCode !== salespersonUser.salespersonCode) {
+        const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
+        
+        if (!userSalespersonCode) {
+          return res.status(403).json({ 
+            message: "Tu usuario no tiene un código de vendedor asignado" 
+          });
+        }
+        
+        if (projection.salespersonCode !== userSalespersonCode) {
           return res.status(403).json({ 
             message: "No tienes permiso para eliminar proyecciones de otros vendedores" 
           });

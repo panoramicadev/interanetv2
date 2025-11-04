@@ -33,11 +33,13 @@ Preferred communication style: Simple, everyday language.
 - Initial $0 projection created for January to make future clients appear in the table
 - Full integration with existing projection system - no disruption to historical data or calculations
 - **Security Enhancements**: Role-based access control implemented with strict permission validation
-  - Salespeople can only view/create/edit/delete their own projections
-  - Supervisors can only manage projections within their assigned segment
+  - Salespeople can only view/create/edit/delete their own projections (supports both `salespeople_users` and regular `users` with `salespersonName`)
+  - Supervisors can only manage projections within their assigned segment, with filtered salesperson dropdown showing only their segment vendors
   - Admins have full access to all projections
-  - Critical authorization bypass vulnerability fixed - users without required metadata (salespersonCode/assignedSegment) are properly rejected
+  - Critical authorization bypass vulnerability fixed - users without required metadata (salespersonName/assignedSegment) are properly rejected
   - All endpoints validate user permissions before allowing data access or modifications
+  - New `getSalespeopleBySegment()` method filters salespeople by segment for supervisor role
+  - All projection endpoints (GET historic, GET projections, POST create, DELETE) use consistent dual-source salesperson code lookup
 
 ### November 4, 2025 - Smart Sales Notifications & Period Display for Salesperson Dashboard
 **Added intelligent sales notifications and period display:**
