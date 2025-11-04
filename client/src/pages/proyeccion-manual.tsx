@@ -128,9 +128,9 @@ export default function ProyeccionManualPage() {
     queryKey: ['/api/proyecciones/segments'],
   });
 
-  // Fetch historical data
+  // Fetch historical data (segment filter applied in frontend only)
   const { data: historicalData = [], isLoading: isLoadingHistorical } = useQuery<HistoricalSalesData[]>({
-    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, selectedSegment],
+    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedYears.length > 0) {
@@ -142,9 +142,7 @@ export default function ProyeccionManualPage() {
       if (selectedSalesperson !== 'all') {
         params.append('salespersonCode', selectedSalesperson);
       }
-      if (selectedSegment !== 'all') {
-        params.append('segment', selectedSegment);
-      }
+      // NOTE: segment filter NOT sent to backend - applied in frontend for display only
       const response = await fetch(`/api/proyecciones/historico?${params}`, {
         credentials: 'include'
       });
@@ -154,9 +152,9 @@ export default function ProyeccionManualPage() {
     enabled: selectedYears.length > 0,
   });
 
-  // Fetch manual projections
+  // Fetch manual projections (segment filter applied in frontend only)
   const { data: manualProjections = [] } = useQuery<ManualProjection[]>({
-    queryKey: ['/api/proyecciones/manual', futureYear ? [...selectedYears, futureYear].join(',') : selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, selectedSegment],
+    queryKey: ['/api/proyecciones/manual', futureYear ? [...selectedYears, futureYear].join(',') : selectedYears.join(','), selectedMonths.join(','), selectedSalesperson],
     queryFn: async () => {
       const params = new URLSearchParams();
       const years = futureYear ? [...selectedYears, futureYear] : selectedYears;
@@ -169,9 +167,7 @@ export default function ProyeccionManualPage() {
       if (selectedSalesperson !== 'all') {
         params.append('salespersonCode', selectedSalesperson);
       }
-      if (selectedSegment !== 'all') {
-        params.append('segment', selectedSegment);
-      }
+      // NOTE: segment filter NOT sent to backend - applied in frontend for display only
       const response = await fetch(`/api/proyecciones/manual?${params}`, {
         credentials: 'include'
       });
@@ -510,13 +506,21 @@ export default function ProyeccionManualPage() {
     }).format(value);
   };
 
+  // Apply segment filter in frontend for display only
+  const filteredData = useMemo(() => {
+    if (selectedSegment === 'all') {
+      return processedData;
+    }
+    return processedData.filter(client => client.segment === selectedSegment);
+  }, [processedData, selectedSegment]);
+
   const totalRow = useMemo(() => {
     if (showMonthlyView) {
       // Calculate totals by period (year-month)
       const totals: Record<string, number> = {};
       allPeriods.forEach(period => {
         const key = `${period.year}-${period.month}`;
-        totals[key] = processedData.reduce((sum, client) => {
+        totals[key] = filteredData.reduce((sum, client) => {
           const historicalValue = client.monthlyData?.[key] || 0;
           const projectedValue = client.monthlyProjectedData?.[key] || 0;
           return sum + historicalValue + projectedValue;
@@ -527,7 +531,7 @@ export default function ProyeccionManualPage() {
       // Calculate totals by year
       const totals: Record<number, number> = {};
       allYears.forEach(year => {
-        totals[year] = processedData.reduce((sum, client) => {
+        totals[year] = filteredData.reduce((sum, client) => {
           const historicalValue = client.yearlyData[year] || 0;
           const projectedValue = client.projectedData[year] || 0;
           return sum + historicalValue + projectedValue;
@@ -535,7 +539,7 @@ export default function ProyeccionManualPage() {
       });
       return totals as Record<string | number, number>;
     }
-  }, [allYears, processedData, allPeriods, showMonthlyView]);
+  }, [allYears, filteredData, allPeriods, showMonthlyView]);
 
   return (
     <div className="space-y-6">
@@ -748,7 +752,7 @@ export default function ProyeccionManualPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Clientes</p>
-                  <p className="text-2xl font-bold">{processedData.length}</p>
+                  <p className="text-2xl font-bold">{filteredData.length}</p>
                 </div>
                 <Users className="w-8 h-8 text-blue-500" />
               </div>
@@ -855,7 +859,7 @@ export default function ProyeccionManualPage() {
                         Cargando datos...
                       </TableCell>
                     </TableRow>
-                  ) : processedData.length === 0 ? (
+                  ) : filteredData.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={allYears.length + 4} className="text-center">
                         No hay datos disponibles para los filtros seleccionados
@@ -863,7 +867,7 @@ export default function ProyeccionManualPage() {
                     </TableRow>
                   ) : (
                     <>
-                      {processedData.map((client) => {
+                      {filteredData.map((client) => {
                         const totalPeriod = allYears.reduce((sum, year) => {
                           return sum + (client.yearlyData[year] || 0) + (client.projectedData[year] || 0);
                         }, 0);

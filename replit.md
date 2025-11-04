@@ -6,6 +6,34 @@
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### November 4, 2025 - Segment Filter Fixed for Manual Projections
+**Fixed segment filter behavior to be display-only without breaking save functionality:**
+- **Frontend-Only Filtering**: Segment filter now applies only in the frontend for visualization
+  - Backend queries no longer receive segment parameter
+  - All client data is loaded regardless of segment selection
+  - Filtering happens client-side using `filteredData` computed from `processedData`
+- **Preserved Save Functionality**: Users can now save projections regardless of selected segment filter
+- **Consistent User Experience**: Filter updates are immediate and don't affect data availability
+- **Performance**: Maintains efficient data loading while allowing flexible filtering
+
+### November 4, 2025 - Manual Salesperson Name Input in User Creation
+**Enhanced user creation form to support new salespeople:**
+- **Manual Input Field**: Text input allows direct entry of salesperson names
+- **Dual Entry Method**: Users can either type directly or select from existing salespeople
+- **Fixed Form Control**: Corrected React Hook Form integration to ensure input functionality
+- **Solves Bootstrap Problem**: Administrators can create user accounts before salespeople have sales transactions
+
+### November 4, 2025 - Editable Historical Years for Future Clients
+**Enhanced manual projection system to support baseline data entry for fictitious clients:**
+- **Future Client Detection**: System identifies fictitious clients by "FUTURO-" prefix
+- **Unrestricted Editing**: Future clients can edit ALL years (historical and future)
+  - Real clients: Read-only on historical data, editable on future years
+  - Future clients: Editable on both historical (2024, 2025) and future years (2026+)
+- **Baseline Data Population**: Allows realistic historical baseline data before making projections
+- **Filter Improvements**: Added placeholders to Segment and Salesperson filters
+
 ## System Architecture
 
 ### Frontend
