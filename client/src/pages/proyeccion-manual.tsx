@@ -151,13 +151,7 @@ export default function ProyeccionManualPage() {
         params.append('salespersonCode', selectedSalesperson);
       }
       // NOTE: segment filter NOT sent to backend - applied in frontend for display only
-      const url = `/api/proyecciones/historico?${params}`;
-      console.log('[QUERY HISTORICO]', {
-        selectedSalesperson,
-        url,
-        params: Object.fromEntries(params.entries())
-      });
-      const response = await fetch(url, {
+      const response = await fetch(`/api/proyecciones/historico?${params}`, {
         credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to fetch historical data');
@@ -182,13 +176,7 @@ export default function ProyeccionManualPage() {
         params.append('salespersonCode', selectedSalesperson);
       }
       // NOTE: segment filter NOT sent to backend - applied in frontend for display only
-      const url = `/api/proyecciones/manual?${params}`;
-      console.log('[QUERY MANUAL]', {
-        selectedSalesperson,
-        url,
-        params: Object.fromEntries(params.entries())
-      });
-      const response = await fetch(url, {
+      const response = await fetch(`/api/proyecciones/manual?${params}`, {
         credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to fetch manual projections');
@@ -532,32 +520,7 @@ export default function ProyeccionManualPage() {
       return processedData;
     }
     
-    // Debug: log available segments in the data
-    const uniqueSegments = Array.from(new Set(processedData.map(c => c.segment)));
-    console.log('[SEGMENT FILTER]', {
-      selectedSegment,
-      uniqueSegments,
-      totalClients: processedData.length
-    });
-    
-    const filtered = processedData.filter(client => {
-      const match = client.segment === selectedSegment;
-      if (!match && client.segment) {
-        console.log('[SEGMENT MISMATCH]', {
-          clientSegment: client.segment,
-          selectedSegment,
-          clientName: client.clientName
-        });
-      }
-      return match;
-    });
-    
-    console.log('[FILTERED RESULT]', {
-      filteredCount: filtered.length,
-      totalCount: processedData.length
-    });
-    
-    return filtered;
+    return processedData.filter(client => client.segment === selectedSegment);
   }, [processedData, selectedSegment]);
 
   const totalRow = useMemo(() => {
