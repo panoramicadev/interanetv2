@@ -997,17 +997,21 @@ function ListLeadRow({
   ];
   const avatarColor = avatarColors[lead.id.charCodeAt(0) % avatarColors.length];
 
+  const daysSinceUpdate = getDaysSinceUpdate(lead);
+  const alert = getInactivityAlert(daysSinceUpdate);
+
   return (
     <Card className="hover:shadow-sm transition-shadow bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800" data-testid={`row-lead-${lead.id}`}>
       <CardContent className="p-4">
-        <div className="flex items-center gap-4">
-          {/* Avatar */}
-          <div className={`w-10 h-10 rounded-full ${avatarColor} flex items-center justify-center text-white font-semibold text-sm shadow-md flex-shrink-0`}>
-            {initials}
-          </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-4">
+            {/* Avatar */}
+            <div className={`w-10 h-10 rounded-full ${avatarColor} flex items-center justify-center text-white font-semibold text-sm shadow-md flex-shrink-0`}>
+              {initials}
+            </div>
 
-          {/* Info */}
-          <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4">
+            {/* Info */}
+            <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-4">
             <div className="min-w-0">
               <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">
                 {lead.clientName}
@@ -1096,6 +1100,18 @@ function ListLeadRow({
               )}
             </div>
           </div>
+        </div>
+
+          {/* Alerta de inactividad */}
+          {alert && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ml-14 ${alert.bgColor} ${alert.borderColor}`} data-testid={`alert-inactivity-list-${lead.id}`}>
+              <Clock className={`flex-shrink-0 w-4 h-4 ${alert.textColor}`} />
+              <span className={`flex-1 font-medium text-xs ${alert.textColor}`}>
+                {alert.message}
+              </span>
+              <AlertCircle className={`flex-shrink-0 w-4 h-4 ${alert.textColor}`} />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
