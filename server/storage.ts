@@ -218,6 +218,8 @@ import { eq, desc, asc, sql, and, gte, lte, lt, ne, inArray, or, isNull, isNotNu
 import { getComunaRegion } from "./chile-regions";
 import { comunaRegionService } from "./comunaRegionService";
 import mssql from 'mssql';
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 // Utility function to normalize comuna names for consistent regional mapping
 function normalizeComunaName(name: string | null): string | null {
@@ -472,6 +474,27 @@ export interface IStorage {
       topProduct: string;
       productSales: number;
       totalClientSales: number;
+    }>;
+  }>;
+  
+  getSalespersonSmartNotifications(salesperson: string): Promise<{
+    inactiveClients: Array<{
+      clientName: string;
+      daysSinceLastPurchase: number;
+      lastPurchaseAmount: number;
+      totalHistoricalSales: number;
+    }>;
+    seasonalClients: Array<{
+      clientName: string;
+      expectedPurchaseDate: string;
+      averagePurchaseAmount: number;
+      purchasePattern: string;
+    }>;
+    trendingProducts: Array<{
+      productName: string;
+      recentSales: number;
+      growthRate: number;
+      recommendation: string;
     }>;
   }>;
   
@@ -4470,6 +4493,179 @@ export class DatabaseStorage implements IStorage {
       inactiveClients,
       frequentClients,
       clientsWithTopProducts
+    };
+  }
+
+  async getSalespersonSmartNotifications(salesperson: string): Promise<{
+    inactiveClients: Array<{
+      clientName: string;
+      daysSinceLastPurchase: number;
+      lastPurchaseAmount: number;
+      totalHistoricalSales: number;
+    }>;
+    seasonalClients: Array<{
+      clientName: string;
+      expectedPurchaseDate: string;
+      averagePurchaseAmount: number;
+      purchasePattern: string;
+    }>;
+    trendingProducts: Array<{
+      productName: string;
+      recentSales: number;
+      growthRate: number;
+      recommendation: string;
+    }>;
+  }> {
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+    
+    // 1. Clientes inactivos (30+ días sin comprar)
+    const inactiveClientsData = await db
+      .select({
+        clientName: salesTransactions.nokoen,
+        lastPurchaseDate: sql<string>`MAX(${salesTransactions.feemdo})`,
+        lastPurchaseAmount: sql<number>`COALESCE((
+          SELECT CAST(monto AS NUMERIC)
+          FROM sales_transactions st2
+          WHERE st2.nokoen = sales_transactions.nokoen
+            AND st2.nokofu = ${salesperson}
+          ORDER BY st2.feemdo DESC
+          LIMIT 1
+        ), 0)`,
+        totalHistoricalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`
+      ))
+      .groupBy(salesTransactions.nokoen)
+      .having(sql`MAX(${salesTransactions.feemdo}) < CURRENT_DATE - INTERVAL '30 days'`)
+      .orderBy(sql`MAX(${salesTransactions.feemdo}) DESC`)
+      .limit(10);
+
+    const inactiveClients = inactiveClientsData.map(client => {
+      const lastPurchaseDate = new Date(client.lastPurchaseDate);
+      const daysSinceLastPurchase = Math.floor((today.getTime() - lastPurchaseDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      return {
+        clientName: client.clientName || '',
+        daysSinceLastPurchase,
+        lastPurchaseAmount: Number(client.lastPurchaseAmount || 0),
+        totalHistoricalSales: Number(client.totalHistoricalSales)
+      };
+    });
+
+    // 2. Clientes que compran frecuentemente en esta época del año
+    const seasonalClientsData = await db
+      .select({
+        clientName: salesTransactions.nokoen,
+        purchaseMonth: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo}::date)`,
+        purchaseDay: sql<number>`EXTRACT(DAY FROM ${salesTransactions.feemdo}::date)`,
+        avgAmount: sql<number>`AVG(CAST(${salesTransactions.monto} AS NUMERIC))`,
+        transactionCount: sql<number>`COUNT(*)`
+      })
+      .from(salesTransactions)
+      .where(and(
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`,
+        sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo}::date) = ${currentMonth}`
+      ))
+      .groupBy(salesTransactions.nokoen, sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo}::date)`, sql`EXTRACT(DAY FROM ${salesTransactions.feemdo}::date)`)
+      .having(sql`COUNT(*) >= 2`)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(10);
+
+    const seasonalClients = seasonalClientsData.map(client => {
+      const dayDiff = Math.abs(Number(client.purchaseDay) - currentDay);
+      let purchasePattern = 'Compra mensual';
+      
+      if (dayDiff <= 5) {
+        purchasePattern = `Suele comprar a principios/mediados de ${format(new Date(2024, currentMonth - 1, 1), 'MMMM', { locale: es })}`;
+      }
+      
+      return {
+        clientName: client.clientName || '',
+        expectedPurchaseDate: `${currentDay}/${currentMonth}/${today.getFullYear()}`,
+        averagePurchaseAmount: Number(client.avgAmount),
+        purchasePattern
+      };
+    });
+
+    // 3. Productos en tendencia (crecimiento en últimos 30 días vs 30-60 días anteriores)
+    const recentProductSales = await db
+      .select({
+        productName: salesTransactions.nokoprct,
+        recentSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`,
+        sql`${salesTransactions.feemdo}::date >= CURRENT_DATE - INTERVAL '30 days'`
+      ))
+      .groupBy(salesTransactions.nokoprct);
+
+    const previousProductSales = await db
+      .select({
+        productName: salesTransactions.nokoprct,
+        previousSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
+      })
+      .from(salesTransactions)
+      .where(and(
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`,
+        sql`${salesTransactions.feemdo}::date >= CURRENT_DATE - INTERVAL '60 days'`,
+        sql`${salesTransactions.feemdo}::date < CURRENT_DATE - INTERVAL '30 days'`
+      ))
+      .groupBy(salesTransactions.nokoprct);
+
+    const productTrends = recentProductSales.map(recent => {
+      const previous = previousProductSales.find(p => p.productName === recent.productName);
+      const previousSalesValue = Number(previous?.previousSales || 0);
+      const recentSalesValue = Number(recent.recentSales);
+      
+      let growthRate = 0;
+      if (previousSalesValue > 0) {
+        growthRate = ((recentSalesValue - previousSalesValue) / previousSalesValue) * 100;
+      } else if (recentSalesValue > 0) {
+        growthRate = 100; // New product with sales
+      }
+      
+      return {
+        productName: recent.productName || '',
+        recentSales: recentSalesValue,
+        growthRate,
+        previousSales: previousSalesValue
+      };
+    })
+    .filter(p => p.growthRate > 10 && p.recentSales > 0)
+    .sort((a, b) => b.growthRate - a.growthRate)
+    .slice(0, 10);
+
+    const trendingProducts = productTrends.map(product => {
+      let recommendation = '';
+      if (product.growthRate > 50) {
+        recommendation = 'Alta demanda - Recomendar a clientes activos';
+      } else if (product.growthRate > 25) {
+        recommendation = 'Tendencia positiva - Considerar promocionar';
+      } else {
+        recommendation = 'Crecimiento moderado - Mantener en oferta';
+      }
+      
+      return {
+        productName: product.productName,
+        recentSales: product.recentSales,
+        growthRate: Math.round(product.growthRate * 10) / 10,
+        recommendation
+      };
+    });
+
+    return {
+      inactiveClients,
+      seasonalClients,
+      trendingProducts
     };
   }
 

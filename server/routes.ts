@@ -1926,6 +1926,19 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Notificaciones inteligentes de ventas para vendedores
+  app.get("/api/sales/salesperson/:salespersonName/smart-notifications", requireAuth, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      
+      const notifications = await storage.getSalespersonSmartNotifications(salespersonName);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error fetching smart notifications:", error);
+      res.status(500).json({ message: "Failed to fetch smart notifications" });
+    }
+  });
+
   // Get available vendors for supervisor to claim
   app.get("/api/supervisor/:supervisorId/available-vendors", requireAuth, async (req, res) => {
     try {

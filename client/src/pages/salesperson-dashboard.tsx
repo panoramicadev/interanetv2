@@ -245,6 +245,17 @@ export default function SalespersonDashboard() {
   
   const transactionsData = Array.isArray(transactionsResponse) ? transactionsResponse : (transactionsResponse?.items || []);
 
+  // Fetch smart notifications for sales insights
+  const { data: smartNotifications, isLoading: loadingNotifications } = useQuery({
+    queryKey: ['/api/sales/salesperson', salespersonName, 'smart-notifications'],
+    queryFn: async () => {
+      const res = await fetch(`/api/sales/salesperson/${encodeURIComponent(salespersonName)}/smart-notifications`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && !isLoadingSalespeopleFallback,
+  });
+
   const { data: goalsData, isLoading: loadingGoals } = useQuery<GoalProgress[]>({
     queryKey: ['/api/goals/progress', selectedPeriod, 'salesperson', salespersonName],
     queryFn: async () => {
@@ -660,6 +671,130 @@ export default function SalespersonDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Notificaciones Inteligentes de Ventas */}
+        {smartNotifications && (
+          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-indigo-50/80 via-purple-50/60 to-pink-100/40" data-testid="card-smart-notifications">
+            <CardHeader className="p-4 sm:p-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-500 rounded-full p-2 sm:p-3">
+                  <Bell className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-base sm:text-lg font-bold text-gray-900">Oportunidades de Venta</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm text-gray-600">
+                    Insights inteligentes para aumentar tus ventas
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+              {/* Clientes Inactivos */}
+              {smartNotifications.inactiveClients?.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-orange-500" />
+                    Clientes Inactivos ({smartNotifications.inactiveClients.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {smartNotifications.inactiveClients.slice(0, 3).map((client: any, idx: number) => (
+                      <div 
+                        key={idx}
+                        className="bg-white/60 rounded-lg p-3 border border-orange-200"
+                        data-testid={`inactive-client-${idx}`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 text-sm truncate">{client.clientName}</p>
+                            <p className="text-xs text-gray-600">
+                              {client.daysSinceLastPurchase} días sin comprar
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-600">Última compra</p>
+                            <p className="font-semibold text-sm text-orange-700">
+                              ${client.lastPurchaseAmount.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Clientes Estacionales */}
+              {smartNotifications.seasonalClients?.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4 text-blue-500" />
+                    Clientes Estacionales ({smartNotifications.seasonalClients.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {smartNotifications.seasonalClients.slice(0, 3).map((client: any, idx: number) => (
+                      <div 
+                        key={idx}
+                        className="bg-white/60 rounded-lg p-3 border border-blue-200"
+                        data-testid={`seasonal-client-${idx}`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 text-sm truncate">{client.clientName}</p>
+                            <p className="text-xs text-gray-600">{client.purchasePattern}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-600">Promedio</p>
+                            <p className="font-semibold text-sm text-blue-700">
+                              ${client.averagePurchaseAmount.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Productos en Tendencia */}
+              {smartNotifications.trendingProducts?.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-emerald-500" />
+                    Productos en Tendencia ({smartNotifications.trendingProducts.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {smartNotifications.trendingProducts.slice(0, 3).map((product: any, idx: number) => (
+                      <div 
+                        key={idx}
+                        className="bg-white/60 rounded-lg p-3 border border-emerald-200"
+                        data-testid={`trending-product-${idx}`}
+                      >
+                        <div className="flex items-start justify-between mb-1">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 text-sm truncate">{product.productName}</p>
+                            <p className="text-xs text-gray-600">{product.recommendation}</p>
+                          </div>
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                            +{product.growthRate}%
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!smartNotifications.inactiveClients?.length && 
+               !smartNotifications.seasonalClients?.length && 
+               !smartNotifications.trendingProducts?.length && (
+                <div className="text-center py-6 text-gray-500">
+                  <Info className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm">No hay notificaciones inteligentes disponibles en este momento</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* KPIs del Vendedor */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
