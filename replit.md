@@ -8,6 +8,19 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 4, 2025 - CRM Smart Inactivity Alerts
+**Added intelligent inactivity alerts in CRM lead cards:**
+- Automatic calculation of days since last update for each lead
+- Visual alerts displayed directly on lead cards (both column and list views)
+- Three-tier alert system based on inactivity duration:
+  - **7-13 days**: Yellow warning badge
+  - **14-20 days**: Orange danger badge
+  - **21+ days**: Red critical badge
+- Alert shows "Sin movimiento por X días" with clock and alert icons
+- Helps sales teams identify stagnant leads that need attention
+- Alerts automatically update based on lead's `updatedAt` timestamp
+- Works seamlessly with existing CRM functionality and drag-and-drop features
+
 ### November 4, 2025 - Manual Sales Projection System Enhancements
 **Enhanced manual sales projection functionality:**
 - **Monthly to Yearly Calculation**: Monthly amounts automatically sum to calculate yearly totals - users enter monthly projections and the system computes annual values
