@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface HistoricalSalesData {
   year: number;
@@ -86,6 +88,9 @@ export default function ProyeccionManualPage() {
   const [futureYear, setFutureYear] = useState<number>(2026); // Siempre inicia en 2026
   const [editingCells, setEditingCells] = useState<Record<string, number>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [showAddClientDialog, setShowAddClientDialog] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientSegment, setNewClientSegment] = useState("");
 
   // Helper function to get segment display name
   const getSegmentName = (segmentCode: string): string => {
@@ -192,6 +197,68 @@ export default function ProyeccionManualPage() {
       toast({ 
         title: 'Error', 
         description: 'No se pudo guardar la proyección',
+        variant: 'destructive'
+      });
+    },
+  });
+
+  // Helper to normalize client code (remove accents and special characters)
+  const normalizeClientCode = (name: string): string => {
+    return name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove accents
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '-') // Replace non-alphanumeric with dash
+      .replace(/-+/g, '-') // Replace multiple dashes with single dash
+      .replace(/^-|-$/g, ''); // Remove leading/trailing dashes
+  };
+
+  // Mutation to add future client
+  const addFutureClientMutation = useMutation({
+    mutationFn: async ({ clientName, segment }: { clientName: string; segment: string }) => {
+      // Validate inputs
+      const trimmedName = clientName.trim();
+      const trimmedSegment = segment.trim();
+      
+      if (!trimmedName) {
+        throw new Error('El nombre del cliente es requerido');
+      }
+      if (!trimmedSegment) {
+        throw new Error('El segmento es requerido');
+      }
+      if (selectedSalesperson === 'all') {
+        throw new Error('Debes seleccionar un vendedor específico para agregar un cliente futuro');
+      }
+
+      const salespersonInfo = salespeopleData.find(s => s.code === selectedSalesperson);
+      const normalizedCode = normalizeClientCode(trimmedName);
+      
+      // Create initial projection with $0 for January to make the client appear
+      return await apiRequest('/api/proyecciones/manual', {
+        method: 'POST',
+        data: {
+          year: futureYear,
+          month: 1,
+          salespersonCode: selectedSalesperson,
+          salespersonName: salespersonInfo?.name || selectedSalesperson,
+          clientCode: `FUTURO-${normalizedCode}`,
+          clientName: trimmedName,
+          segment: trimmedSegment,
+          projectedAmount: 0,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/proyecciones/manual'] });
+      setShowAddClientDialog(false);
+      setNewClientName("");
+      setNewClientSegment("");
+      toast({ title: 'Cliente futuro agregado exitosamente' });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.message || 'No se pudo agregar el cliente futuro',
         variant: 'destructive'
       });
     },
@@ -689,10 +756,35 @@ export default function ProyeccionManualPage() {
       {selectedYears.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Ventas por Cliente y Año</CardTitle>
-            <CardDescription>
-              Histórico de ventas y proyecciones mensuales. Expande cada cliente para ver el desglose por mes. El total anual se calcula automáticamente sumando los 12 meses.
-            </CardDescription>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle>Ventas por Cliente y Año</CardTitle>
+                <CardDescription>
+                  Histórico de ventas y proyecciones mensuales. Expande cada cliente para ver el desglose por mes. El total anual se calcula automáticamente sumando los 12 meses.
+                </CardDescription>
+              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Button 
+                        onClick={() => setShowAddClientDialog(true)}
+                        disabled={selectedSalesperson === 'all'}
+                        data-testid="button-add-future-client"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Agregar Cliente Futuro
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  {selectedSalesperson === 'all' && (
+                    <TooltipContent>
+                      <p>Selecciona un vendedor específico para agregar clientes futuros</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -1107,6 +1199,77 @@ export default function ProyeccionManualPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Add Future Client Dialog */}
+      <Dialog open={showAddClientDialog} onOpenChange={setShowAddClientDialog}>
+        <DialogContent data-testid="dialog-add-future-client">
+          <DialogHeader>
+            <DialogTitle>Agregar Cliente Futuro</DialogTitle>
+            <DialogDescription>
+              Crea un cliente ficticio para proyectar ventas futuras. El cliente aparecerá en la tabla y podrás ingresar proyecciones mensuales.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-client-name">Nombre del Cliente</Label>
+              <Input
+                id="new-client-name"
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                placeholder="Ej: Empresa Constructora ABC"
+                data-testid="input-new-client-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-client-segment">Segmento</Label>
+              <Select value={newClientSegment} onValueChange={setNewClientSegment}>
+                <SelectTrigger id="new-client-segment" data-testid="select-new-client-segment">
+                  <SelectValue placeholder="Selecciona un segmento" />
+                </SelectTrigger>
+                <SelectContent>
+                  {segmentsData.map(seg => (
+                    <SelectItem key={seg.code} value={seg.code}>
+                      {seg.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedSalesperson === 'all' && (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  Debes seleccionar un vendedor específico antes de agregar un cliente futuro.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddClientDialog(false);
+                setNewClientName("");
+                setNewClientSegment("");
+              }}
+              data-testid="button-cancel-add-client"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                addFutureClientMutation.mutate({
+                  clientName: newClientName,
+                  segment: newClientSegment
+                });
+              }}
+              disabled={addFutureClientMutation.isPending || selectedSalesperson === 'all' || !newClientName.trim() || !newClientSegment}
+              data-testid="button-save-add-client"
+            >
+              {addFutureClientMutation.isPending ? 'Guardando...' : 'Agregar Cliente'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
