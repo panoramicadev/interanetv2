@@ -440,8 +440,17 @@ export default function ProyeccionManualPage() {
   }, [allYears, selectedMonths, showMonthlyView]);
 
   const handleSaveProjection = (clientCode: string, clientName: string, segment: string, year: number, value: number, month?: number) => {
-    // Always use the selected salesperson, never use 'all'
-    const salespersonCode = selectedSalesperson !== 'all' ? selectedSalesperson : '';
+    // Validate that a specific salesperson is selected (not 'all')
+    if (selectedSalesperson === 'all' || !selectedSalesperson) {
+      toast({
+        title: 'Error',
+        description: 'Debes seleccionar un vendedor específico para guardar proyecciones',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    const salespersonCode = selectedSalesperson;
     
     // Find salesperson name from the salespeople list
     const salespersonInfo = salespeopleData.find(s => s.code === salespersonCode);
@@ -919,7 +928,17 @@ export default function ProyeccionManualPage() {
                                         </div>
                                       ) : (
                                         <button
-                                          onClick={() => setEditingCells({ ...editingCells, [cellKey]: projectedValue })}
+                                          onClick={() => {
+                                            if (selectedSalesperson === 'all' || !selectedSalesperson) {
+                                              toast({
+                                                title: 'Error',
+                                                description: 'Debes seleccionar un vendedor específico para editar proyecciones',
+                                                variant: 'destructive'
+                                              });
+                                              return;
+                                            }
+                                            setEditingCells({ ...editingCells, [cellKey]: projectedValue });
+                                          }}
                                           className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
                                         >
                                           {projectedValue > 0 ? (
@@ -1139,7 +1158,17 @@ export default function ProyeccionManualPage() {
                                                 </div>
                                               ) : (
                                                 <button
-                                                  onClick={() => setEditingCells({ ...editingCells, [cellKey]: monthlyProjectedValue })}
+                                                  onClick={() => {
+                                                    if (selectedSalesperson === 'all' || !selectedSalesperson) {
+                                                      toast({
+                                                        title: 'Error',
+                                                        description: 'Debes seleccionar un vendedor específico para editar proyecciones',
+                                                        variant: 'destructive'
+                                                      });
+                                                      return;
+                                                    }
+                                                    setEditingCells({ ...editingCells, [cellKey]: monthlyProjectedValue });
+                                                  }}
                                                   className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
                                                 >
                                                   {monthlyProjectedValue > 0 ? (
