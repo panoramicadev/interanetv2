@@ -389,14 +389,15 @@ export default function UsersPage() {
                               <FormControl>
                                 <Input
                                   placeholder="Ingresa el nombre del vendedor"
-                                  {...field}
+                                  value={field.value || ''}
+                                  onChange={field.onChange}
                                   data-testid="input-salesperson-name"
                                 />
                               </FormControl>
                               {availableSalespeople.filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp)).length > 0 && (
                                 <div className="text-sm text-muted-foreground">
                                   <p className="mb-1">O selecciona de vendedores con ventas registradas:</p>
-                                  <Select onValueChange={field.onChange} value={field.value}>
+                                  <Select onValueChange={field.onChange} value={field.value || ''}>
                                     <SelectTrigger data-testid="select-salesperson-name" className="bg-white">
                                       <SelectValue placeholder="Seleccionar de la lista" />
                                     </SelectTrigger>
