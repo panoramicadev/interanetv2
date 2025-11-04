@@ -15049,16 +15049,16 @@ export class DatabaseStorage implements IStorage {
     try {
       const results = await db
         .selectDistinct({
-          segment: salesTransactions.caprad2,
+          segment: factVentas.noruen,
         })
-        .from(salesTransactions)
+        .from(factVentas)
         .where(
           and(
-            isNotNull(salesTransactions.caprad2),
-            sql`${salesTransactions.caprad2} != ''`
+            isNotNull(factVentas.noruen),
+            sql`TRIM(${factVentas.noruen}) != ''`
           )
         )
-        .orderBy(salesTransactions.caprad2);
+        .orderBy(factVentas.noruen);
 
       return results.map(r => ({
         code: r.segment!,
