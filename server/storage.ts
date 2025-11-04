@@ -14772,15 +14772,16 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Get unique clients with their segment from ANY transaction
+      // GROUP BY only nokoen (client) to avoid duplicates when client has multiple segments
       const allUniqueClients = await db
         .select({
           clientName: salesTransactions.nokoen,
-          salespersonCode: salesTransactions.nokofu,
+          salespersonCode: sql<string>`MAX(${salesTransactions.nokofu})`, // Take any vendor (should be same)
           segment: sql<string>`MAX(${salesTransactions.noruen})`, // Take any segment from transactions
         })
         .from(salesTransactions)
         .where(and(...allClientsConditions))
-        .groupBy(salesTransactions.nokoen, salesTransactions.nokofu);
+        .groupBy(salesTransactions.nokoen);
 
       // Step 2: Get sales data ONLY for selected years
       const salesConditions = [
