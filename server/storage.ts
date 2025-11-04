@@ -14878,20 +14878,19 @@ export class DatabaseStorage implements IStorage {
         return b.totalSales - a.totalSales;
       });
       
-      // Debug logging to detect duplicates
-      const clientNameCounts: Record<string, Array<{code: string; sales: number}>> = {};
+      // Debug logging to detect TRUE duplicates (same client, same year appearing multiple times)
+      const clientYearCounts: Record<string, number> = {};
       results.forEach(r => {
-        if (!clientNameCounts[r.clientName]) {
-          clientNameCounts[r.clientName] = [];
-        }
-        clientNameCounts[r.clientName].push({ code: r.clientCode, sales: r.totalSales });
+        const key = `${r.clientName}|${r.year}`;
+        clientYearCounts[key] = (clientYearCounts[key] || 0) + 1;
       });
       
-      const duplicateNames = Object.entries(clientNameCounts).filter(([, codes]) => codes.length > 1);
-      if (duplicateNames.length > 0) {
-        console.log('⚠️  CLIENT NAME DUPLICATES DETECTED:');
-        duplicateNames.slice(0, 3).forEach(([name, codes]) => {
-          console.log(`  - "${name}": ${codes.length} codes:`, codes);
+      const trueDuplicates = Object.entries(clientYearCounts).filter(([, count]) => count > 1);
+      if (trueDuplicates.length > 0) {
+        console.log('⚠️  TRUE DUPLICATES DETECTED (same client, same year):');
+        trueDuplicates.slice(0, 5).forEach(([key, count]) => {
+          const [client, year] = key.split('|');
+          console.log(`  - "${client}" in year ${year}: ${count} times`);
         });
       }
       
