@@ -1433,6 +1433,7 @@ export interface IStorage {
     years?: number[];
     months?: number[];
     salespersonCode?: string;
+    segment?: string;
   }): Promise<ProyeccionVenta[]>;
   
   getProyeccionById(id: string): Promise<ProyeccionVenta | undefined>;

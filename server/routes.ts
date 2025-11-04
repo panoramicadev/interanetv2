@@ -10826,6 +10826,119 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get aggregated projection data for charts (Proyección Automática page)
+  app.get('/api/proyecciones/charts', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const { years, months, salespersonCode, segment } = req.query;
+      
+      const filters: any = {};
+      
+      if (years) {
+        filters.years = years.split(',').map((y: string) => parseInt(y));
+      }
+      
+      if (months) {
+        filters.months = months.split(',').map((m: string) => parseInt(m));
+      }
+      
+      // Role-based filtering (same as manual projections endpoint)
+      if (user.role === 'salesperson') {
+        const salespersonUser = await storage.getSalespersonUser(user.id);
+        const userSalespersonCode = salespersonUser?.salespersonName || user.salespersonName;
+        
+        if (!userSalespersonCode) {
+          return res.status(403).json({ 
+            message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador." 
+          });
+        }
+        filters.salespersonCode = userSalespersonCode;
+      } else if (user.role === 'supervisor') {
+        if (!user.assignedSegment) {
+          return res.status(403).json({ 
+            message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador." 
+          });
+        }
+        filters.segment = user.assignedSegment;
+      } else if (user.role === 'admin') {
+        if (salespersonCode) {
+          filters.salespersonCode = salespersonCode;
+        }
+        if (segment) {
+          filters.segment = segment;
+        }
+      }
+      
+      // Get all projections matching filters
+      const projections = await storage.getProyeccionesVentas(filters);
+      
+      // Only include future projections (those with month specified)
+      const futureProjections = projections.filter(p => p.month !== null);
+      
+      // Aggregate data for charts
+      const clientData: Record<string, { clientName: string; segment: string; total: number; byMonth: Record<string, number> }> = {};
+      const segmentData: Record<string, { total: number; byMonth: Record<string, number> }> = {};
+      const salespersonData: Record<string, { total: number; byMonth: Record<string, number> }> = {};
+      
+      futureProjections.forEach(proj => {
+        const amount = Number(proj.projectedAmount);
+        const monthKey = `${proj.year}-${proj.month}`;
+        
+        // By client
+        if (!clientData[proj.clientCode]) {
+          clientData[proj.clientCode] = {
+            clientName: proj.clientName || proj.clientCode,
+            segment: proj.segment || 'Sin Segmento',
+            total: 0,
+            byMonth: {}
+          };
+        }
+        clientData[proj.clientCode].total += amount;
+        clientData[proj.clientCode].byMonth[monthKey] = (clientData[proj.clientCode].byMonth[monthKey] || 0) + amount;
+        
+        // By segment
+        const segmentKey = proj.segment || 'Sin Segmento';
+        if (!segmentData[segmentKey]) {
+          segmentData[segmentKey] = { total: 0, byMonth: {} };
+        }
+        segmentData[segmentKey].total += amount;
+        segmentData[segmentKey].byMonth[monthKey] = (segmentData[segmentKey].byMonth[monthKey] || 0) + amount;
+        
+        // By salesperson
+        if (!salespersonData[proj.salespersonCode]) {
+          salespersonData[proj.salespersonCode] = { total: 0, byMonth: {} };
+        }
+        salespersonData[proj.salespersonCode].total += amount;
+        salespersonData[proj.salespersonCode].byMonth[monthKey] = (salespersonData[proj.salespersonCode].byMonth[monthKey] || 0) + amount;
+      });
+      
+      res.json({
+        byClient: Object.entries(clientData).map(([code, data]) => ({
+          clientCode: code,
+          clientName: data.clientName,
+          segment: data.segment,
+          total: data.total,
+          byMonth: data.byMonth
+        })).sort((a, b) => b.total - a.total),
+        
+        bySegment: Object.entries(segmentData).map(([segment, data]) => ({
+          segment,
+          total: data.total,
+          byMonth: data.byMonth
+        })).sort((a, b) => b.total - a.total),
+        
+        bySalesperson: Object.entries(salespersonData).map(([code, data]) => ({
+          salespersonCode: code,
+          total: data.total,
+          byMonth: data.byMonth
+        })).sort((a, b) => b.total - a.total)
+      });
+    } catch (error: any) {
+      console.error('Error fetching chart data:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }));
+
   const httpServer = createServer(app);
   return httpServer;
 }
