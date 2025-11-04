@@ -151,7 +151,13 @@ export default function ProyeccionManualPage() {
         params.append('salespersonCode', selectedSalesperson);
       }
       // NOTE: segment filter NOT sent to backend - applied in frontend for display only
-      const response = await fetch(`/api/proyecciones/historico?${params}`, {
+      const url = `/api/proyecciones/historico?${params}`;
+      console.log('[QUERY HISTORICO]', {
+        selectedSalesperson,
+        url,
+        params: Object.fromEntries(params.entries())
+      });
+      const response = await fetch(url, {
         credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to fetch historical data');
@@ -176,7 +182,13 @@ export default function ProyeccionManualPage() {
         params.append('salespersonCode', selectedSalesperson);
       }
       // NOTE: segment filter NOT sent to backend - applied in frontend for display only
-      const response = await fetch(`/api/proyecciones/manual?${params}`, {
+      const url = `/api/proyecciones/manual?${params}`;
+      console.log('[QUERY MANUAL]', {
+        selectedSalesperson,
+        url,
+        params: Object.fromEntries(params.entries())
+      });
+      const response = await fetch(url, {
         credentials: 'include'
       });
       if (!response.ok) throw new Error('Failed to fetch manual projections');
