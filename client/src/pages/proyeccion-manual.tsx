@@ -962,19 +962,39 @@ export default function ProyeccionManualPage() {
                               // YEARLY VIEW: Show columns for each year
                               allYears.map((year, yearIndex) => {
                                 const cellKey = `${client.clientCode}_${year}`;
-                                const historicalValue = client.yearlyData[year] || 0;
-                                const projectedValue = client.projectedData[year] || 0;
-                                const currentTotal = historicalValue + projectedValue;
-                                const isEditing = cellKey in editingCells;
                                 const isFuture = year === futureYear;
 
+                                // ALWAYS calculate total from monthly data (historical + projected)
+                                const monthlyHistoricalTotal = MONTHS.reduce((sum, month) => {
+                                  const monthKey = `${year}-${month.value}`;
+                                  return sum + (client.monthlyData?.[monthKey] || 0);
+                                }, 0);
+
+                                const monthlyProjectedTotal = MONTHS.reduce((sum, month) => {
+                                  const monthKey = `${year}-${month.value}`;
+                                  return sum + (client.monthlyProjectedData?.[monthKey] || 0);
+                                }, 0);
+
+                                // Total for this year (sum of all 12 months historical + projected)
+                                const currentTotal = monthlyHistoricalTotal + monthlyProjectedTotal;
+                                
                                 // Calculate percentage vs previous year
                                 let percentageChange: number | null = null;
                                 if (yearIndex > 0) {
                                   const previousYear = allYears[yearIndex - 1];
-                                  const previousHistorical = client.yearlyData[previousYear] || 0;
-                                  const previousProjected = client.projectedData[previousYear] || 0;
-                                  const previousTotal = previousHistorical + previousProjected;
+                                  
+                                  // Calculate previous year total from monthly data
+                                  const prevMonthlyHistorical = MONTHS.reduce((sum, month) => {
+                                    const monthKey = `${previousYear}-${month.value}`;
+                                    return sum + (client.monthlyData?.[monthKey] || 0);
+                                  }, 0);
+
+                                  const prevMonthlyProjected = MONTHS.reduce((sum, month) => {
+                                    const monthKey = `${previousYear}-${month.value}`;
+                                    return sum + (client.monthlyProjectedData?.[monthKey] || 0);
+                                  }, 0);
+
+                                  const previousTotal = prevMonthlyHistorical + prevMonthlyProjected;
                                   
                                   if (previousTotal > 0 && currentTotal > 0) {
                                     percentageChange = ((currentTotal - previousTotal) / previousTotal) * 100;
@@ -982,14 +1002,8 @@ export default function ProyeccionManualPage() {
                                 }
 
                                 if (isFuture) {
-                                  // Calculate total from ALL 12 monthly projections
-                                  const monthlyTotal = MONTHS.reduce((sum, month) => {
-                                    const monthKey = `${year}-${month.value}`;
-                                    return sum + (client.monthlyProjectedData?.[monthKey] || 0);
-                                  }, 0);
-                                  
-                                  // Always show monthly total (auto-calculated from months)
-                                  const displayValue = monthlyTotal;
+                                  // Future year: show only projected amount
+                                  const displayValue = monthlyProjectedTotal;
 
                                   // Read-only cell for future year (total calculated from months)
                                   return (
@@ -1014,12 +1028,19 @@ export default function ProyeccionManualPage() {
                                     </TableCell>
                                   );
                                 } else {
-                                  // Historical data (read-only)
+                                  // Historical year: show historical + projected from monthly data
+                                  const displayValue = currentTotal;
+                                  
                                   return (
-                                    <TableCell key={year} className="text-right">
-                                      {historicalValue > 0 ? (
+                                    <TableCell key={year} className="text-right" title={`Total automático: suma de 12 meses (${formatCurrency(monthlyHistoricalTotal)} histórico + ${formatCurrency(monthlyProjectedTotal)} proyectado)`}>
+                                      {displayValue > 0 ? (
                                         <div className="flex flex-col items-end">
-                                          <span>{formatCurrency(historicalValue)}</span>
+                                          <div className="flex items-center gap-1">
+                                            <span>{formatCurrency(displayValue)}</span>
+                                            {monthlyProjectedTotal > 0 && (
+                                              <span className="text-xs text-muted-foreground" title="Incluye proyecciones">∑</span>
+                                            )}
+                                          </div>
                                           {percentageChange !== null && (
                                             <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                               {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
