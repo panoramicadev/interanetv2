@@ -290,6 +290,20 @@ export default function SalespersonDashboard() {
     enabled: !!user?.id,
   });
 
+  // Fetch NVV pending sales for the salesperson
+  const { data: nvvPendingData } = useQuery<{ total: number; documentCount: number; clients: any[] }>({
+    queryKey: ['/api/sales/salesperson', salespersonName, 'nvv-pending', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/salesperson/${encodeURIComponent(salespersonName)}/nvv-pending?${params}`, { credentials: 'include' });
+      if (!res.ok) return { total: 0, documentCount: 0, clients: [] };
+      return await res.json();
+    },
+    enabled: !!salespersonName && !isLoadingSalespeopleFallback,
+  });
+
 
   // Group clients by name and aggregate their data - MUST be before any conditional returns
   const groupedClients = useMemo(() => {
@@ -671,6 +685,64 @@ export default function SalespersonDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* NVV Pendientes */}
+        {nvvPendingData && nvvPendingData.total > 0 && (
+          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-cyan-50/80 via-sky-50/60 to-blue-100/40" data-testid="card-nvv-pending">
+            <CardHeader className="p-4 sm:p-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-cyan-500 rounded-full p-2 sm:p-3">
+                  <Package className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <CardTitle className="text-base sm:text-lg font-bold text-gray-900">NVV Pendientes</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm text-gray-600">
+                    Ventas no facturadas - No suman a tus ventas actuales
+                  </CardDescription>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-cyan-900">
+                    ${(nvvPendingData.total || 0).toLocaleString()}
+                  </div>
+                  <p className="text-xs text-gray-600">{nvvPendingData.documentCount} docs</p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 sm:p-6 pt-0">
+              <div className="space-y-2 sm:space-y-3">
+                {nvvPendingData.clients.slice(0, 5).map((client: any, idx: number) => (
+                  <div 
+                    key={idx}
+                    className="border border-cyan-200 bg-cyan-50/50 rounded-xl p-3 sm:p-4"
+                    data-testid={`nvv-client-${idx}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                          {client.clientName}
+                        </h4>
+                        <p className="text-xs text-gray-600 mt-1">
+                          {client.documentCount} documento{client.documentCount !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-600">Pendiente</p>
+                        <p className="font-semibold text-sm text-cyan-700">
+                          ${client.totalPending.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {nvvPendingData.clients.length > 5 && (
+                  <p className="text-xs text-center text-gray-600 pt-2">
+                    +{nvvPendingData.clients.length - 5} clientes más
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Notificaciones Inteligentes de Ventas */}
         {smartNotifications && (
