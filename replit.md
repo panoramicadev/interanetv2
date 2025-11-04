@@ -8,6 +8,18 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 4, 2025 - Manual Sales Projection System Enhancements
+**Enhanced manual sales projection functionality:**
+- **Monthly to Yearly Calculation**: Monthly amounts automatically sum to calculate yearly totals - users enter monthly projections and the system computes annual values
+- **Future Client Creation**: New "Agregar Cliente Futuro" button enables adding fictitious/future clients for projection purposes
+- **Client Code Normalization**: Automatic normalization of client codes (removes accents, special characters) for database compatibility
+- **Robust Validations**: Input validation for client name, segment, and salesperson selection before creating future clients
+- **UX Improvements**: Tooltip on disabled button explaining vendor selection requirement, clear error messages
+- **Monthly Breakdown View**: Expandable rows show month-by-month projections with automatic annual totals
+- Future clients use `FUTURO-{NORMALIZED-NAME}` format for unique identification
+- Initial $0 projection created for January to make future clients appear in the table
+- Full integration with existing projection system - no disruption to historical data or calculations
+
 ### November 4, 2025 - Smart Sales Notifications & Period Display for Salesperson Dashboard
 **Added intelligent sales notifications and period display:**
 - Dashboard now displays the currently selected period (day, month, year, or date range) prominently in the header
