@@ -8,6 +8,18 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 4, 2025 - Smart Sales Notifications & Period Display for Salesperson Dashboard
+**Added intelligent sales notifications and period display:**
+- Dashboard now displays the currently selected period (day, month, year, or date range) prominently in the header
+- Implemented smart sales notifications system with three categories:
+  - **Clientes Inactivos**: Shows clients who haven't purchased in 30+ days with their last purchase amount and historical sales
+  - **Clientes Estacionales**: Identifies clients who frequently purchase during the current month based on historical patterns
+  - **Productos en Tendencia**: Highlights products with significant growth (10%+) in the last 30 days compared to the previous 30 days, with actionable recommendations
+- New backend endpoint `/api/sales/salesperson/:salespersonName/smart-notifications` provides real-time sales insights
+- Smart notifications displayed in dedicated card with modern UI showing top 3 items per category
+- All notifications are sales-focused and provide actionable insights to increase sales performance
+- Notifications refresh automatically when period or salesperson changes
+
 ### November 4, 2025 - Notifications Access for Salesperson Role
 **Added notifications menu item for salespeople:**
 - Added "Notificaciones" menu item to salesperson navigation sidebar (first item in menu)
