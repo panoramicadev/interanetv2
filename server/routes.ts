@@ -1862,6 +1862,59 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Salesperson NVV pending sales
+  app.get("/api/sales/salesperson/:salespersonName/nvv-pending", requireAuth, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { period, filterType = "month" } = req.query;
+      
+      // Build date conditions based on period
+      const conditions = [];
+      if (period) {
+        switch (filterType) {
+          case 'month':
+            const [year, month] = (period as string).split('-');
+            conditions.push(
+              sql`EXTRACT(YEAR FROM "FEEMLI") = ${year} AND EXTRACT(MONTH FROM "FEEMLI") = ${month}`
+            );
+            break;
+          case 'year':
+            conditions.push(sql`EXTRACT(YEAR FROM "FEEMLI") = ${period}`);
+            break;
+        }
+      }
+      
+      conditions.push(sql`"NOKOFU" = ${salespersonName}`);
+      
+      const nvvData = await db
+        .select({
+          clientName: nvvPendingSales.NOKOEN,
+          totalPending: sql<number>`SUM(${nvvPendingSales.total_pendiente})`,
+          documentCount: sql<number>`COUNT(DISTINCT ${nvvPendingSales.NUDO})`,
+        })
+        .from(nvvPendingSales)
+        .where(and(...conditions))
+        .groupBy(nvvPendingSales.NOKOEN)
+        .orderBy(desc(sql`SUM(${nvvPendingSales.total_pendiente})`));
+      
+      const totalNVV = nvvData.reduce((sum, item) => sum + Number(item.totalPending), 0);
+      const totalDocuments = nvvData.reduce((sum, item) => sum + Number(item.documentCount), 0);
+      
+      res.json({
+        total: totalNVV,
+        documentCount: totalDocuments,
+        clients: nvvData.map(item => ({
+          clientName: item.clientName,
+          totalPending: Number(item.totalPending),
+          documentCount: Number(item.documentCount),
+        }))
+      });
+    } catch (error) {
+      console.error("Error fetching salesperson NVV pending:", error);
+      res.status(500).json({ message: "Failed to fetch NVV pending sales" });
+    }
+  });
+
   // Client detail routes
   app.get("/api/sales/client/:clientName/details", requireAuth, async (req, res) => {
     try {
