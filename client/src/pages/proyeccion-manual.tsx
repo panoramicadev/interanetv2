@@ -993,12 +993,15 @@ export default function ProyeccionManualPage() {
 
                                   // Read-only cell for future year (total calculated from months)
                                   return (
-                                    <TableCell key={year} className="text-right bg-muted/20">
+                                    <TableCell key={year} className="text-right bg-muted/20" title={`Total automático: suma de 12 meses`}>
                                       {displayValue > 0 ? (
                                         <div className="flex flex-col items-end">
-                                          <span className="text-blue-600 font-semibold">
-                                            {formatCurrency(displayValue)}
-                                          </span>
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-blue-600 font-semibold">
+                                              {formatCurrency(displayValue)}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground" title="Total automático calculado de 12 meses">∑</span>
+                                          </div>
                                           {percentageChange !== null && (
                                             <span className={`text-xs ${percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                               {percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%
