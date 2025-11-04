@@ -14759,7 +14759,8 @@ export class DatabaseStorage implements IStorage {
       // PRODUCTION LOGIC: Get ALL unique clients for salesperson (NO year filter)
       // This ensures we show all historical clients even if they have no sales in selected years
       
-      // Step 1: Build CTE to find last vendor per client (for segment assignment)
+      // Step 1: Build CTE to find last vendor per client (NO VENDOR FILTER YET)
+      // This determines the actual owner and segment of each client
       const lastVendorCTE = db.$with('last_vendor').as(
         db.select({
           nokoen: salesTransactions.nokoen,
@@ -14772,12 +14773,20 @@ export class DatabaseStorage implements IStorage {
           isNotNull(salesTransactions.nokofu),
           isNotNull(salesTransactions.nokoen),
           ne(salesTransactions.nokofu, '.'),
-          ne(salesTransactions.tido, 'GDV'),
-          ...(filters?.salespersonCode ? [eq(salesTransactions.nokofu, filters.salespersonCode)] : [])
+          ne(salesTransactions.tido, 'GDV')
+          // NOTE: Do NOT filter by salesperson here - we need to find the true last vendor first
         ))
       );
 
-      // Step 2: Get all unique clients (their last vendor determines segment)
+      // Step 2: Get all unique clients, THEN filter by salesperson
+      // The last vendor determines ownership and segment assignment
+      const allClientsConditions = [eq(lastVendorCTE.rowNum, 1)];
+      
+      // Filter by salesperson AFTER determining last vendor
+      if (filters?.salespersonCode) {
+        allClientsConditions.push(eq(lastVendorCTE.nokofu, filters.salespersonCode));
+      }
+
       const allClientsQuery = db
         .with(lastVendorCTE)
         .select({
@@ -14786,7 +14795,7 @@ export class DatabaseStorage implements IStorage {
           noruen: lastVendorCTE.noruen,
         })
         .from(lastVendorCTE)
-        .where(eq(lastVendorCTE.rowNum, 1));
+        .where(and(...allClientsConditions));
 
       const allUniqueClients = await allClientsQuery;
 
