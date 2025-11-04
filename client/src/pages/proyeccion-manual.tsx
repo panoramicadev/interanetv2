@@ -1015,6 +1015,16 @@ export default function ProyeccionManualPage() {
                                   return sum + (client.monthlyProjectedData?.[monthKey] || 0);
                                 }, 0);
 
+                                // Debug: Log projected data for future year
+                                if (year === futureYear && client.clientName.includes('DOBLE')) {
+                                  console.log(`🔍 [${client.clientName}] Year ${year}:`, {
+                                    monthlyProjectedData: client.monthlyProjectedData,
+                                    monthlyProjectedTotal,
+                                    futureYear,
+                                    isFuture: year === futureYear
+                                  });
+                                }
+
                                 // Total for this year (sum of all 12 months historical + projected)
                                 const currentTotal = monthlyHistoricalTotal + monthlyProjectedTotal;
                                 
