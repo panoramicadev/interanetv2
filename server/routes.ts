@@ -10450,7 +10450,15 @@ export function registerRoutes(app: Express): Server {
         if (anio) filters.anio = parseInt(anio);
       }
       
+      console.log('🔍 [PROMESAS] Query filters:', JSON.stringify(filters, null, 2));
+      console.log('🔍 [PROMESAS] User role:', user.role, '| User ID:', user.id);
+      
       const resultados = await storage.getPromesasConCumplimiento(filters);
+      
+      console.log(`✅ [PROMESAS] Found ${resultados.length} promesas`);
+      if (resultados.length > 0) {
+        console.log('📊 [PROMESAS] Sample:', JSON.stringify(resultados[0], null, 2));
+      }
       
       // Keep the nested structure that the frontend expects
       res.json(resultados);
