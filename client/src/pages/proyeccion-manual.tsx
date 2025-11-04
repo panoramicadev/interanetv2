@@ -836,7 +836,9 @@ export default function ProyeccionManualPage() {
                         <TableHead key={year} className="text-right min-w-[150px]">
                           {year}
                           {futureYear === year && (
-                            <Badge variant="outline" className="ml-2">Futuro</Badge>
+                            <Badge variant="outline" className="ml-2">
+                              Futuro ({manualProjections.filter(p => p.year === year).length} proyecciones)
+                            </Badge>
                           )}
                         </TableHead>
                       ))
