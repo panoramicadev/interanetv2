@@ -14756,33 +14756,74 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
   }>> {
     try {
-      // Step 1: If filtering by salesperson, get ALL clients that have ever bought from them
+      // Step 1: Build a map of client -> last salesperson and their segment
+      // The client belongs to the salesperson who had the LAST transaction with them
+      const clientOwnershipQuery = await db
+        .select({
+          clientName: salesTransactions.nokoen,
+          lastSalesperson: sql<string>`(
+            SELECT st.nokofu
+            FROM ${salesTransactions} st
+            WHERE st.nokoen = ${salesTransactions.nokoen}
+              AND st.tido != 'GDV'
+            ORDER BY st.feemdo DESC
+            LIMIT 1
+          )`,
+        })
+        .from(salesTransactions)
+        .where(
+          and(
+            isNotNull(salesTransactions.nokoen),
+            ne(salesTransactions.tido, 'GDV')
+          )
+        )
+        .groupBy(salesTransactions.nokoen);
+      
+      // Step 2: Get vendor segments from salespeople_users table
+      const salespeopleWithSegments = await db
+        .select({
+          name: salespeopleUsers.salespersonName,
+          segment: salespeopleUsers.assignedSegment,
+        })
+        .from(salespeopleUsers)
+        .where(isNotNull(salespeopleUsers.assignedSegment));
+      
+      const vendorSegmentMap = new Map(
+        salespeopleWithSegments.map(sp => [sp.name, sp.segment])
+      );
+      
+      // Step 3: Filter clients if salesperson or segment specified
       let clientNamesFilter: string[] | null = null;
       
-      if (filters?.salespersonCode) {
-        const clientsForSalesperson = await db
-          .selectDistinct({ clientName: salesTransactions.nokoen })
-          .from(salesTransactions)
-          .where(
-            and(
-              eq(salesTransactions.nokofu, filters.salespersonCode),
-              isNotNull(salesTransactions.nokoen),
-              ne(salesTransactions.tido, 'GDV')
-            )
-          );
+      if (filters?.salespersonCode || filters?.segment) {
+        clientNamesFilter = clientOwnershipQuery
+          .filter(client => {
+            const lastSalesperson = client.lastSalesperson;
+            const vendorSegment = vendorSegmentMap.get(lastSalesperson);
+            
+            // Check salesperson match
+            if (filters?.salespersonCode && lastSalesperson !== filters.salespersonCode) {
+              return false;
+            }
+            
+            // Check segment match (segment comes from the vendor, not the transaction)
+            if (filters?.segment && vendorSegment !== filters.segment) {
+              return false;
+            }
+            
+            return true;
+          })
+          .map(c => c.clientName);
         
-        clientNamesFilter = clientsForSalesperson.map(c => c.clientName);
-        
-        // If no clients found for this salesperson, return empty
         if (clientNamesFilter.length === 0) {
           return [];
         }
       }
       
-      // Step 2: Build conditions for the main query
+      // Step 4: Build conditions for the main sales query
       const conditions = [
         isNotNull(salesTransactions.nokofu),
-        isNotNull(salesTransactions.nokoen), // Client name must exist
+        isNotNull(salesTransactions.nokoen),
         ne(salesTransactions.nokofu, '.'),
         ne(salesTransactions.tido, 'GDV')
       ];
@@ -14794,17 +14835,12 @@ export class DatabaseStorage implements IStorage {
         conditions.push(or(...yearConditions)!);
       }
 
-      // Apply client filter if we filtered by salesperson
+      // Apply client filter
       if (clientNamesFilter && clientNamesFilter.length > 0) {
         const clientConditions = clientNamesFilter.map(clientName =>
           eq(salesTransactions.nokoen, clientName)
         );
         conditions.push(or(...clientConditions)!);
-      }
-
-      // Apply segment filter if specified
-      if (filters?.segment) {
-        conditions.push(eq(salesTransactions.noruen, filters.segment));
       }
 
       const includeMonthlyBreakdown = filters?.months && filters.months.length > 0;
@@ -15185,30 +15221,70 @@ export class DatabaseStorage implements IStorage {
     salespersonCode?: string;
     segment?: string;
   }): Promise<ProyeccionVenta[]> {
-    // Step 1: If filtering by salesperson, get ALL clients that have ever bought from them
+    // Step 1: Build a map of client -> last salesperson and their segment
     let clientNamesFilter: string[] | null = null;
     
-    if (filters?.salespersonCode) {
-      const clientsForSalesperson = await db
-        .selectDistinct({ clientName: salesTransactions.nokoen })
+    if (filters?.salespersonCode || filters?.segment) {
+      const clientOwnershipQuery = await db
+        .select({
+          clientName: salesTransactions.nokoen,
+          lastSalesperson: sql<string>`(
+            SELECT st.nokofu
+            FROM ${salesTransactions} st
+            WHERE st.nokoen = ${salesTransactions.nokoen}
+              AND st.tido != 'GDV'
+            ORDER BY st.feemdo DESC
+            LIMIT 1
+          )`,
+        })
         .from(salesTransactions)
         .where(
           and(
-            eq(salesTransactions.nokofu, filters.salespersonCode),
             isNotNull(salesTransactions.nokoen),
             ne(salesTransactions.tido, 'GDV')
           )
-        );
+        )
+        .groupBy(salesTransactions.nokoen);
       
-      clientNamesFilter = clientsForSalesperson.map(c => c.clientName);
+      // Step 2: Get vendor segments from salespeople_users table
+      const salespeopleWithSegments = await db
+        .select({
+          name: salespeopleUsers.salespersonName,
+          segment: salespeopleUsers.assignedSegment,
+        })
+        .from(salespeopleUsers)
+        .where(isNotNull(salespeopleUsers.assignedSegment));
       
-      // If no clients found for this salesperson, return empty
+      const vendorSegmentMap = new Map(
+        salespeopleWithSegments.map(sp => [sp.name, sp.segment])
+      );
+      
+      // Step 3: Filter clients
+      clientNamesFilter = clientOwnershipQuery
+        .filter(client => {
+          const lastSalesperson = client.lastSalesperson;
+          const vendorSegment = vendorSegmentMap.get(lastSalesperson);
+          
+          // Check salesperson match
+          if (filters?.salespersonCode && lastSalesperson !== filters.salespersonCode) {
+            return false;
+          }
+          
+          // Check segment match (segment comes from the vendor, not the transaction)
+          if (filters?.segment && vendorSegment !== filters.segment) {
+            return false;
+          }
+          
+          return true;
+        })
+        .map(c => c.clientName);
+      
       if (clientNamesFilter.length === 0) {
         return [];
       }
     }
     
-    // Step 2: Build conditions for the main query
+    // Step 4: Build conditions for the main query
     const conditions = [];
     
     if (filters?.years && filters.years.length > 0) {
@@ -15225,16 +15301,12 @@ export class DatabaseStorage implements IStorage {
       );
     }
 
-    // Apply client filter if we filtered by salesperson
+    // Apply client filter
     if (clientNamesFilter && clientNamesFilter.length > 0) {
       const clientConditions = clientNamesFilter.map(clientName =>
         eq(proyeccionesVentas.clientCode, clientName)
       );
       conditions.push(or(...clientConditions)!);
-    }
-
-    if (filters?.segment) {
-      conditions.push(eq(proyeccionesVentas.segment, filters.segment));
     }
 
     const result = await db
