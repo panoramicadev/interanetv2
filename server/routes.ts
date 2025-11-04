@@ -10575,7 +10575,7 @@ export function registerRoutes(app: Express): Server {
   app.get('/api/proyecciones/historico', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
-      const { years, months, salespersonCode, segment } = req.query;
+      const { years, months, salespersonCode, segment, search, limit, offset } = req.query;
       
       const filters: any = {};
       
@@ -10585,6 +10585,18 @@ export function registerRoutes(app: Express): Server {
       
       if (months) {
         filters.months = months.split(',').map((m: string) => parseInt(m));
+      }
+
+      if (search && typeof search === 'string') {
+        filters.search = search;
+      }
+
+      if (limit) {
+        filters.limit = parseInt(limit as string);
+      }
+
+      if (offset) {
+        filters.offset = parseInt(offset as string);
       }
       
       // Role-based filtering

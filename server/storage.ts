@@ -14744,33 +14744,47 @@ export class DatabaseStorage implements IStorage {
     months?: number[];
     salespersonCode?: string;
     segment?: string;
-  }): Promise<Array<{
-    year: number;
-    month?: number;
-    salespersonCode: string;
-    salespersonName: string;
-    clientCode: string;
-    clientName: string;
-    segment: string;
-    totalSales: number;
-    purchaseFrequency: number;
-  }>> {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    data: Array<{
+      year: number;
+      month?: number;
+      salespersonCode: string;
+      salespersonName: string;
+      clientCode: string;
+      clientName: string;
+      segment: string;
+      totalSales: number;
+      purchaseFrequency: number;
+    }>;
+    total: number;
+    totalClients: number;
+  }> {
     try {
       // NEW LOGIC: Use clients table as base to show ALL 13,424 clients
       // LEFT JOIN with sales_transactions to get sales data
       
       // Step 1: Get ALL clients from clients table
+      const clientConditions = [
+        isNotNull(clients.nokoen),
+        sql`TRIM(${clients.nokoen}) != ''`
+      ];
+
+      // Apply search filter
+      if (filters?.search && filters.search.trim() !== '') {
+        clientConditions.push(
+          sql`LOWER(${clients.nokoen}) LIKE LOWER(${'%' + filters.search + '%'})`
+        );
+      }
+
       const allClients = await db
         .select({
           clientName: clients.nokoen,
         })
         .from(clients)
-        .where(
-          and(
-            isNotNull(clients.nokoen),
-            sql`TRIM(${clients.nokoen}) != ''`
-          )
-        );
+        .where(and(...clientConditions));
 
       // Step 2: Get sales data with vendor and segment info for each client
       const salesConditions = [
@@ -14816,11 +14830,18 @@ export class DatabaseStorage implements IStorage {
         filteredClients = allClients.filter(c => clientsWithSales.has(c.clientName));
       }
 
-      // Step 4: Generate rows for ALL clients × ALL selected years (LEFT JOIN logic)
+      const totalClients = filteredClients.length;
+
+      // Step 3.5: Apply pagination to clients
+      const limit = filters?.limit || 10;
+      const offset = filters?.offset || 0;
+      const paginatedClients = filteredClients.slice(offset, offset + limit);
+
+      // Step 4: Generate rows for paginated clients × ALL selected years (LEFT JOIN logic)
       const years = filters?.years || [];
       const allResults: any[] = [];
 
-      for (const client of filteredClients) {
+      for (const client of paginatedClients) {
         for (const year of years) {
           // Find actual sales for this client-year combination
           const sales = salesData.find(
@@ -14862,11 +14883,16 @@ export class DatabaseStorage implements IStorage {
           console.log(`  - "${client}" in year ${year}: ${count} times`);
         });
       }
+
       
-      return results;
+      return {
+        data: results,
+        total: results.length,
+        totalClients: totalClients
+      };
     } catch (error: any) {
       console.error('Error fetching historical sales by year:', error.message);
-      return [];
+      return { data: [], total: 0, totalClients: 0 };
     }
   }
 
