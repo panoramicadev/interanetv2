@@ -386,18 +386,20 @@ export default function UsersPage() {
                           <FormItem>
                             <FormLabel>Nombre del Vendedor</FormLabel>
                             <div className="space-y-2">
-                              <Input
-                                placeholder="Ingresa el nombre del vendedor"
-                                value={field.value || ''}
-                                onChange={(e) => field.onChange(e.target.value)}
-                                data-testid="input-salesperson-name"
-                              />
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  value={field.value ?? ''}
+                                  placeholder="Ingresa el nombre del vendedor"
+                                  data-testid="input-salesperson-name"
+                                />
+                              </FormControl>
                               {availableSalespeople.filter(sp => !salespeopleUsers.some(user => user.salespersonName === sp)).length > 0 && (
                                 <div className="text-sm text-muted-foreground">
                                   <p className="mb-1">O selecciona de vendedores con ventas registradas:</p>
                                   <Select 
-                                    onValueChange={(value) => createForm.setValue('salespersonName', value, { shouldDirty: true })} 
-                                    value={availableSalespeople.includes(field.value || '') ? field.value : undefined}
+                                    onValueChange={(value) => field.onChange(value)} 
+                                    value={availableSalespeople.includes(field.value || '') ? field.value : ''}
                                   >
                                     <SelectTrigger data-testid="select-salesperson-name" className="bg-white">
                                       <SelectValue placeholder="Seleccionar de la lista" />
