@@ -10616,7 +10616,17 @@ export function registerRoutes(app: Express): Server {
   // Get salespeople list
   app.get('/api/proyecciones/salespeople', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      const salespeople = await storage.getSalespeopleList();
+      const user = req.user;
+      let salespeople = await storage.getSalespeopleList();
+      
+      // Filter salespeople by segment for supervisors
+      if (user.role === 'supervisor' && user.assignedSegment) {
+        // Get salespeople who have sales in the supervisor's segment
+        const salespeopleInSegment = await storage.getSalespeopleBySegment(user.assignedSegment);
+        const validCodes = new Set(salespeopleInSegment.map((s: any) => s.code));
+        salespeople = salespeople.filter(sp => validCodes.has(sp.code));
+      }
+      
       res.json(salespeople);
     } catch (error: any) {
       console.error('Error fetching salespeople list:', error);
