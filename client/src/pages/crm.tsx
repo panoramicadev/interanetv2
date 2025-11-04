@@ -17,7 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, Home } from "lucide-react";
+import { Plus, Phone, MessageSquare, Building2, Mail, MoreVertical, Filter, Grid3x3, List, Download, BookOpen, Trash2, Settings, Edit, AlertCircle, X, User, Home, Clock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +51,48 @@ const STAGE_BADGE_MAP: Record<string, { label: string; bgColor: string; textColo
   promesa: { label: 'Promesa', bgColor: 'bg-emerald-100 dark:bg-emerald-900/30', textColor: 'text-emerald-700 dark:text-emerald-300' },
   venta: { label: 'Venta', bgColor: 'bg-green-100 dark:bg-green-900/30', textColor: 'text-green-700 dark:text-green-300' },
 };
+
+// Utility function to calculate days since last update
+function getDaysSinceUpdate(lead: CrmLead): number {
+  const updateDate = lead.updatedAt ? new Date(lead.updatedAt) : new Date(lead.createdAt || new Date());
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - updateDate.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+// Get alert style based on days inactive
+function getInactivityAlert(days: number): { show: boolean; level: 'warning' | 'danger' | 'critical'; message: string; bgColor: string; textColor: string; borderColor: string } | null {
+  if (days >= 21) {
+    return {
+      show: true,
+      level: 'critical',
+      message: `Sin movimiento por ${days} días`,
+      bgColor: 'bg-red-50 dark:bg-red-900/20',
+      textColor: 'text-red-700 dark:text-red-400',
+      borderColor: 'border-red-300 dark:border-red-700'
+    };
+  } else if (days >= 14) {
+    return {
+      show: true,
+      level: 'danger',
+      message: `Sin movimiento por ${days} días`,
+      bgColor: 'bg-orange-50 dark:bg-orange-900/20',
+      textColor: 'text-orange-700 dark:text-orange-400',
+      borderColor: 'border-orange-300 dark:border-orange-700'
+    };
+  } else if (days >= 7) {
+    return {
+      show: true,
+      level: 'warning',
+      message: `Sin movimiento por ${days} días`,
+      bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+      textColor: 'text-yellow-700 dark:text-yellow-400',
+      borderColor: 'border-yellow-300 dark:border-yellow-700'
+    };
+  }
+  return null;
+}
 
 export default function CRMPage() {
   const { toast } = useToast();
@@ -769,6 +811,25 @@ function LeadCard({
             onDelete={onDelete}
           />
         )}
+
+        {/* Alerta de inactividad */}
+        {(() => {
+          const daysSinceUpdate = getDaysSinceUpdate(lead);
+          const alert = getInactivityAlert(daysSinceUpdate);
+          
+          if (alert) {
+            return (
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${alert.bgColor} ${alert.borderColor}`} data-testid={`alert-inactivity-${lead.id}`}>
+                <Clock className={`flex-shrink-0 ${isMobile ? 'w-4 h-4' : 'w-4 h-4'} ${alert.textColor}`} />
+                <span className={`flex-1 font-medium ${isMobile ? 'text-xs' : 'text-sm'} ${alert.textColor}`}>
+                  {alert.message}
+                </span>
+                <AlertCircle className={`flex-shrink-0 ${isMobile ? 'w-4 h-4' : 'w-4 h-4'} ${alert.textColor}`} />
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         {/* Información de contacto */}
         <div className={`space-y-1.5 min-w-0 overflow-hidden ${isMobile ? 'text-xs' : 'text-sm'}`}>
