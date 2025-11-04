@@ -1417,6 +1417,11 @@ export interface IStorage {
     name: string;
   }>>;
   
+  getSalespeopleBySegment(segment: string): Promise<Array<{
+    code: string;
+    name: string;
+  }>>;
+  
   getSegmentsList(): Promise<Array<{
     code: string;
     name: string;
@@ -15041,6 +15046,33 @@ export class DatabaseStorage implements IStorage {
       }));
     } catch (error: any) {
       console.error('Error fetching salespeople list:', error.message);
+      return [];
+    }
+  }
+
+  async getSalespeopleBySegment(segment: string): Promise<Array<{ code: string; name: string }>> {
+    try {
+      const results = await db
+        .selectDistinct({
+          name: salesTransactions.nokofu,
+        })
+        .from(salesTransactions)
+        .where(
+          and(
+            isNotNull(salesTransactions.nokofu),
+            sql`${salesTransactions.nokofu} != ''`,
+            sql`${salesTransactions.nokofu} != '.'`,
+            eq(salesTransactions.noruen, segment)
+          )
+        )
+        .orderBy(salesTransactions.nokofu);
+
+      return results.map(r => ({
+        code: r.name!,
+        name: r.name!,
+      }));
+    } catch (error: any) {
+      console.error('Error fetching salespeople by segment:', error.message);
       return [];
     }
   }
