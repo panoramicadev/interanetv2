@@ -121,11 +121,16 @@ export default function ProyeccionManualPage() {
     return rawAvailableYears.filter(year => year < 2026);
   }, [rawAvailableYears]);
 
-  // Auto-select last 3 years when availableYears loads
+  // Auto-select 2023, 2024, 2025 by default when availableYears loads
   useEffect(() => {
     if (availableYears.length > 0 && selectedYears.length === 0) {
-      const last3Years = availableYears.slice(-3);
-      setSelectedYears(last3Years);
+      // Select 2023, 2024, 2025 if they exist in availableYears
+      const defaultYears = [2023, 2024, 2025].filter(year => 
+        availableYears.includes(year)
+      );
+      if (defaultYears.length > 0) {
+        setSelectedYears(defaultYears);
+      }
     }
   }, [availableYears]);
 
