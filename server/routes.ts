@@ -10638,6 +10638,7 @@ export function registerRoutes(app: Express): Server {
   // Get manual projections
   app.get('/api/proyecciones/manual', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
+      const user = req.user;
       const { years, months, salespersonCode, segment } = req.query;
       
       const filters: any = {};
@@ -10650,12 +10651,32 @@ export function registerRoutes(app: Express): Server {
         filters.months = months.split(',').map((m: string) => parseInt(m));
       }
       
-      if (salespersonCode) {
-        filters.salespersonCode = salespersonCode;
-      }
-      
-      if (segment) {
-        filters.segment = segment;
+      // Role-based filtering
+      if (user.role === 'salesperson') {
+        // Salespeople can only see their own projections
+        const salespersonUser = await storage.getSalespersonUser(user.id);
+        if (!salespersonUser?.salespersonCode) {
+          return res.status(403).json({ 
+            message: "Tu cuenta no tiene un código de vendedor asignado. Contacta al administrador." 
+          });
+        }
+        filters.salespersonCode = salespersonUser.salespersonCode;
+      } else if (user.role === 'supervisor') {
+        // Supervisors can only see projections from their segment
+        if (!user.assignedSegment) {
+          return res.status(403).json({ 
+            message: "Tu cuenta no tiene un segmento asignado. Contacta al administrador." 
+          });
+        }
+        filters.segment = user.assignedSegment;
+      } else if (user.role === 'admin') {
+        // Admins can filter by any salesperson or segment
+        if (salespersonCode) {
+          filters.salespersonCode = salespersonCode;
+        }
+        if (segment) {
+          filters.segment = segment;
+        }
       }
       
       const projections = await storage.getProyeccionesVentas(filters);
@@ -10678,6 +10699,25 @@ export function registerRoutes(app: Express): Server {
         createdByName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
       });
       
+      // Role-based authorization
+      if (user.role === 'salesperson') {
+        // Salespeople can only create/edit projections for themselves
+        const salespersonUser = await storage.getSalespersonUser(user.id);
+        if (!salespersonUser?.salespersonCode || validated.salespersonCode !== salespersonUser.salespersonCode) {
+          return res.status(403).json({ 
+            message: "No tienes permiso para crear proyecciones para otros vendedores" 
+          });
+        }
+      } else if (user.role === 'supervisor') {
+        // Supervisors can only create/edit projections for their segment
+        if (validated.segment && validated.segment !== user.assignedSegment) {
+          return res.status(403).json({ 
+            message: "No tienes permiso para crear proyecciones fuera de tu segmento" 
+          });
+        }
+      }
+      // Admins can create/edit for anyone
+      
       const proyeccion = await storage.upsertProyeccionVenta(validated);
       
       res.status(201).json(proyeccion);
@@ -10696,7 +10736,34 @@ export function registerRoutes(app: Express): Server {
   // Delete manual projection
   app.delete('/api/proyecciones/manual/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
+      const user = req.user;
       const { id } = req.params;
+      
+      // Get the projection to check permissions
+      const projection = await storage.getProyeccionById(id);
+      if (!projection) {
+        return res.status(404).json({ message: "Proyección no encontrada" });
+      }
+      
+      // Role-based authorization
+      if (user.role === 'salesperson') {
+        // Salespeople can only delete their own projections
+        const salespersonUser = await storage.getSalespersonUser(user.id);
+        if (!salespersonUser?.salespersonCode || projection.salespersonCode !== salespersonUser.salespersonCode) {
+          return res.status(403).json({ 
+            message: "No tienes permiso para eliminar proyecciones de otros vendedores" 
+          });
+        }
+      } else if (user.role === 'supervisor') {
+        // Supervisors can only delete projections from their segment
+        if (projection.segment !== user.assignedSegment) {
+          return res.status(403).json({ 
+            message: "No tienes permiso para eliminar proyecciones fuera de tu segmento" 
+          });
+        }
+      }
+      // Admins can delete any projection
+      
       await storage.deleteProyeccionVenta(id);
       res.json({ success: true });
     } catch (error: any) {
