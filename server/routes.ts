@@ -14,7 +14,25 @@ import { Readable } from "stream";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { comunaRegionService } from "./comunaRegionService";
 import { db } from "./db";
-import { ecommerceProducts, salesTransactions, fileUploads, productosEvaluados, evaluacionesTecnicas, insertClientSchema, insertGastoEmpresarialSchema, insertPromesaCompraSchema, insertHitoMarketingSchema, nvvPendingSales, factVentas } from "../shared/schema";
+import { 
+  ecommerceProducts, 
+  salesTransactions, 
+  fileUploads, 
+  productosEvaluados, 
+  evaluacionesTecnicas, 
+  insertClientSchema, 
+  insertGastoEmpresarialSchema, 
+  insertPromesaCompraSchema, 
+  insertHitoMarketingSchema, 
+  nvvPendingSales, 
+  factVentas,
+  // CMMS validation schemas
+  insertEquipoCriticoSchema,
+  insertProveedorMantencionSchema,
+  insertPresupuestoMantencionSchema,
+  insertGastoMaterialMantencionSchema,
+  insertPlanPreventivoSchema
+} from "../shared/schema";
 import { eq, and, isNotNull, ne, sql, desc, or } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig } from "./etl-incremental";
@@ -9354,6 +9372,391 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error al cerrar solicitud:', error);
       res.status(500).json({ message: 'Error al cerrar solicitud', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // CMMS - COMPUTERIZED MAINTENANCE MANAGEMENT SYSTEM ROUTES
+  // ==================================================================================
+
+  // ===== EQUIPOS CRÍTICOS ROUTES =====
+  
+  // GET all equipos críticos (with filters)
+  app.get('/api/cmms/equipos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const { area, criticidad, estadoActual } = req.query;
+      const equipos = await storage.getEquiposCriticos({ area, criticidad, estadoActual });
+      res.json(equipos);
+    } catch (error: any) {
+      console.error('Error al obtener equipos:', error);
+      res.status(500).json({ message: 'Error al obtener equipos', error: error.message });
+    }
+  }));
+
+  // GET equipo crítico by ID
+  app.get('/api/cmms/equipos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const equipo = await storage.getEquipoCriticoById(req.params.id);
+      if (!equipo) {
+        return res.status(404).json({ message: 'Equipo no encontrado' });
+      }
+      res.json(equipo);
+    } catch (error: any) {
+      console.error('Error al obtener equipo:', error);
+      res.status(500).json({ message: 'Error al obtener equipo', error: error.message });
+    }
+  }));
+
+  // POST create new equipo crítico
+  app.post('/api/cmms/equipos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with Zod schema
+      const validatedData = insertEquipoCriticoSchema.parse(req.body);
+      
+      const equipo = await storage.createEquipoCritico(validatedData);
+      res.status(201).json(equipo);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al crear equipo:', error);
+      res.status(500).json({ message: 'Error al crear equipo', error: error.message });
+    }
+  }));
+
+  // PATCH update equipo crítico
+  app.patch('/api/cmms/equipos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with partial schema for updates
+      const validatedData = insertEquipoCriticoSchema.partial().parse(req.body);
+      
+      const equipo = await storage.updateEquipoCritico(req.params.id, validatedData);
+      res.json(equipo);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al actualizar equipo:', error);
+      res.status(500).json({ message: 'Error al actualizar equipo', error: error.message });
+    }
+  }));
+
+  // DELETE equipo crítico
+  app.delete('/api/cmms/equipos/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteEquipoCritico(req.params.id);
+      res.json({ message: 'Equipo eliminado exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar equipo:', error);
+      res.status(500).json({ message: 'Error al eliminar equipo', error: error.message });
+    }
+  }));
+
+  // ===== PROVEEDORES EXTERNOS ROUTES =====
+  
+  // GET all proveedores (with filters)
+  app.get('/api/cmms/proveedores', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const { activo } = req.query;
+      const proveedores = await storage.getProveedoresMantencion({ 
+        activo: activo === 'true' ? true : activo === 'false' ? false : undefined 
+      });
+      res.json(proveedores);
+    } catch (error: any) {
+      console.error('Error al obtener proveedores:', error);
+      res.status(500).json({ message: 'Error al obtener proveedores', error: error.message });
+    }
+  }));
+
+  // GET proveedor by ID
+  app.get('/api/cmms/proveedores/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const proveedor = await storage.getProveedorMantencionById(req.params.id);
+      if (!proveedor) {
+        return res.status(404).json({ message: 'Proveedor no encontrado' });
+      }
+      res.json(proveedor);
+    } catch (error: any) {
+      console.error('Error al obtener proveedor:', error);
+      res.status(500).json({ message: 'Error al obtener proveedor', error: error.message });
+    }
+  }));
+
+  // POST create new proveedor
+  app.post('/api/cmms/proveedores', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with Zod schema
+      const validatedData = insertProveedorMantencionSchema.parse(req.body);
+      
+      const proveedor = await storage.createProveedorMantencion(validatedData);
+      res.status(201).json(proveedor);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al crear proveedor:', error);
+      res.status(500).json({ message: 'Error al crear proveedor', error: error.message });
+    }
+  }));
+
+  // PATCH update proveedor
+  app.patch('/api/cmms/proveedores/:id', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with partial schema for updates
+      const validatedData = insertProveedorMantencionSchema.partial().parse(req.body);
+      
+      const proveedor = await storage.updateProveedorMantencion(req.params.id, validatedData);
+      res.json(proveedor);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al actualizar proveedor:', error);
+      res.status(500).json({ message: 'Error al actualizar proveedor', error: error.message });
+    }
+  }));
+
+  // DELETE proveedor
+  app.delete('/api/cmms/proveedores/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteProveedorMantencion(req.params.id);
+      res.json({ message: 'Proveedor eliminado exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar proveedor:', error);
+      res.status(500).json({ message: 'Error al eliminar proveedor', error: error.message });
+    }
+  }));
+
+  // ===== PRESUPUESTO MANTENCIÓN ROUTES =====
+
+  // GET presupuestos por año
+  app.get('/api/cmms/presupuesto/:anio', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const anio = parseInt(req.params.anio);
+      const presupuestos = await storage.getPresupuestosMantencion(anio);
+      res.json(presupuestos);
+    } catch (error: any) {
+      console.error('Error al obtener presupuestos:', error);
+      res.status(500).json({ message: 'Error al obtener presupuestos', error: error.message });
+    }
+  }));
+
+  // POST create presupuesto
+  app.post('/api/cmms/presupuesto', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with Zod schema
+      const validatedData = insertPresupuestoMantencionSchema.parse(req.body);
+      
+      const presupuesto = await storage.createPresupuestoMantencion(validatedData);
+      res.status(201).json(presupuesto);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al crear presupuesto:', error);
+      res.status(500).json({ message: 'Error al crear presupuesto', error: error.message });
+    }
+  }));
+
+  // PATCH update presupuesto
+  app.patch('/api/cmms/presupuesto/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with partial schema for updates
+      const validatedData = insertPresupuestoMantencionSchema.partial().parse(req.body);
+      
+      const presupuesto = await storage.updatePresupuestoMantencion(req.params.id, validatedData);
+      res.json(presupuesto);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al actualizar presupuesto:', error);
+      res.status(500).json({ message: 'Error al actualizar presupuesto', error: error.message });
+    }
+  }));
+
+  // DELETE presupuesto
+  app.delete('/api/cmms/presupuesto/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deletePresupuestoMantencion(req.params.id);
+      res.json({ message: 'Presupuesto eliminado exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar presupuesto:', error);
+      res.status(500).json({ message: 'Error al eliminar presupuesto', error: error.message });
+    }
+  }));
+
+  // ===== GASTOS DE MATERIALES ROUTES =====
+
+  // GET gastos de materiales (with filters)
+  app.get('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const { otId, area, startDate, endDate } = req.query;
+      const gastos = await storage.getGastosMaterialesMantencion({ otId, area, startDate, endDate });
+      res.json(gastos);
+    } catch (error: any) {
+      console.error('Error al obtener gastos:', error);
+      res.status(500).json({ message: 'Error al obtener gastos', error: error.message });
+    }
+  }));
+
+  // GET gasto by ID
+  app.get('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const gasto = await storage.getGastoMaterialMantencionById(req.params.id);
+      if (!gasto) {
+        return res.status(404).json({ message: 'Gasto no encontrado' });
+      }
+      res.json(gasto);
+    } catch (error: any) {
+      console.error('Error al obtener gasto:', error);
+      res.status(500).json({ message: 'Error al obtener gasto', error: error.message });
+    }
+  }));
+
+  // POST create gasto
+  app.post('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with Zod schema
+      const validatedData = insertGastoMaterialMantencionSchema.parse(req.body);
+      
+      const gasto = await storage.createGastoMaterialMantencion(validatedData);
+      res.status(201).json(gasto);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al crear gasto:', error);
+      res.status(500).json({ message: 'Error al crear gasto', error: error.message });
+    }
+  }));
+
+  // PATCH update gasto
+  app.patch('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with partial schema for updates
+      const validatedData = insertGastoMaterialMantencionSchema.partial().parse(req.body);
+      
+      const gasto = await storage.updateGastoMaterialMantencion(req.params.id, validatedData);
+      res.json(gasto);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al actualizar gasto:', error);
+      res.status(500).json({ message: 'Error al actualizar gasto', error: error.message });
+    }
+  }));
+
+  // DELETE gasto
+  app.delete('/api/cmms/gastos-materiales/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteGastoMaterialMantencion(req.params.id);
+      res.json({ message: 'Gasto eliminado exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar gasto:', error);
+      res.status(500).json({ message: 'Error al eliminar gasto', error: error.message });
+    }
+  }));
+
+  // ===== PLANES PREVENTIVOS ROUTES =====
+
+  // GET planes preventivos (with filters)
+  app.get('/api/cmms/planes-preventivos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const { equipoId, activo } = req.query;
+      const planes = await storage.getPlanesPreventivos({ 
+        equipoId,
+        activo: activo === 'true' ? true : activo === 'false' ? false : undefined 
+      });
+      res.json(planes);
+    } catch (error: any) {
+      console.error('Error al obtener planes:', error);
+      res.status(500).json({ message: 'Error al obtener planes', error: error.message });
+    }
+  }));
+
+  // GET planes preventivos vencidos
+  app.get('/api/cmms/planes-preventivos/vencidos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const planes = await storage.getPlanesPreventivosVencidos();
+      res.json(planes);
+    } catch (error: any) {
+      console.error('Error al obtener planes vencidos:', error);
+      res.status(500).json({ message: 'Error al obtener planes vencidos', error: error.message });
+    }
+  }));
+
+  // GET plan preventivo by ID
+  app.get('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const plan = await storage.getPlanPreventivoById(req.params.id);
+      if (!plan) {
+        return res.status(404).json({ message: 'Plan no encontrado' });
+      }
+      res.json(plan);
+    } catch (error: any) {
+      console.error('Error al obtener plan:', error);
+      res.status(500).json({ message: 'Error al obtener plan', error: error.message });
+    }
+  }));
+
+  // POST create plan preventivo
+  app.post('/api/cmms/planes-preventivos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with Zod schema
+      const validatedData = insertPlanPreventivoSchema.parse(req.body);
+      
+      const plan = await storage.createPlanPreventivo(validatedData);
+      res.status(201).json(plan);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al crear plan:', error);
+      res.status(500).json({ message: 'Error al crear plan', error: error.message });
+    }
+  }));
+
+  // PATCH update plan preventivo
+  app.patch('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate input with partial schema for updates
+      const validatedData = insertPlanPreventivoSchema.partial().parse(req.body);
+      
+      const plan = await storage.updatePlanPreventivo(req.params.id, validatedData);
+      res.json(plan);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al actualizar plan:', error);
+      res.status(500).json({ message: 'Error al actualizar plan', error: error.message });
+    }
+  }));
+
+  // DELETE plan preventivo
+  app.delete('/api/cmms/planes-preventivos/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deletePlanPreventivo(req.params.id);
+      res.json({ message: 'Plan eliminado exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar plan:', error);
+      res.status(500).json({ message: 'Error al eliminar plan', error: error.message });
+    }
+  }));
+
+  // ===== CMMS METRICS & DASHBOARDS =====
+
+  // GET CMMS metrics/KPIs
+  app.get('/api/cmms/metrics', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const { startDate, endDate, area } = req.query;
+      const metrics = await storage.getCMMSMetrics({ startDate, endDate, area });
+      res.json(metrics);
+    } catch (error: any) {
+      console.error('Error al obtener métricas CMMS:', error);
+      res.status(500).json({ message: 'Error al obtener métricas', error: error.message });
     }
   }));
 
