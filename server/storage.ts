@@ -12504,7 +12504,8 @@ export class DatabaseStorage implements IStorage {
         
         // Cambio automático de estado: si la fecha es futura → "programada"
         const ahora = new Date();
-        if (fechaProg > ahora && mantencion.estado === 'registrado') {
+        const estadosQuePuedenProgramarse = ['registrado', 'pausada'];
+        if (fechaProg > ahora && estadosQuePuedenProgramarse.includes(mantencion.estado)) {
           updateData.estado = 'programada';
         }
       } else {
