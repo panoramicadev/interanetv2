@@ -42,6 +42,7 @@ import ReclamosGeneralesPage from "@/pages/reclamos-generales";
 import MantencionesPage from "@/pages/mantenciones";
 import CMMSDashboard from "@/pages/cmms-dashboard";
 import CMMSEquipos from "@/pages/cmms-equipos";
+import CMmsProveedores from "@/pages/cmms-proveedores";
 import ApiKeysPage from "@/pages/api-keys";
 import Marketing from "@/pages/marketing";
 import Inventario from "@/pages/inventario";
@@ -184,6 +185,14 @@ function Router() {
                 return null;
               }
               return <CMMSEquipos />;
+            }} />
+            <Route path="/cmms/proveedores" component={() => {
+              // Solo admin, supervisor y produccion pueden acceder a proveedores
+              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+                window.location.replace('/');
+                return null;
+              }
+              return <CMmsProveedores />;
             }} />
             <Route path="/marketing" component={Marketing} />
             <Route path="/inventario" component={Inventario} />

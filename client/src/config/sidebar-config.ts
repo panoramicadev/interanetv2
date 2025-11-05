@@ -115,6 +115,16 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Dashboard CMMS",
           icon: LayoutDashboard,
         },
+        {
+          href: "/cmms/equipos",
+          label: "Equipos Críticos",
+          icon: Settings,
+        },
+        {
+          href: "/cmms/proveedores",
+          label: "Proveedores",
+          icon: Users,
+        },
       ],
     },
     {
@@ -244,6 +254,16 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/cmms",
           label: "Dashboard CMMS",
           icon: LayoutDashboard,
+        },
+        {
+          href: "/cmms/equipos",
+          label: "Equipos Críticos",
+          icon: Settings,
+        },
+        {
+          href: "/cmms/proveedores",
+          label: "Proveedores",
+          icon: Users,
         },
       ],
     },
@@ -476,6 +496,28 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/mantenciones",
       label: "Mantención",
       icon: Wrench,
+      children: [
+        {
+          href: "/mantenciones",
+          label: "Órdenes de Trabajo",
+          icon: Wrench,
+        },
+        {
+          href: "/cmms",
+          label: "Dashboard CMMS",
+          icon: LayoutDashboard,
+        },
+        {
+          href: "/cmms/equipos",
+          label: "Equipos Críticos",
+          icon: Settings,
+        },
+        {
+          href: "/cmms/proveedores",
+          label: "Proveedores",
+          icon: Users,
+        },
+      ],
     },
   ],
 
