@@ -9080,7 +9080,7 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Delete solicitud de mantención (only within 5 minutes of creation)
+  // Delete solicitud de mantención
   app.delete('/api/mantenciones/:id', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
@@ -9090,17 +9090,22 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: 'Solicitud de mantención no encontrada' });
       }
 
-      // Only the creator can delete (within 5 minutes)
-      if (solicitud.solicitanteId !== user.id) {
-        return res.status(403).json({ message: 'Solo el creador puede eliminar la solicitud' });
-      }
+      // Admin and produccion can delete anytime
+      const canDeleteAnytime = user.role === 'admin' || user.role === 'produccion';
+      
+      if (!canDeleteAnytime) {
+        // Other users can only delete their own within 5 minutes
+        if (solicitud.solicitanteId !== user.id) {
+          return res.status(403).json({ message: 'Solo el creador puede eliminar la solicitud' });
+        }
 
-      const now = new Date();
-      const createdAt = new Date(solicitud.fechaSolicitud);
-      const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+        const now = new Date();
+        const createdAt = new Date(solicitud.fechaSolicitud);
+        const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
 
-      if (diffMinutes > 5) {
-        return res.status(403).json({ message: 'Solo se puede eliminar dentro de los primeros 5 minutos' });
+        if (diffMinutes > 5) {
+          return res.status(403).json({ message: 'Solo se puede eliminar dentro de los primeros 5 minutos' });
+        }
       }
 
       await storage.deleteSolicitudMantencion(req.params.id);

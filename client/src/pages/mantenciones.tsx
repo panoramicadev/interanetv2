@@ -34,7 +34,9 @@ import {
   MoreVertical,
   ChevronsUpDown,
   Check,
-  CalendarIcon
+  CalendarIcon,
+  Settings,
+  Trash2
 } from "lucide-react";
 import type { SolicitudMantencion, MantencionPhoto, EquipoCritico, ProveedorExterno } from "@shared/schema";
 import { format } from "date-fns";
@@ -1090,6 +1092,30 @@ export default function MantencionesPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/mantenciones/${id}`, {
+        method: 'DELETE',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      setIsDetailsDialogOpen(false);
+      setSelectedMantencion(null);
+      toast({
+        title: "Orden eliminada",
+        description: "La orden de trabajo ha sido eliminada correctamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al eliminar",
+        description: error.message || "No se pudo eliminar la orden de trabajo.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCreateSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -1849,6 +1875,7 @@ export default function MantencionesPage() {
             </DialogDescription>
           </DialogHeader>
           {selectedMantencion && (
+            <>
             <Tabs defaultValue="info" className="space-y-4">
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="info">Información</TabsTrigger>
@@ -2279,6 +2306,30 @@ export default function MantencionesPage() {
                 <HistorialTab mantencion={selectedMantencion} />
               </TabsContent>
             </Tabs>
+
+            {/* Botón de eliminar - solo para admin y produccion */}
+            {(user?.role === 'admin' || user?.role === 'produccion') && (
+              <DialogFooter className="mt-4 border-t pt-4">
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (window.confirm('¿Está seguro que desea eliminar esta orden de trabajo? Esta acción no se puede deshacer.')) {
+                      deleteMutation.mutate(selectedMantencion.id);
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                  data-testid="button-delete-mantencion"
+                >
+                  {deleteMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-2" />
+                  )}
+                  Eliminar Orden de Trabajo
+                </Button>
+              </DialogFooter>
+            )}
+            </>
           )}
         </DialogContent>
       </Dialog>
