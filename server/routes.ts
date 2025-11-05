@@ -8980,7 +8980,7 @@ export function registerRoutes(app: Express): Server {
         ...req.body,
         solicitanteId: user.id,
         solicitanteName: user.name || user.username,
-        estado: 'registrado',
+        estado: 'pendiente',
       };
 
       // Parse and validate with schema

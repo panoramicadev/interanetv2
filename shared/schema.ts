@@ -3527,15 +3527,18 @@ export const solicitudesMantencion = pgTable("solicitudes_mantencion", {
   // Información de costos y tiempos
   costoEstimado: numeric("costo_estimado", { precision: 15, scale: 2 }),
   costoReal: numeric("costo_real", { precision: 15, scale: 2 }),
-  horasEstimadas: numeric("horas_estimadas", { precision: 5, scale: 2 }), // Horas estimadas
-  horasReales: numeric("horas_reales", { precision: 5, scale: 2 }), // Horas reales trabajadas
+  tiempoEstimado: integer("tiempo_estimado"), // Minutos estimados (legacy)
+  tiempoReal: integer("tiempo_real"), // Minutos reales (legacy)
+  tiempoEstimadoHoras: numeric("tiempo_estimado_horas", { precision: 5, scale: 2 }), // Horas estimadas
+  tiempoRealHoras: numeric("tiempo_real_horas", { precision: 5, scale: 2 }), // Horas reales trabajadas
+  costoManoObra: numeric("costo_mano_obra", { precision: 15, scale: 2 }),
+  costoMateriales: numeric("costo_materiales", { precision: 15, scale: 2 }),
   repuestosUtilizados: text("repuestos_utilizados"), // Lista de repuestos
+  notasCierre: text("notas_cierre"), // Notas al cerrar la OT
   
   // Fechas de seguimiento (para KPIs)
   fechaSolicitud: timestamp("fecha_solicitud").defaultNow(),
   fechaAsignacion: timestamp("fecha_asignacion"),
-  fechaInicio: timestamp("fecha_inicio"), // Cuando se inicia el trabajo
-  fechaTermino: timestamp("fecha_termino"), // Cuando se finaliza el trabajo
   fechaCierre: timestamp("fecha_cierre"), // Cuando se cierra administrativamente
   
   // Vinculación a plan preventivo
