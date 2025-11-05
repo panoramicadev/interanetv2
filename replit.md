@@ -18,10 +18,13 @@ Preferred communication style: Simple, everyday language.
     - Fixed logic to properly detect when cell is being edited vs displaying saved value
     - Users can now clear values, enter 0, and edit existing projections without issues
 - **Visualization Panel**:
-  - Post-Query Segment Filter: Added segment filtering in `/api/proyecciones/charts` endpoint after fetching data
-  - Preserves Save Functionality: Filter applied post-query to avoid breaking save flows that need unfiltered data
-  - Backend filters by salesperson in query, then filters by segment in memory before chart aggregation
-- **Design Decision**: Segment filtering NOT applied in `getProyeccionesVentas` database query to preserve annual row access needed by save operations
+  - Post-Query Filtering: Both segment and salesperson filters applied after fetching data (not in database query)
+  - Flexible Salesperson Matching: Handles name discrepancies between sales transactions and saved projections
+    - Example: Filter "BARBARA GUTIERREZ BAHAMONDES" matches saved code "BARBARA GUTIERREZ"
+    - Uses three-way match: exact equality, contains, or is contained by
+  - Preserves Save Functionality: Filters applied post-query to avoid breaking save flows that need unfiltered data
+  - Backend fetches by years/months only, then filters by salesperson and segment in memory before chart aggregation
+- **Design Decision**: Segment and salesperson filtering NOT applied in `getProyeccionesVentas` database query to preserve annual row access needed by save operations
 - **Aligned with Dashboard**: Filters now work consistently with main dashboard behavior
 
 ### November 5, 2025 - Inventory Auto-Sync & Cache System
