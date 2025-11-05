@@ -56,7 +56,7 @@ Preferred communication style: Simple, everyday language.
 - **Maintenance Management (Mantención)**: Equipment request system with workflow, technician assignment, photo evidence, and history logging.
 - **CMMS (Computerized Maintenance Management System)**: Complete preventive and corrective maintenance management with:
   - **Dashboard**: 8 KPIs (MTTR, backlog, preventivas vs correctivas, costos mensuales), 3 gráficos, filtros por período/área
-  - **Equipos Críticos**: Catálogo de equipos con área, criticidad, estado operativo, documentación técnica
+  - **Equipos Críticos**: Catálogo de equipos con área, criticidad, estado operativo, documentación técnica, y jerarquía padre-componente (ej: dispersor → motor) con vista expandible/colapsable. Las OTs vinculan equipos por ID para reflejar cambios del catálogo automáticamente
   - **Proveedores Externos**: Gestión de proveedores de mantención con especialidades, evaluación (5 estrellas), y tiempos de respuesta
   - **Presupuesto Anual**: Configuración mensual con semáforo de desvíos (verde/amarillo/rojo), ejecución vs planificado
   - **Gastos de Materiales**: Registro de gastos vinculados a OTs y proveedores con cálculo automático de totales
