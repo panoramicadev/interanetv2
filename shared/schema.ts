@@ -3370,6 +3370,9 @@ export const equiposCriticos = pgTable("equipos_criticos", {
   criticidad: varchar("criticidad").notNull().default("media"), // baja, media, alta, critica
   ubicacionEspecifica: text("ubicacion_especifica"),
   
+  // Jerarquía de equipos (equipo padre para componentes)
+  equipoPadreId: varchar("equipo_padre_id"), // Referencia al equipo padre si es un componente
+  
   // Información técnica
   marca: varchar("marca", { length: 100 }),
   modelo: varchar("modelo", { length: 100 }),
@@ -3428,9 +3431,10 @@ export const presupuestoMantencion = pgTable("presupuesto_mantencion", {
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => [
-  uniqueIndex("unique_presupuesto_anio_mes_area").on(table.anio, table.mes, table.area)
-]);
+}, (table) => ({
+  anioMesIdx: index("IDX_presupuesto_anio_mes").on(table.anio, table.mes),
+  areaIdx: index("IDX_presupuesto_area").on(table.area),
+}));
 
 // ===== GASTOS DE MATERIALES =====
 export const gastosMaterialesMantencion = pgTable("gastos_materiales_mantencion", {
