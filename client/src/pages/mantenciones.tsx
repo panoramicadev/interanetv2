@@ -19,6 +19,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import imageCompression from 'browser-image-compression';
 import { 
   Plus, 
   Wrench,
@@ -104,6 +105,8 @@ function SeguimientoTab({
   const [isPausarDialogOpen, setIsPausarDialogOpen] = useState(false);
   const [isReanudarDialogOpen, setIsReanudarDialogOpen] = useState(false);
   const [isAsignacionDialogOpen, setIsAsignacionDialogOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ url: string; description?: string } | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
 
   // Mutación para pausar OT
   const pausarMutation = useMutation({
@@ -337,6 +340,70 @@ function SeguimientoTab({
               </Card>
             </div>
           )}
+
+          {/* Fotos del Problema */}
+          {mantencion.photos && mantencion.photos.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold mb-3">Fotos del Problema</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {mantencion.photos.map((photo) => (
+                  <div key={photo.id} className="relative group">
+                    <img
+                      src={photo.photoUrl}
+                      alt={photo.description || 'Foto del problema'}
+                      className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => {
+                        setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
+                        setShowImageModal(true);
+                      }}
+                      data-testid={`img-problema-${photo.id}`}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
+                      <Eye className="h-3 w-3 inline mr-1" />
+                      Ver imagen
+                    </div>
+                    {photo.description && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
+                        {photo.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Fotos de la Resolución */}
+          {mantencion.resolucionPhotos && mantencion.resolucionPhotos.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold mb-3">Fotos de la Resolución</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {mantencion.resolucionPhotos.map((photo) => (
+                  <div key={photo.id} className="relative group">
+                    <img
+                      src={photo.photoUrl}
+                      alt={photo.description || 'Foto de resolución'}
+                      className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => {
+                        setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
+                        setShowImageModal(true);
+                      }}
+                      data-testid={`img-resolucion-${photo.id}`}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
+                      <Eye className="h-3 w-3 inline mr-1" />
+                      Ver imagen
+                    </div>
+                    {photo.description && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
+                        {photo.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
@@ -499,6 +566,27 @@ function SeguimientoTab({
               </DialogFooter>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para ver imagen en tamaño completo */}
+      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Vista de Imagen</DialogTitle>
+            {selectedImage?.description && (
+              <DialogDescription>{selectedImage.description}</DialogDescription>
+            )}
+          </DialogHeader>
+          {selectedImage && (
+            <div className="flex justify-center">
+              <img
+                src={selectedImage.url}
+                alt={selectedImage.description || 'Imagen'}
+                className="max-w-full max-h-[70vh] object-contain rounded"
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>
@@ -1190,7 +1278,7 @@ export default function MantencionesPage() {
     },
   });
 
-  const handleCreateSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreateSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
     const formData = new FormData(form);
@@ -1201,6 +1289,40 @@ export default function MantencionesPage() {
       formData.set('equipoCodigo', selectedEquipo.codigo || '');
       formData.set('equipoNombre', selectedEquipo.nombre);
       formData.set('area', selectedEquipo.area);
+    }
+
+    // Comprimir fotos antes de enviar
+    if (fileInputRef.current?.files && fileInputRef.current.files.length > 0) {
+      formData.delete('photos'); // Eliminar fotos originales
+      
+      const compressionOptions = {
+        maxSizeMB: 0.5, // Máximo 500KB por imagen
+        maxWidthOrHeight: 1920, // Máximo 1920px
+        useWebWorker: true,
+        fileType: 'image/jpeg' as const
+      };
+
+      try {
+        const compressedFiles = await Promise.all(
+          Array.from(fileInputRef.current.files).map(async (file) => {
+            try {
+              const compressed = await imageCompression(file, compressionOptions);
+              return compressed;
+            } catch (err) {
+              console.error('Error comprimiendo imagen:', err);
+              return file; // Si falla, usar original
+            }
+          })
+        );
+
+        // Agregar fotos comprimidas
+        compressedFiles.forEach((file) => {
+          formData.append('photos', file);
+        });
+      } catch (err) {
+        console.error('Error en compresión de imágenes:', err);
+        // Continuar con fotos originales si falla
+      }
     }
 
     createMutation.mutate(formData);
@@ -1214,17 +1336,41 @@ export default function MantencionesPage() {
     setEsManual(false);
   };
 
-  const handleResolutionSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleResolutionSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedMantencion) return;
 
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    if (resolutionFileInputRef.current?.files) {
-      Array.from(resolutionFileInputRef.current.files).forEach((file) => {
-        formData.append('photos', file);
-      });
+    // Comprimir fotos de resolución antes de enviar
+    if (resolutionFileInputRef.current?.files && resolutionFileInputRef.current.files.length > 0) {
+      const compressionOptions = {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+        fileType: 'image/jpeg' as const
+      };
+
+      try {
+        const compressedFiles = await Promise.all(
+          Array.from(resolutionFileInputRef.current.files).map(async (file) => {
+            try {
+              const compressed = await imageCompression(file, compressionOptions);
+              return compressed;
+            } catch (err) {
+              console.error('Error comprimiendo imagen:', err);
+              return file;
+            }
+          })
+        );
+
+        compressedFiles.forEach((file) => {
+          formData.append('photos', file);
+        });
+      } catch (err) {
+        console.error('Error en compresión de imágenes:', err);
+      }
     }
 
     submitResolutionMutation.mutate({ id: selectedMantencion.id, formData });
@@ -2258,33 +2404,6 @@ export default function MantencionesPage() {
                 </div>
               )}
 
-              {/* Photos */}
-              {selectedMantencion.photos && selectedMantencion.photos.length > 0 && (
-                <div>
-                  <Label className="text-muted-foreground">Fotos</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
-                    {selectedMantencion.photos.map((photo) => (
-                      <div key={photo.id} className="relative group">
-                        <img
-                          src={photo.photoUrl}
-                          alt={photo.description || 'Foto del problema'}
-                          className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => {
-                            setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
-                            setShowImageModal(true);
-                          }}
-                          data-testid={`img-mantencion-${photo.id}`}
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
-                          <Eye className="h-3 w-3 inline mr-1" />
-                          Ver imagen
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Resolution section if resolved */}
               {selectedMantencion.resolucionDescripcion && (
                 <div className="space-y-4">
@@ -2298,32 +2417,6 @@ export default function MantencionesPage() {
                       </p>
                     )}
                   </div>
-
-                  {selectedMantencion.resolucionPhotos && selectedMantencion.resolucionPhotos.length > 0 && (
-                    <div>
-                      <Label className="text-muted-foreground">Fotos de la Resolución</Label>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
-                        {selectedMantencion.resolucionPhotos.map((photo) => (
-                          <div key={photo.id} className="relative group">
-                            <img
-                              src={photo.photoUrl}
-                              alt={photo.description || 'Foto de resolución'}
-                              className="w-full h-32 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => {
-                                setSelectedImage({ url: photo.photoUrl, description: photo.description || undefined });
-                                setShowImageModal(true);
-                              }}
-                              data-testid={`img-resolucion-${photo.id}`}
-                            />
-                            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-b">
-                              <Eye className="h-3 w-3 inline mr-1" />
-                              Ver imagen
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
