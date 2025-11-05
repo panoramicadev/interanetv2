@@ -8413,12 +8413,9 @@ export function registerRoutes(app: Express): Server {
       const { getRoleArea } = await import('@shared/reclamosAreas');
       const userArea = getRoleArea(user.role);
       
-      // Caso especial: laboratorio filtra por estado, no por área responsable
-      if (user.role === 'laboratorio') {
-        filters.estado = 'en_laboratorio';
-      } else if (userArea) {
+      // Todos los roles de área (incluyendo laboratorio) ven reclamos asignados a su área en todos los estados
+      if (userArea) {
         filters.areaResponsable = userArea;
-        // Mostrar solo reclamos asignados a su área (todos los estados)
       }
       
       const reclamos = await storage.getReclamosGenerales(filters);
