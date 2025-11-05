@@ -94,8 +94,9 @@ export default function ProyeccionManualPage() {
   const [newClientName, setNewClientName] = useState("");
   const [newClientSegment, setNewClientSegment] = useState("");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 10;
+  const [sortOrder, setSortOrder] = useState<string>("desc"); // desc, asc, az, za
+  const [visibleItems, setVisibleItems] = useState<number>(15);
+  const itemsPerPage = 15;
 
   // Helper function to get segment display name
   const getSegmentName = (segmentCode: string): string => {
@@ -146,10 +147,10 @@ export default function ProyeccionManualPage() {
     queryKey: ['/api/proyecciones/segments'],
   });
 
-  // Reset to page 1 when filters change
+  // Reset visible items when filters change
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, selectedSegment, selectedSalesperson, onlyClientsWithAllPeriods]);
+    setVisibleItems(15);
+  }, [searchTerm, selectedSegment, selectedSalesperson, onlyClientsWithAllPeriods, sortOrder, selectedYears, selectedMonths]);
 
   // Fetch historical data (segment filter now applied in backend for proper pagination)
   const { data: historicalDataResponse, isLoading: isLoadingHistorical } = useQuery<{
@@ -157,7 +158,7 @@ export default function ProyeccionManualPage() {
     total: number;
     totalClients: number;
   }>({
-    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, selectedSegment, searchTerm, currentPage, onlyClientsWithAllPeriods],
+    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, selectedSegment, searchTerm, visibleItems, onlyClientsWithAllPeriods, sortOrder],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedYears.length > 0) {
@@ -178,8 +179,11 @@ export default function ProyeccionManualPage() {
       if (onlyClientsWithAllPeriods) {
         params.append('onlyWithAllPeriods', 'true');
       }
-      params.append('limit', itemsPerPage.toString());
-      params.append('offset', ((currentPage - 1) * itemsPerPage).toString());
+      if (sortOrder) {
+        params.append('sortOrder', sortOrder);
+      }
+      params.append('limit', visibleItems.toString());
+      params.append('offset', '0'); // Always start from 0, limit controls how many we show
       const response = await fetch(`/api/proyecciones/historico?${params}`, {
         credentials: 'include'
       });
@@ -191,16 +195,7 @@ export default function ProyeccionManualPage() {
 
   const historicalData = historicalDataResponse?.data || [];
   const totalClients = historicalDataResponse?.totalClients || 0;
-  const totalPages = Math.ceil(totalClients / itemsPerPage);
-  
-  console.log('📄 Pagination Debug:', {
-    currentPage,
-    totalClients,
-    totalPages,
-    itemsPerPage,
-    offset: (currentPage - 1) * itemsPerPage,
-    dataLength: historicalData.length
-  });
+  const hasMoreClients = visibleItems < totalClients;
 
   // Fetch manual projections (segment filter applied in frontend only)
   const { data: manualProjections = [] } = useQuery<ManualProjection[]>({
@@ -815,6 +810,25 @@ export default function ProyeccionManualPage() {
               data-testid="switch-only-all-periods"
             />
           </div>
+
+          {/* Sort Order Selector */}
+          <div className="space-y-2 pt-4 border-t">
+            <Label htmlFor="sort-order">Ordenar Clientes</Label>
+            <Select
+              value={sortOrder}
+              onValueChange={setSortOrder}
+            >
+              <SelectTrigger id="sort-order" data-testid="select-sort-order">
+                <SelectValue placeholder="Selecciona orden" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">Ventas: Mayor a Menor</SelectItem>
+                <SelectItem value="asc">Ventas: Menor a Mayor</SelectItem>
+                <SelectItem value="az">Nombre: A-Z</SelectItem>
+                <SelectItem value="za">Nombre: Z-A</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
@@ -1368,50 +1382,24 @@ export default function ProyeccionManualPage() {
               </Table>
             </div>
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="mt-4 flex flex-col sm:flex-row gap-4 items-center justify-between border-t pt-4">
+            {/* Load More Button */}
+            {hasMoreClients && (
+              <div className="mt-4 flex flex-col items-center gap-2 border-t pt-4">
                 <div className="text-sm text-muted-foreground">
-                  Página {currentPage} de {totalPages}
+                  Mostrando {visibleItems} de {totalClients} clientes
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    data-testid="button-first-page"
-                  >
-                    Primera
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    data-testid="button-prev-page"
-                  >
-                    Anterior
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    data-testid="button-next-page"
-                  >
-                    Siguiente
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    data-testid="button-last-page"
-                  >
-                    Última
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleItems(prev => prev + 15)}
+                  data-testid="button-load-more"
+                >
+                  Ver más clientes
+                </Button>
+              </div>
+            )}
+            {!hasMoreClients && totalClients > 15 && (
+              <div className="mt-4 text-center text-sm text-muted-foreground border-t pt-4">
+                Mostrando todos los {totalClients} clientes
               </div>
             )}
           </CardContent>

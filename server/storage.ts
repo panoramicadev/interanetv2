@@ -14816,6 +14816,7 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
     onlyWithAllPeriods?: boolean;
+    sortOrder?: string; // desc, asc, az, za
   }): Promise<{
     data: Array<{
       year: number;
@@ -14878,10 +14879,14 @@ export class DatabaseStorage implements IStorage {
           salesTransactions.noruen
         );
 
-      // Get unique clients from filtered sales data
-      let uniqueClients = Array.from(
-        new Set(salesData.map((s) => s.clientName))
-      ).sort();
+      // Get unique clients with total sales
+      const clientSalesMap = new Map<string, number>();
+      salesData.forEach(s => {
+        const currentTotal = clientSalesMap.get(s.clientName!) || 0;
+        clientSalesMap.set(s.clientName!, currentTotal + Number(s.totalSales));
+      });
+
+      let uniqueClients = Array.from(clientSalesMap.keys());
 
       // Apply filter: only clients with sales in ALL selected years
       if (filters?.onlyWithAllPeriods && filters.years && filters.years.length > 1) {
@@ -14907,10 +14912,30 @@ export class DatabaseStorage implements IStorage {
         );
       }
 
+      // Apply sorting
+      const sortOrder = filters?.sortOrder || 'desc';
+      filteredClients.sort((a, b) => {
+        if (sortOrder === 'desc') {
+          // Ventas: Mayor a Menor
+          return (clientSalesMap.get(b) || 0) - (clientSalesMap.get(a) || 0);
+        } else if (sortOrder === 'asc') {
+          // Ventas: Menor a Mayor
+          return (clientSalesMap.get(a) || 0) - (clientSalesMap.get(b) || 0);
+        } else if (sortOrder === 'az') {
+          // Nombre: A-Z
+          return a.localeCompare(b);
+        } else if (sortOrder === 'za') {
+          // Nombre: Z-A
+          return b.localeCompare(a);
+        }
+        // Default: desc
+        return (clientSalesMap.get(b) || 0) - (clientSalesMap.get(a) || 0);
+      });
+
       const totalClients = filteredClients.length;
 
       // Apply pagination to clients
-      const limit = filters?.limit || 10;
+      const limit = filters?.limit || 15;
       const offset = filters?.offset || 0;
       const paginatedClients = filteredClients.slice(offset, offset + limit);
 
