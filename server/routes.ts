@@ -9266,14 +9266,15 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Submit resolución (solo produccion)
+  // Submit resolución (admin, supervisor, produccion)
   app.post('/api/mantenciones/:id/resolucion', requireAuth, upload.array('photos', 10), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       
-      // Only produccion can submit resolucion
-      if (user.role !== 'produccion') {
-        return res.status(403).json({ message: 'Solo el área de producción puede enviar resoluciones' });
+      // Only admin, supervisor, and produccion can submit resolucion
+      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No tiene permisos para enviar resoluciones' });
       }
 
       // Validate resolution data
