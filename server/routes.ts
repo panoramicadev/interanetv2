@@ -9552,6 +9552,8 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: 'No autorizado para actualizar asignación' });
       }
 
+      console.log('[BACKEND DEBUG] Datos recibidos en PATCH /asignacion:', JSON.stringify(req.body, null, 2));
+
       const asignacionSchema = z.object({
         tipoEjecucion: z.enum(['inmediata', 'programada']).nullable().optional(),
         fechaProgramada: z.string().nullable().optional(),
@@ -9563,6 +9565,7 @@ export function registerRoutes(app: Express): Server {
       });
 
       const validatedData = asignacionSchema.parse(req.body);
+      console.log('[BACKEND DEBUG] Datos validados:', JSON.stringify(validatedData, null, 2));
 
       const solicitud = await storage.actualizarAsignacionMantencion(
         req.params.id,
