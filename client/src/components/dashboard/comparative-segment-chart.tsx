@@ -89,13 +89,25 @@ export default function ComparativeSegmentChart({ periods, segmentsData }: Compa
   // Prepare chart data based on comparison type
   const chartData = isFullYearComparison ? {
     // Full year comparison (e.g., 2024 vs 2025)
-    labels: periods.map(p => p.label), // Use the label which is the year
+    // Sort periods by year ascending (2023, 2024, 2025)
+    labels: (() => {
+      const sortedPeriods = [...periods].sort((a, b) => a.period.localeCompare(b.period));
+      return sortedPeriods.map(p => p.label);
+    })(),
     datasets: [{
       label: 'Ventas Totales',
-      data: segmentsData.map(periodData => 
-        periodData.reduce((sum, segment) => sum + segment.totalSales, 0)
-      ),
-      backgroundColor: periods.map((_, idx) => yearColors[idx % yearColors.length]),
+      data: (() => {
+        const sortedPeriods = [...periods].sort((a, b) => a.period.localeCompare(b.period));
+        return sortedPeriods.map(period => {
+          const originalIndex = periods.findIndex(p => p.period === period.period);
+          const periodData = segmentsData[originalIndex];
+          return periodData.reduce((sum, segment) => sum + segment.totalSales, 0);
+        });
+      })(),
+      backgroundColor: (() => {
+        const sortedPeriods = [...periods].sort((a, b) => a.period.localeCompare(b.period));
+        return sortedPeriods.map((_, idx) => yearColors[idx % yearColors.length]);
+      })(),
       borderRadius: 6,
       borderSkipped: false,
     }]
