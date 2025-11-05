@@ -9530,7 +9530,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       const asignacionSchema = z.object({
-        tipoAsignacion: z.enum(['tecnico_interno', 'proveedor_externo']).optional(),
+        tipoEjecucion: z.enum(['inmediata', 'programada']).nullable().optional(),
+        fechaProgramada: z.string().nullable().optional(),
+        tipoAsignacion: z.enum(['tecnico_interno', 'proveedor_externo']).nullable().optional(),
         tecnicoAsignadoId: z.string().nullable().optional(),
         tecnicoAsignadoName: z.string().nullable().optional(),
         proveedorAsignadoId: z.string().nullable().optional(),

@@ -946,17 +946,15 @@ export default function MantencionesPage() {
   // Nuevo formulario mejorado - Estados
   const [openEquiposCombo, setOpenEquiposCombo] = useState(false);
   const [selectedEquipoId, setSelectedEquipoId] = useState("");
-  const [tipoEjecucion, setTipoEjecucion] = useState<"inmediata" | "programada">("inmediata");
-  const [fechaProgramada, setFechaProgramada] = useState<Date>();
-  const [tipoAsignacion, setTipoAsignacion] = useState<"tecnico_interno" | "proveedor_externo" | "ninguno">("ninguno");
-  const [tecnicoAsignadoId, setTecnicoAsignadoId] = useState("");
-  const [proveedorAsignadoId, setProveedorAsignadoId] = useState("");
   const [esManual, setEsManual] = useState(false);
 
-  // Estados para filtros avanzados
-  const [filtroTipoEjecucion, setFiltroTipoEjecucion] = useState<string>("todos");
-  const [filtroTecnico, setFiltroTecnico] = useState<string>("todos");
-  const [filtroProveedor, setFiltroProveedor] = useState<string>("todos");
+  // Estados para asignación (solo admin/supervisor/produccion)
+  const [isEditingAsignacion, setIsEditingAsignacion] = useState(false);
+  const [tipoEjecucionEdit, setTipoEjecucionEdit] = useState<"inmediata" | "programada" | null>(null);
+  const [fechaProgramadaEdit, setFechaProgramadaEdit] = useState<Date | undefined>();
+  const [tipoAsignacionEdit, setTipoAsignacionEdit] = useState<"tecnico_interno" | "proveedor_externo" | null>(null);
+  const [tecnicoAsignadoIdEdit, setTecnicoAsignadoIdEdit] = useState("");
+  const [proveedorAsignadoIdEdit, setProveedorAsignadoIdEdit] = useState("");
 
   const canSubmitResolution = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
   const canManageMantencion = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
@@ -1063,6 +1061,30 @@ export default function MantencionesPage() {
     },
   });
 
+  const updateAsignacionMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return await apiRequest(`/api/mantenciones/${id}/asignacion`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      setIsEditingAsignacion(false);
+      toast({
+        title: "Asignación actualizada",
+        description: "Los datos de asignación y programación se han actualizado correctamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al actualizar asignación",
+        description: error.message || "No se pudo actualizar la asignación. Por favor, intente nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCreateSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -1076,22 +1098,6 @@ export default function MantencionesPage() {
       formData.set('area', selectedEquipo.area);
     }
 
-    if (tipoEjecucion === 'programada' && fechaProgramada) {
-      formData.set('fechaProgramada', fechaProgramada.toISOString());
-    }
-
-    if (tipoAsignacion === 'tecnico_interno' && tecnicoAsignadoId) {
-      const tecnico = tecnicos.find(t => t.id === tecnicoAsignadoId);
-      formData.set('tipoAsignacion', 'tecnico_interno');
-      formData.set('tecnicoAsignadoId', tecnicoAsignadoId);
-      formData.set('tecnicoAsignadoName', tecnico?.name || tecnico?.username || '');
-    } else if (tipoAsignacion === 'proveedor_externo' && proveedorAsignadoId) {
-      const proveedor = proveedores.find(p => p.id === proveedorAsignadoId);
-      formData.set('tipoAsignacion', 'proveedor_externo');
-      formData.set('proveedorAsignadoId', proveedorAsignadoId);
-      formData.set('proveedorAsignadoName', proveedor?.nombre || '');
-    }
-
     createMutation.mutate(formData);
   };
 
@@ -1100,11 +1106,6 @@ export default function MantencionesPage() {
     setTipoMantencion('correctivo');
     setArea('produccion');
     setSelectedEquipoId("");
-    setTipoEjecucion("inmediata");
-    setFechaProgramada(undefined);
-    setTipoAsignacion("ninguno");
-    setTecnicoAsignadoId("");
-    setProveedorAsignadoId("");
     setEsManual(false);
   };
 
@@ -1122,6 +1123,85 @@ export default function MantencionesPage() {
     }
 
     submitResolutionMutation.mutate({ id: selectedMantencion.id, formData });
+  };
+
+  const handleAsignacionSubmit = () => {
+    if (!selectedMantencion) return;
+
+    const data: any = {};
+
+    // Tipo de ejecución y fecha programada
+    if (tipoEjecucionEdit === 'inmediata') {
+      data.tipoEjecucion = 'inmediata';
+      data.fechaProgramada = null;
+    } else if (tipoEjecucionEdit === 'programada' && fechaProgramadaEdit) {
+      data.tipoEjecucion = 'programada';
+      data.fechaProgramada = fechaProgramadaEdit.toISOString();
+    }
+
+    // Asignación
+    if (tipoAsignacionEdit === 'tecnico_interno' && tecnicoAsignadoIdEdit) {
+      const tecnico = tecnicos.find(t => t.id === tecnicoAsignadoIdEdit);
+      data.tipoAsignacion = 'tecnico_interno';
+      data.tecnicoAsignadoId = tecnicoAsignadoIdEdit;
+      data.tecnicoAsignadoName = tecnico?.name || tecnico?.username || '';
+      data.proveedorAsignadoId = null;
+      data.proveedorAsignadoName = null;
+    } else if (tipoAsignacionEdit === 'proveedor_externo' && proveedorAsignadoIdEdit) {
+      const proveedor = proveedores.find(p => p.id === proveedorAsignadoIdEdit);
+      data.tipoAsignacion = 'proveedor_externo';
+      data.proveedorAsignadoId = proveedorAsignadoIdEdit;
+      data.proveedorAsignadoName = proveedor?.nombre || '';
+      data.tecnicoAsignadoId = null;
+      data.tecnicoAsignadoName = null;
+    } else if (tipoAsignacionEdit === null) {
+      // Limpiar asignación
+      data.tipoAsignacion = null;
+      data.tecnicoAsignadoId = null;
+      data.tecnicoAsignadoName = null;
+      data.proveedorAsignadoId = null;
+      data.proveedorAsignadoName = null;
+    }
+
+    updateAsignacionMutation.mutate({ id: selectedMantencion.id, data });
+  };
+
+  const startEditingAsignacion = () => {
+    if (!selectedMantencion) return;
+    
+    // Cargar datos actuales
+    if (selectedMantencion.fechaProgramada) {
+      setTipoEjecucionEdit('programada');
+      setFechaProgramadaEdit(new Date(selectedMantencion.fechaProgramada));
+    } else {
+      setTipoEjecucionEdit('inmediata');
+      setFechaProgramadaEdit(undefined);
+    }
+
+    if (selectedMantencion.tipoAsignacion === 'tecnico_interno') {
+      setTipoAsignacionEdit('tecnico_interno');
+      setTecnicoAsignadoIdEdit(selectedMantencion.tecnicoAsignadoId || '');
+      setProveedorAsignadoIdEdit('');
+    } else if (selectedMantencion.tipoAsignacion === 'proveedor_externo') {
+      setTipoAsignacionEdit('proveedor_externo');
+      setProveedorAsignadoIdEdit(selectedMantencion.proveedorAsignadoId || '');
+      setTecnicoAsignadoIdEdit('');
+    } else {
+      setTipoAsignacionEdit(null);
+      setTecnicoAsignadoIdEdit('');
+      setProveedorAsignadoIdEdit('');
+    }
+
+    setIsEditingAsignacion(true);
+  };
+
+  const cancelEditingAsignacion = () => {
+    setIsEditingAsignacion(false);
+    setTipoEjecucionEdit(null);
+    setFechaProgramadaEdit(undefined);
+    setTipoAsignacionEdit(null);
+    setTecnicoAsignadoIdEdit('');
+    setProveedorAsignadoIdEdit('');
   };
 
   const getEstadoBadge = (estado: string) => {
@@ -1387,7 +1467,7 @@ export default function MantencionesPage() {
             <SheetHeader>
               <SheetTitle>Nueva Orden de Trabajo (OT)</SheetTitle>
               <SheetDescription>
-                Crear nueva solicitud de mantención con opciones avanzadas
+                Registre el equipo y problema. La asignación y programación se configuran después por el equipo de producción.
               </SheetDescription>
             </SheetHeader>
             <form onSubmit={handleCreateSubmit} className="mt-6">
@@ -1580,118 +1660,6 @@ export default function MantencionesPage() {
                         data-testid="textarea-descripcion"
                       />
                     </div>
-                  </div>
-
-                  {/* Tipo de Ejecución */}
-                  <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
-                    <h3 className="font-semibold text-sm">3. Tipo de Ejecución</h3>
-                    
-                    <RadioGroup value={tipoEjecucion} onValueChange={(v) => setTipoEjecucion(v as "inmediata" | "programada")}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="inmediata" id="tipo-inmediata" />
-                        <Label htmlFor="tipo-inmediata" className="font-normal cursor-pointer">
-                          🔴 Inmediata (atención urgente)
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="programada" id="tipo-programada" />
-                        <Label htmlFor="tipo-programada" className="font-normal cursor-pointer">
-                          📅 Programada (agendar para fecha futura)
-                        </Label>
-                      </div>
-                    </RadioGroup>
-
-                    {tipoEjecucion === 'programada' && (
-                      <div className="space-y-2 mt-4">
-                        <Label>Fecha Programada *</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !fechaProgramada && "text-muted-foreground"
-                              )}
-                              data-testid="button-fecha-programada"
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {fechaProgramada ? format(fechaProgramada, "PPP", { locale: es }) : "Seleccionar fecha"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <CalendarComponent
-                              mode="single"
-                              selected={fechaProgramada}
-                              onSelect={setFechaProgramada}
-                              initialFocus
-                              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Asignación */}
-                  <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
-                    <h3 className="font-semibold text-sm">4. Asignación (Opcional)</h3>
-                    
-                    <RadioGroup value={tipoAsignacion} onValueChange={(v) => setTipoAsignacion(v as any)}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="ninguno" id="asign-ninguno" />
-                        <Label htmlFor="asign-ninguno" className="font-normal cursor-pointer">
-                          Sin asignación (asignar después)
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="tecnico_interno" id="asign-tecnico" />
-                        <Label htmlFor="asign-tecnico" className="font-normal cursor-pointer">
-                          👷 Técnico Interno
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="proveedor_externo" id="asign-proveedor" />
-                        <Label htmlFor="asign-proveedor" className="font-normal cursor-pointer">
-                          🏢 Proveedor Externo
-                        </Label>
-                      </div>
-                    </RadioGroup>
-
-                    {tipoAsignacion === 'tecnico_interno' && (
-                      <div className="space-y-2 mt-4">
-                        <Label>Técnico Asignado *</Label>
-                        <Select value={tecnicoAsignadoId} onValueChange={setTecnicoAsignadoId}>
-                          <SelectTrigger data-testid="select-tecnico">
-                            <SelectValue placeholder="Seleccionar técnico..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {tecnicos.map(tecnico => (
-                              <SelectItem key={tecnico.id} value={tecnico.id}>
-                                {tecnico.name || tecnico.username}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    {tipoAsignacion === 'proveedor_externo' && (
-                      <div className="space-y-2 mt-4">
-                        <Label>Proveedor Asignado *</Label>
-                        <Select value={proveedorAsignadoId} onValueChange={setProveedorAsignadoId}>
-                          <SelectTrigger data-testid="select-proveedor">
-                            <SelectValue placeholder="Seleccionar proveedor..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {proveedores.map(proveedor => (
-                              <SelectItem key={proveedor.id} value={proveedor.id}>
-                                {proveedor.nombre} - {proveedor.especialidad}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
                   </div>
 
                   {/* Fotos */}
@@ -1976,6 +1944,185 @@ export default function MantencionesPage() {
                 <Label className="text-muted-foreground">Descripción</Label>
                 <p className="mt-1">{selectedMantencion.descripcionProblema}</p>
               </div>
+
+              {/* Asignación y Programación (solo admin/supervisor/produccion) */}
+              {canManageMantencion && (
+                <div className="border rounded-lg p-4 bg-muted/30">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold">Asignación y Programación</h3>
+                    {!isEditingAsignacion && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={startEditingAsignacion}
+                        data-testid="button-edit-asignacion"
+                      >
+                        <Settings className="h-4 w-4 mr-2" />
+                        Configurar
+                      </Button>
+                    )}
+                  </div>
+
+                  {!isEditingAsignacion ? (
+                    // Vista de solo lectura
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-sm text-muted-foreground">Tipo de Ejecución</Label>
+                        <p className="mt-1">
+                          {selectedMantencion.fechaProgramada ? (
+                            <>
+                              📅 Programada para {format(new Date(selectedMantencion.fechaProgramada), "dd/MM/yyyy", { locale: es })}
+                            </>
+                          ) : (
+                            '🔴 Inmediata (sin programar)'
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-muted-foreground">Asignado a</Label>
+                        <p className="mt-1">
+                          {selectedMantencion.tipoAsignacion === 'tecnico_interno' && selectedMantencion.tecnicoAsignadoName ? (
+                            `👷 ${selectedMantencion.tecnicoAsignadoName} (Técnico Interno)`
+                          ) : selectedMantencion.tipoAsignacion === 'proveedor_externo' && selectedMantencion.proveedorAsignadoName ? (
+                            `🏢 ${selectedMantencion.proveedorAsignadoName} (Proveedor Externo)`
+                          ) : (
+                            'Sin asignar'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    // Formulario de edición
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Tipo de Ejecución</Label>
+                        <RadioGroup 
+                          value={tipoEjecucionEdit || 'inmediata'} 
+                          onValueChange={(v) => setTipoEjecucionEdit(v as "inmediata" | "programada")}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="inmediata" id="edit-tipo-inmediata" />
+                            <Label htmlFor="edit-tipo-inmediata" className="font-normal cursor-pointer">
+                              🔴 Inmediata
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="programada" id="edit-tipo-programada" />
+                            <Label htmlFor="edit-tipo-programada" className="font-normal cursor-pointer">
+                              📅 Programada
+                            </Label>
+                          </div>
+                        </RadioGroup>
+
+                        {tipoEjecucionEdit === 'programada' && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal mt-2",
+                                  !fechaProgramadaEdit && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {fechaProgramadaEdit ? format(fechaProgramadaEdit, "PPP", { locale: es }) : "Seleccionar fecha"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                mode="single"
+                                selected={fechaProgramadaEdit}
+                                onSelect={setFechaProgramadaEdit}
+                                initialFocus
+                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Asignación</Label>
+                        <RadioGroup 
+                          value={tipoAsignacionEdit || 'ninguno'} 
+                          onValueChange={(v) => setTipoAsignacionEdit(v === 'ninguno' ? null : v as "tecnico_interno" | "proveedor_externo")}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="ninguno" id="edit-asign-ninguno" />
+                            <Label htmlFor="edit-asign-ninguno" className="font-normal cursor-pointer">
+                              Sin asignación
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="tecnico_interno" id="edit-asign-tecnico" />
+                            <Label htmlFor="edit-asign-tecnico" className="font-normal cursor-pointer">
+                              👷 Técnico Interno
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="proveedor_externo" id="edit-asign-proveedor" />
+                            <Label htmlFor="edit-asign-proveedor" className="font-normal cursor-pointer">
+                              🏢 Proveedor Externo
+                            </Label>
+                          </div>
+                        </RadioGroup>
+
+                        {tipoAsignacionEdit === 'tecnico_interno' && (
+                          <Select value={tecnicoAsignadoIdEdit} onValueChange={setTecnicoAsignadoIdEdit}>
+                            <SelectTrigger className="mt-2">
+                              <SelectValue placeholder="Seleccionar técnico..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {tecnicos.map(tecnico => (
+                                <SelectItem key={tecnico.id} value={tecnico.id}>
+                                  {tecnico.name || tecnico.username}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+
+                        {tipoAsignacionEdit === 'proveedor_externo' && (
+                          <Select value={proveedorAsignadoIdEdit} onValueChange={setProveedorAsignadoIdEdit}>
+                            <SelectTrigger className="mt-2">
+                              <SelectValue placeholder="Seleccionar proveedor..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {proveedores.map(proveedor => (
+                                <SelectItem key={proveedor.id} value={proveedor.id}>
+                                  {proveedor.nombre} - {proveedor.especialidad}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={cancelEditingAsignacion}
+                          disabled={updateAsignacionMutation.isPending}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleAsignacionSubmit}
+                          disabled={updateAsignacionMutation.isPending}
+                          data-testid="button-save-asignacion"
+                        >
+                          {updateAsignacionMutation.isPending && (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          )}
+                          Guardar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Photos */}
               {selectedMantencion.photos && selectedMantencion.photos.length > 0 && (
