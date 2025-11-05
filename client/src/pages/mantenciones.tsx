@@ -2062,8 +2062,8 @@ export default function MantencionesPage() {
               {/* Botones de acción según estado */}
               {canManageMantencion && (
                 <div className="border-t pt-4 space-y-2">
-                  {/* Botón Iniciar Trabajo - solo en estado registrado o programada */}
-                  {(selectedMantencion.estado === 'registrado' || selectedMantencion.estado === 'programada') && (
+                  {/* Botón Iniciar Trabajo - solo en estado pendiente, registrado o programada */}
+                  {(selectedMantencion.estado === 'pendiente' || selectedMantencion.estado === 'registrado' || selectedMantencion.estado === 'programada') && (
                     <Button
                       onClick={() => {
                         if (window.confirm('¿Está seguro que desea iniciar el trabajo en esta orden?')) {
