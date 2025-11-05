@@ -9593,6 +9593,28 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // GET componentes de un equipo
+  app.get('/api/cmms/equipos/:id/componentes', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const componentes = await storage.getComponentesDeEquipo(req.params.id);
+      res.json(componentes);
+    } catch (error: any) {
+      console.error('Error al obtener componentes:', error);
+      res.status(500).json({ message: 'Error al obtener componentes', error: error.message });
+    }
+  }));
+
+  // GET equipos principales (sin padre)
+  app.get('/api/cmms/equipos-principales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const equiposPrincipales = await storage.getEquiposPrincipales();
+      res.json(equiposPrincipales);
+    } catch (error: any) {
+      console.error('Error al obtener equipos principales:', error);
+      res.status(500).json({ message: 'Error al obtener equipos principales', error: error.message });
+    }
+  }));
+
   // POST create new equipo crítico
   app.post('/api/cmms/equipos', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
