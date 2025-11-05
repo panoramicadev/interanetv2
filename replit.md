@@ -8,6 +8,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 5, 2025 - Manual Projection Filtering & Cell Editing Fixes
+**Critical fixes to manual projection panel for accurate filtering and data editing:**
+- **Frontend Segment Filter**: Added segment filtering in frontend to correctly filter processed data (manual projections don't filter by segment in backend)
+- **Salesperson Filter Verification**: Confirmed vendor filtering works correctly for both historical data and manual projections
+- **Cell Editing Fix**: Resolved issue where users couldn't delete or change saved monthly projections to 0
+  - Changed from `defaultValue` to controlled `value` inputs
+  - Fixed logic to properly detect when cell is being edited vs displaying saved value
+  - Users can now clear values, enter 0, and edit existing projections without issues
+- **Aligned with Dashboard**: Filters now work consistently with main dashboard behavior
+
 ### November 5, 2025 - Inventory Auto-Sync & Cache System
 **Intelligent inventory synchronization and caching to keep data fresh without saturating the database:**
 - **Auto-Sync on Entry**: When users access inventory, system checks if last sync was >1 minute ago and triggers background sync automatically
