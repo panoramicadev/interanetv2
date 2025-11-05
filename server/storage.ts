@@ -12540,12 +12540,18 @@ export class DatabaseStorage implements IStorage {
 
     updateData.updatedAt = new Date();
 
+    console.log('[STORAGE DEBUG] updateData:', JSON.stringify(updateData, null, 2));
+    console.log('[STORAGE DEBUG] Estado actual:', mantencion.estado);
+    console.log('[STORAGE DEBUG] Asignación recibida:', JSON.stringify(asignacion, null, 2));
+
     // Actualizar la asignación
     const [updated] = await db
       .update(solicitudesMantencion)
       .set(updateData)
       .where(eq(solicitudesMantencion.id, id))
       .returning();
+    
+    console.log('[STORAGE DEBUG] Datos actualizados:', JSON.stringify(updated, null, 2));
 
     // Registrar en historial
     const notas: string[] = [];
