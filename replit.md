@@ -8,6 +8,7 @@
 - **Added Total Acumulado Card**: Implemented green summary card showing sum of all compared periods in both segment and salesperson comparatives.
 - **Fixed Year Label Bug**: Corrected tooltip display when comparing full years (2024 vs 2025) - was showing "Ene" instead of year label.
 - **Sorted Year Display**: Years now display in ascending order (2023, 2024, 2025) in all comparative charts for better chronological readability.
+- **Fixed Segment Detail View Year Filter**: Added missing 'year' filter case in `getSegmentSalespeople()` to ensure vendor amounts match exactly when selecting a full year period. Now both clients and vendors filter consistently.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

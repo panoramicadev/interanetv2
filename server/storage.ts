@@ -3354,6 +3354,13 @@ export class DatabaseStorage implements IStorage {
             );
           }
           break;
+        case 'year':
+          // Period format: YYYY or YYYY-MM (extract year only)
+          const yearForFilter = period.split('-')[0];
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`
+          );
+          break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
