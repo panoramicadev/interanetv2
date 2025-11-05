@@ -81,8 +81,8 @@ export default function Inventario() {
     );
   }
 
-  // Only admin, supervisor, salesperson, produccion, and logistica_bodega can access inventory
-  if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'salesperson' && user.role !== 'produccion' && user.role !== 'logistica_bodega') {
+  // Only admin, supervisor, salesperson, produccion, laboratorio, and logistica_bodega can access inventory
+  if (user.role !== 'admin' && user.role !== 'supervisor' && user.role !== 'salesperson' && user.role !== 'produccion' && user.role !== 'laboratorio' && user.role !== 'logistica_bodega') {
     return (
       <div className="container mx-auto px-4 py-8">
         <Card>
@@ -103,7 +103,7 @@ export default function Inventario() {
           <h1 className="text-3xl font-bold" data-testid="text-page-title">Inventario</h1>
           <p className="text-muted-foreground">Gestión de stock y disponibilidad de productos</p>
         </div>
-        {(user.role === 'admin' || user.role === 'supervisor') && (
+        {(user.role === 'admin' || user.role === 'supervisor' || user.role === 'produccion' || user.role === 'laboratorio') && (
           <SyncCatalogButton />
         )}
       </div>

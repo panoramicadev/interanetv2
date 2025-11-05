@@ -503,6 +503,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: FileCheck,
     },
     {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
+    {
       href: "/tintometria",
       label: "Tintometría",
       icon: Palette,
