@@ -3358,50 +3358,179 @@ export const insertReclamoGeneralHistorialSchema = createInsertSchema(reclamosGe
 });
 
 // ==================================================================================
-// SISTEMA DE MANTENCIÓN (gestión de reparaciones y mantenimiento)
+// SISTEMA CMMS - COMPUTERIZED MAINTENANCE MANAGEMENT SYSTEM
 // ==================================================================================
 
-// Tabla principal de solicitudes de mantención
+// ===== CATÁLOGO DE EQUIPOS CRÍTICOS =====
+export const equiposCriticos = pgTable("equipos_criticos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  codigo: varchar("codigo", { length: 50 }).notNull().unique(), // Código único del equipo
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  area: varchar("area").notNull(), // administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados
+  criticidad: varchar("criticidad").notNull().default("media"), // baja, media, alta, critica
+  ubicacionEspecifica: text("ubicacion_especifica"),
+  
+  // Información técnica
+  marca: varchar("marca", { length: 100 }),
+  modelo: varchar("modelo", { length: 100 }),
+  numeroSerie: varchar("numero_serie", { length: 100 }),
+  potencia: varchar("potencia", { length: 50 }), // ej: "5.5 HP", "220V 3-phase"
+  
+  // Plan preventivo
+  frecuenciaPreventivo: varchar("frecuencia_preventivo"), // semanal, mensual, trimestral, semestral, anual
+  ultimoMantPreventivo: timestamp("ultimo_mant_preventivo"),
+  proximoMantPreventivo: timestamp("proximo_mant_preventivo"),
+  
+  // Información adicional
+  repuestosCriticos: text("repuestos_criticos"), // Lista de repuestos críticos
+  arbolFallas: text("arbol_fallas"), // Árbol simple de fallas (texto)
+  manualesUrl: text("manuales_url"), // URLs de manuales/PDFs separados por comas
+  notas: text("notas"),
+  
+  // Estado
+  estadoActual: varchar("estado_actual").default("operativo"), // operativo, detenido, en_mantenimiento, dado_de_baja
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  codigoIdx: index("IDX_equipos_codigo").on(table.codigo),
+  areaIdx: index("IDX_equipos_area").on(table.area),
+  criticidadIdx: index("IDX_equipos_criticidad").on(table.criticidad),
+}));
+
+// ===== PROVEEDORES EXTERNOS =====
+export const proveedoresMantencion = pgTable("proveedores_mantencion", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  contacto: varchar("contacto", { length: 255 }), // Nombre de contacto
+  telefono: varchar("telefono", { length: 50 }),
+  email: varchar("email", { length: 255 }),
+  especialidad: text("especialidad"), // ej: "Electricidad Industrial", "Mecánica"
+  evaluacion: numeric("evaluacion", { precision: 3, scale: 2 }), // 1.00 - 5.00
+  costoPromedioHora: numeric("costo_promedio_hora", { precision: 15, scale: 2 }),
+  notas: text("notas"),
+  activo: boolean("activo").default(true),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ===== PRESUPUESTO ANUAL DE MANTENCIÓN =====
+export const presupuestoMantencion = pgTable("presupuesto_mantencion", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  anio: integer("anio").notNull(),
+  mes: integer("mes").notNull(), // 1-12, o 0 para presupuesto anual global
+  area: varchar("area"), // NULL para global, o área específica
+  
+  presupuestoAsignado: numeric("presupuesto_asignado", { precision: 15, scale: 2 }).notNull(),
+  presupuestoEjecutado: numeric("presupuesto_ejecutado", { precision: 15, scale: 2 }).default(sql`0`),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("unique_presupuesto_anio_mes_area").on(table.anio, table.mes, table.area)
+]);
+
+// ===== GASTOS DE MATERIALES =====
+export const gastosMaterialesMantencion = pgTable("gastos_materiales_mantencion", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fecha: timestamp("fecha").notNull().defaultNow(),
+  item: varchar("item", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  cantidad: numeric("cantidad", { precision: 10, scale: 2 }).notNull(),
+  costoUnitario: numeric("costo_unitario", { precision: 15, scale: 2 }).notNull(),
+  costoTotal: numeric("costo_total", { precision: 15, scale: 2 }).notNull(),
+  
+  area: varchar("area"), // Centro de costo/área
+  otId: varchar("ot_id"), // FK opcional a solicitudes_mantencion
+  proveedorId: varchar("proveedor_id"), // FK opcional a proveedores_mantencion
+  adjuntoUrl: text("adjunto_url"), // URL de factura/foto
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  fechaIdx: index("IDX_gastos_materiales_fecha").on(table.fecha),
+  otIdIdx: index("IDX_gastos_materiales_ot_id").on(table.otId),
+}));
+
+// ===== PLANES PREVENTIVOS =====
+export const planesPreventivos = pgTable("planes_preventivos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  equipoId: varchar("equipo_id").notNull(), // FK a equipos_criticos
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  descripcion: text("descripcion"),
+  frecuencia: varchar("frecuencia").notNull(), // semanal, mensual, trimestral, semestral, anual
+  diasTolerancia: integer("dias_tolerancia").default(7), // ±7 días por defecto
+  
+  ultimaEjecucion: timestamp("ultima_ejecucion"),
+  proximaEjecucion: timestamp("proxima_ejecucion").notNull(),
+  
+  checklist: text("checklist"), // Checklist de tareas (texto o JSON)
+  horasEstimadas: numeric("horas_estimadas", { precision: 5, scale: 2 }),
+  
+  activo: boolean("activo").default(true),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  equipoIdIdx: index("IDX_planes_preventivos_equipo_id").on(table.equipoId),
+  proximaEjecucionIdx: index("IDX_planes_preventivos_proxima_ejecucion").on(table.proximaEjecucion),
+}));
+
+// ===== ÓRDENES DE TRABAJO (OTs) - Tabla principal actualizada =====
 export const solicitudesMantencion = pgTable("solicitudes_mantencion", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  numeroOT: varchar("numero_ot", { length: 50 }), // Número correlativo de OT (ej: "OT-2025-001")
   
   // Información del equipo/máquina
+  equipoId: varchar("equipo_id"), // FK a equipos_criticos (opcional, puede ser equipo no catalogado)
   equipoNombre: text("equipo_nombre").notNull(), // Nombre del equipo o máquina
   equipoCodigo: varchar("equipo_codigo"), // Código interno del equipo
-  area: varchar("area").notNull(), // Área donde está ubicado el equipo
+  area: varchar("area").notNull(), // administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados
   ubicacion: text("ubicacion"), // Ubicación específica dentro del área
   
   // Descripción del problema
   descripcionProblema: text("descripcion_problema").notNull(),
-  gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica
-  tipoMantencion: varchar("tipo_mantencion").default("correctivo"), // preventivo, correctivo, predictivo
+  prioridad: varchar("prioridad").notNull().default("media"), // baja, media, alta (para SLA)
+  gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica (impacto técnico)
+  tipoMantencion: varchar("tipo_mantencion").default("correctivo"), // preventivo, correctivo
   
-  // Flujo de trabajo
-  estado: varchar("estado").default("registrado").notNull(), // registrado, en_reparacion, resuelto, cerrado
+  // Flujo de trabajo CMMS: Pendiente → En curso → Finalizada → Cerrada
+  estado: varchar("estado").default("pendiente").notNull(), // pendiente, en_curso, finalizada, cerrada
   
   // Asignaciones
   solicitanteId: varchar("solicitante_id").notNull(), // FK to users.id (quien crea la solicitud)
   solicitanteName: varchar("solicitante_name"), // Nombre del solicitante
-  tecnicoAsignadoId: varchar("tecnico_asignado_id"), // FK to users.id (produccion asignado)
-  tecnicoAsignadoName: varchar("tecnico_asignado_name"), // Nombre del técnico
+  
+  // Asignación: técnico interno O proveedor externo
+  tipoAsignacion: varchar("tipo_asignacion"), // tecnico_interno, proveedor_externo
+  tecnicoAsignadoId: varchar("tecnico_asignado_id"), // FK to users.id (técnico interno)
+  tecnicoAsignadoName: varchar("tecnico_asignado_name"),
+  proveedorAsignadoId: varchar("proveedor_asignado_id"), // FK to proveedores_mantencion
+  proveedorAsignadoName: varchar("proveedor_asignado_name"),
   
   // Resolución
   resolucionDescripcion: text("resolucion_descripcion"), // Descripción de la reparación realizada
-  resolucionUsuarioId: varchar("resolucion_usuario_id"), // Usuario de produccion que resolvió
-  resolucionUsuarioName: varchar("resolucion_usuario_name"), // Nombre del usuario que resolvió
-  fechaResolucion: timestamp("fecha_resolucion"), // Fecha de la resolución
+  resolucionUsuarioId: varchar("resolucion_usuario_id"), // Usuario que resolvió
+  resolucionUsuarioName: varchar("resolucion_usuario_name"),
+  fechaResolucion: timestamp("fecha_resolucion"),
   
-  // Información adicional
-  costoEstimado: numeric("costo_estimado", { precision: 15, scale: 2 }), // Costo estimado de la reparación
-  costoReal: numeric("costo_real", { precision: 15, scale: 2 }), // Costo real de la reparación
-  tiempoEstimado: integer("tiempo_estimado"), // Tiempo estimado en horas
-  tiempoReal: integer("tiempo_real"), // Tiempo real en horas
-  repuestosUtilizados: text("repuestos_utilizados"), // Lista de repuestos utilizados
+  // Información de costos y tiempos
+  costoEstimado: numeric("costo_estimado", { precision: 15, scale: 2 }),
+  costoReal: numeric("costo_real", { precision: 15, scale: 2 }),
+  horasEstimadas: numeric("horas_estimadas", { precision: 5, scale: 2 }), // Horas estimadas
+  horasReales: numeric("horas_reales", { precision: 5, scale: 2 }), // Horas reales trabajadas
+  repuestosUtilizados: text("repuestos_utilizados"), // Lista de repuestos
   
-  // Fechas de seguimiento
+  // Fechas de seguimiento (para KPIs)
   fechaSolicitud: timestamp("fecha_solicitud").defaultNow(),
   fechaAsignacion: timestamp("fecha_asignacion"),
-  fechaCierre: timestamp("fecha_cierre"),
+  fechaInicio: timestamp("fecha_inicio"), // Cuando se inicia el trabajo
+  fechaTermino: timestamp("fecha_termino"), // Cuando se finaliza el trabajo
+  fechaCierre: timestamp("fecha_cierre"), // Cuando se cierra administrativamente
+  
+  // Vinculación a plan preventivo
+  planPreventivoId: varchar("plan_preventivo_id"), // FK a planes_preventivos (si es preventiva)
   
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
@@ -3409,9 +3538,11 @@ export const solicitudesMantencion = pgTable("solicitudes_mantencion", {
 }, (table) => ({
   solicitanteIdIdx: index("IDX_mantencion_solicitante_id").on(table.solicitanteId),
   tecnicoIdIdx: index("IDX_mantencion_tecnico_id").on(table.tecnicoAsignadoId),
+  proveedorIdIdx: index("IDX_mantencion_proveedor_id").on(table.proveedorAsignadoId),
   estadoIdx: index("IDX_mantencion_estado").on(table.estado),
-  gravedadIdx: index("IDX_mantencion_gravedad").on(table.gravedad),
+  prioridadIdx: index("IDX_mantencion_prioridad").on(table.prioridad),
   areaIdx: index("IDX_mantencion_area").on(table.area),
+  equipoIdIdx: index("IDX_mantencion_equipo_id").on(table.equipoId),
 }));
 
 // Tabla de fotos de evidencia inicial
@@ -3450,7 +3581,37 @@ export const mantencionHistorial = pgTable("mantencion_historial", {
   mantencionIdIdx: index("IDX_mantencion_historial_mantencion_id").on(table.mantencionId),
 }));
 
-// Relaciones para solicitudes de mantención
+// ===== RELACIONES CMMS =====
+export const equiposCriticosRelations = relations(equiposCriticos, ({ many }) => ({
+  ots: many(solicitudesMantencion),
+  planesPreventivos: many(planesPreventivos),
+}));
+
+export const proveedoresMantencionRelations = relations(proveedoresMantencion, ({ many }) => ({
+  ots: many(solicitudesMantencion),
+  gastosMateriales: many(gastosMaterialesMantencion),
+}));
+
+export const planesPreventivosRelations = relations(planesPreventivos, ({ one, many }) => ({
+  equipo: one(equiposCriticos, {
+    fields: [planesPreventivos.equipoId],
+    references: [equiposCriticos.id],
+  }),
+  ots: many(solicitudesMantencion),
+}));
+
+export const gastosMaterialesMantencionRelations = relations(gastosMaterialesMantencion, ({ one }) => ({
+  ot: one(solicitudesMantencion, {
+    fields: [gastosMaterialesMantencion.otId],
+    references: [solicitudesMantencion.id],
+  }),
+  proveedor: one(proveedoresMantencion, {
+    fields: [gastosMaterialesMantencion.proveedorId],
+    references: [proveedoresMantencion.id],
+  }),
+}));
+
+// Relaciones para solicitudes de mantención (OTs)
 export const solicitudesMantencionRelations = relations(solicitudesMantencion, ({ one, many }) => ({
   solicitante: one(users, {
     fields: [solicitudesMantencion.solicitanteId],
@@ -3460,9 +3621,22 @@ export const solicitudesMantencionRelations = relations(solicitudesMantencion, (
     fields: [solicitudesMantencion.tecnicoAsignadoId],
     references: [users.id],
   }),
+  proveedorAsignado: one(proveedoresMantencion, {
+    fields: [solicitudesMantencion.proveedorAsignadoId],
+    references: [proveedoresMantencion.id],
+  }),
+  equipo: one(equiposCriticos, {
+    fields: [solicitudesMantencion.equipoId],
+    references: [equiposCriticos.id],
+  }),
+  planPreventivo: one(planesPreventivos, {
+    fields: [solicitudesMantencion.planPreventivoId],
+    references: [planesPreventivos.id],
+  }),
   photos: many(mantencionPhotos),
   resolucionPhotos: many(mantencionResolucionPhotos),
   historial: many(mantencionHistorial),
+  gastosMateriales: many(gastosMaterialesMantencion),
 }));
 
 export const mantencionPhotosRelations = relations(mantencionPhotos, ({ one }) => ({
@@ -3490,10 +3664,32 @@ export const mantencionHistorialRelations = relations(mantencionHistorial, ({ on
   }),
 }));
 
-// Types para solicitudes de mantención
+// ===== TYPES CMMS =====
+// Equipos Críticos
+export type EquipoCritico = typeof equiposCriticos.$inferSelect;
+export type InsertEquipoCritico = typeof equiposCriticos.$inferInsert;
+
+// Proveedores
+export type ProveedorMantencion = typeof proveedoresMantencion.$inferSelect;
+export type InsertProveedorMantencion = typeof proveedoresMantencion.$inferInsert;
+
+// Presupuesto
+export type PresupuestoMantencion = typeof presupuestoMantencion.$inferSelect;
+export type InsertPresupuestoMantencion = typeof presupuestoMantencion.$inferInsert;
+
+// Gastos de Materiales
+export type GastoMaterialMantencion = typeof gastosMaterialesMantencion.$inferSelect;
+export type InsertGastoMaterialMantencion = typeof gastosMaterialesMantencion.$inferInsert;
+
+// Planes Preventivos
+export type PlanPreventivo = typeof planesPreventivos.$inferSelect;
+export type InsertPlanPreventivo = typeof planesPreventivos.$inferInsert;
+
+// Órdenes de Trabajo
 export type SolicitudMantencion = typeof solicitudesMantencion.$inferSelect;
 export type InsertSolicitudMantencion = typeof solicitudesMantencion.$inferInsert;
 
+// Fotos y Historial
 export type MantencionPhoto = typeof mantencionPhotos.$inferSelect;
 export type InsertMantencionPhoto = typeof mantencionPhotos.$inferInsert;
 
@@ -3503,7 +3699,65 @@ export type InsertMantencionResolucionPhoto = typeof mantencionResolucionPhotos.
 export type MantencionHistorial = typeof mantencionHistorial.$inferSelect;
 export type InsertMantencionHistorial = typeof mantencionHistorial.$inferInsert;
 
-// Schemas de validación para solicitudes de mantención
+// ===== SCHEMAS DE VALIDACIÓN CMMS =====
+// Equipos Críticos
+export const insertEquipoCriticoSchema = createInsertSchema(equiposCriticos).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  codigo: z.string().min(1, "El código del equipo es requerido"),
+  nombre: z.string().min(1, "El nombre del equipo es requerido"),
+  area: z.enum(["administracion", "produccion", "laboratorio", "bodega_materias_primas", "bodega_productos_terminados"]),
+  criticidad: z.enum(["baja", "media", "alta", "critica"]).default("media"),
+  frecuenciaPreventivo: z.enum(["semanal", "mensual", "trimestral", "semestral", "anual"]).optional(),
+});
+
+// Proveedores
+export const insertProveedorMantencionSchema = createInsertSchema(proveedoresMantencion).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  nombre: z.string().min(1, "El nombre del proveedor es requerido"),
+  activo: z.boolean().default(true),
+});
+
+// Presupuesto
+export const insertPresupuestoMantencionSchema = createInsertSchema(presupuestoMantencion).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  anio: z.number().int().min(2020).max(2100),
+  mes: z.number().int().min(0).max(12), // 0 = anual global
+});
+
+// Gastos de Materiales
+export const insertGastoMaterialMantencionSchema = createInsertSchema(gastosMaterialesMantencion).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  item: z.string().min(1, "El ítem es requerido"),
+  cantidad: z.number().positive("La cantidad debe ser mayor a 0"),
+  costoUnitario: z.number().positive("El costo unitario debe ser mayor a 0"),
+  costoTotal: z.number().positive("El costo total debe ser mayor a 0"),
+});
+
+// Planes Preventivos
+export const insertPlanPreventivoSchema = createInsertSchema(planesPreventivos).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  equipoId: z.string().min(1, "El ID del equipo es requerido"),
+  nombre: z.string().min(1, "El nombre del plan es requerido"),
+  frecuencia: z.enum(["semanal", "mensual", "trimestral", "semestral", "anual"]),
+  diasTolerancia: z.number().int().min(0).max(30).default(7),
+  activo: z.boolean().default(true),
+});
+
+// Órdenes de Trabajo (Solicitudes de Mantención)
 export const insertSolicitudMantencionSchema = createInsertSchema(solicitudesMantencion).omit({
   id: true,
   createdAt: true,
@@ -3511,11 +3765,13 @@ export const insertSolicitudMantencionSchema = createInsertSchema(solicitudesMan
   fechaSolicitud: true,
 }).extend({
   equipoNombre: z.string().min(1, "El nombre del equipo es requerido"),
-  area: z.string().min(1, "El área es requerida"),
+  area: z.enum(["administracion", "produccion", "laboratorio", "bodega_materias_primas", "bodega_productos_terminados"]),
   descripcionProblema: z.string().min(5, "La descripción debe tener al menos 5 caracteres"),
+  prioridad: z.enum(["baja", "media", "alta"]).default("media"),
   gravedad: z.enum(["baja", "media", "alta", "critica"]),
-  estado: z.enum(["registrado", "en_reparacion", "resuelto", "cerrado"]).optional(),
-  tipoMantencion: z.enum(["preventivo", "correctivo", "predictivo"]).optional(),
+  estado: z.enum(["pendiente", "en_curso", "finalizada", "cerrada"]).default("pendiente").optional(),
+  tipoMantencion: z.enum(["preventivo", "correctivo"]).default("correctivo").optional(),
+  tipoAsignacion: z.enum(["tecnico_interno", "proveedor_externo"]).optional(),
 });
 
 export const insertMantencionPhotoSchema = createInsertSchema(mantencionPhotos).omit({
