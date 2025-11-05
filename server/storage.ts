@@ -12663,6 +12663,13 @@ export class DatabaseStorage implements IStorage {
   
   // ===== EQUIPOS CRÍTICOS =====
   async createEquipoCritico(equipo: InsertEquipoCritico): Promise<EquipoCritico> {
+    // Auto-generate codigo if not provided
+    if (!equipo.codigo || equipo.codigo.trim() === '') {
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const namePrefix = equipo.nombre.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, '');
+      equipo.codigo = `${namePrefix}-${timestamp}`;
+    }
+    
     const [result] = await db
       .insert(equiposCriticos)
       .values(equipo)

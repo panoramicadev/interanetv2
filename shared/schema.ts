@@ -3715,7 +3715,7 @@ export const insertEquipoCriticoSchema = createInsertSchema(equiposCriticos).omi
   createdAt: true,
   updatedAt: true,
 }).extend({
-  codigo: z.string().min(1, "El código del equipo es requerido"),
+  codigo: z.string().optional(), // Optional - will be auto-generated if not provided
   nombre: z.string().min(1, "El nombre del equipo es requerido"),
   area: z.enum(["administracion", "produccion", "laboratorio", "bodega_materias_primas", "bodega_productos_terminados"]),
   criticidad: z.enum(["baja", "media", "alta", "critica"]).default("media"),
