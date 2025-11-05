@@ -12405,7 +12405,9 @@ export class DatabaseStorage implements IStorage {
   async actualizarAsignacionMantencion(
     id: string,
     asignacion: {
-      tipoAsignacion?: 'tecnico_interno' | 'proveedor_externo';
+      tipoEjecucion?: 'inmediata' | 'programada' | null;
+      fechaProgramada?: string | null;
+      tipoAsignacion?: 'tecnico_interno' | 'proveedor_externo' | null;
       tecnicoAsignadoId?: string | null;
       tecnicoAsignadoName?: string | null;
       proveedorAsignadoId?: string | null;
@@ -12420,30 +12422,76 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Orden de trabajo no encontrada');
     }
 
+    // Preparar datos para actualizar
+    const updateData: any = {};
+    
+    // Actualizar tipo de ejecución y fecha programada
+    if (asignacion.tipoEjecucion !== undefined) {
+      if (asignacion.tipoEjecucion === 'programada' && asignacion.fechaProgramada) {
+        updateData.fechaProgramada = new Date(asignacion.fechaProgramada);
+      } else {
+        updateData.fechaProgramada = null;
+      }
+    }
+
+    // Actualizar asignación
+    if (asignacion.tipoAsignacion !== undefined) {
+      updateData.tipoAsignacion = asignacion.tipoAsignacion;
+    }
+    if (asignacion.tecnicoAsignadoId !== undefined) {
+      updateData.tecnicoAsignadoId = asignacion.tecnicoAsignadoId;
+    }
+    if (asignacion.tecnicoAsignadoName !== undefined) {
+      updateData.tecnicoAsignadoName = asignacion.tecnicoAsignadoName;
+    }
+    if (asignacion.proveedorAsignadoId !== undefined) {
+      updateData.proveedorAsignadoId = asignacion.proveedorAsignadoId;
+    }
+    if (asignacion.proveedorAsignadoName !== undefined) {
+      updateData.proveedorAsignadoName = asignacion.proveedorAsignadoName;
+    }
+
+    // Solo actualizar fechaAsignacion si se está asignando técnico o proveedor
+    if (asignacion.tecnicoAsignadoId || asignacion.proveedorAsignadoId) {
+      updateData.fechaAsignacion = new Date();
+    }
+
+    updateData.updatedAt = new Date();
+
     // Actualizar la asignación
     const [updated] = await db
       .update(solicitudesMantencion)
-      .set({
-        ...asignacion,
-        fechaAsignacion: new Date(),
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(solicitudesMantencion.id, id))
       .returning();
 
     // Registrar en historial
-    const notasAsignacion = asignacion.tipoAsignacion === 'tecnico_interno'
-      ? `Asignado a técnico: ${asignacion.tecnicoAsignadoName}`
-      : `Asignado a proveedor: ${asignacion.proveedorAsignadoName}`;
+    const notas: string[] = [];
+    if (asignacion.tipoEjecucion !== undefined) {
+      if (asignacion.tipoEjecucion === 'programada') {
+        notas.push('Tipo de ejecución: Programada');
+      } else if (asignacion.tipoEjecucion === 'inmediata') {
+        notas.push('Tipo de ejecución: Inmediata');
+      }
+    }
+    if (asignacion.tipoAsignacion === 'tecnico_interno') {
+      notas.push(`Asignado a técnico: ${asignacion.tecnicoAsignadoName}`);
+    } else if (asignacion.tipoAsignacion === 'proveedor_externo') {
+      notas.push(`Asignado a proveedor: ${asignacion.proveedorAsignadoName}`);
+    } else if (asignacion.tipoAsignacion === null) {
+      notas.push('Asignación removida');
+    }
 
-    await this.createMantencionHistorial({
-      mantencionId: id,
-      estadoAnterior: mantencion.estado,
-      estadoNuevo: mantencion.estado,
-      userId,
-      userName,
-      notas: notasAsignacion,
-    });
+    if (notas.length > 0) {
+      await this.createMantencionHistorial({
+        mantencionId: id,
+        estadoAnterior: mantencion.estado,
+        estadoNuevo: mantencion.estado,
+        userId,
+        userName,
+        notas: notas.join('; '),
+      });
+    }
 
     return updated;
   }
