@@ -12361,7 +12361,7 @@ export class DatabaseStorage implements IStorage {
       .insert(gastosMaterialesMantencion)
       .values({
         ...gastoData,
-        mantencionId,
+        otId: mantencionId,
       })
       .returning();
 
@@ -12369,11 +12369,11 @@ export class DatabaseStorage implements IStorage {
     const todosLosGastos = await db
       .select()
       .from(gastosMaterialesMantencion)
-      .where(eq(gastosMaterialesMantencion.mantencionId, mantencionId));
+      .where(eq(gastosMaterialesMantencion.otId, mantencionId));
 
     const costoTotal = todosLosGastos.reduce((sum, g) => {
-      const monto = typeof g.monto === 'string' ? parseFloat(g.monto) : Number(g.monto);
-      return sum + (isNaN(monto) ? 0 : monto);
+      const total = typeof g.costoTotal === 'string' ? parseFloat(g.costoTotal) : Number(g.costoTotal);
+      return sum + (isNaN(total) ? 0 : total);
     }, 0);
 
     await db
