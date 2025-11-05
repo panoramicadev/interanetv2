@@ -149,8 +149,7 @@ export default function CMMSEquipos() {
     mutationFn: async (data: EquipoCriticoFormData) => {
       return apiRequest('/api/cmms/equipos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        data,
       });
     },
     onSuccess: (newEquipo) => {
@@ -171,9 +170,17 @@ export default function CMMSEquipos() {
       form.reset();
     },
     onError: (error: any) => {
+      console.error("Error creating equipo:", error);
+      let description = error.message;
+      
+      // If there are validation errors, show them
+      if (error.errors && Array.isArray(error.errors)) {
+        description = error.errors.map((e: any) => `${e.path?.join('.')}: ${e.message}`).join(', ');
+      }
+      
       toast({ 
         title: creatingComponentFor ? "Error al crear componente" : "Error al crear equipo", 
-        description: error.message,
+        description,
         variant: "destructive" 
       });
     },
@@ -184,8 +191,7 @@ export default function CMMSEquipos() {
     mutationFn: async ({ id, data }: { id: string; data: Partial<EquipoCriticoFormData> }) => {
       return apiRequest(`/api/cmms/equipos/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        data,
       });
     },
     onSuccess: () => {
