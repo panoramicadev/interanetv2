@@ -100,21 +100,39 @@ export default function ComparativeSegmentTable({ periods, segment }: Comparativ
 
   // Calculate total sales across all periods
   const totalSalesAllPeriods = totalSalesPerPeriod.reduce((sum, periodTotal) => sum + periodTotal, 0);
-  const isMultipleDays = periods.length > 1 && periods[0].filterType === 'day';
+  const isMultiplePeriods = periods.length > 1;
+  
+  // Get period type label
+  const getPeriodLabel = () => {
+    if (!isMultiplePeriods) return '';
+    const filterType = periods[0].filterType;
+    const count = periods.length;
+    
+    switch (filterType) {
+      case 'day':
+        return `${count} ${count === 1 ? 'día' : 'días'}`;
+      case 'month':
+        return `${count} ${count === 1 ? 'mes' : 'meses'}`;
+      case 'year':
+        return `${count} ${count === 1 ? 'año' : 'años'}`;
+      default:
+        return `${count} ${count === 1 ? 'período' : 'períodos'}`;
+    }
+  };
 
   return (
     <>
-      {/* Summary Card for Day Range Selection */}
-      {isMultipleDays && (
+      {/* Summary Card for Multiple Periods Comparison */}
+      {isMultiplePeriods && (
         <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-lg p-6 mb-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-emerald-700 mb-1">Ventas Totales del Período</p>
+              <p className="text-sm font-medium text-emerald-700 mb-1">Total Acumulado de Períodos Comparados</p>
               <p className="text-3xl font-bold text-emerald-900" data-testid="text-total-period-sales">
                 {formatCurrency(totalSalesAllPeriods)}
               </p>
               <p className="text-sm text-emerald-600 mt-1">
-                {periods.length} {periods.length === 1 ? 'día' : 'días'} seleccionados
+                {getPeriodLabel()} comparados
               </p>
             </div>
             <div className="bg-emerald-100 rounded-full p-4">

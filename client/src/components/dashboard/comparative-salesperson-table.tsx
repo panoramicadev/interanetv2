@@ -89,8 +89,51 @@ export default function ComparativeSalespersonTable({ salespersonName, periods }
     );
   }
 
+  // Calculate totals across all periods
+  const totalSalesAllPeriods = allMetrics.reduce((sum, m) => sum + m.totalSales, 0);
+  const isMultiplePeriods = periods.length > 1;
+  
+  // Get period type label
+  const getPeriodLabel = () => {
+    if (!isMultiplePeriods) return '';
+    const filterType = periods[0].filterType;
+    const count = periods.length;
+    
+    switch (filterType) {
+      case 'day':
+        return `${count} ${count === 1 ? 'día' : 'días'}`;
+      case 'month':
+        return `${count} ${count === 1 ? 'mes' : 'meses'}`;
+      case 'year':
+        return `${count} ${count === 1 ? 'año' : 'años'}`;
+      default:
+        return `${count} ${count === 1 ? 'período' : 'períodos'}`;
+    }
+  };
+
   return (
-    <div className="bg-white border rounded-lg p-4">
+    <>
+      {/* Summary Card for Multiple Periods Comparison */}
+      {isMultiplePeriods && (
+        <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-lg p-6 mb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-emerald-700 mb-1">Total Acumulado de Períodos Comparados</p>
+              <p className="text-3xl font-bold text-emerald-900" data-testid="text-total-period-sales">
+                {formatCurrency(totalSalesAllPeriods)}
+              </p>
+              <p className="text-sm text-emerald-600 mt-1">
+                {getPeriodLabel()} comparados
+              </p>
+            </div>
+            <div className="bg-emerald-100 rounded-full p-4">
+              <TrendingUp className="h-8 w-8 text-emerald-600" />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="bg-white border rounded-lg p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-gray-700" />
@@ -205,5 +248,6 @@ export default function ComparativeSalespersonTable({ salespersonName, periods }
         </div>
       )}
     </div>
+    </>
   );
 }
