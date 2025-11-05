@@ -842,7 +842,7 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddGastoSubmit}>
-            <div className="space-y-4">
+            <div className="space-y-4 mb-4">
               <div className="space-y-2">
                 <Label htmlFor="item">Item / Material *</Label>
                 <Input
@@ -894,28 +894,28 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
                   />
                 </div>
               </div>
-
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddGastoDialogOpen(false)}
-                  data-testid="button-cancel-gasto"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={addGastoMutation.isPending}
-                  data-testid="button-submit-gasto"
-                >
-                  {addGastoMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Agregar
-                </Button>
-              </DialogFooter>
             </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddGastoDialogOpen(false)}
+                data-testid="button-cancel-gasto"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={addGastoMutation.isPending}
+                data-testid="button-submit-gasto"
+              >
+                {addGastoMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Agregar
+              </Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
