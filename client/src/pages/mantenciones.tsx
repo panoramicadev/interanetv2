@@ -83,6 +83,610 @@ const ESTADO_OPTIONS = [
   { value: 'cerrado', label: 'Cerrado', icon: XCircle, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
 ];
 
+// Componente para el tab de Seguimiento
+function SeguimientoTab({ 
+  mantencion, 
+  canManageMantencion,
+  onUpdate 
+}: { 
+  mantencion: MantencionWithDetails; 
+  canManageMantencion: boolean;
+  onUpdate: () => void;
+}) {
+  const { toast } = useToast();
+  const [isPausarDialogOpen, setIsPausarDialogOpen] = useState(false);
+  const [isReanudarDialogOpen, setIsReanudarDialogOpen] = useState(false);
+  const [isAsignacionDialogOpen, setIsAsignacionDialogOpen] = useState(false);
+
+  // Mutación para pausar OT
+  const pausarMutation = useMutation({
+    mutationFn: async (data: { motivo: string }) => {
+      return await apiRequest(`/api/mantenciones/${mantencion.id}/pausar`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      setIsPausarDialogOpen(false);
+      onUpdate();
+      toast({
+        title: "OT pausada",
+        description: "La orden de trabajo ha sido pausada exitosamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al pausar OT",
+        description: error.message || "No se pudo pausar la orden de trabajo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutación para reanudar OT
+  const reanudarMutation = useMutation({
+    mutationFn: async (data: { notas?: string }) => {
+      return await apiRequest(`/api/mantenciones/${mantencion.id}/reanudar`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      setIsReanudarDialogOpen(false);
+      onUpdate();
+      toast({
+        title: "OT reanudada",
+        description: "La orden de trabajo ha sido reanudada exitosamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al reanudar OT",
+        description: error.message || "No se pudo reanudar la orden de trabajo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutación para actualizar asignación
+  const asignacionMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest(`/api/mantenciones/${mantencion.id}/asignacion`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      setIsAsignacionDialogOpen(false);
+      onUpdate();
+      toast({
+        title: "Asignación actualizada",
+        description: "La asignación de la OT ha sido actualizada exitosamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al actualizar asignación",
+        description: error.message || "No se pudo actualizar la asignación.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handlePausarSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const motivo = formData.get('motivo') as string;
+    
+    // Validar longitud mínima
+    if (!motivo || motivo.trim().length < 10) {
+      toast({
+        title: "Motivo inválido",
+        description: "El motivo de pausa debe tener al menos 10 caracteres.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    pausarMutation.mutate({ motivo });
+  };
+
+  const handleReanudarSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    reanudarMutation.mutate({ notas: (formData.get('notas') as string) || undefined });
+  };
+
+  const handleAsignacionSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const tipoAsignacion = formData.get('tipoAsignacion') as string;
+    
+    const data: any = { tipoAsignacion };
+    
+    if (tipoAsignacion === 'tecnico_interno') {
+      data.tecnicoAsignadoId = formData.get('tecnicoAsignadoId') as string;
+      data.proveedorAsignadoId = null;
+      data.proveedorAsignadoName = null;
+    } else if (tipoAsignacion === 'proveedor_externo') {
+      data.proveedorAsignadoId = formData.get('proveedorAsignadoId') as string;
+      data.tecnicoAsignadoId = null;
+      data.tecnicoAsignadoName = null;
+    }
+    
+    asignacionMutation.mutate(data);
+  };
+
+  const canPausar = canManageMantencion && (mantencion.estado === 'en_curso' || mantencion.estado === 'registrado');
+  const canReanudar = canManageMantencion && mantencion.estado === 'pausada';
+
+  return (
+    <>
+      <ScrollArea className="max-h-[60vh] pr-4">
+        <div className="space-y-6">
+          {/* Estado Actual */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3">Estado Actual</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <Label className="text-muted-foreground">Estado</Label>
+                  <div className="mt-2">
+                    {ESTADO_OPTIONS.find(e => e.value === mantencion.estado)?.label || mantencion.estado}
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {mantencion.estado === 'pausada' && mantencion.motivoPausa && (
+                <Card>
+                  <CardContent className="p-4">
+                    <Label className="text-muted-foreground">Motivo de Pausa</Label>
+                    <p className="mt-2 text-sm">{mantencion.motivoPausa}</p>
+                    {mantencion.fechaPausa && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pausada el {format(new Date(mantencion.fechaPausa), 'dd/MM/yyyy HH:mm', { locale: es })}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+
+          {/* Acciones de Control */}
+          {canManageMantencion && (
+            <div>
+              <h3 className="text-lg font-semibold mb-3">Acciones de Control</h3>
+              <div className="flex flex-wrap gap-3">
+                {canPausar && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsPausarDialogOpen(true)}
+                    data-testid="button-pausar-ot"
+                  >
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    Pausar OT
+                  </Button>
+                )}
+                
+                {canReanudar && (
+                  <Button
+                    onClick={() => setIsReanudarDialogOpen(true)}
+                    data-testid="button-reanudar-ot"
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Reanudar OT
+                  </Button>
+                )}
+                
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAsignacionDialogOpen(true)}
+                  data-testid="button-actualizar-asignacion"
+                >
+                  <Wrench className="h-4 w-4 mr-2" />
+                  Actualizar Asignación
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Asignación Actual */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3">Asignación Actual</h3>
+            <Card>
+              <CardContent className="p-4">
+                {mantencion.tipoAsignacion === 'tecnico_interno' && mantencion.tecnicoAsignadoName ? (
+                  <div>
+                    <Label className="text-muted-foreground">Técnico Interno</Label>
+                    <p className="mt-1 font-medium">{mantencion.tecnicoAsignadoName}</p>
+                  </div>
+                ) : mantencion.tipoAsignacion === 'proveedor_externo' && mantencion.proveedorAsignadoName ? (
+                  <div>
+                    <Label className="text-muted-foreground">Proveedor Externo</Label>
+                    <p className="mt-1 font-medium">{mantencion.proveedorAsignadoName}</p>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">Sin asignación</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Información de Programación */}
+          {mantencion.fechaProgramada && (
+            <div>
+              <h3 className="text-lg font-semibold mb-3">Programación</h3>
+              <Card>
+                <CardContent className="p-4">
+                  <Label className="text-muted-foreground">Fecha Programada</Label>
+                  <p className="mt-1 font-medium">
+                    {format(new Date(mantencion.fechaProgramada), "dd 'de' MMMM yyyy 'a las' HH:mm", { locale: es })}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Dialog para pausar OT */}
+      <Dialog open={isPausarDialogOpen} onOpenChange={setIsPausarDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pausar Orden de Trabajo</DialogTitle>
+            <DialogDescription>
+              Indique el motivo por el cual se pausará esta OT
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handlePausarSubmit}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="motivo">Motivo de Pausa *</Label>
+                <Textarea
+                  id="motivo"
+                  name="motivo"
+                  required
+                  minLength={10}
+                  rows={4}
+                  placeholder="Ej: Esperando repuestos, falta de personal, etc."
+                  data-testid="textarea-motivo-pausa"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Mínimo 10 caracteres
+                </p>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsPausarDialogOpen(false)}
+                  data-testid="button-cancel-pausar"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={pausarMutation.isPending}
+                  data-testid="button-submit-pausar"
+                >
+                  {pausarMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Pausar OT
+                </Button>
+              </DialogFooter>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para reanudar OT */}
+      <Dialog open={isReanudarDialogOpen} onOpenChange={setIsReanudarDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reanudar Orden de Trabajo</DialogTitle>
+            <DialogDescription>
+              Agregue notas opcionales sobre la reanudación
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleReanudarSubmit}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="notas">Notas (opcional)</Label>
+                <Textarea
+                  id="notas"
+                  name="notas"
+                  rows={3}
+                  placeholder="Ej: Repuestos recibidos, personal disponible..."
+                  data-testid="textarea-notas-reanudar"
+                />
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsReanudarDialogOpen(false)}
+                  data-testid="button-cancel-reanudar"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={reanudarMutation.isPending}
+                  data-testid="button-submit-reanudar"
+                >
+                  {reanudarMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Reanudar OT
+                </Button>
+              </DialogFooter>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para actualizar asignación */}
+      <Dialog open={isAsignacionDialogOpen} onOpenChange={setIsAsignacionDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Actualizar Asignación</DialogTitle>
+            <DialogDescription>
+              Asigne un técnico interno o proveedor externo a esta OT
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAsignacionSubmit}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Tipo de Asignación *</Label>
+                <RadioGroup name="tipoAsignacion" defaultValue={mantencion.tipoAsignacion || "tecnico_interno"} required>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="tecnico_interno" id="tecnico" data-testid="radio-tecnico-interno" />
+                    <Label htmlFor="tecnico" className="font-normal cursor-pointer">Técnico Interno</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="proveedor_externo" id="proveedor" data-testid="radio-proveedor-externo" />
+                    <Label htmlFor="proveedor" className="font-normal cursor-pointer">Proveedor Externo</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="asignado">Asignado a *</Label>
+                <Input
+                  id="tecnicoAsignadoId"
+                  name="tecnicoAsignadoId"
+                  placeholder="ID del técnico/proveedor"
+                  data-testid="input-asignado-id"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Ingrese el ID del técnico o proveedor
+                </p>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAsignacionDialogOpen(false)}
+                  data-testid="button-cancel-asignacion"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={asignacionMutation.isPending}
+                  data-testid="button-submit-asignacion"
+                >
+                  {asignacionMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Actualizar
+                </Button>
+              </DialogFooter>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// Componente para el tab de Historial
+function HistorialTab({ mantencion }: { mantencion: MantencionWithDetails }) {
+  const [selectedImage, setSelectedImage] = useState<{ url: string; description?: string } | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+
+  // Crear timeline combinando historial y fotos
+  const timelineEvents: Array<{
+    id: string;
+    tipo: 'cambio_estado' | 'foto_problema' | 'foto_resolucion' | 'creacion';
+    fecha: string;
+    titulo: string;
+    descripcion?: string;
+    estadoAnterior?: string | null;
+    estadoNuevo?: string;
+    userName?: string;
+    photoUrl?: string;
+  }> = [];
+
+  // Agregar evento de creación
+  if (mantencion.createdAt) {
+    timelineEvents.push({
+      id: `creacion-${mantencion.id}`,
+      tipo: 'creacion',
+      fecha: mantencion.createdAt,
+      titulo: 'OT Creada',
+      descripcion: `Equipo: ${mantencion.equipoNombre}`,
+    });
+  }
+
+  // Agregar historial de cambios
+  if (mantencion.historial) {
+    mantencion.historial.forEach((entry) => {
+      timelineEvents.push({
+        id: entry.id,
+        tipo: 'cambio_estado',
+        fecha: entry.createdAt,
+        titulo: 'Cambio de Estado',
+        descripcion: entry.notas || undefined,
+        estadoAnterior: entry.estadoAnterior,
+        estadoNuevo: entry.estadoNuevo,
+        userName: entry.userName,
+      });
+    });
+  }
+
+  // Agregar fotos del problema
+  if (mantencion.photos) {
+    mantencion.photos.forEach((photo) => {
+      timelineEvents.push({
+        id: photo.id,
+        tipo: 'foto_problema',
+        fecha: photo.createdAt || mantencion.createdAt || new Date().toISOString(),
+        titulo: 'Foto del Problema',
+        descripcion: photo.description || undefined,
+        photoUrl: photo.photoUrl,
+      });
+    });
+  }
+
+  // Agregar fotos de resolución
+  if (mantencion.resolucionPhotos) {
+    mantencion.resolucionPhotos.forEach((photo) => {
+      timelineEvents.push({
+        id: photo.id,
+        tipo: 'foto_resolucion',
+        fecha: photo.createdAt || mantencion.fechaResolucion || new Date().toISOString(),
+        titulo: 'Foto de Resolución',
+        descripcion: photo.description || undefined,
+        photoUrl: photo.photoUrl,
+      });
+    });
+  }
+
+  // Ordenar por fecha (más reciente primero)
+  timelineEvents.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+  return (
+    <>
+      <ScrollArea className="max-h-[60vh] pr-4">
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold mb-3">Historial Completo</h3>
+          
+          {timelineEvents.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No hay eventos registrados en el historial</p>
+            </div>
+          ) : (
+            <div className="relative">
+              {/* Timeline line */}
+              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
+              
+              {/* Timeline events */}
+              <div className="space-y-4">
+                {timelineEvents.map((event, index) => (
+                  <div key={event.id} className="relative pl-10" data-testid={`timeline-${event.tipo}-${index}`}>
+                    {/* Timeline dot */}
+                    <div className={cn(
+                      "absolute left-2.5 w-3 h-3 rounded-full border-2 border-background",
+                      event.tipo === 'creacion' && "bg-blue-500",
+                      event.tipo === 'cambio_estado' && "bg-purple-500",
+                      event.tipo === 'foto_problema' && "bg-orange-500",
+                      event.tipo === 'foto_resolucion' && "bg-green-500"
+                    )} />
+                    
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <h4 className="font-semibold">{event.titulo}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(event.fecha), "dd 'de' MMMM yyyy 'a las' HH:mm", { locale: es })}
+                              {event.userName && ` • ${event.userName}`}
+                            </p>
+                            
+                            {/* Cambio de estado */}
+                            {event.tipo === 'cambio_estado' && (
+                              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                {event.estadoAnterior && (
+                                  <>
+                                    <Badge variant="outline" className="text-xs">
+                                      {ESTADO_OPTIONS.find(e => e.value === event.estadoAnterior)?.label || event.estadoAnterior}
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground">→</span>
+                                  </>
+                                )}
+                                <Badge className={(ESTADO_OPTIONS.find(e => e.value === event.estadoNuevo)?.color || '') + " text-xs"}>
+                                  {ESTADO_OPTIONS.find(e => e.value === event.estadoNuevo)?.label || event.estadoNuevo}
+                                </Badge>
+                              </div>
+                            )}
+                            
+                            {/* Descripción */}
+                            {event.descripcion && (
+                              <p className="mt-2 text-sm">{event.descripcion}</p>
+                            )}
+                          </div>
+                          
+                          {/* Foto preview */}
+                          {event.photoUrl && (
+                            <div className="relative group cursor-pointer" onClick={() => {
+                              setSelectedImage({ url: event.photoUrl!, description: event.descripcion });
+                              setShowImageModal(true);
+                            }}>
+                              <img
+                                src={event.photoUrl}
+                                alt={event.descripcion || event.titulo}
+                                className="w-24 h-24 object-cover rounded border hover:opacity-80 transition-opacity"
+                                data-testid={`img-timeline-${event.id}`}
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-opacity rounded flex items-center justify-center">
+                                <Eye className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Image Modal */}
+      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Imagen del Historial</DialogTitle>
+            {selectedImage?.description && (
+              <DialogDescription>{selectedImage.description}</DialogDescription>
+            )}
+          </DialogHeader>
+          {selectedImage && (
+            <div className="flex items-center justify-center">
+              <img
+                src={selectedImage.url}
+                alt={selectedImage.description || 'Imagen'}
+                className="max-w-full max-h-[70vh] object-contain"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // Componente para el tab de Gastos
 function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; canManageGastos: boolean }) {
   const { toast } = useToast();
@@ -1256,20 +1860,18 @@ export default function MantencionesPage() {
 
               {/* Tab 3: Seguimiento */}
               <TabsContent value="seguimiento">
-                <ScrollArea className="max-h-[60vh] pr-4">
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">Acciones de seguimiento y control (próximamente)</p>
-                  </div>
-                </ScrollArea>
+                <SeguimientoTab
+                  mantencion={selectedMantencion}
+                  canManageMantencion={canManageMantencion}
+                  onUpdate={() => {
+                    queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+                  }}
+                />
               </TabsContent>
 
               {/* Tab 4: Historial */}
               <TabsContent value="historial">
-                <ScrollArea className="max-h-[60vh] pr-4">
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">Historial completo de cambios (próximamente)</p>
-                  </div>
-                </ScrollArea>
+                <HistorialTab mantencion={selectedMantencion} />
               </TabsContent>
             </Tabs>
           )}
