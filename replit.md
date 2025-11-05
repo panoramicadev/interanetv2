@@ -8,6 +8,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 5, 2025 - Inventory Auto-Refresh with Cache System
+**Intelligent inventory caching to prevent database saturation:**
+- **Auto-Refresh on Entry**: Inventory data refreshes automatically when users enter the module
+- **Smart Caching with TTL**: 30-second cache prevents redundant database queries
+- **Per-Filter Mutex**: Concurrent users with identical filters share the same query
+- **Isolated Filter Keys**: Users with different filters get separate cache entries
+- **Protection Against Saturation**: Multiple simultaneous users trigger only one database query per unique filter combination
+- **Performance Logging**: Console logs track cache hits (📦), misses (🔄), waiting (⏳), and expirations (⏰)
+- **Implementation**: Map-based cache system (`Map<cacheKey, {data, timestamp, inFlightPromise}>`) in `server/storage.ts`
+
 ### November 4, 2025 - Search, Pagination & Segment Filtering
 **Enhanced client browsing with efficient data loading:**
 - **Search Functionality**: Client name search with case-insensitive LIKE matching
