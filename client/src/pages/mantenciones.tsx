@@ -959,7 +959,7 @@ export default function MantencionesPage() {
   });
 
   const { data: equiposCriticos = [] } = useQuery<EquipoCritico[]>({
-    queryKey: ['/api/cmms/equipos-criticos'],
+    queryKey: ['/api/cmms/equipos'],
   });
 
   const { data: proveedores = [] } = useQuery<ProveedorExterno[]>({
@@ -977,6 +977,22 @@ export default function MantencionesPage() {
   const selectedEquipo = useMemo(() => {
     return equiposCriticos.find(e => e.id === selectedEquipoId);
   }, [equiposCriticos, selectedEquipoId]);
+
+  // Organize equipment hierarchically for display
+  const equiposJerarquicos = useMemo(() => {
+    const principales = equiposCriticos.filter(e => !e.equipoPadreId);
+    const result: Array<{equipo: EquipoCritico; nivel: number}> = [];
+    
+    principales.forEach(principal => {
+      result.push({ equipo: principal, nivel: 0 });
+      const componentes = equiposCriticos.filter(e => e.equipoPadreId === principal.id);
+      componentes.forEach(componente => {
+        result.push({ equipo: componente, nivel: 1 });
+      });
+    });
+    
+    return result;
+  }, [equiposCriticos]);
 
   const createMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -1413,7 +1429,7 @@ export default function MantencionesPage() {
                               <CommandEmpty>No se encontró el equipo.</CommandEmpty>
                               <CommandGroup>
                                 <ScrollArea className="h-72">
-                                  {equiposCriticos.map((equipo) => (
+                                  {equiposJerarquicos.map(({ equipo, nivel }) => (
                                     <CommandItem
                                       key={equipo.id}
                                       value={`${equipo.nombre} ${equipo.codigo || ''}`}
@@ -1423,6 +1439,7 @@ export default function MantencionesPage() {
                                         setOpenEquiposCombo(false);
                                       }}
                                       data-testid={`option-equipo-${equipo.id}`}
+                                      className={cn(nivel > 0 && "pl-6")}
                                     >
                                       <Check
                                         className={cn(
@@ -1430,8 +1447,13 @@ export default function MantencionesPage() {
                                           selectedEquipoId === equipo.id ? "opacity-100" : "opacity-0"
                                         )}
                                       />
-                                      <div className="flex flex-col">
-                                        <span className="font-medium">{equipo.nombre}</span>
+                                      {nivel > 0 && (
+                                        <span className="mr-2 text-muted-foreground text-sm">→</span>
+                                      )}
+                                      <div className="flex flex-col flex-1">
+                                        <span className={cn(
+                                          nivel === 0 ? "font-medium" : "font-normal text-sm"
+                                        )}>{equipo.nombre}</span>
                                         <span className="text-xs text-muted-foreground">
                                           {equipo.codigo} · {AREA_OPTIONS.find(a => a.value === equipo.area)?.label}
                                         </span>
