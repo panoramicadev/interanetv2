@@ -1077,7 +1077,7 @@ export default function MantencionesPage() {
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       return await apiRequest(`/api/mantenciones/${id}/asignacion`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        data: data,
       });
     },
     onSuccess: () => {
