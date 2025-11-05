@@ -108,6 +108,7 @@ export default function CMMSEquipos() {
   const [deletingEquipo, setDeletingEquipo] = useState<EquipoCritico | null>(null);
   const [expandedEquipos, setExpandedEquipos] = useState<Set<string>>(new Set());
   const [componentesMap, setComponentesMap] = useState<Record<string, EquipoCritico[]>>({});
+  const [creatingComponentFor, setCreatingComponentFor] = useState<EquipoCritico | null>(null);
 
   // Fetch equipos
   const { data: equipos = [], isLoading } = useQuery<EquipoCritico[]>({
@@ -152,15 +153,26 @@ export default function CMMSEquipos() {
         body: JSON.stringify(data),
       });
     },
-    onSuccess: () => {
+    onSuccess: (newEquipo) => {
       queryClient.invalidateQueries({ queryKey: ['/api/cmms/equipos'] });
-      toast({ title: "Equipo creado exitosamente" });
+      // If creating a component, invalidate the component cache for the parent
+      if (creatingComponentFor) {
+        setComponentesMap(prev => {
+          const updated = { ...prev };
+          delete updated[creatingComponentFor.id];
+          return updated;
+        });
+        toast({ title: "Componente creado exitosamente" });
+      } else {
+        toast({ title: "Equipo creado exitosamente" });
+      }
       setIsDialogOpen(false);
+      setCreatingComponentFor(null);
       form.reset();
     },
     onError: (error: any) => {
       toast({ 
-        title: "Error al crear equipo", 
+        title: creatingComponentFor ? "Error al crear componente" : "Error al crear equipo", 
         description: error.message,
         variant: "destructive" 
       });
@@ -216,6 +228,7 @@ export default function CMMSEquipos() {
   const handleOpenDialog = (equipo?: EquipoCritico) => {
     if (equipo) {
       setEditingEquipo(equipo);
+      setCreatingComponentFor(null);
       form.reset({
         nombre: equipo.nombre,
         codigo: equipo.codigo || "",
@@ -231,8 +244,29 @@ export default function CMMSEquipos() {
       });
     } else {
       setEditingEquipo(null);
+      setCreatingComponentFor(null);
       form.reset();
     }
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenComponentDialog = (equipoPadre: EquipoCritico) => {
+    setCreatingComponentFor(equipoPadre);
+    setEditingEquipo(null);
+    // Pre-fill with parent's area and criticidad
+    form.reset({
+      nombre: "",
+      codigo: "",
+      area: equipoPadre.area as any,
+      ubicacion: "",
+      criticidad: equipoPadre.criticidad as any,
+      estadoActual: "operativo" as any,
+      descripcion: "",
+      fabricante: "",
+      modelo: "",
+      numeroSerie: "",
+      fechaInstalacion: "",
+    });
     setIsDialogOpen(true);
   };
 
@@ -240,7 +274,11 @@ export default function CMMSEquipos() {
     if (editingEquipo) {
       updateMutation.mutate({ id: editingEquipo.id, data });
     } else {
-      createMutation.mutate(data);
+      // If creating a component, include equipoPadreId
+      const dataWithParent = creatingComponentFor 
+        ? { ...data, equipoPadreId: creatingComponentFor.id }
+        : data;
+      createMutation.mutate(dataWithParent);
     }
   };
 
@@ -561,9 +599,7 @@ export default function CMMSEquipos() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => {
-                                    /* TODO: Abrir dialog para agregar componente */
-                                  }}
+                                  onClick={() => handleOpenComponentDialog(equipo)}
                                   data-testid={`button-add-component-${equipo.id}`}
                                 >
                                   <Plus className="h-4 w-4 mr-2" />
@@ -588,10 +624,18 @@ export default function CMMSEquipos() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingEquipo ? "Editar Equipo" : "Nuevo Equipo"}
+              {editingEquipo 
+                ? "Editar Equipo" 
+                : creatingComponentFor 
+                  ? `Agregar Componente a ${creatingComponentFor.nombre}` 
+                  : "Nuevo Equipo Principal"
+              }
             </DialogTitle>
             <DialogDescription>
-              Complete los detalles del equipo crítico
+              {creatingComponentFor 
+                ? "Complete los detalles del componente. Los campos están pre-llenados con valores del equipo padre."
+                : "Complete los detalles del equipo crítico"
+              }
             </DialogDescription>
           </DialogHeader>
 
