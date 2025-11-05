@@ -10989,13 +10989,24 @@ export function registerRoutes(app: Express): Server {
         }
       }
       
-      // Get all projections matching filters (salesperson filter applied in backend)
-      const projections = await storage.getProyeccionesVentas(filters);
+      // Get all projections (segment and salesperson filters NOT applied in query to preserve save flows)
+      const projections = await storage.getProyeccionesVentas({ years: filters.years, months: filters.months });
       
-      // Filter projections: only future projections (month !== null) and optionally by segment
+      // Filter projections: only future projections (month !== null)
       let futureProjections = projections.filter(p => p.month !== null);
       
-      // Apply segment filter in backend after fetching (to avoid breaking save functionality)
+      // Apply salesperson filter post-query (using contains match for flexibility)
+      if (filters.salespersonCode) {
+        futureProjections = futureProjections.filter(p => 
+          p.salespersonCode && (
+            p.salespersonCode === filters.salespersonCode ||
+            filters.salespersonCode.includes(p.salespersonCode) ||
+            p.salespersonCode.includes(filters.salespersonCode)
+          )
+        );
+      }
+      
+      // Apply segment filter post-query (to avoid breaking save functionality)
       if (filters.segment) {
         futureProjections = futureProjections.filter(p => p.segment === filters.segment);
       }
