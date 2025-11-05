@@ -237,110 +237,6 @@ function SeguimientoTab({
     <>
       <ScrollArea className="max-h-[60vh] pr-4">
         <div className="space-y-6">
-          {/* Estado Actual */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3">Estado Actual</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <Label className="text-muted-foreground">Estado</Label>
-                  <div className="mt-2">
-                    {ESTADO_OPTIONS.find(e => e.value === mantencion.estado)?.label || mantencion.estado}
-                  </div>
-                </CardContent>
-              </Card>
-              
-              {mantencion.estado === 'pausada' && mantencion.motivoPausa && (
-                <Card>
-                  <CardContent className="p-4">
-                    <Label className="text-muted-foreground">Motivo de Pausa</Label>
-                    <p className="mt-2 text-sm">{mantencion.motivoPausa}</p>
-                    {mantencion.fechaPausa && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Pausada el {format(new Date(mantencion.fechaPausa), 'dd/MM/yyyy HH:mm', { locale: es })}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
-
-          {/* Acciones de Control */}
-          {canManageMantencion && (
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Acciones de Control</h3>
-              <div className="flex flex-wrap gap-3">
-                {canPausar && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsPausarDialogOpen(true)}
-                    data-testid="button-pausar-ot"
-                  >
-                    <AlertTriangle className="h-4 w-4 mr-2" />
-                    Pausar OT
-                  </Button>
-                )}
-                
-                {canReanudar && (
-                  <Button
-                    onClick={() => setIsReanudarDialogOpen(true)}
-                    data-testid="button-reanudar-ot"
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Reanudar OT
-                  </Button>
-                )}
-                
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAsignacionDialogOpen(true)}
-                  data-testid="button-actualizar-asignacion"
-                >
-                  <Wrench className="h-4 w-4 mr-2" />
-                  Actualizar Asignación
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Asignación Actual */}
-          <div>
-            <h3 className="text-lg font-semibold mb-3">Asignación Actual</h3>
-            <Card>
-              <CardContent className="p-4">
-                {mantencion.tipoAsignacion === 'tecnico_interno' && mantencion.tecnicoAsignadoName ? (
-                  <div>
-                    <Label className="text-muted-foreground">Técnico Interno</Label>
-                    <p className="mt-1 font-medium">{mantencion.tecnicoAsignadoName}</p>
-                  </div>
-                ) : mantencion.tipoAsignacion === 'proveedor_externo' && mantencion.proveedorAsignadoName ? (
-                  <div>
-                    <Label className="text-muted-foreground">Proveedor Externo</Label>
-                    <p className="mt-1 font-medium">{mantencion.proveedorAsignadoName}</p>
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground">Sin asignación</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Información de Programación */}
-          {mantencion.fechaProgramada && (
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Programación</h3>
-              <Card>
-                <CardContent className="p-4">
-                  <Label className="text-muted-foreground">Fecha Programada</Label>
-                  <p className="mt-1 font-medium">
-                    {format(new Date(mantencion.fechaProgramada), "dd 'de' MMMM yyyy 'a las' HH:mm", { locale: es })}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
           {/* Fotos del Problema */}
           {mantencion.photos && mantencion.photos.length > 0 && (
             <div>
@@ -2112,7 +2008,7 @@ export default function MantencionesPage() {
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="info">Información</TabsTrigger>
                 <TabsTrigger value="gastos">Gastos</TabsTrigger>
-                <TabsTrigger value="seguimiento">Seguimiento</TabsTrigger>
+                <TabsTrigger value="seguimiento">Fotos</TabsTrigger>
                 <TabsTrigger value="historial">Historial</TabsTrigger>
               </TabsList>
 
