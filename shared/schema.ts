@@ -3734,6 +3734,13 @@ export const insertProveedorMantencionSchema = createInsertSchema(proveedoresMan
 }).extend({
   nombre: z.string().min(1, "El nombre del proveedor es requerido"),
   activo: z.boolean().default(true),
+  // Convert empty strings to null for numeric fields
+  evaluacion: z.union([z.string(), z.null()]).optional().transform(val => 
+    val === "" || val === null || val === undefined ? null : val
+  ),
+  costoPromedioHora: z.union([z.string(), z.null()]).optional().transform(val => 
+    val === "" || val === null || val === undefined ? null : val
+  ),
 });
 
 // Presupuesto
