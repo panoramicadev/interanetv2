@@ -9288,15 +9288,13 @@ export function registerRoutes(app: Express): Server {
       const validatedData = resolucionSchema.parse(req.body);
       const files = req.files as Express.Multer.File[];
 
-      if (!files || files.length === 0) {
-        return res.status(400).json({ message: 'Se requiere al menos una foto de evidencia' });
-      }
-
-      const photoUrls = files.map(file => file.path);
-      const photos = photoUrls.map((photoUrl, index) => ({
-        photoUrl,
-        description: req.body[`descriptions[${index}]`] || 'Evidencia de resolución',
-      }));
+      // Photos are now optional
+      const photos = files && files.length > 0 
+        ? files.map((file, index) => ({
+            photoUrl: file.path,
+            description: req.body[`descriptions[${index}]`] || 'Evidencia de resolución',
+          }))
+        : [];
 
       const solicitud = await storage.updateResolucionMantencion(
         req.params.id,
