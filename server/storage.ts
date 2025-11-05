@@ -15128,7 +15128,8 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(proyeccionesVentas.salespersonCode, filters.salespersonCode));
     }
 
-    // NOTE: Segment filtering is done in frontend only to avoid breaking save functionality
+    // NOTE: Segment filtering is NOT applied in backend to avoid breaking save functionality
+    // Segment filtering is done in frontend only
 
     const result = await db
       .select()
