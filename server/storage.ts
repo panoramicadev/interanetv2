@@ -2283,7 +2283,9 @@ export class DatabaseStorage implements IStorage {
     // Use proper date boundaries for inclusive range
     const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(startDate, endDate);
     
-    const dateConditions = [];
+    const dateConditions = [
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+    ];
     if (startDateCondition) {
       dateConditions.push(startDateCondition);
     }
@@ -2308,7 +2310,8 @@ export class DatabaseStorage implements IStorage {
     const totalSales = Number(totalSalesResult.total);
 
     const conditions = [
-      sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`
+      sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`,
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
     if (startDateCondition) {
       conditions.push(startDateCondition);
