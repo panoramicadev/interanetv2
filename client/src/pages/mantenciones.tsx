@@ -1063,6 +1063,7 @@ export default function MantencionesPage() {
     
     // Add additional fields
     if (selectedEquipo && !esManual) {
+      formData.set('equipoId', selectedEquipo.id);
       formData.set('equipoCodigo', selectedEquipo.codigo || '');
       formData.set('equipoNombre', selectedEquipo.nombre);
       formData.set('area', selectedEquipo.area);
@@ -1882,20 +1883,55 @@ export default function MantencionesPage() {
                   <div className="space-y-6">
               {/* Header info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+                <div className="sm:col-span-2">
                   <Label className="text-muted-foreground">Equipo</Label>
-                  <p className="font-semibold">{selectedMantencion.equipoNombre}</p>
+                  {(() => {
+                    // Find equipment by ID if available, fallback to name for legacy records
+                    const equipoOT = selectedMantencion.equipoId
+                      ? equiposCriticos.find(e => e.id === selectedMantencion.equipoId)
+                      : equiposCriticos.find(e => e.nombre === selectedMantencion.equipoNombre);
+                    
+                    const equipoPadre = equipoOT?.equipoPadreId 
+                      ? equiposCriticos.find(e => e.id === equipoOT.equipoPadreId)
+                      : null;
+                    
+                    return (
+                      <div className="space-y-1 mt-1">
+                        {equipoPadre && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>Equipo Principal:</span>
+                            <span className="font-medium text-foreground">{equipoPadre.nombre}</span>
+                            {equipoPadre.codigo && (
+                              <span className="text-xs">({equipoPadre.codigo})</span>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          {equipoPadre && (
+                            <span className="text-muted-foreground">→</span>
+                          )}
+                          <p className="font-semibold">
+                            {equipoOT?.nombre || selectedMantencion.equipoNombre}
+                          </p>
+                          {(equipoOT?.codigo || selectedMantencion.equipoCodigo) && (
+                            <span className="text-sm text-muted-foreground">
+                              ({equipoOT?.codigo || selectedMantencion.equipoCodigo})
+                            </span>
+                          )}
+                          {!selectedMantencion.equipoId && (
+                            <Badge variant="outline" className="text-xs">
+                              Legacy
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Fecha Registro</Label>
                   <p>{selectedMantencion.createdAt && format(new Date(selectedMantencion.createdAt), "dd MMMM yyyy HH:mm", { locale: es })}</p>
                 </div>
-                {selectedMantencion.equipoCodigo && (
-                  <div>
-                    <Label className="text-muted-foreground">Código de Equipo</Label>
-                    <p className="font-medium">{selectedMantencion.equipoCodigo}</p>
-                  </div>
-                )}
                 <div>
                   <Label className="text-muted-foreground">Estado</Label>
                   <div className="mt-1">{getEstadoBadge(selectedMantencion.estado)}</div>
