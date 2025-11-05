@@ -192,5 +192,36 @@ app.use((req, res, next) => {
     } catch (error: any) {
       console.error('Failed to initialize low stock scheduler:', error.message);
     }
+
+    // Start preventive maintenance scheduler (runs every hour)
+    try {
+      const PREVENTIVE_MAINTENANCE_INTERVAL = 60 * 60 * 1000; // 1 hour
+      
+      log('🔧 Preventive maintenance scheduler initialized (runs every hour)');
+      
+      // Run on startup after 2.5 minutes (give the app time to fully initialize)
+      setTimeout(async () => {
+        try {
+          log('🔧 Running initial preventive maintenance check on startup...');
+          const otsGenerated = await storage.processPreventiveMaintenanceSchedule();
+          log(`✅ Preventive maintenance check completed - ${otsGenerated} OTs generated`);
+        } catch (error: any) {
+          console.error('Initial preventive maintenance check failed:', error.message);
+        }
+      }, 150000);
+      
+      // Run every hour
+      setInterval(async () => {
+        try {
+          log('🔧 Running scheduled preventive maintenance check...');
+          const otsGenerated = await storage.processPreventiveMaintenanceSchedule();
+          log(`✅ Preventive maintenance check completed - ${otsGenerated} OTs generated`);
+        } catch (error: any) {
+          console.error('Scheduled preventive maintenance check failed:', error.message);
+        }
+      }, PREVENTIVE_MAINTENANCE_INTERVAL);
+    } catch (error: any) {
+      console.error('Failed to initialize preventive maintenance scheduler:', error.message);
+    }
   });
 })();
