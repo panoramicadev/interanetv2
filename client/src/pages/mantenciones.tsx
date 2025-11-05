@@ -1886,7 +1886,7 @@ export default function MantencionesPage() {
 
               {/* Tab 1: Información General */}
               <TabsContent value="info">
-                <ScrollArea className="max-h-[60vh] pr-4">
+                <ScrollArea className="h-[calc(90vh-280px)] pr-4">
                   <div className="space-y-6">
               {/* Header info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
