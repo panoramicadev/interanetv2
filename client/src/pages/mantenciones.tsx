@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   Plus, 
@@ -26,11 +30,15 @@ import {
   Eye,
   XCircle,
   Calendar,
-  MoreVertical
+  MoreVertical,
+  ChevronsUpDown,
+  Check,
+  CalendarIcon
 } from "lucide-react";
-import type { SolicitudMantencion, MantencionPhoto } from "@shared/schema";
+import type { SolicitudMantencion, MantencionPhoto, EquipoCritico, ProveedorExterno } from "@shared/schema";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface MantencionWithDetails extends SolicitudMantencion {
   photos: MantencionPhoto[];
@@ -90,11 +98,41 @@ export default function MantencionesPage() {
   const [tipoMantencion, setTipoMantencion] = useState('correctivo');
   const [area, setArea] = useState('produccion');
 
+  // Nuevo formulario mejorado - Estados
+  const [openEquiposCombo, setOpenEquiposCombo] = useState(false);
+  const [selectedEquipoId, setSelectedEquipoId] = useState("");
+  const [tipoEjecucion, setTipoEjecucion] = useState<"inmediata" | "programada">("inmediata");
+  const [fechaProgramada, setFechaProgramada] = useState<Date>();
+  const [tipoAsignacion, setTipoAsignacion] = useState<"tecnico_interno" | "proveedor_externo" | "ninguno">("ninguno");
+  const [tecnicoAsignadoId, setTecnicoAsignadoId] = useState("");
+  const [proveedorAsignadoId, setProveedorAsignadoId] = useState("");
+  const [esManual, setEsManual] = useState(false);
+
   const canSubmitResolution = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
 
   const { data: mantenciones = [], isLoading } = useQuery<MantencionWithDetails[]>({
     queryKey: ['/api/mantenciones'],
   });
+
+  const { data: equiposCriticos = [] } = useQuery<EquipoCritico[]>({
+    queryKey: ['/api/cmms/equipos-criticos'],
+  });
+
+  const { data: proveedores = [] } = useQuery<ProveedorExterno[]>({
+    queryKey: ['/api/cmms/proveedores'],
+  });
+
+  const { data: usuarios = [] } = useQuery<any[]>({
+    queryKey: ['/api/users'],
+  });
+
+  const tecnicos = useMemo(() => {
+    return usuarios.filter(u => u.role === 'produccion');
+  }, [usuarios]);
+
+  const selectedEquipo = useMemo(() => {
+    return equiposCriticos.find(e => e.id === selectedEquipoId);
+  }, [equiposCriticos, selectedEquipoId]);
 
   const createMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -163,10 +201,43 @@ export default function MantencionesPage() {
     const form = e.currentTarget;
     const formData = new FormData(form);
     
-    // Photos are already included in FormData via the input name="photos"
-    // No need to manually append them again
+    // Add additional fields
+    if (selectedEquipo && !esManual) {
+      formData.set('equipoCodigo', selectedEquipo.codigo || '');
+      formData.set('equipoNombre', selectedEquipo.nombre);
+      formData.set('area', selectedEquipo.area);
+    }
+
+    if (tipoEjecucion === 'programada' && fechaProgramada) {
+      formData.set('fechaProgramada', fechaProgramada.toISOString());
+    }
+
+    if (tipoAsignacion === 'tecnico_interno' && tecnicoAsignadoId) {
+      const tecnico = tecnicos.find(t => t.id === tecnicoAsignadoId);
+      formData.set('tipoAsignacion', 'tecnico_interno');
+      formData.set('tecnicoAsignadoId', tecnicoAsignadoId);
+      formData.set('tecnicoAsignadoName', tecnico?.name || tecnico?.username || '');
+    } else if (tipoAsignacion === 'proveedor_externo' && proveedorAsignadoId) {
+      const proveedor = proveedores.find(p => p.id === proveedorAsignadoId);
+      formData.set('tipoAsignacion', 'proveedor_externo');
+      formData.set('proveedorAsignadoId', proveedorAsignadoId);
+      formData.set('proveedorAsignadoName', proveedor?.nombre || '');
+    }
 
     createMutation.mutate(formData);
+  };
+
+  const resetFormulario = () => {
+    setGravedad('media');
+    setTipoMantencion('correctivo');
+    setArea('produccion');
+    setSelectedEquipoId("");
+    setTipoEjecucion("inmediata");
+    setFechaProgramada(undefined);
+    setTipoAsignacion("ninguno");
+    setTecnicoAsignadoId("");
+    setProveedorAsignadoId("");
+    setEsManual(false);
   };
 
   const handleResolutionSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -335,9 +406,7 @@ export default function MantencionesPage() {
         <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
           setIsCreateDialogOpen(open);
           if (open) {
-            setGravedad('media');
-            setTipoMantencion('correctivo');
-            setArea('produccion');
+            resetFormulario();
           }
         }}>
           <DialogTrigger asChild>
@@ -346,67 +415,152 @@ export default function MantencionesPage() {
               Nueva Solicitud
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-3xl max-h-[90vh]">
             <DialogHeader>
-              <DialogTitle>Nueva Solicitud de Mantención</DialogTitle>
+              <DialogTitle>Nueva Orden de Trabajo (OT)</DialogTitle>
               <DialogDescription>
-                Complete los detalles de la solicitud de mantención
+                Crear nueva solicitud de mantención con opciones avanzadas
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateSubmit}>
-              <div className="space-y-4">
-                <ScrollArea className="max-h-[50vh]">
-                  <div className="space-y-4 pr-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="equipoNombre">Nombre del Equipo *</Label>
-                        <Input
-                          id="equipoNombre"
-                          name="equipoNombre"
-                          required
-                          placeholder="Ej: Mezcladora #3"
-                          data-testid="input-nombre-equipo"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="equipoCodigo">Código del Equipo</Label>
-                        <Input
-                          id="equipoCodigo"
-                          name="equipoCodigo"
-                          placeholder="Ej: MEZ-003"
-                          data-testid="input-codigo-equipo"
-                        />
-                      </div>
+              <ScrollArea className="max-h-[65vh] pr-4">
+                <div className="space-y-6">
+                  {/* Selección de Equipo */}
+                  <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                    <h3 className="font-semibold text-sm">1. Selección de Equipo</h3>
+                    
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="esManual"
+                        checked={esManual}
+                        onChange={(e) => {
+                          setEsManual(e.target.checked);
+                          if (e.target.checked) {
+                            setSelectedEquipoId("");
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <Label htmlFor="esManual" className="text-sm font-normal cursor-pointer">
+                        Entrada manual (equipo no catalogado)
+                      </Label>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {!esManual ? (
                       <div className="space-y-2">
-                        <Label htmlFor="area">Área *</Label>
-                        <Select value={area} onValueChange={setArea} required>
-                          <SelectTrigger data-testid="select-area">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {AREA_OPTIONS.map(option => (
-                              <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <input type="hidden" name="area" value={area} />
+                        <Label>Equipo del Catálogo *</Label>
+                        <Popover open={openEquiposCombo} onOpenChange={setOpenEquiposCombo}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={openEquiposCombo}
+                              className="w-full justify-between"
+                              data-testid="button-select-equipo"
+                            >
+                              {selectedEquipo ? selectedEquipo.nombre : "Seleccionar equipo..."}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Buscar equipo..." />
+                              <CommandEmpty>No se encontró el equipo.</CommandEmpty>
+                              <CommandGroup>
+                                <ScrollArea className="h-72">
+                                  {equiposCriticos.map((equipo) => (
+                                    <CommandItem
+                                      key={equipo.id}
+                                      value={`${equipo.nombre} ${equipo.codigo || ''}`}
+                                      onSelect={() => {
+                                        setSelectedEquipoId(equipo.id);
+                                        setArea(equipo.area);
+                                        setOpenEquiposCombo(false);
+                                      }}
+                                      data-testid={`option-equipo-${equipo.id}`}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          selectedEquipoId === equipo.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{equipo.nombre}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {equipo.codigo} · {AREA_OPTIONS.find(a => a.value === equipo.area)?.label}
+                                        </span>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </ScrollArea>
+                              </CommandGroup>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        {selectedEquipo && (
+                          <div className="text-xs text-muted-foreground space-y-1 pl-2">
+                            <p>📍 Área: {AREA_OPTIONS.find(a => a.value === selectedEquipo.area)?.label}</p>
+                            <p>🏷️ Código: {selectedEquipo.codigo || 'N/A'}</p>
+                            <p>⚠️ Criticidad: <Badge variant="outline" className="text-xs">{selectedEquipo.criticidad}</Badge></p>
+                          </div>
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="ubicacion">Ubicación</Label>
-                        <Input
-                          id="ubicacion"
-                          name="ubicacion"
-                          placeholder="Ej: Sector A"
-                          data-testid="input-ubicacion"
-                        />
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="equipoNombre">Nombre del Equipo *</Label>
+                          <Input
+                            id="equipoNombre"
+                            name="equipoNombre"
+                            required={esManual}
+                            placeholder="Ej: Mezcladora #3"
+                            data-testid="input-nombre-equipo"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="equipoCodigo">Código del Equipo</Label>
+                          <Input
+                            id="equipoCodigo"
+                            name="equipoCodigo"
+                            placeholder="Ej: MEZ-003"
+                            data-testid="input-codigo-equipo"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="area">Área *</Label>
+                          <Select value={area} onValueChange={setArea} required>
+                            <SelectTrigger data-testid="select-area">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {AREA_OPTIONS.map(option => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <input type="hidden" name="area" value={area} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="ubicacion">Ubicación</Label>
+                          <Input
+                            id="ubicacion"
+                            name="ubicacion"
+                            placeholder="Ej: Sector A"
+                            data-testid="input-ubicacion"
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
+                  </div>
 
+                  {/* Detalles de la Solicitud */}
+                  <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                    <h3 className="font-semibold text-sm">2. Detalles de la Solicitud</h3>
+                    
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="gravedad">Gravedad *</Label>
@@ -454,24 +608,137 @@ export default function MantencionesPage() {
                       />
                     </div>
                   </div>
-                </ScrollArea>
 
-                <div className="space-y-2 border-t pt-4">
-                  <Label htmlFor="photos">Fotos del Problema</Label>
-                  <Input
-                    id="photos"
-                    name="photos"
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    data-testid="input-photos"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Puede adjuntar múltiples fotos del equipo o problema
-                  </p>
+                  {/* Tipo de Ejecución */}
+                  <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                    <h3 className="font-semibold text-sm">3. Tipo de Ejecución</h3>
+                    
+                    <RadioGroup value={tipoEjecucion} onValueChange={(v) => setTipoEjecucion(v as "inmediata" | "programada")}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="inmediata" id="tipo-inmediata" />
+                        <Label htmlFor="tipo-inmediata" className="font-normal cursor-pointer">
+                          🔴 Inmediata (atención urgente)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="programada" id="tipo-programada" />
+                        <Label htmlFor="tipo-programada" className="font-normal cursor-pointer">
+                          📅 Programada (agendar para fecha futura)
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {tipoEjecucion === 'programada' && (
+                      <div className="space-y-2 mt-4">
+                        <Label>Fecha Programada *</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !fechaProgramada && "text-muted-foreground"
+                              )}
+                              data-testid="button-fecha-programada"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {fechaProgramada ? format(fechaProgramada, "PPP", { locale: es }) : "Seleccionar fecha"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                              mode="single"
+                              selected={fechaProgramada}
+                              onSelect={setFechaProgramada}
+                              initialFocus
+                              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Asignación */}
+                  <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                    <h3 className="font-semibold text-sm">4. Asignación (Opcional)</h3>
+                    
+                    <RadioGroup value={tipoAsignacion} onValueChange={(v) => setTipoAsignacion(v as any)}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="ninguno" id="asign-ninguno" />
+                        <Label htmlFor="asign-ninguno" className="font-normal cursor-pointer">
+                          Sin asignación (asignar después)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="tecnico_interno" id="asign-tecnico" />
+                        <Label htmlFor="asign-tecnico" className="font-normal cursor-pointer">
+                          👷 Técnico Interno
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="proveedor_externo" id="asign-proveedor" />
+                        <Label htmlFor="asign-proveedor" className="font-normal cursor-pointer">
+                          🏢 Proveedor Externo
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {tipoAsignacion === 'tecnico_interno' && (
+                      <div className="space-y-2 mt-4">
+                        <Label>Técnico Asignado *</Label>
+                        <Select value={tecnicoAsignadoId} onValueChange={setTecnicoAsignadoId}>
+                          <SelectTrigger data-testid="select-tecnico">
+                            <SelectValue placeholder="Seleccionar técnico..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {tecnicos.map(tecnico => (
+                              <SelectItem key={tecnico.id} value={tecnico.id}>
+                                {tecnico.name || tecnico.username}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {tipoAsignacion === 'proveedor_externo' && (
+                      <div className="space-y-2 mt-4">
+                        <Label>Proveedor Asignado *</Label>
+                        <Select value={proveedorAsignadoId} onValueChange={setProveedorAsignadoId}>
+                          <SelectTrigger data-testid="select-proveedor">
+                            <SelectValue placeholder="Seleccionar proveedor..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {proveedores.map(proveedor => (
+                              <SelectItem key={proveedor.id} value={proveedor.id}>
+                                {proveedor.nombre} - {proveedor.especialidad}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fotos */}
+                  <div className="space-y-2">
+                    <Label htmlFor="photos">Fotos del Problema</Label>
+                    <Input
+                      id="photos"
+                      name="photos"
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      data-testid="input-photos"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Puede adjuntar múltiples fotos del equipo o problema
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </ScrollArea>
               
               <DialogFooter className="mt-6">
                 <Button
@@ -484,11 +751,11 @@ export default function MantencionesPage() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createMutation.isPending}
+                  disabled={createMutation.isPending || (!esManual && !selectedEquipoId)}
                   data-testid="button-submit-crear"
                 >
                   {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Crear Solicitud
+                  Crear Orden de Trabajo
                 </Button>
               </DialogFooter>
             </form>
@@ -539,14 +806,31 @@ export default function MantencionesPage() {
         </CardContent>
       </Card>
 
-      {/* Details Dialog */}
+      {/* Details Dialog with Tabs */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+        <DialogContent className="max-w-5xl max-h-[90vh] w-[95vw] sm:w-full">
           <DialogHeader>
-            <DialogTitle>Detalle de Solicitud de Mantención</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Wrench className="h-5 w-5" />
+              Detalle de Orden de Trabajo
+            </DialogTitle>
+            <DialogDescription>
+              OT #{selectedMantencion?.id} - {selectedMantencion?.equipoNombre}
+            </DialogDescription>
           </DialogHeader>
           {selectedMantencion && (
-            <div className="space-y-6 pt-4">
+            <Tabs defaultValue="info" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="info">Información</TabsTrigger>
+                <TabsTrigger value="gastos">Gastos</TabsTrigger>
+                <TabsTrigger value="seguimiento">Seguimiento</TabsTrigger>
+                <TabsTrigger value="historial">Historial</TabsTrigger>
+              </TabsList>
+
+              {/* Tab 1: Información General */}
+              <TabsContent value="info">
+                <ScrollArea className="max-h-[60vh] pr-4">
+                  <div className="space-y-6">
               {/* Header info */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -723,7 +1007,37 @@ export default function MantencionesPage() {
                   </Button>
                 </div>
               )}
-            </div>
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              {/* Tab 2: Gastos de Materiales */}
+              <TabsContent value="gastos">
+                <ScrollArea className="max-h-[60vh] pr-4">
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">Gestión de gastos de materiales para esta OT (próximamente)</p>
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              {/* Tab 3: Seguimiento */}
+              <TabsContent value="seguimiento">
+                <ScrollArea className="max-h-[60vh] pr-4">
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">Acciones de seguimiento y control (próximamente)</p>
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              {/* Tab 4: Historial */}
+              <TabsContent value="historial">
+                <ScrollArea className="max-h-[60vh] pr-4">
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">Historial completo de cambios (próximamente)</p>
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>
