@@ -109,7 +109,7 @@ function SeguimientoTab({
   const pausarMutation = useMutation({
     mutationFn: async (data: { motivo: string }) => {
       return await apiRequest(`/api/mantenciones/${mantencion.id}/pausar`, {
-        method: 'POST',
+        method: 'PATCH',
         body: JSON.stringify(data),
       });
     },
@@ -941,6 +941,7 @@ export default function MantencionesPage() {
   const [selectedMantencion, setSelectedMantencion] = useState<MantencionWithDetails | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isResolutionDialogOpen, setIsResolutionDialogOpen] = useState(false);
+  const [isPausarDialogOpen, setIsPausarDialogOpen] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ url: string; description?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1115,6 +1116,52 @@ export default function MantencionesPage() {
       toast({
         title: "Error al eliminar",
         description: error.message || "No se pudo eliminar la orden de trabajo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const iniciarTrabajoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/mantenciones/${id}/iniciar-trabajo`, {
+        method: 'POST',
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      toast({
+        title: "Trabajo iniciado",
+        description: "La orden de trabajo ha cambiado a estado 'En Reparación'.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al iniciar trabajo",
+        description: error.message || "No se pudo iniciar el trabajo.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const pausarTrabajoMutation = useMutation({
+    mutationFn: async ({ id, motivo, fechaProgramada }: { id: string; motivo: string; fechaProgramada?: string | null }) => {
+      return await apiRequest(`/api/mantenciones/${id}/pausar`, {
+        method: 'PATCH',
+        body: JSON.stringify({ motivo, fechaProgramada }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      setIsPausarDialogOpen(false);
+      toast({
+        title: "Trabajo pausado",
+        description: "La orden de trabajo ha sido pausada correctamente.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al pausar trabajo",
+        description: error.message || "No se pudo pausar el trabajo.",
         variant: "destructive",
       });
     },
@@ -1987,6 +2034,22 @@ export default function MantencionesPage() {
                     <p className="font-medium">{selectedMantencion.ubicacion}</p>
                   </div>
                 )}
+                {selectedMantencion.fechaInicioTrabajo && (
+                  <div>
+                    <Label className="text-muted-foreground">Inicio de Trabajo</Label>
+                    <p className="font-medium" data-testid="text-fecha-inicio-trabajo">
+                      {format(new Date(selectedMantencion.fechaInicioTrabajo), "dd MMM yyyy HH:mm", { locale: es })}
+                    </p>
+                  </div>
+                )}
+                {selectedMantencion.motivoPausa && (
+                  <div className="col-span-2">
+                    <Label className="text-muted-foreground">Motivo de Pausa</Label>
+                    <div className="mt-1 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <p className="text-sm" data-testid="text-motivo-pausa">{selectedMantencion.motivoPausa}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Description */}
@@ -2281,6 +2344,45 @@ export default function MantencionesPage() {
                 </div>
               )}
 
+              {/* Botones de acción según estado */}
+              {canManageMantencion && (
+                <div className="border-t pt-4 space-y-2">
+                  {/* Botón Iniciar Trabajo - solo en estado registrado o programada */}
+                  {(selectedMantencion.estado === 'registrado' || selectedMantencion.estado === 'programada') && (
+                    <Button
+                      onClick={() => {
+                        if (window.confirm('¿Está seguro que desea iniciar el trabajo en esta orden?')) {
+                          iniciarTrabajoMutation.mutate(selectedMantencion.id);
+                        }
+                      }}
+                      disabled={iniciarTrabajoMutation.isPending}
+                      className="w-full"
+                      data-testid="button-iniciar-trabajo"
+                    >
+                      {iniciarTrabajoMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4 mr-2" />
+                      )}
+                      Iniciar Trabajo
+                    </Button>
+                  )}
+
+                  {/* Botón Pausar Trabajo - solo en estado en_reparacion */}
+                  {selectedMantencion.estado === 'en_reparacion' && (
+                    <Button
+                      onClick={() => setIsPausarDialogOpen(true)}
+                      variant="outline"
+                      className="w-full"
+                      data-testid="button-pausar-trabajo"
+                    >
+                      <PauseCircle className="h-4 w-4 mr-2" />
+                      Pausar Trabajo
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {canSubmitResolution && selectedMantencion.estado !== 'resuelto' && selectedMantencion.estado !== 'cerrado' && (
                 <div className="border-t pt-4">
                   <Button
@@ -2414,6 +2516,89 @@ export default function MantencionesPage() {
                 >
                   {submitResolutionMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Enviar Resolución
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pausar Dialog */}
+      <Dialog open={isPausarDialogOpen} onOpenChange={setIsPausarDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Pausar Orden de Trabajo</DialogTitle>
+            <DialogDescription>
+              Indique el motivo de la pausa y opcionalmente reasigne una nueva fecha
+            </DialogDescription>
+          </DialogHeader>
+          {selectedMantencion && (
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const motivo = formData.get('motivo') as string;
+              const fechaProgramada = formData.get('fechaProgramada') as string || null;
+              
+              pausarTrabajoMutation.mutate({
+                id: selectedMantencion.id,
+                motivo,
+                fechaProgramada,
+              });
+            }}>
+              <div className="space-y-4">
+                <div className="bg-muted p-4 rounded-lg">
+                  <p className="font-medium">{selectedMantencion.equipoNombre}</p>
+                  <p className="text-sm text-muted-foreground">{selectedMantencion.descripcionProblema}</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="motivo">Motivo de la Pausa *</Label>
+                  <Textarea
+                    id="motivo"
+                    name="motivo"
+                    required
+                    minLength={10}
+                    rows={4}
+                    placeholder="Ej: Falta de materiales, Esperando aprobación, Equipo no disponible..."
+                    data-testid="textarea-motivo-pausa"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Mínimo 10 caracteres
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="fechaProgramada">Nueva Fecha Programada (Opcional)</Label>
+                  <Input
+                    id="fechaProgramada"
+                    name="fechaProgramada"
+                    type="datetime-local"
+                    data-testid="input-fecha-programada-pausa"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Si necesita reprogramar la orden para cuando haya materiales o aprobación
+                  </p>
+                </div>
+              </div>
+              
+              <DialogFooter className="mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsPausarDialogOpen(false)}
+                  data-testid="button-cancelar-pausar"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  disabled={pausarTrabajoMutation.isPending}
+                  data-testid="button-confirmar-pausar"
+                >
+                  {pausarTrabajoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  <PauseCircle className="h-4 w-4 mr-2" />
+                  Pausar Trabajo
                 </Button>
               </DialogFooter>
             </form>
