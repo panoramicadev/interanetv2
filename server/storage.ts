@@ -12753,6 +12753,161 @@ export class DatabaseStorage implements IStorage {
     await db.delete(planesPreventivos).where(eq(planesPreventivos.id, id));
   }
 
+  // ===== SCHEDULER AUTOMATICO PLANES PREVENTIVOS =====
+  /**
+   * Encuentra planes preventivos activos que necesitan generar una OT
+   * (cuya próxima ejecución está vencida o dentro de las próximas 2 horas)
+   */
+  async findPlansNeedingOT(): Promise<PlanPreventivo[]> {
+    const now = new Date();
+    const lookAheadTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // +2 horas
+
+    const plans = await db
+      .select()
+      .from(planesPreventivos)
+      .where(
+        and(
+          eq(planesPreventivos.activo, true),
+          lte(planesPreventivos.proximaEjecucion, lookAheadTime)
+        )
+      );
+
+    return plans;
+  }
+
+  /**
+   * Calcula la próxima fecha de ejecución según la frecuencia del plan
+   */
+  calculateNextExecution(currentDate: Date, frecuencia: string): Date {
+    const nextDate = new Date(currentDate);
+
+    switch (frecuencia) {
+      case 'diaria':
+        nextDate.setDate(nextDate.getDate() + 1);
+        break;
+      case 'semanal':
+        nextDate.setDate(nextDate.getDate() + 7);
+        break;
+      case 'quincenal':
+        nextDate.setDate(nextDate.getDate() + 15);
+        break;
+      case 'mensual':
+        nextDate.setMonth(nextDate.getMonth() + 1);
+        break;
+      case 'trimestral':
+        nextDate.setMonth(nextDate.getMonth() + 3);
+        break;
+      case 'semestral':
+        nextDate.setMonth(nextDate.getMonth() + 6);
+        break;
+      case 'anual':
+        nextDate.setFullYear(nextDate.getFullYear() + 1);
+        break;
+      default:
+        // Por defecto, agregar 30 días
+        nextDate.setDate(nextDate.getDate() + 30);
+    }
+
+    return nextDate;
+  }
+
+  /**
+   * Genera una solicitud de mantención (OT) automática a partir de un plan preventivo
+   */
+  async generateOTFromPlan(plan: PlanPreventivo): Promise<SolicitudMantencion> {
+    try {
+      // Obtener información del equipo
+      const equipo = await db
+        .select()
+        .from(equiposCriticos)
+        .where(eq(equiposCriticos.id, plan.equipoId))
+        .limit(1);
+
+      const equipoData = equipo[0];
+      if (!equipoData) {
+        throw new Error(`Equipo no encontrado: ${plan.equipoId}`);
+      }
+
+      // Crear la solicitud de mantención
+      const nuevaMantencion: InsertSolicitudMantencion = {
+        equipoNombre: equipoData.nombre,
+        equipoCodigo: equipoData.codigo || undefined,
+        area: equipoData.area || 'produccion',
+        ubicacion: equipoData.ubicacion || undefined,
+        descripcionProblema: `Mantención Preventiva Programada: ${plan.nombre}\n\nTareas:\n${plan.descripcion || 'Ver plan preventivo para detalles'}`,
+        tipoMantencion: 'preventivo',
+        gravedad: 'media', // Preventivas suelen ser prioridad media
+        estado: 'registrado',
+        solicitadoPor: 'SISTEMA', // Indicar que es automático
+        planPreventivo_id: plan.id, // Vincular con el plan
+      };
+
+      const [result] = await db
+        .insert(solicitudesMantencion)
+        .values(nuevaMantencion)
+        .returning();
+
+      return result;
+    } catch (error: any) {
+      console.error(`Error generando OT para plan ${plan.id}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Procesa el scheduler de mantenimiento preventivo:
+   * - Encuentra planes que necesitan generar OT
+   * - Genera las OTs automáticas
+   * - Actualiza la próxima ejecución
+   * - Retorna el número de OTs generadas
+   */
+  async processPreventiveMaintenanceSchedule(): Promise<number> {
+    try {
+      // Encontrar planes que necesitan generar OT
+      const plansNeedingOT = await this.findPlansNeedingOT();
+
+      if (plansNeedingOT.length === 0) {
+        return 0;
+      }
+
+      let otsGenerated = 0;
+
+      for (const plan of plansNeedingOT) {
+        try {
+          // Generar la OT
+          const ot = await this.generateOTFromPlan(plan);
+          
+          // Calcular próxima ejecución
+          const nextExecution = this.calculateNextExecution(
+            new Date(plan.proximaEjecucion),
+            plan.frecuencia
+          );
+
+          // Actualizar el plan con la nueva próxima ejecución
+          await db
+            .update(planesPreventivos)
+            .set({
+              proximaEjecucion: nextExecution,
+              updatedAt: new Date(),
+            })
+            .where(eq(planesPreventivos.id, plan.id));
+
+          otsGenerated++;
+
+          console.log(`✅ OT generada automáticamente: ${ot.id} para plan ${plan.nombre}`);
+        } catch (error: any) {
+          console.error(`❌ Error procesando plan ${plan.id}:`, error.message);
+          // Continuar con el siguiente plan aunque este falle
+        }
+      }
+
+      return otsGenerated;
+    } catch (error: any) {
+      console.error('Error en processPreventiveMaintenanceSchedule:', error.message);
+      throw error;
+    }
+  }
+
   // ===== KPIs Y DASHBOARDS CMMS =====
   async getCMMSMetrics(filters?: {
     startDate?: string;
