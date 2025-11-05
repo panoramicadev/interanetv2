@@ -48,6 +48,8 @@ import {
   CheckCircle,
   Clock,
   Search,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -88,6 +90,7 @@ interface EquipoCritico {
   modelo: string | null;
   numeroSerie: string | null;
   fechaInstalacion: Date | null;
+  equipoPadreId: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;
 }
@@ -103,6 +106,8 @@ export default function CMMSEquipos() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEquipo, setEditingEquipo] = useState<EquipoCritico | null>(null);
   const [deletingEquipo, setDeletingEquipo] = useState<EquipoCritico | null>(null);
+  const [expandedEquipos, setExpandedEquipos] = useState<Set<string>>(new Set());
+  const [componentesMap, setComponentesMap] = useState<Record<string, EquipoCritico[]>>({});
 
   // Fetch equipos
   const { data: equipos = [], isLoading } = useQuery<EquipoCritico[]>({
@@ -249,8 +254,39 @@ export default function CMMSEquipos() {
     }
   };
 
+  // Toggle expand/collapse for equipment
+  const toggleExpand = async (equipoId: string) => {
+    const newExpanded = new Set(expandedEquipos);
+    
+    if (newExpanded.has(equipoId)) {
+      newExpanded.delete(equipoId);
+      setExpandedEquipos(newExpanded);
+    } else {
+      newExpanded.add(equipoId);
+      setExpandedEquipos(newExpanded);
+      
+      // Load components if not already loaded
+      if (!componentesMap[equipoId]) {
+        try {
+          const res = await fetch(`/api/cmms/equipos/${equipoId}/componentes`, { 
+            credentials: 'include' 
+          });
+          if (res.ok) {
+            const componentes = await res.json();
+            setComponentesMap(prev => ({ ...prev, [equipoId]: componentes }));
+          }
+        } catch (error) {
+          console.error('Error loading components:', error);
+        }
+      }
+    }
+  };
+
+  // Filter to show only main equipment (without parent)
+  const equiposPrincipales = equipos.filter(eq => !eq.equipoPadreId);
+  
   // Filter equipos by search term
-  const filteredEquipos = equipos.filter(equipo => 
+  const filteredEquipos = equiposPrincipales.filter(equipo => 
     equipo.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     equipo.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     equipo.fabricante?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -406,44 +442,139 @@ export default function CMMSEquipos() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredEquipos.map((equipo) => (
-                      <TableRow key={equipo.id} data-testid={`row-equipo-${equipo.id}`}>
-                        <TableCell className="font-medium">{equipo.nombre}</TableCell>
-                        <TableCell>{equipo.codigo || "-"}</TableCell>
-                        <TableCell>{getAreaLabel(equipo.area)}</TableCell>
-                        <TableCell>
-                          <Badge className={getCriticidadBadge(equipo.criticidad)}>
-                            {equipo.criticidad.charAt(0).toUpperCase() + equipo.criticidad.slice(1)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getEstadoBadge(equipo.estadoActual)}>
-                            {equipo.estadoActual.replace('_', ' ')}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{equipo.fabricante || "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenDialog(equipo)}
-                              data-testid={`button-edit-${equipo.id}`}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(equipo)}
-                              data-testid={`button-delete-${equipo.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    filteredEquipos.map((equipo) => {
+                      const isExpanded = expandedEquipos.has(equipo.id);
+                      const componentes = componentesMap[equipo.id] || [];
+                      
+                      return (
+                        <>
+                          {/* Equipo Principal */}
+                          <TableRow key={equipo.id} data-testid={`row-equipo-${equipo.id}`} className="bg-background">
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleExpand(equipo.id)}
+                                  className="h-6 w-6 p-0"
+                                  data-testid={`button-expand-${equipo.id}`}
+                                >
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <span>{equipo.nombre}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{equipo.codigo || "-"}</TableCell>
+                            <TableCell>{getAreaLabel(equipo.area)}</TableCell>
+                            <TableCell>
+                              <Badge className={getCriticidadBadge(equipo.criticidad)}>
+                                {equipo.criticidad.charAt(0).toUpperCase() + equipo.criticidad.slice(1)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getEstadoBadge(equipo.estadoActual)}>
+                                {equipo.estadoActual.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{equipo.fabricante || "-"}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleOpenDialog(equipo)}
+                                  data-testid={`button-edit-${equipo.id}`}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(equipo)}
+                                  data-testid={`button-delete-${equipo.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          
+                          {/* Componentes (si está expandido) */}
+                          {isExpanded && componentes.length > 0 && (
+                            componentes.map((componente) => (
+                              <TableRow 
+                                key={componente.id} 
+                                data-testid={`row-componente-${componente.id}`}
+                                className="bg-muted/30"
+                              >
+                                <TableCell className="font-medium">
+                                  <div className="flex items-center gap-2 pl-10">
+                                    <span className="text-muted-foreground text-sm">└─</span>
+                                    <span className="text-sm">{componente.nombre}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-sm">{componente.codigo || "-"}</TableCell>
+                                <TableCell className="text-sm">{getAreaLabel(componente.area)}</TableCell>
+                                <TableCell>
+                                  <Badge className={getCriticidadBadge(componente.criticidad)}>
+                                    {componente.criticidad.charAt(0).toUpperCase() + componente.criticidad.slice(1)}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={getEstadoBadge(componente.estadoActual)}>
+                                    {componente.estadoActual.replace('_', ' ')}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-sm">{componente.fabricante || "-"}</TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleOpenDialog(componente)}
+                                      data-testid={`button-edit-${componente.id}`}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDelete(componente)}
+                                      data-testid={`button-delete-${componente.id}`}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-red-500" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                          
+                          {/* Botón para agregar componente */}
+                          {isExpanded && (
+                            <TableRow className="bg-muted/10">
+                              <TableCell colSpan={7} className="text-center py-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    /* TODO: Abrir dialog para agregar componente */
+                                  }}
+                                  data-testid={`button-add-component-${equipo.id}`}
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Agregar Componente a {equipo.nombre}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
