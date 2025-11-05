@@ -12503,12 +12503,12 @@ export class DatabaseStorage implements IStorage {
         updateData.fechaProgramada = fechaProg;
         
         // Cambio automático de estado: cualquier fecha asignada → "programada"
-        const estadosQuePuedenProgramarse = ['registrado', 'pausada'];
+        const estadosQuePuedenProgramarse = ['pendiente', 'registrado', 'pausada'];
         if (estadosQuePuedenProgramarse.includes(mantencion.estado)) {
           updateData.estado = 'programada';
         }
       } else {
-        // Si se borra la fecha, volver a registrado
+        // Si se borra la fecha, volver a pendiente o registrado según el estado original
         updateData.fechaProgramada = null;
         if (mantencion.estado === 'programada') {
           updateData.estado = 'registrado';
