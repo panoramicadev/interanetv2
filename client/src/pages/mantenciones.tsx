@@ -712,7 +712,7 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
     mutationFn: async (data: any) => {
       return await apiRequest(`/api/mantenciones/${mantencionId}/gastos`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        data: data,
       });
     },
     onSuccess: () => {
@@ -737,11 +737,16 @@ function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; ca
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
+    const item = formData.get('item') as string;
+    const descripcion = formData.get('descripcion') as string;
+    const cantidad = formData.get('cantidad') as string;
+    const costoUnitario = formData.get('costoUnitario') as string;
+    
     const data = {
-      item: formData.get('item') as string,
-      descripcion: formData.get('descripcion') as string || undefined,
-      cantidad: parseFloat(formData.get('cantidad') as string),
-      costoUnitario: parseFloat(formData.get('costoUnitario') as string),
+      item,
+      descripcion: descripcion || undefined,
+      cantidad: parseFloat(cantidad),
+      costoUnitario: parseFloat(costoUnitario),
     };
 
     addGastoMutation.mutate(data);
