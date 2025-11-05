@@ -1212,13 +1212,13 @@ export default function MantencionesPage() {
 
     const data: any = {};
 
-    // Tipo de ejecución y fecha programada
-    if (tipoEjecucionEdit === 'inmediata') {
-      data.tipoEjecucion = 'inmediata';
-      data.fechaProgramada = null;
-    } else if (tipoEjecucionEdit === 'programada' && fechaProgramadaEdit) {
-      data.tipoEjecucion = 'programada';
+    // CRÍTICO: Siempre enviar fechaProgramada si hay una fecha seleccionada
+    // El backend cambiará automáticamente el estado a "programada"
+    if (fechaProgramadaEdit) {
       data.fechaProgramada = fechaProgramadaEdit.toISOString();
+    } else if (tipoEjecucionEdit === 'inmediata') {
+      // Solo limpiar la fecha si el usuario explícitamente seleccionó "inmediata"
+      data.fechaProgramada = null;
     }
 
     // Asignación
