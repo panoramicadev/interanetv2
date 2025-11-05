@@ -13323,23 +13323,30 @@ export class DatabaseStorage implements IStorage {
     const ots = await query;
 
     const totalOTs = ots.length;
-    const otsPendientes = ots.filter(ot => ot.estado === 'pendiente').length;
-    const otsEnCurso = ots.filter(ot => ot.estado === 'en_curso').length;
-    const otsFinalizadas = ots.filter(ot => ot.estado === 'finalizada' || ot.estado === 'cerrada').length;
+    // Estados del flujo: pendiente, registrado, programada, en_reparacion, pausada, resuelto, cerrado
+    const otsPendientes = ots.filter(ot => 
+      ot.estado === 'pendiente' || ot.estado === 'registrado' || ot.estado === 'programada'
+    ).length;
+    const otsEnCurso = ots.filter(ot => 
+      ot.estado === 'en_reparacion' || ot.estado === 'pausada'
+    ).length;
+    const otsFinalizadas = ots.filter(ot => 
+      ot.estado === 'resuelto' || ot.estado === 'cerrado'
+    ).length;
     const preventivas = ots.filter(ot => ot.tipoMantencion === 'preventivo').length;
     const correctivas = ots.filter(ot => ot.tipoMantencion === 'correctivo').length;
 
-    // Calcular MTTR (Mean Time To Repair) en horas
+    // Calcular MTTR (Mean Time To Repair) en horas usando fechaInicioTrabajo y fechaResolucion
     const otsConTiempo = ots.filter(ot => 
-      ot.fechaInicio && ot.fechaTermino && 
-      ot.fechaInicio instanceof Date && ot.fechaTermino instanceof Date
+      ot.fechaInicioTrabajo && ot.fechaResolucion && 
+      ot.fechaInicioTrabajo instanceof Date && ot.fechaResolucion instanceof Date
     );
     
     let mttr = 0;
     if (otsConTiempo.length > 0) {
       const tiemposTotales = otsConTiempo.map(ot => {
-        const inicio = new Date(ot.fechaInicio!).getTime();
-        const termino = new Date(ot.fechaTermino!).getTime();
+        const inicio = new Date(ot.fechaInicioTrabajo!).getTime();
+        const termino = new Date(ot.fechaResolucion!).getTime();
         return (termino - inicio) / (1000 * 60 * 60); // Convertir a horas
       });
       mttr = tiemposTotales.reduce((sum, t) => sum + t, 0) / otsConTiempo.length;
