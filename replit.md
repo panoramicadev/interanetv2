@@ -11,6 +11,7 @@
 - **Fixed Segment Detail View Year Filter**: Added missing 'year' filter case in `getSegmentSalespeople()` to ensure vendor amounts match exactly when selecting a full year period. Now both clients and vendors filter consistently.
 - **Fixed Maintenance Orders Database Schema**: Added missing `plan_preventivo_id` column to `solicitudes_mantencion` table, resolving errors preventing creation and viewing of work orders.
 - **Enabled Inventory Module for Production Role**: Added Inventario module to produccion role navigation menu for stock management access.
+- **Reorganized Maintenance Request Workflow**: Simplified request creation by removing execution type and assignment fields from initial form. Admin/supervisor/produccion users now configure execution (immediate/scheduled) and assignment (internal technician/external provider) post-creation through a dedicated section in the details dialog. Updated PATCH endpoint and storage function to handle combined execution and assignment updates with proper role validation.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
