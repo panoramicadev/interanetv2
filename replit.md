@@ -8,6 +8,18 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 5, 2025 - Full Historical Editing for FUTURO- Clients
+**Enhanced manual projection editing for artificial clients:**
+- **All Months Visible**: FUTURO- clients now show ALL 12 months when expanded, regardless of data presence
+  - Previous behavior: Only showed months with data or in active filter
+  - New behavior: Always displays complete 12-month breakdown for all years
+- **Unrestricted Historical Editing**: Confirmed that FUTURO- clients can edit ALL years (2023, 2024, 2025, 2026+)
+  - Backend stores with correct "FUTURO-" prefix (e.g., "FUTURO-TEST" for client "test")
+  - Frontend detection: `client.clientCode.startsWith('FUTURO-')`
+  - All cells editable: `isEditable = isFuture || isFutureClient`
+- **Use Case**: Allows adding realistic historical baseline data to fictional clients before projecting future sales
+- **Performance**: No impact - filter applied per-client during rendering
+
 ### November 5, 2025 - All-Periods Filter in Manual Projections
 **Stricter client filtering for multi-year analysis:**
 - **New Filter Switch**: "Solo clientes con compras en TODOS los periodos seleccionados"
