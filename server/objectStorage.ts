@@ -40,6 +40,8 @@ export class ObjectNotFoundError extends Error {
 
 // The object storage service is used to interact with the object storage service.
 export class ObjectStorageService {
+  private static MANTENCION_BUCKET_ID = "replit-objstore-16fb68d0-f553-422b-802a-5af9fe0e5d7f";
+  
   constructor() {}
 
   // Gets the public object search paths.
@@ -73,9 +75,34 @@ export class ObjectStorageService {
     }
     return dir;
   }
+  
+  // Gets the Mantencion bucket path for photos
+  getMantencionBucketPath(): string {
+    return `/${ObjectStorageService.MANTENCION_BUCKET_ID}/public`;
+  }
 
   // Search for a public object from the search paths.
   async searchPublicObject(filePath: string): Promise<File | null> {
+    // If it's a maintenance photo, search in Mantencion bucket first
+    if (filePath.startsWith('mantencion-photos/')) {
+      const mantencionPath = this.getMantencionBucketPath();
+      const fullPath = `${mantencionPath}/${filePath}`;
+      
+      try {
+        const { bucketName, objectName } = parseObjectPath(fullPath);
+        const bucket = objectStorageClient.bucket(bucketName);
+        const file = bucket.file(objectName);
+        
+        const [exists] = await file.exists();
+        if (exists) {
+          return file;
+        }
+      } catch (error) {
+        console.warn('Could not search in Mantencion bucket:', error);
+      }
+    }
+    
+    // Search in default public paths
     for (const searchPath of this.getPublicObjectSearchPaths()) {
       const fullPath = `${searchPath}/${filePath}`;
 
@@ -156,13 +183,15 @@ export class ObjectStorageService {
 
   // Upload image data directly to object storage
   async uploadImage(fileName: string, imageBuffer: Buffer, contentType: string = 'image/png'): Promise<string> {
-    const publicObjectPaths = this.getPublicObjectSearchPaths();
-    if (publicObjectPaths.length === 0) {
+    // Use Mantencion bucket for maintenance photos
+    const isMantencionPhoto = fileName.startsWith('mantencion-photos/');
+    const publicPath = isMantencionPhoto 
+      ? this.getMantencionBucketPath()
+      : this.getPublicObjectSearchPaths()[0];
+    
+    if (!publicPath) {
       throw new Error("No public object paths configured");
     }
-
-    // Use the first public path for images
-    const publicPath = publicObjectPaths[0];
     
     // If fileName already contains a path (e.g., "mantencion-photos/..."), use it directly
     // Otherwise, default to product-images for backward compatibility
