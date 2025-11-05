@@ -934,10 +934,10 @@ export default function SalespersonDashboard() {
               
               {/* Búsqueda rápida */}
               <div className="mt-4 relative" onClick={(e) => e.stopPropagation()}>
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-blue-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Buscar por nombre o RUT..."
+                  placeholder="Buscar cliente..."
                   value={clientCardSearch}
                   onChange={(e) => {
                     setClientCardSearch(e.target.value);
@@ -945,7 +945,7 @@ export default function SalespersonDashboard() {
                   }}
                   onFocus={() => setShowClientSuggestions(clientCardSearch.trim().length > 0)}
                   onBlur={() => setTimeout(() => setShowClientSuggestions(false), 200)}
-                  className="w-full pl-9 pr-3 py-1.5 text-sm bg-white/80 border-blue-200 focus:border-blue-400 focus:ring-blue-200"
+                  className="w-full pl-10 pr-3 py-2 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   data-testid="input-client-card-search"
                 />
                 
