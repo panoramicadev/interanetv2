@@ -110,7 +110,7 @@ function SeguimientoTab({
     mutationFn: async (data: { motivo: string }) => {
       return await apiRequest(`/api/mantenciones/${mantencion.id}/pausar`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        data: data,
       });
     },
     onSuccess: () => {
@@ -136,7 +136,7 @@ function SeguimientoTab({
     mutationFn: async (data: { notas?: string }) => {
       return await apiRequest(`/api/mantenciones/${mantencion.id}/reanudar`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        data: data,
       });
     },
     onSuccess: () => {
@@ -162,7 +162,7 @@ function SeguimientoTab({
     mutationFn: async (data: any) => {
       return await apiRequest(`/api/mantenciones/${mantencion.id}/asignacion`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        data: data,
       });
     },
     onSuccess: () => {
@@ -1147,7 +1147,7 @@ export default function MantencionesPage() {
     mutationFn: async ({ id, motivo, fechaProgramada }: { id: string; motivo: string; fechaProgramada?: string | null }) => {
       return await apiRequest(`/api/mantenciones/${id}/pausar`, {
         method: 'PATCH',
-        body: JSON.stringify({ motivo, fechaProgramada }),
+        data: { motivo, fechaProgramada },
       });
     },
     onSuccess: () => {
