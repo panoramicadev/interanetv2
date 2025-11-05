@@ -125,6 +125,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Proveedores",
           icon: Users,
         },
+        {
+          href: "/cmms/presupuesto",
+          label: "Presupuesto",
+          icon: DollarSign,
+        },
       ],
     },
     {
@@ -264,6 +269,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/cmms/proveedores",
           label: "Proveedores",
           icon: Users,
+        },
+        {
+          href: "/cmms/presupuesto",
+          label: "Presupuesto",
+          icon: DollarSign,
         },
       ],
     },
@@ -516,6 +526,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/cmms/proveedores",
           label: "Proveedores",
           icon: Users,
+        },
+        {
+          href: "/cmms/presupuesto",
+          label: "Presupuesto",
+          icon: DollarSign,
         },
       ],
     },
