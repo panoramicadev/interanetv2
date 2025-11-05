@@ -9288,13 +9288,38 @@ export function registerRoutes(app: Express): Server {
       const validatedData = resolucionSchema.parse(req.body);
       const files = req.files as Express.Multer.File[];
 
-      // Photos are now optional
-      const photos = files && files.length > 0 
-        ? files.map((file, index) => ({
-            photoUrl: file.path,
-            description: req.body[`descriptions[${index}]`] || 'Evidencia de resolución',
-          }))
-        : [];
+      // Process uploaded photos - upload to Object Storage first
+      let photos: Array<{ photoUrl: string; description: string }> = [];
+      
+      if (files && files.length > 0) {
+        const objectStorageService = new ObjectStorageService();
+        photos = await Promise.all(
+          files.map(async (file: Express.Multer.File, index: number) => {
+            try {
+              // Get file extension and create unique filename
+              const fileExtension = path.extname(file.originalname).toLowerCase() || '.jpg';
+              const timestamp = Date.now();
+              const uniqueFileName = `resolucion_${req.params.id}_${timestamp}_${index}${fileExtension}`;
+              const storageKey = `mantencion-resolucion/${req.params.id}/${uniqueFileName}`;
+              
+              // Upload to object storage
+              const photoUrl = await objectStorageService.uploadImage(
+                storageKey, 
+                file.buffer, 
+                file.mimetype || getContentType(fileExtension.substring(1))
+              );
+              
+              return {
+                photoUrl,
+                description: req.body[`descriptions[${index}]`] || 'Evidencia de resolución',
+              };
+            } catch (uploadError) {
+              console.error('Error uploading resolution photo:', uploadError);
+              throw uploadError;
+            }
+          })
+        );
+      }
 
       const solicitud = await storage.updateResolucionMantencion(
         req.params.id,
