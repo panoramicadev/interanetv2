@@ -54,6 +54,16 @@ Preferred communication style: Simple, everyday language.
 - **Dashboard Enhancements**: Modern 3-card layout, YTD comparison, salesperson detail views, and goal metrics.
 - **Complaints Management (Reclamos Generales)**: Multi-area resolution with workflow automation, photo uploads, role-based filtering, and state machine.
 - **Maintenance Management (Mantención)**: Equipment request system with workflow, technician assignment, photo evidence, and history logging.
+- **CMMS (Computerized Maintenance Management System)**: Complete preventive and corrective maintenance management with:
+  - **Dashboard**: 8 KPIs (MTTR, backlog, preventivas vs correctivas, costos mensuales), 3 gráficos, filtros por período/área
+  - **Equipos Críticos**: Catálogo de equipos con área, criticidad, estado operativo, documentación técnica
+  - **Proveedores Externos**: Gestión de proveedores de mantención con especialidades, evaluación (5 estrellas), y tiempos de respuesta
+  - **Presupuesto Anual**: Configuración mensual con semáforo de desvíos (verde/amarillo/rojo), ejecución vs planificado
+  - **Gastos de Materiales**: Registro de gastos vinculados a OTs y proveedores con cálculo automático de totales
+  - **Planes Preventivos**: Programación por frecuencia (diaria-anual), generación automática de OTs, KPIs de cumplimiento
+  - **Calendario de Mantención**: Vista mensual con eventos de planes preventivos y OTs activas, navegación y filtros
+  - **Scheduler Automático**: Job que genera OTs preventivas cada hora según planes activos, con ventana de anticipación de 2 horas
+  - **Control de Acceso**: Roles especializados (admin, supervisor, produccion) con validación en frontend y backend
 - **Marketing Module**: Budget configuration, request workflow, metrics dashboard, customizable checklists, and interactive calendar.
 - **Inventory Module (Hybrid System)**: Real-time stock levels with integrated average pricing, combining PostgreSQL catalog with live SQL Server stock queries. Includes low stock alerts.
 - **Expense Management (Gastos Empresariales)**: Expense creation, approval workflow, and analytics.
