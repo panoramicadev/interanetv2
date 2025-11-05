@@ -35,8 +35,11 @@ interface ComparativeSalespersonChartProps {
 }
 
 export default function ComparativeSalespersonChart({ salespersonName, periods, periodMetrics }: ComparativeSalespersonChartProps) {
-  // Detect if we have year-over-year comparison (multiple years in comparison)
-  const isYearOverYear = periods.length > 1 && (() => {
+  // Detect comparison type
+  const isFullYearComparison = periods.length > 1 && periods.every(p => p.filterType === 'year');
+  
+  // Detect if we have year-over-year comparison (multiple years, same months)
+  const isYearOverYear = !isFullYearComparison && periods.length > 1 && (() => {
     const yearSet = new Set(periods.map(p => p.period.split('-')[0]));
     return yearSet.size > 1; // Multiple years = year-over-year comparison
   })();
@@ -80,8 +83,18 @@ export default function ComparativeSalespersonChart({ salespersonName, periods, 
     }).format(value);
   };
 
-  // Prepare chart data
-  const chartData = {
+  // Prepare chart data based on comparison type
+  const chartData = isFullYearComparison ? {
+    // Full year comparison (e.g., 2024 vs 2025)
+    labels: periods.map(p => p.label), // Use the label which is the year
+    datasets: [{
+      label: 'Ventas Totales',
+      data: periodMetrics.map(m => m.totalSales),
+      backgroundColor: periods.map((_, idx) => yearColors[idx % yearColors.length]),
+      borderRadius: 6,
+      borderSkipped: false,
+    }]
+  } : {
     labels: isYearOverYear 
       ? months.map(m => {
           const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];

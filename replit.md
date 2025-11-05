@@ -3,6 +3,11 @@
 ## Overview
 "PANORAMICA" is a Spanish-language sales analytics dashboard tailored for the Chilean market. It provides comprehensive sales insights through client and user management (with role-based access), detailed sales analytics, and a mobile-responsive design. The application supports CSV sales data import, KPI monitoring, trend analysis, and transaction review. Key features include e-commerce integration, a CRM pipeline, product grouping, technical visit management, robust complaints and maintenance management, sales forecasting, an ETL data warehouse, and an internal notification system. The project aims to enhance sales strategies and operational efficiency.
 
+## Recent Changes (Nov 5, 2025)
+- **Fixed Comparative Analytics Discrepancy**: Corrected `getSegmentAnalysis()` to consistently exclude Guías de Despacho (GDV) across all views (was causing ~$128K differences).
+- **Added Total Acumulado Card**: Implemented green summary card showing sum of all compared periods in both segment and salesperson comparatives.
+- **Fixed Year Label Bug**: Corrected tooltip display when comparing full years (2024 vs 2025) - was showing "Ene" instead of year label.
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
