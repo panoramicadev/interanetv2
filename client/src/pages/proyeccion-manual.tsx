@@ -329,17 +329,18 @@ export default function ProyeccionManualPage() {
       }
       client.segmentSales[item.segment] += item.totalSales;
       
-      // Sum purchase frequency across all records
-      client.purchaseFrequency += item.purchaseFrequency;
-      
-      // ALWAYS store in monthly data for consistency
+      // Store monthly data (backend now only returns monthly breakdown)
       if (item.month) {
         const monthKey = `${item.year}-${item.month}`;
         if (!client.monthlyData) client.monthlyData = {};
         client.monthlyData[monthKey] = (client.monthlyData[monthKey] || 0) + item.totalSales;
+        
+        // Sum purchase frequency only from monthly records to avoid duplication
+        client.purchaseFrequency += item.purchaseFrequency;
       } else {
         // If no month specified, it's yearly total - add directly to yearlyData
         client.yearlyData[item.year] = (client.yearlyData[item.year] || 0) + item.totalSales;
+        client.purchaseFrequency += item.purchaseFrequency;
       }
     });
     
@@ -352,7 +353,7 @@ export default function ProyeccionManualPage() {
         client.segment = primarySegment;
       }
       
-      // If we have monthly data but no yearly totals, calculate yearly totals from monthly
+      // Calculate yearly totals from monthly data (backend only returns monthly)
       if (client.monthlyData) {
         Object.keys(client.monthlyData).forEach(monthKey => {
           const year = parseInt(monthKey.split('-')[0]);
