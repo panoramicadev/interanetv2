@@ -926,7 +926,7 @@ export default function ProyeccionManualPage() {
                   "Cargando..."
                 ) : (
                   <>
-                    Mostrando {Math.min((currentPage - 1) * itemsPerPage + 1, totalClients)} - {Math.min(currentPage * itemsPerPage, totalClients)} de {totalClients} clientes
+                    Mostrando {Math.min(visibleItems, totalClients)} de {totalClients} clientes
                     {searchTerm && ` (filtrados)`}
                   </>
                 )}
