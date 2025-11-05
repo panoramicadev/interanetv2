@@ -40,6 +40,8 @@ import OrdersPage from "@/pages/orders";
 import VisitasTecnicasPage from "@/pages/visitas-tecnicas";
 import ReclamosGeneralesPage from "@/pages/reclamos-generales";
 import MantencionesPage from "@/pages/mantenciones";
+import CMMSDashboard from "@/pages/cmms-dashboard";
+import CMMSEquipos from "@/pages/cmms-equipos";
 import ApiKeysPage from "@/pages/api-keys";
 import Marketing from "@/pages/marketing";
 import Inventario from "@/pages/inventario";
@@ -159,6 +161,30 @@ function Router() {
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
             <Route path="/reclamos-generales" component={ReclamosGeneralesPage} />
             <Route path="/mantenciones" component={MantencionesPage} />
+            <Route path="/cmms" component={() => {
+              // Solo admin, supervisor y produccion pueden acceder al CMMS
+              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+                window.location.replace('/');
+                return null;
+              }
+              return <CMMSDashboard />;
+            }} />
+            <Route path="/cmms/dashboard" component={() => {
+              // Solo admin, supervisor y produccion pueden acceder al CMMS
+              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+                window.location.replace('/');
+                return null;
+              }
+              return <CMMSDashboard />;
+            }} />
+            <Route path="/cmms/equipos" component={() => {
+              // Solo admin, supervisor y produccion pueden acceder a equipos
+              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+                window.location.replace('/');
+                return null;
+              }
+              return <CMMSEquipos />;
+            }} />
             <Route path="/marketing" component={Marketing} />
             <Route path="/inventario" component={Inventario} />
             <Route path="/gastos-empresariales" component={GastosEmpresariales} />
