@@ -1224,7 +1224,10 @@ export default function MantencionesPage() {
       data.fechaProgramada = null;
       console.log('[DEBUG] Limpiando fechaProgramada');
     }
-    console.log('[DEBUG] Data completa a enviar:', data);
+    console.log('[DEBUG] Data completa a enviar (antes de asignación):', data);
+    console.log('[DEBUG] tipoAsignacionEdit:', tipoAsignacionEdit);
+    console.log('[DEBUG] tecnicoAsignadoIdEdit:', tecnicoAsignadoIdEdit);
+    console.log('[DEBUG] proveedorAsignadoIdEdit:', proveedorAsignadoIdEdit);
 
     // Asignación
     if (tipoAsignacionEdit === 'tecnico_interno' && tecnicoAsignadoIdEdit) {
