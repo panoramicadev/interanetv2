@@ -580,6 +580,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         },
       ],
     },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
   ],
 
   logistica_bodega: [
