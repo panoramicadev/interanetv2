@@ -1,0 +1,95 @@
+PROMPT PARA REPLIT — PANEL CMMS LIGERO, ENFOCADO EN OPERACIÓN REAL
+
+Objetivo:
+Crear una aplicación web CMMS simple y robusta para una planta de pinturas (Pinturas Panorámica) con una sola persona interna de mantención, alto uso de proveedores externos, y Jefe de Planta actuando como Jefe de Mantención. El sistema debe centralizar solicitudes por áreas, planificación preventiva/correctiva, control de presupuesto anual, gastos por materiales, fichas de equipos críticos y un calendario operativo.
+
+Requisitos clave (funcionales)
+
+Áreas solicitantes
+Administración, Producción, Laboratorio, Bodega de Materias Primas, Bodega de Productos Terminados.
+
+Cada área puede levantar solicitudes y ver el estado de las suyas.
+
+Campos mínimos: área, prioridad (Baja/Media/Alta), tipo (Correctiva/Preventiva), descripción, fotos/archivos opcionales.
+
+Flujo de trabajo minimalista
+
+Estados de OT: Pendiente → En curso → Finalizada → Cerrada.
+
+Asignación: técnico interno (único) o Proveedor externo (con nombre/contacto/costo/hh estimadas).
+
+Tiempos: fecha solicitud, fecha inicio, fecha término; calcular SLA simple (p.ej., “días en pendiente”), Lead Time, MTTR (promedio correctivas), cumplimiento preventivo (a tiempo vs. atrasado).
+
+Calendario de mantención
+
+Vista mensual/semanal con OTs y Planes Preventivos (frecuencia por equipo: semanal, mensual, trimestral, semestral, anual con tolerancia de ±7 días).
+
+Drag & drop opcional para reprogramar; al mover, registrar un “log” de cambio.
+
+Dashboard
+
+Preventivas vs. Correctivas: cantidad, % cumplimiento del plan, atrasos.
+
+Backlog: OTs pendientes por área y por equipo.
+
+KPIs: MTTR (correctivas), % PM on-time, costo mensual vs. presupuesto, top 5 equipos por costo/fallas.
+
+Filtros por fecha, área, equipo, proveedor.
+
+Presupuesto anual
+
+Cargar presupuesto anual de mantención (global y por área).
+
+Mostrar ejecución mensual (mano de obra interna, externos, otros materiales ligados a mantención).
+
+Señalizar desvío (semáforo: verde/amarillo/rojo) y proyección fin de año.
+
+Gasto mensual de materiales (otros conceptos)
+
+Registrar compras/consumos de materiales vinculados a una OT o a “gasto general de mantención”.
+
+Campos: fecha, ítem, cantidad, costo unitario, centro de costo/área, OT opcional, proveedor opcional, adjunto (factura/foto).
+
+Reporte mensual y acumulado vs. presupuesto.
+
+Fichas de equipos críticos
+
+Catálogo de equipos críticos con ficha técnica: código, nombre, área, criticidad, ubicación, marca/modelo, n° serie, potencia, repuestos críticos, manuales/adjuntos, parámetros de plan preventivo y árbol simple de fallas (texto).
+
+Vista de historial de OTs por equipo y KPI específicos (costo YTD, fallas YTD).
+
+Adjuntos y trazabilidad
+
+Adjuntar fotos, PDFs, órdenes de compra, informes externos a OTs y a fichas de equipos.
+
+Log de cambios (quién, qué, cuándo).
+
+Roles y permisos
+
+Jefe de Planta/Mantención: ve todo, aprueba/reprograma, cierra OTs, administra proveedores y presupuesto.
+
+Técnico Interno (1 persona): ve asignadas, actualiza estado, registra tiempos y materiales.
+
+Solicitantes por Área: crean solicitudes y ven estado de sus OTs.
+
+Lectura (Dirección): ve dashboards y presupuesto, sin editar.
+
+Localización
+
+Zona horaria: America/Santiago; moneda: CLP; formatos es-CL.
+
+Requisitos técnicos (sugeridos y simples de mantener)
+
+Frontend: React + Tailwind.
+
+Backend: Python FastAPI o Node Express (elige uno, prioriza rapidez de scaffolding).
+
+DB: PostgreSQL (Neon o Postgres nativo en Replit).
+
+Auth: JWT simple (roles: JEFE, TECNICO, SOLICITANTE, LECTOR).
+
+Calendario: componente de calendario (fullcalendar o equivalente).
+
+Gráficos: Chart.js o Recharts.
+
+Archivos: almacenamiento en carpeta del proyecto o bucket; guardar path y metadatos.
