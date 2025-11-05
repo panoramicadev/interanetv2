@@ -1442,6 +1442,15 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // Inventory cache system with TTL and mutex per filter key
+  private inventoryCacheMap = new Map<string, {
+    data: any[];
+    timestamp: number;
+    inFlightPromise: Promise<any[]> | null;
+  }>();
+  
+  private readonly INVENTORY_CACHE_TTL = 30000; // 30 seconds
+
   // User operations (mandatory for Replit Auth)
   async getUser(id: string): Promise<User | undefined> {
     // First, try to find user in the main users table
@@ -12920,56 +12929,115 @@ export class DatabaseStorage implements IStorage {
     warehouse?: string;
     branch?: string;
   }): Promise<any[]> {
-    try {
-      // Build where conditions
-      const conditions = [eq(inventoryProducts.activo, true)];
-      
-      if (filters?.search) {
-        conditions.push(
-          or(
-            sql`${inventoryProducts.sku} ILIKE ${`%${filters.search}%`}`,
-            sql`${inventoryProducts.nombre} ILIKE ${`%${filters.search}%`}`
-          )!
-        );
+    // Create cache key from filters (sorted to ensure consistency)
+    const cacheKey = JSON.stringify(filters || {}, Object.keys(filters || {}).sort());
+    const now = Date.now();
+    
+    // Get or create cache entry for this filter key
+    let cacheEntry = this.inventoryCacheMap.get(cacheKey);
+    
+    // Check if cache is valid (fresh data)
+    if (cacheEntry && cacheEntry.data) {
+      const cacheAge = now - cacheEntry.timestamp;
+      if (cacheAge < this.INVENTORY_CACHE_TTL) {
+        console.log(`📦 Inventory cache HIT for filters ${cacheKey.substring(0, 50)}... (age: ${Math.round(cacheAge / 1000)}s)`);
+        return cacheEntry.data;
+      } else {
+        console.log(`⏰ Cache expired for filters ${cacheKey.substring(0, 50)}... (age: ${Math.round(cacheAge / 1000)}s)`);
       }
-
-      if (filters?.warehouse && filters.warehouse !== 'all') {
-        conditions.push(eq(inventoryProducts.bodega, filters.warehouse));
-      }
-
-      if (filters?.branch && filters.branch !== 'all') {
-        conditions.push(eq(inventoryProducts.sucursal, filters.branch));
-      }
-
-      // Query inventory from PostgreSQL
-      const inventory = await db
-        .select()
-        .from(inventoryProducts)
-        .where(and(...conditions));
-
-      // Map to frontend format
-      return inventory.map((item) => ({
-        branchCode: item.sucursal || '',
-        productSku: item.sku,
-        productName: item.nombre,
-        warehouseCode: item.bodega || '',
-        warehouseName: item.nombreBodega || item.bodega || '',
-        stock1: parseFloat(item.stock1?.toString() || '0'),
-        stock2: parseFloat(item.stock2?.toString() || '0'),
-        quantity: parseFloat(item.stock2?.toString() || '0'),
-        unit1: item.unidad1 || '',
-        unit2: item.unidad2 || '',
-        unit: item.unidad2 || '',
-        reservedQuantity: 0,
-        availableQuantity: parseFloat(item.stock2?.toString() || '0'),
-        averagePrice: parseFloat(item.precioMedio?.toString() || '0'),
-        totalValue: parseFloat(item.valorInventario?.toString() || '0'),
-        lastUpdated: item.ultimaSincronizacion || new Date(),
-      }));
-    } catch (error: any) {
-      console.error('Error fetching inventory from PostgreSQL:', error.message);
-      return [];
     }
+    
+    // If a query with these exact filters is already in progress, wait for it
+    if (cacheEntry?.inFlightPromise) {
+      console.log(`⏳ Inventory query with filters ${cacheKey.substring(0, 50)}... already in progress, waiting...`);
+      return await cacheEntry.inFlightPromise;
+    }
+    
+    // Start new query with mutex for this specific filter key
+    console.log(`🔄 Inventory cache MISS for filters ${cacheKey.substring(0, 50)}..., fetching fresh data`);
+    
+    const queryPromise = (async () => {
+      try {
+        // Build where conditions
+        const conditions = [eq(inventoryProducts.activo, true)];
+        
+        if (filters?.search) {
+          conditions.push(
+            or(
+              sql`${inventoryProducts.sku} ILIKE ${`%${filters.search}%`}`,
+              sql`${inventoryProducts.nombre} ILIKE ${`%${filters.search}%`}`
+            )!
+          );
+        }
+
+        if (filters?.warehouse && filters.warehouse !== 'all') {
+          conditions.push(eq(inventoryProducts.bodega, filters.warehouse));
+        }
+
+        if (filters?.branch && filters.branch !== 'all') {
+          conditions.push(eq(inventoryProducts.sucursal, filters.branch));
+        }
+
+        // Query inventory from PostgreSQL
+        const inventory = await db
+          .select()
+          .from(inventoryProducts)
+          .where(and(...conditions));
+
+        // Map to frontend format
+        const result = inventory.map((item) => ({
+          branchCode: item.sucursal || '',
+          productSku: item.sku,
+          productName: item.nombre,
+          warehouseCode: item.bodega || '',
+          warehouseName: item.nombreBodega || item.bodega || '',
+          stock1: parseFloat(item.stock1?.toString() || '0'),
+          stock2: parseFloat(item.stock2?.toString() || '0'),
+          quantity: parseFloat(item.stock2?.toString() || '0'),
+          unit1: item.unidad1 || '',
+          unit2: item.unidad2 || '',
+          unit: item.unidad2 || '',
+          reservedQuantity: 0,
+          availableQuantity: parseFloat(item.stock2?.toString() || '0'),
+          averagePrice: parseFloat(item.precioMedio?.toString() || '0'),
+          totalValue: parseFloat(item.valorInventario?.toString() || '0'),
+          lastUpdated: item.ultimaSincronizacion || new Date(),
+        }));
+        
+        // Update cache for this filter key
+        this.inventoryCacheMap.set(cacheKey, {
+          data: result,
+          timestamp: Date.now(),
+          inFlightPromise: null,
+        });
+        
+        console.log(`✅ Inventory fetched successfully (${result.length} items), cache updated for filters ${cacheKey.substring(0, 50)}...`);
+        
+        return result;
+      } catch (error: any) {
+        console.error('Error fetching inventory from PostgreSQL:', error.message);
+        return [];
+      } finally {
+        // Release mutex for this filter key
+        const entry = this.inventoryCacheMap.get(cacheKey);
+        if (entry) {
+          entry.inFlightPromise = null;
+        }
+      }
+    })();
+    
+    // Store the in-flight promise for this filter key
+    if (!cacheEntry) {
+      this.inventoryCacheMap.set(cacheKey, {
+        data: [],
+        timestamp: 0,
+        inFlightPromise: queryPromise,
+      });
+    } else {
+      cacheEntry.inFlightPromise = queryPromise;
+    }
+    
+    return await queryPromise;
   }
 
   // Legacy method for fallback
