@@ -53,7 +53,7 @@ Preferred communication style: Simple, everyday language.
 - **Goals Progress**: Sales goals tracking.
 - **Dashboard Enhancements**: Modern 3-card layout, YTD comparison, salesperson detail views, and goal metrics.
 - **Complaints Management (Reclamos Generales)**: Multi-area resolution with workflow automation, photo uploads, role-based filtering, and state machine.
-- **Maintenance Management (Mantención)**: Equipment request system with workflow, technician assignment, photo evidence, and history logging.
+- **Maintenance Management (Mantención)**: Equipment request system with workflow, technician assignment, photo evidence, and history logging. Drawer lateral (Sheet) para creación de solicitudes con formulario multi-sección.
 - **CMMS (Computerized Maintenance Management System)**: Complete preventive and corrective maintenance management with:
   - **Dashboard**: 8 KPIs (MTTR, backlog, preventivas vs correctivas, costos mensuales), 3 gráficos, filtros por período/área
   - **Equipos Críticos**: Catálogo de equipos con área, criticidad, estado operativo, documentación técnica, y jerarquía padre-componente (ej: dispersor → motor) con vista expandible/colapsable. Las OTs vinculan equipos por ID para reflejar cambios del catálogo automáticamente
