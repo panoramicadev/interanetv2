@@ -12372,7 +12372,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Inicia el trabajo en una orden programada o registrada
+   * Inicia el trabajo en una orden pendiente, programada o registrada
    */
   async iniciarTrabajoMantencion(
     id: string,
@@ -12387,9 +12387,9 @@ export class DatabaseStorage implements IStorage {
     }
     
     // Validar que el estado actual permite iniciar trabajo
-    const estadosValidos = ['registrado', 'programada'];
+    const estadosValidos = ['pendiente', 'registrado', 'programada'];
     if (!estadosValidos.includes(mantencion.estado)) {
-      throw new Error(`Solo se puede iniciar trabajo desde estado registrado o programada. Estado actual: ${mantencion.estado}`);
+      throw new Error(`Solo se puede iniciar trabajo desde estado pendiente, registrado o programada. Estado actual: ${mantencion.estado}`);
     }
 
     // Validar permisos
