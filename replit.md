@@ -8,6 +8,20 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 5, 2025 - All-Periods Filter in Manual Projections
+**Stricter client filtering for multi-year analysis:**
+- **New Filter Switch**: "Solo clientes con compras en TODOS los periodos seleccionados"
+  - Default behavior: Shows clients with sales in ANY of the selected years (OR logic)
+  - When enabled: Shows only clients with sales in ALL selected years (AND logic)
+- **Backend Implementation**: Filter applied after initial client aggregation
+  - Checks each client's sales years using `Set` for efficient lookup
+  - Uses `Array.every()` to verify all selected years are present
+  - Only applies when multiple years selected (`years.length > 1`)
+- **Performance**: Per-client scan on filtered dataset, not raw transactions
+- **Combination**: Works seamlessly with existing search, segment, and salesperson filters
+- **Use Case**: Identify consistent customers across all analyzed periods
+  - Example: Select [2023, 2024, 2025] → Filter shows only clients who purchased in all three years
+
 ### November 5, 2025 - Monthly Sales Breakdown in Manual Projections
 **Complete monthly data visualization for expanded client rows:**
 - **Backend Monthly Query**: `getHistoricoVentasPorAnio` now returns monthly breakdown with `EXTRACT(MONTH)` grouping
