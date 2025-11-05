@@ -109,7 +109,7 @@ function SeguimientoTab({
   const pausarMutation = useMutation({
     mutationFn: async (data: { motivo: string }) => {
       return await apiRequest(`/api/mantenciones/${mantencion.id}/pausar`, {
-        method: 'PATCH',
+        method: 'POST',
         data: data,
       });
     },
@@ -1146,7 +1146,7 @@ export default function MantencionesPage() {
   const pausarTrabajoMutation = useMutation({
     mutationFn: async ({ id, motivo, fechaProgramada }: { id: string; motivo: string; fechaProgramada?: string | null }) => {
       return await apiRequest(`/api/mantenciones/${id}/pausar`, {
-        method: 'PATCH',
+        method: 'POST',
         data: { motivo, fechaProgramada },
       });
     },
