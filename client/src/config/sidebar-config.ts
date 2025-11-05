@@ -130,6 +130,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Presupuesto",
           icon: DollarSign,
         },
+        {
+          href: "/cmms/gastos-materiales",
+          label: "Gastos de Materiales",
+          icon: Receipt,
+        },
       ],
     },
     {
@@ -274,6 +279,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/cmms/presupuesto",
           label: "Presupuesto",
           icon: DollarSign,
+        },
+        {
+          href: "/cmms/gastos-materiales",
+          label: "Gastos de Materiales",
+          icon: Receipt,
         },
       ],
     },
@@ -531,6 +541,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/cmms/presupuesto",
           label: "Presupuesto",
           icon: DollarSign,
+        },
+        {
+          href: "/cmms/gastos-materiales",
+          label: "Gastos de Materiales",
+          icon: Receipt,
         },
       ],
     },
