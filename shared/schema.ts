@@ -3364,7 +3364,7 @@ export const insertReclamoGeneralHistorialSchema = createInsertSchema(reclamosGe
 // ===== CATÁLOGO DE EQUIPOS CRÍTICOS =====
 export const equiposCriticos = pgTable("equipos_criticos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  codigo: varchar("codigo", { length: 50 }).notNull().unique(), // Código único del equipo
+  codigo: varchar("codigo", { length: 50 }).unique(), // Código único del equipo (auto-generated if not provided)
   nombre: varchar("nombre", { length: 255 }).notNull(),
   area: varchar("area").notNull(), // administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados
   criticidad: varchar("criticidad").notNull().default("media"), // baja, media, alta, critica
