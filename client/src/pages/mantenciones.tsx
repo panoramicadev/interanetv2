@@ -1143,6 +1143,29 @@ export default function MantencionesPage() {
     },
   });
 
+  const reanudarTrabajoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/mantenciones/${id}/reanudar`, {
+        method: 'POST',
+        data: {},
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      toast({
+        title: "Trabajo reanudado",
+        description: "La orden de trabajo ha cambiado a estado 'En Reparación'.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al reanudar trabajo",
+        description: error.message || "No se pudo reanudar el trabajo.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const pausarTrabajoMutation = useMutation({
     mutationFn: async ({ id, motivo, fechaProgramada }: { id: string; motivo: string; fechaProgramada?: string | null }) => {
       return await apiRequest(`/api/mantenciones/${id}/pausar`, {
@@ -2378,10 +2401,32 @@ export default function MantencionesPage() {
                       Pausar Trabajo
                     </Button>
                   )}
+
+                  {/* Botón Reanudar Trabajo - solo en estado pausada */}
+                  {selectedMantencion.estado === 'pausada' && (
+                    <Button
+                      onClick={() => {
+                        if (window.confirm('¿Está seguro que desea reanudar el trabajo en esta orden?')) {
+                          reanudarTrabajoMutation.mutate(selectedMantencion.id);
+                        }
+                      }}
+                      disabled={reanudarTrabajoMutation.isPending}
+                      className="w-full"
+                      data-testid="button-reanudar-trabajo"
+                    >
+                      {reanudarTrabajoMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4 mr-2" />
+                      )}
+                      Reanudar Trabajo
+                    </Button>
+                  )}
                 </div>
               )}
 
-              {canSubmitResolution && selectedMantencion.estado !== 'resuelto' && selectedMantencion.estado !== 'cerrado' && (
+              {/* Botón Enviar Resolución - solo en estado en_reparacion */}
+              {canSubmitResolution && selectedMantencion.estado === 'en_reparacion' && (
                 <div className="border-t pt-4">
                   <Button
                     onClick={() => {
