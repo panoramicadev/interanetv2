@@ -3739,9 +3739,15 @@ export const insertGastoMaterialMantencionSchema = createInsertSchema(gastosMate
   createdAt: true,
 }).extend({
   item: z.string().min(1, "El ítem es requerido"),
-  cantidad: z.number().positive("La cantidad debe ser mayor a 0"),
-  costoUnitario: z.number().positive("El costo unitario debe ser mayor a 0"),
-  costoTotal: z.number().positive("El costo total debe ser mayor a 0"),
+  cantidad: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  costoUnitario: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  costoTotal: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
 });
 
 // Planes Preventivos

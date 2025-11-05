@@ -147,11 +147,26 @@ import {
   type InsertReclamoGeneralResolucionPhoto,
   type ReclamoGeneralHistorial,
   type InsertReclamoGeneralHistorial,
-  // Mantención module tables
+  // Mantención / CMMS module tables
+  equiposCriticos,
+  proveedoresMantencion,
+  presupuestoMantencion,
+  gastosMaterialesMantencion,
+  planesPreventivos,
   solicitudesMantencion,
   mantencionPhotos,
   mantencionResolucionPhotos,
   mantencionHistorial,
+  type EquipoCritico,
+  type InsertEquipoCritico,
+  type ProveedorMantencion,
+  type InsertProveedorMantencion,
+  type PresupuestoMantencion,
+  type InsertPresupuestoMantencion,
+  type GastoMaterialMantencion,
+  type InsertGastoMaterialMantencion,
+  type PlanPreventivo,
+  type InsertPlanPreventivo,
   type SolicitudMantencion,
   type InsertSolicitudMantencion,
   type MantencionPhoto,
@@ -1168,6 +1183,75 @@ export interface IStorage {
   
   // Cerrar solicitud de mantención
   cerrarMantencion(id: string, userId: string, userName: string, notas?: string): Promise<SolicitudMantencion>;
+
+  // ==================================================================================
+  // CMMS - SISTEMA DE GESTIÓN DE MANTENIMIENTO
+  // ==================================================================================
+  
+  // ===== EQUIPOS CRÍTICOS =====
+  createEquipoCritico(equipo: InsertEquipoCritico): Promise<EquipoCritico>;
+  getEquiposCriticos(filters?: { 
+    area?: string; 
+    criticidad?: string;
+    estadoActual?: string;
+  }): Promise<EquipoCritico[]>;
+  getEquipoCriticoById(id: string): Promise<EquipoCritico | undefined>;
+  getEquipoCriticoByCodigo(codigo: string): Promise<EquipoCritico | undefined>;
+  updateEquipoCritico(id: string, updates: Partial<InsertEquipoCritico>): Promise<EquipoCritico>;
+  deleteEquipoCritico(id: string): Promise<void>;
+  
+  // ===== PROVEEDORES EXTERNOS =====
+  createProveedorMantencion(proveedor: InsertProveedorMantencion): Promise<ProveedorMantencion>;
+  getProveedoresMantencion(filters?: { activo?: boolean }): Promise<ProveedorMantencion[]>;
+  getProveedorMantencionById(id: string): Promise<ProveedorMantencion | undefined>;
+  updateProveedorMantencion(id: string, updates: Partial<InsertProveedorMantencion>): Promise<ProveedorMantencion>;
+  deleteProveedorMantencion(id: string): Promise<void>;
+  
+  // ===== PRESUPUESTO ANUAL =====
+  createPresupuestoMantencion(presupuesto: InsertPresupuestoMantencion): Promise<PresupuestoMantencion>;
+  getPresupuestosMantencion(anio: number): Promise<PresupuestoMantencion[]>;
+  getPresupuestoMantencionByPeriod(anio: number, mes: number, area?: string): Promise<PresupuestoMantencion | undefined>;
+  updatePresupuestoMantencion(id: string, updates: Partial<InsertPresupuestoMantencion>): Promise<PresupuestoMantencion>;
+  deletePresupuestoMantencion(id: string): Promise<void>;
+  
+  // ===== GASTOS DE MATERIALES =====
+  createGastoMaterialMantencion(gasto: InsertGastoMaterialMantencion): Promise<GastoMaterialMantencion>;
+  getGastosMaterialesMantencion(filters?: {
+    otId?: string;
+    area?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<GastoMaterialMantencion[]>;
+  getGastoMaterialMantencionById(id: string): Promise<GastoMaterialMantencion | undefined>;
+  updateGastoMaterialMantencion(id: string, updates: Partial<InsertGastoMaterialMantencion>): Promise<GastoMaterialMantencion>;
+  deleteGastoMaterialMantencion(id: string): Promise<void>;
+  
+  // ===== PLANES PREVENTIVOS =====
+  createPlanPreventivo(plan: InsertPlanPreventivo): Promise<PlanPreventivo>;
+  getPlanesPreventivos(filters?: { 
+    equipoId?: string;
+    activo?: boolean;
+  }): Promise<PlanPreventivo[]>;
+  getPlanPreventivoById(id: string): Promise<PlanPreventivo | undefined>;
+  getPlanesPreventivosVencidos(): Promise<PlanPreventivo[]>;
+  updatePlanPreventivo(id: string, updates: Partial<InsertPlanPreventivo>): Promise<PlanPreventivo>;
+  deletePlanPreventivo(id: string): Promise<void>;
+  
+  // ===== KPIs Y DASHBOARDS CMMS =====
+  getCMMSMetrics(filters?: {
+    startDate?: string;
+    endDate?: string;
+    area?: string;
+  }): Promise<{
+    totalOTs: number;
+    otsPendientes: number;
+    otsEnCurso: number;
+    otsFinalizadas: number;
+    mttr: number; // Mean Time To Repair
+    preventivas: number;
+    correctivas: number;
+    costoTotal: number;
+  }>;
 
   // ==================================================================================
   // MARKETING MODULE operations
@@ -12387,6 +12471,361 @@ export class DatabaseStorage implements IStorage {
     });
     
     return updated;
+  }
+
+  // ==================================================================================
+  // CMMS - SISTEMA DE GESTIÓN DE MANTENIMIENTO
+  // ==================================================================================
+  
+  // ===== EQUIPOS CRÍTICOS =====
+  async createEquipoCritico(equipo: InsertEquipoCritico): Promise<EquipoCritico> {
+    const [result] = await db
+      .insert(equiposCriticos)
+      .values(equipo)
+      .returning();
+    return result;
+  }
+
+  async getEquiposCriticos(filters?: { 
+    area?: string; 
+    criticidad?: string;
+    estadoActual?: string;
+  }): Promise<EquipoCritico[]> {
+    let query = db.select().from(equiposCriticos);
+    
+    const conditions = [];
+    if (filters?.area) {
+      conditions.push(eq(equiposCriticos.area, filters.area));
+    }
+    if (filters?.criticidad) {
+      conditions.push(eq(equiposCriticos.criticidad, filters.criticidad));
+    }
+    if (filters?.estadoActual) {
+      conditions.push(eq(equiposCriticos.estadoActual, filters.estadoActual));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return query.orderBy(desc(equiposCriticos.createdAt));
+  }
+
+  async getEquipoCriticoById(id: string): Promise<EquipoCritico | undefined> {
+    const [result] = await db
+      .select()
+      .from(equiposCriticos)
+      .where(eq(equiposCriticos.id, id));
+    return result;
+  }
+
+  async getEquipoCriticoByCodigo(codigo: string): Promise<EquipoCritico | undefined> {
+    const [result] = await db
+      .select()
+      .from(equiposCriticos)
+      .where(eq(equiposCriticos.codigo, codigo));
+    return result;
+  }
+
+  async updateEquipoCritico(id: string, updates: Partial<InsertEquipoCritico>): Promise<EquipoCritico> {
+    const [result] = await db
+      .update(equiposCriticos)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(equiposCriticos.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteEquipoCritico(id: string): Promise<void> {
+    await db.delete(equiposCriticos).where(eq(equiposCriticos.id, id));
+  }
+
+  // ===== PROVEEDORES EXTERNOS =====
+  async createProveedorMantencion(proveedor: InsertProveedorMantencion): Promise<ProveedorMantencion> {
+    const [result] = await db
+      .insert(proveedoresMantencion)
+      .values(proveedor)
+      .returning();
+    return result;
+  }
+
+  async getProveedoresMantencion(filters?: { activo?: boolean }): Promise<ProveedorMantencion[]> {
+    let query = db.select().from(proveedoresMantencion);
+    
+    if (filters?.activo !== undefined) {
+      query = query.where(eq(proveedoresMantencion.activo, filters.activo)) as any;
+    }
+    
+    return query.orderBy(proveedoresMantencion.nombre);
+  }
+
+  async getProveedorMantencionById(id: string): Promise<ProveedorMantencion | undefined> {
+    const [result] = await db
+      .select()
+      .from(proveedoresMantencion)
+      .where(eq(proveedoresMantencion.id, id));
+    return result;
+  }
+
+  async updateProveedorMantencion(id: string, updates: Partial<InsertProveedorMantencion>): Promise<ProveedorMantencion> {
+    const [result] = await db
+      .update(proveedoresMantencion)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(proveedoresMantencion.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProveedorMantencion(id: string): Promise<void> {
+    await db.delete(proveedoresMantencion).where(eq(proveedoresMantencion.id, id));
+  }
+
+  // ===== PRESUPUESTO ANUAL =====
+  async createPresupuestoMantencion(presupuesto: InsertPresupuestoMantencion): Promise<PresupuestoMantencion> {
+    const [result] = await db
+      .insert(presupuestoMantencion)
+      .values(presupuesto)
+      .returning();
+    return result;
+  }
+
+  async getPresupuestosMantencion(anio: number): Promise<PresupuestoMantencion[]> {
+    return db
+      .select()
+      .from(presupuestoMantencion)
+      .where(eq(presupuestoMantencion.anio, anio))
+      .orderBy(presupuestoMantencion.mes, presupuestoMantencion.area);
+  }
+
+  async getPresupuestoMantencionByPeriod(anio: number, mes: number, area?: string): Promise<PresupuestoMantencion | undefined> {
+    const conditions = [
+      eq(presupuestoMantencion.anio, anio),
+      eq(presupuestoMantencion.mes, mes)
+    ];
+    
+    if (area) {
+      conditions.push(eq(presupuestoMantencion.area, area));
+    } else {
+      conditions.push(isNull(presupuestoMantencion.area));
+    }
+    
+    const [result] = await db
+      .select()
+      .from(presupuestoMantencion)
+      .where(and(...conditions));
+    return result;
+  }
+
+  async updatePresupuestoMantencion(id: string, updates: Partial<InsertPresupuestoMantencion>): Promise<PresupuestoMantencion> {
+    const [result] = await db
+      .update(presupuestoMantencion)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(presupuestoMantencion.id, id))
+      .returning();
+    return result;
+  }
+
+  async deletePresupuestoMantencion(id: string): Promise<void> {
+    await db.delete(presupuestoMantencion).where(eq(presupuestoMantencion.id, id));
+  }
+
+  // ===== GASTOS DE MATERIALES =====
+  async createGastoMaterialMantencion(gasto: InsertGastoMaterialMantencion): Promise<GastoMaterialMantencion> {
+    const [result] = await db
+      .insert(gastosMaterialesMantencion)
+      .values(gasto)
+      .returning();
+    return result;
+  }
+
+  async getGastosMaterialesMantencion(filters?: {
+    otId?: string;
+    area?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<GastoMaterialMantencion[]> {
+    let query = db.select().from(gastosMaterialesMantencion);
+    
+    const conditions = [];
+    if (filters?.otId) {
+      conditions.push(eq(gastosMaterialesMantencion.otId, filters.otId));
+    }
+    if (filters?.area) {
+      conditions.push(eq(gastosMaterialesMantencion.area, filters.area));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(gastosMaterialesMantencion.fecha, new Date(filters.startDate)));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(gastosMaterialesMantencion.fecha, new Date(filters.endDate)));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return query.orderBy(desc(gastosMaterialesMantencion.fecha));
+  }
+
+  async getGastoMaterialMantencionById(id: string): Promise<GastoMaterialMantencion | undefined> {
+    const [result] = await db
+      .select()
+      .from(gastosMaterialesMantencion)
+      .where(eq(gastosMaterialesMantencion.id, id));
+    return result;
+  }
+
+  async updateGastoMaterialMantencion(id: string, updates: Partial<InsertGastoMaterialMantencion>): Promise<GastoMaterialMantencion> {
+    const [result] = await db
+      .update(gastosMaterialesMantencion)
+      .set(updates)
+      .where(eq(gastosMaterialesMantencion.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteGastoMaterialMantencion(id: string): Promise<void> {
+    await db.delete(gastosMaterialesMantencion).where(eq(gastosMaterialesMantencion.id, id));
+  }
+
+  // ===== PLANES PREVENTIVOS =====
+  async createPlanPreventivo(plan: InsertPlanPreventivo): Promise<PlanPreventivo> {
+    const [result] = await db
+      .insert(planesPreventivos)
+      .values(plan)
+      .returning();
+    return result;
+  }
+
+  async getPlanesPreventivos(filters?: { 
+    equipoId?: string;
+    activo?: boolean;
+  }): Promise<PlanPreventivo[]> {
+    let query = db.select().from(planesPreventivos);
+    
+    const conditions = [];
+    if (filters?.equipoId) {
+      conditions.push(eq(planesPreventivos.equipoId, filters.equipoId));
+    }
+    if (filters?.activo !== undefined) {
+      conditions.push(eq(planesPreventivos.activo, filters.activo));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return query.orderBy(planesPreventivos.proximaEjecucion);
+  }
+
+  async getPlanPreventivoById(id: string): Promise<PlanPreventivo | undefined> {
+    const [result] = await db
+      .select()
+      .from(planesPreventivos)
+      .where(eq(planesPreventivos.id, id));
+    return result;
+  }
+
+  async getPlanesPreventivosVencidos(): Promise<PlanPreventivo[]> {
+    const now = new Date();
+    return db
+      .select()
+      .from(planesPreventivos)
+      .where(
+        and(
+          eq(planesPreventivos.activo, true),
+          lte(planesPreventivos.proximaEjecucion, now)
+        )
+      )
+      .orderBy(planesPreventivos.proximaEjecucion);
+  }
+
+  async updatePlanPreventivo(id: string, updates: Partial<InsertPlanPreventivo>): Promise<PlanPreventivo> {
+    const [result] = await db
+      .update(planesPreventivos)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(planesPreventivos.id, id))
+      .returning();
+    return result;
+  }
+
+  async deletePlanPreventivo(id: string): Promise<void> {
+    await db.delete(planesPreventivos).where(eq(planesPreventivos.id, id));
+  }
+
+  // ===== KPIs Y DASHBOARDS CMMS =====
+  async getCMMSMetrics(filters?: {
+    startDate?: string;
+    endDate?: string;
+    area?: string;
+  }): Promise<{
+    totalOTs: number;
+    otsPendientes: number;
+    otsEnCurso: number;
+    otsFinalizadas: number;
+    mttr: number;
+    preventivas: number;
+    correctivas: number;
+    costoTotal: number;
+  }> {
+    const conditions = [];
+    
+    if (filters?.startDate) {
+      conditions.push(gte(solicitudesMantencion.fechaSolicitud, new Date(filters.startDate)));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(solicitudesMantencion.fechaSolicitud, new Date(filters.endDate)));
+    }
+    if (filters?.area) {
+      conditions.push(eq(solicitudesMantencion.area, filters.area));
+    }
+
+    let query = db.select().from(solicitudesMantencion);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    const ots = await query;
+
+    const totalOTs = ots.length;
+    const otsPendientes = ots.filter(ot => ot.estado === 'pendiente').length;
+    const otsEnCurso = ots.filter(ot => ot.estado === 'en_curso').length;
+    const otsFinalizadas = ots.filter(ot => ot.estado === 'finalizada' || ot.estado === 'cerrada').length;
+    const preventivas = ots.filter(ot => ot.tipoMantencion === 'preventivo').length;
+    const correctivas = ots.filter(ot => ot.tipoMantencion === 'correctivo').length;
+
+    // Calcular MTTR (Mean Time To Repair) en horas
+    const otsConTiempo = ots.filter(ot => 
+      ot.fechaInicio && ot.fechaTermino && 
+      ot.fechaInicio instanceof Date && ot.fechaTermino instanceof Date
+    );
+    
+    let mttr = 0;
+    if (otsConTiempo.length > 0) {
+      const tiemposTotales = otsConTiempo.map(ot => {
+        const inicio = new Date(ot.fechaInicio!).getTime();
+        const termino = new Date(ot.fechaTermino!).getTime();
+        return (termino - inicio) / (1000 * 60 * 60); // Convertir a horas
+      });
+      mttr = tiemposTotales.reduce((sum, t) => sum + t, 0) / otsConTiempo.length;
+    }
+
+    // Calcular costo total
+    const costoTotal = ots.reduce((sum, ot) => {
+      const costo = ot.costoReal ? Number(ot.costoReal) : 0;
+      return sum + costo;
+    }, 0);
+
+    return {
+      totalOTs,
+      otsPendientes,
+      otsEnCurso,
+      otsFinalizadas,
+      mttr: Math.round(mttr * 10) / 10, // Redondear a 1 decimal
+      preventivas,
+      correctivas,
+      costoTotal: Math.round(costoTotal),
+    };
   }
 
   // ==================================================================================
