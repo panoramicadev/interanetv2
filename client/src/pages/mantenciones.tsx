@@ -954,6 +954,7 @@ export default function MantencionesPage() {
   const [filtroProveedor, setFiltroProveedor] = useState<string>("todos");
 
   const canSubmitResolution = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
+  const canManageMantencion = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
 
   const { data: mantenciones = [], isLoading } = useQuery<MantencionWithDetails[]>({
     queryKey: ['/api/mantenciones'],
