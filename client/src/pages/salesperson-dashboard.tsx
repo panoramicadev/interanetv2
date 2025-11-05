@@ -1129,23 +1129,35 @@ export default function SalespersonDashboard() {
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-gray-900">
-              Mis Clientes ({clients.filter((client: any) => {
+              Clientes del Vendedor ({clients.filter((client: any) => {
                 const clientName = (client.clientName || client.name || '').toLowerCase();
                 return clientName.includes(clientSearch.toLowerCase());
               }).length})
             </DialogTitle>
           </DialogHeader>
           
-          <div className="mb-4 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Buscar cliente por nombre..."
-              value={clientSearch}
-              onChange={(e) => setClientSearch(e.target.value)}
-              className="w-full pl-10"
-              data-testid="input-client-search"
-            />
+          {/* Campo de búsqueda destacado */}
+          <div className="mt-4 mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-xl shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-500 rounded-full p-2.5 flex-shrink-0">
+                <Search className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1 relative">
+                <label htmlFor="client-search-input" className="block text-sm font-semibold text-gray-700 mb-2">
+                  Buscar Cliente
+                </label>
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Input
+                  id="client-search-input"
+                  type="text"
+                  placeholder="Escribe el nombre o RUT del cliente..."
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 text-base border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-lg bg-white"
+                  data-testid="input-client-search"
+                />
+              </div>
+            </div>
           </div>
           
           <div className="mt-4">
