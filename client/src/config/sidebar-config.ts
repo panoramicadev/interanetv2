@@ -24,7 +24,8 @@ import {
   Banknote,
   Database,
   Bell,
-  Key
+  Key,
+  Calendar
 } from "lucide-react";
 
 interface SidebarItem {
@@ -134,6 +135,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/cmms/gastos-materiales",
           label: "Gastos de Materiales",
           icon: Receipt,
+        },
+        {
+          href: "/cmms/planes-preventivos",
+          label: "Planes Preventivos",
+          icon: Calendar,
         },
       ],
     },
@@ -284,6 +290,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/cmms/gastos-materiales",
           label: "Gastos de Materiales",
           icon: Receipt,
+        },
+        {
+          href: "/cmms/planes-preventivos",
+          label: "Planes Preventivos",
+          icon: Calendar,
         },
       ],
     },
@@ -546,6 +557,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           href: "/cmms/gastos-materiales",
           label: "Gastos de Materiales",
           icon: Receipt,
+        },
+        {
+          href: "/cmms/planes-preventivos",
+          label: "Planes Preventivos",
+          icon: Calendar,
         },
       ],
     },

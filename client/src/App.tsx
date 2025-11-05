@@ -45,6 +45,7 @@ import CMMSEquipos from "@/pages/cmms-equipos";
 import CMmsProveedores from "@/pages/cmms-proveedores";
 import CMmsPresupuesto from "@/pages/cmms-presupuesto";
 import CMmsGastosMateriales from "@/pages/cmms-gastos-materiales";
+import CMmsPlanesPreventivos from "@/pages/cmms-planes-preventivos";
 import ApiKeysPage from "@/pages/api-keys";
 import Marketing from "@/pages/marketing";
 import Inventario from "@/pages/inventario";
@@ -211,6 +212,14 @@ function Router() {
                 return null;
               }
               return <CMmsGastosMateriales />;
+            }} />
+            <Route path="/cmms/planes-preventivos" component={() => {
+              // Solo admin, supervisor y produccion pueden acceder a planes
+              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+                window.location.replace('/');
+                return null;
+              }
+              return <CMmsPlanesPreventivos />;
             }} />
             <Route path="/marketing" component={Marketing} />
             <Route path="/inventario" component={Inventario} />
