@@ -15002,6 +15002,7 @@ export class DatabaseStorage implements IStorage {
       });
 
       console.log(`📊 getHistoricoVentasPorAnio: Returning ${results.length} monthly records for ${paginatedClients.length} clients`);
+      console.log(`   Pagination: totalClients=${totalClients}, limit=${limit}, offset=${offset}, filteredClients=${filteredClients.length}`);
       if (results.length > 0) {
         console.log(`   Sample: ${results[0].clientName} - ${results[0].year}/${results[0].month} = ${results[0].totalSales}`);
       }

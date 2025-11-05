@@ -192,6 +192,15 @@ export default function ProyeccionManualPage() {
   const historicalData = historicalDataResponse?.data || [];
   const totalClients = historicalDataResponse?.totalClients || 0;
   const totalPages = Math.ceil(totalClients / itemsPerPage);
+  
+  console.log('📄 Pagination Debug:', {
+    currentPage,
+    totalClients,
+    totalPages,
+    itemsPerPage,
+    offset: (currentPage - 1) * itemsPerPage,
+    dataLength: historicalData.length
+  });
 
   // Fetch manual projections (segment filter applied in frontend only)
   const { data: manualProjections = [] } = useQuery<ManualProjection[]>({
