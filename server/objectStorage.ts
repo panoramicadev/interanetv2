@@ -163,7 +163,12 @@ export class ObjectStorageService {
 
     // Use the first public path for images
     const publicPath = publicObjectPaths[0];
-    const fullPath = `${publicPath}/product-images/${fileName}`;
+    
+    // If fileName already contains a path (e.g., "mantencion-photos/..."), use it directly
+    // Otherwise, default to product-images for backward compatibility
+    const fullPath = fileName.includes('/') 
+      ? `${publicPath}/${fileName}` 
+      : `${publicPath}/product-images/${fileName}`;
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
     const bucket = objectStorageClient.bucket(bucketName);
@@ -190,8 +195,9 @@ export class ObjectStorageService {
       // Continue anyway as the file is uploaded, just might not be publicly accessible via ACL
     }
 
-    // Return the public URL
-    return `/public-objects/product-images/${fileName}`;
+    // Return the public URL - extract the path after the bucket name
+    const pathAfterBucket = fileName.includes('/') ? fileName : `product-images/${fileName}`;
+    return `/public-objects/${pathAfterBucket}`;
   }
 
   // Gets the object entity file from the object path.
