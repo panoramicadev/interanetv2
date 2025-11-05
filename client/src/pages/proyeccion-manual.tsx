@@ -529,7 +529,8 @@ export default function ProyeccionManualPage() {
 
   const handleCellEdit = (clientCode: string, year: number, value: string, month?: number) => {
     const key = month ? `${clientCode}_${year}_${month}` : `${clientCode}_${year}`;
-    const numValue = parseFloat(value) || 0;
+    // Allow empty string, 0, or any number - parseFloat handles all cases correctly
+    const numValue = value === '' ? 0 : (parseFloat(value) || 0);
     setEditingCells({ ...editingCells, [key]: numValue });
   };
 
@@ -542,8 +543,17 @@ export default function ProyeccionManualPage() {
     }).format(value);
   };
 
-  // No need for frontend segment filtering anymore - it's handled in backend
-  const filteredData = processedData;
+  // Apply segment filter in frontend (manual projections are not filtered in backend)
+  const filteredData = useMemo(() => {
+    let data = processedData;
+    
+    // Filter by segment if a specific segment is selected
+    if (selectedSegment !== 'all') {
+      data = data.filter(client => client.segment === selectedSegment);
+    }
+    
+    return data;
+  }, [processedData, selectedSegment]);
 
   const totalRow = useMemo(() => {
     if (showMonthlyView) {
@@ -982,7 +992,7 @@ export default function ProyeccionManualPage() {
                                         <div className="flex items-center gap-1">
                                           <Input
                                             type="number"
-                                            defaultValue={editingCells[cellKey] || projectedValue || ''}
+                                            value={cellKey in editingCells ? editingCells[cellKey] : projectedValue}
                                             onChange={(e) => handleCellEdit(client.clientCode, period.year, e.target.value, period.month)}
                                             className="w-full text-sm"
                                             autoFocus
@@ -990,7 +1000,7 @@ export default function ProyeccionManualPage() {
                                           <Button
                                             size="sm"
                                             onClick={() => {
-                                              const value = editingCells[cellKey] || projectedValue || 0;
+                                              const value = cellKey in editingCells ? editingCells[cellKey] : projectedValue;
                                               handleSaveProjection(
                                                 client.clientCode,
                                                 client.clientName,
@@ -1214,7 +1224,7 @@ export default function ProyeccionManualPage() {
                                                 <div className="flex items-center gap-1">
                                                   <Input
                                                     type="number"
-                                                    defaultValue={editingCells[cellKey] || monthlyProjectedValue || ''}
+                                                    value={cellKey in editingCells ? editingCells[cellKey] : monthlyProjectedValue}
                                                     onChange={(e) => handleCellEdit(client.clientCode, year, e.target.value, monthNum)}
                                                     className="w-full text-sm"
                                                     autoFocus
@@ -1222,7 +1232,7 @@ export default function ProyeccionManualPage() {
                                                   <Button
                                                     size="sm"
                                                     onClick={() => {
-                                                      const value = editingCells[cellKey] || monthlyProjectedValue || 0;
+                                                      const value = cellKey in editingCells ? editingCells[cellKey] : monthlyProjectedValue;
                                                       handleSaveProjection(
                                                         client.clientCode,
                                                         client.clientName,
