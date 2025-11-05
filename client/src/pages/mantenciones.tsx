@@ -1214,12 +1214,17 @@ export default function MantencionesPage() {
 
     // CRÍTICO: Siempre enviar fechaProgramada si hay una fecha seleccionada
     // El backend cambiará automáticamente el estado a "programada"
+    console.log('[DEBUG] fechaProgramadaEdit:', fechaProgramadaEdit);
+    console.log('[DEBUG] tipoEjecucionEdit:', tipoEjecucionEdit);
     if (fechaProgramadaEdit) {
       data.fechaProgramada = fechaProgramadaEdit.toISOString();
+      console.log('[DEBUG] Enviando fechaProgramada:', data.fechaProgramada);
     } else if (tipoEjecucionEdit === 'inmediata') {
       // Solo limpiar la fecha si el usuario explícitamente seleccionó "inmediata"
       data.fechaProgramada = null;
+      console.log('[DEBUG] Limpiando fechaProgramada');
     }
+    console.log('[DEBUG] Data completa a enviar:', data);
 
     // Asignación
     if (tipoAsignacionEdit === 'tecnico_interno' && tecnicoAsignadoIdEdit) {
