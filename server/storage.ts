@@ -14898,30 +14898,86 @@ export class DatabaseStorage implements IStorage {
       const offset = filters?.offset || 0;
       const paginatedClients = filteredClients.slice(offset, offset + limit);
 
-      // Generate rows for paginated clients × ALL selected years
-      const years = filters?.years || [];
+      // Get monthly sales data for paginated clients
+      const monthlySalesConditions = [
+        isNotNull(salesTransactions.nokofu),
+        isNotNull(salesTransactions.nokoen),
+        ne(salesTransactions.nokofu, '.'),
+        ne(salesTransactions.tido, 'GDV')
+      ];
+
+      // Filter by paginated clients
+      if (paginatedClients.length > 0) {
+        const clientConditions = paginatedClients.map(client => 
+          sql`${salesTransactions.nokoen} = ${client}`
+        );
+        monthlySalesConditions.push(or(...clientConditions)!);
+      }
+
+      // Add year filter
+      if (filters?.years && filters.years.length > 0) {
+        const yearConditions = filters.years.map(year => 
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
+        );
+        monthlySalesConditions.push(or(...yearConditions)!);
+      }
+
+      // Add month filter if provided
+      if (filters?.months && filters.months.length > 0) {
+        const monthConditions = filters.months.map(month => 
+          sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int = ${month}`
+        );
+        monthlySalesConditions.push(or(...monthConditions)!);
+      }
+
+      // Filter by salesperson if provided
+      if (filters?.salespersonCode) {
+        monthlySalesConditions.push(sql`${salesTransactions.nokofu} = ${filters.salespersonCode}`);
+      }
+
+      // Filter by segment if provided
+      if (filters?.segment && filters.segment !== 'all') {
+        monthlySalesConditions.push(sql`${salesTransactions.noruen} = ${filters.segment}`);
+      }
+
+      // Query for monthly breakdown (with month filter applied)
+      const monthlySalesData = paginatedClients.length > 0 ? await db
+        .select({
+          year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
+          month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
+          clientName: salesTransactions.nokoen,
+          salespersonCode: salesTransactions.nokofu,
+          segment: salesTransactions.noruen,
+          totalSales: sql<number>`SUM(${salesTransactions.monto})`,
+          purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+        })
+        .from(salesTransactions)
+        .where(and(...monthlySalesConditions))
+        .groupBy(
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
+          sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
+          salesTransactions.nokoen,
+          salesTransactions.nokofu,
+          salesTransactions.noruen
+        ) : [];
+
+      // Generate results: ONLY monthly breakdown (frontend will calculate yearly totals)
       const allResults: any[] = [];
 
-      for (const clientName of paginatedClients) {
-        for (const year of years) {
-          // Find actual sales for this client-year combination
-          const sales = salesData.find(
-            s => s.clientName === clientName && s.year === year
-          );
-
-          allResults.push({
-            year,
-            month: undefined,
-            salespersonCode: sales?.salespersonCode || '',
-            salespersonName: sales?.salespersonCode || '',
-            clientCode: clientName!,
-            clientName: clientName!,
-            segment: sales?.segment || '',
-            totalSales: sales ? Number(sales.totalSales) : 0,
-            purchaseFrequency: sales ? Number(sales.purchaseFrequency) : 0,
-          });
-        }
-      }
+      // Add monthly breakdown rows (respecting month filter)
+      monthlySalesData.forEach(monthlyData => {
+        allResults.push({
+          year: monthlyData.year,
+          month: monthlyData.month,
+          salespersonCode: monthlyData.salespersonCode || '',
+          salespersonName: monthlyData.salespersonCode || '',
+          clientCode: monthlyData.clientName!,
+          clientName: monthlyData.clientName!,
+          segment: monthlyData.segment || '',
+          totalSales: Number(monthlyData.totalSales),
+          purchaseFrequency: Number(monthlyData.purchaseFrequency),
+        });
+      });
 
       // Sort by year desc, then by total sales desc
       const results = allResults.sort((a, b) => {
