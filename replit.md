@@ -8,15 +8,20 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-### November 5, 2025 - Inventory Auto-Refresh with Cache System
-**Intelligent inventory caching to prevent database saturation:**
-- **Auto-Refresh on Entry**: Inventory data refreshes automatically when users enter the module
-- **Smart Caching with TTL**: 30-second cache prevents redundant database queries
+### November 5, 2025 - Inventory Auto-Sync & Cache System
+**Intelligent inventory synchronization and caching to keep data fresh without saturating the database:**
+- **Auto-Sync on Entry**: When users access inventory, system checks if last sync was >1 minute ago and triggers background sync automatically
+- **Background Processing**: Sync runs asynchronously - users get data immediately without waiting
+- **Sync Mutex**: Built-in `syncInProgress` flag prevents duplicate syncs when multiple users enter simultaneously
+- **Smart Caching with TTL**: 30-second query cache prevents redundant database queries
 - **Per-Filter Mutex**: Concurrent users with identical filters share the same query
 - **Isolated Filter Keys**: Users with different filters get separate cache entries
-- **Protection Against Saturation**: Multiple simultaneous users trigger only one database query per unique filter combination
-- **Performance Logging**: Console logs track cache hits (📦), misses (🔄), waiting (⏳), and expirations (⏰)
-- **Implementation**: Map-based cache system (`Map<cacheKey, {data, timestamp, inFlightPromise}>`) in `server/storage.ts`
+- **Zero Wait Time**: Users never wait for sync - they get cached data instantly while sync happens in background
+- **Performance Logging**: Console logs track cache hits (📦), misses (🔄), auto-sync triggers (🔄), and sync completion (✅)
+- **Implementation**: 
+  - Auto-sync in `/api/inventory-with-prices` and `/api/inventory/summary-with-prices` endpoints
+  - Map-based cache system (`Map<cacheKey, {data, timestamp, inFlightPromise}>`) in `server/storage.ts`
+  - Existing sync mutex in `syncProductsFromERP` prevents concurrent syncs
 
 ### November 4, 2025 - Search, Pagination & Segment Filtering
 **Enhanced client browsing with efficient data loading:**
