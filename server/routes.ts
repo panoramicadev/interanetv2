@@ -9386,13 +9386,15 @@ export function registerRoutes(app: Express): Server {
       
       const pausarSchema = z.object({
         motivo: z.string().min(10, 'El motivo debe tener al menos 10 caracteres'),
+        fechaProgramada: z.string().nullable().optional(), // Permitir reasignar fecha al pausar
       });
 
-      const { motivo } = pausarSchema.parse(req.body);
+      const { motivo, fechaProgramada } = pausarSchema.parse(req.body);
 
       const solicitud = await storage.pausarMantencion(
         req.params.id,
         motivo,
+        fechaProgramada,
         user.id,
         user.name || user.username
       );
@@ -9442,6 +9444,25 @@ export function registerRoutes(app: Express): Server {
       }
       
       res.status(400).json({ message: error.message || 'Error al reanudar orden de trabajo' });
+    }
+  }));
+
+  // Iniciar trabajo en OT (solo admin, supervisor, produccion, técnico asignado)
+  app.post('/api/mantenciones/:id/iniciar-trabajo', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      const solicitud = await storage.iniciarTrabajoMantencion(
+        req.params.id,
+        user.id,
+        user.name || user.username,
+        user.role
+      );
+
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al iniciar trabajo:', error);
+      res.status(400).json({ message: error.message || 'Error al iniciar orden de trabajo' });
     }
   }));
 

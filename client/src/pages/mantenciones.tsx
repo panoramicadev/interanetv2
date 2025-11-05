@@ -36,7 +36,9 @@ import {
   Check,
   CalendarIcon,
   Settings,
-  Trash2
+  Trash2,
+  PauseCircle,
+  Play
 } from "lucide-react";
 import type { SolicitudMantencion, MantencionPhoto, EquipoCritico, ProveedorExterno } from "@shared/schema";
 import { format } from "date-fns";
@@ -81,7 +83,9 @@ const AREA_OPTIONS = [
 
 const ESTADO_OPTIONS = [
   { value: 'registrado', label: 'Registrado', icon: Clock, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
+  { value: 'programada', label: 'Programada', icon: Calendar, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
   { value: 'en_reparacion', label: 'En Reparación', icon: Wrench, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  { value: 'pausada', label: 'Pausada', icon: PauseCircle, color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
   { value: 'resuelto', label: 'Resuelto', icon: CheckCircle2, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
   { value: 'cerrado', label: 'Cerrado', icon: XCircle, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
 ];
@@ -1828,7 +1832,7 @@ export default function MantencionesPage() {
           </div>
 
           <Tabs defaultValue="todos" className="space-y-4">
-            <TabsList>
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="todos" data-testid="tab-todos">
                 Todos ({filterByEstado().length})
               </TabsTrigger>
@@ -1836,9 +1840,17 @@ export default function MantencionesPage() {
                 <Clock className="h-4 w-4 mr-2" />
                 Registrado ({filterByEstado('registrado').length})
               </TabsTrigger>
+              <TabsTrigger value="programada" data-testid="tab-programada">
+                <Calendar className="h-4 w-4 mr-2" />
+                Programada ({filterByEstado('programada').length})
+              </TabsTrigger>
               <TabsTrigger value="en_reparacion" data-testid="tab-en-reparacion">
                 <Wrench className="h-4 w-4 mr-2" />
                 En Reparación ({filterByEstado('en_reparacion').length})
+              </TabsTrigger>
+              <TabsTrigger value="pausada" data-testid="tab-pausada">
+                <PauseCircle className="h-4 w-4 mr-2" />
+                Pausada ({filterByEstado('pausada').length})
               </TabsTrigger>
               <TabsTrigger value="resuelto" data-testid="tab-resuelto">
                 <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -1852,8 +1864,14 @@ export default function MantencionesPage() {
             <TabsContent value="registrado">
               {renderMantencionesCards(filterByEstado('registrado'))}
             </TabsContent>
+            <TabsContent value="programada">
+              {renderMantencionesCards(filterByEstado('programada'))}
+            </TabsContent>
             <TabsContent value="en_reparacion">
               {renderMantencionesCards(filterByEstado('en_reparacion'))}
+            </TabsContent>
+            <TabsContent value="pausada">
+              {renderMantencionesCards(filterByEstado('pausada'))}
             </TabsContent>
             <TabsContent value="resuelto">
               {renderMantencionesCards(filterByEstado('resuelto'))}

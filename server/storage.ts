@@ -12274,7 +12274,8 @@ export class DatabaseStorage implements IStorage {
    */
   async pausarMantencion(
     id: string, 
-    motivo: string, 
+    motivo: string,
+    fechaProgramada: string | null | undefined,
     userId: string, 
     userName: string
   ): Promise<SolicitudMantencion> {
@@ -12284,30 +12285,45 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Orden de trabajo no encontrada');
     }
     
-    if (mantencion.estado !== 'en_curso') {
-      throw new Error('Solo se pueden pausar órdenes en curso');
+    if (mantencion.estado !== 'en_reparacion') {
+      throw new Error('Solo se pueden pausar órdenes en reparación');
+    }
+
+    // Preparar datos de actualización
+    const updateData: any = {
+      estado: 'pausada',
+      motivoPausa: motivo,
+      fechaPausa: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Si se proporciona nueva fecha programada, actualizarla
+    if (fechaProgramada) {
+      updateData.fechaProgramada = new Date(fechaProgramada);
     }
 
     // Actualizar la OT a estado pausado
     const [updated] = await db
       .update(solicitudesMantencion)
-      .set({
-        estado: 'pausada',
-        motivoPausa: motivo,
-        fechaPausa: new Date(),
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(solicitudesMantencion.id, id))
       .returning();
+
+    // Preparar notas para el historial
+    let notas = `OT pausada. Motivo: ${motivo}`;
+    if (fechaProgramada) {
+      const fechaFormateada = new Date(fechaProgramada).toLocaleString('es-CL');
+      notas += `. Nueva fecha programada: ${fechaFormateada}`;
+    }
 
     // Registrar en historial
     await this.createMantencionHistorial({
       mantencionId: id,
-      estadoAnterior: 'en_curso',
+      estadoAnterior: 'en_reparacion',
       estadoNuevo: 'pausada',
       userId,
       userName,
-      notas: `OT pausada. Motivo: ${motivo}`,
+      notas,
     });
 
     return updated;
@@ -12332,11 +12348,11 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Solo se pueden reanudar órdenes pausadas');
     }
 
-    // Actualizar la OT a estado en curso
+    // Actualizar la OT a estado en reparacion
     const [updated] = await db
       .update(solicitudesMantencion)
       .set({
-        estado: 'en_curso',
+        estado: 'en_reparacion',
         updatedAt: new Date(),
       })
       .where(eq(solicitudesMantencion.id, id))
@@ -12346,10 +12362,65 @@ export class DatabaseStorage implements IStorage {
     await this.createMantencionHistorial({
       mantencionId: id,
       estadoAnterior: 'pausada',
-      estadoNuevo: 'en_curso',
+      estadoNuevo: 'en_reparacion',
       userId,
       userName,
       notas: notas || 'OT reanudada',
+    });
+
+    return updated;
+  }
+
+  /**
+   * Inicia el trabajo en una orden programada o registrada
+   */
+  async iniciarTrabajoMantencion(
+    id: string,
+    userId: string,
+    userName: string,
+    userRole: string
+  ): Promise<SolicitudMantencion> {
+    // Verificar que la OT existe
+    const mantencion = await this.getSolicitudMantencionById(id);
+    if (!mantencion) {
+      throw new Error('Orden de trabajo no encontrada');
+    }
+    
+    // Validar que el estado actual permite iniciar trabajo
+    const estadosValidos = ['registrado', 'programada'];
+    if (!estadosValidos.includes(mantencion.estado)) {
+      throw new Error(`Solo se puede iniciar trabajo desde estado registrado o programada. Estado actual: ${mantencion.estado}`);
+    }
+
+    // Validar permisos
+    const rolesAutorizados = ['admin', 'supervisor', 'produccion'];
+    const esTecnicoAsignado = mantencion.tecnicoAsignadoId === userId;
+    
+    if (!rolesAutorizados.includes(userRole) && !esTecnicoAsignado) {
+      throw new Error('No autorizado para iniciar trabajo en esta orden');
+    }
+
+    // Actualizar la OT a estado en reparación
+    const [updated] = await db
+      .update(solicitudesMantencion)
+      .set({
+        estado: 'en_reparacion',
+        fechaInicioTrabajo: new Date(),
+        motivoPausa: null, // Limpiar motivo de pausa si existe
+        fechaPausa: null,  // Limpiar fecha de pausa si existe
+        updatedAt: new Date(),
+      })
+      .where(eq(solicitudesMantencion.id, id))
+      .returning();
+
+    // Registrar en historial
+    await this.createMantencionHistorial({
+      mantencionId: id,
+      estadoAnterior: mantencion.estado,
+      estadoNuevo: 'en_reparacion',
+      userId,
+      userName,
+      notas: 'Trabajo iniciado',
     });
 
     return updated;
@@ -12425,12 +12496,23 @@ export class DatabaseStorage implements IStorage {
     // Preparar datos para actualizar
     const updateData: any = {};
     
-    // Actualizar tipo de ejecución y fecha programada
-    if (asignacion.tipoEjecucion !== undefined) {
-      if (asignacion.tipoEjecucion === 'programada' && asignacion.fechaProgramada) {
-        updateData.fechaProgramada = new Date(asignacion.fechaProgramada);
+    // Actualizar fecha programada (CRÍTICO: siempre guardar si viene en el payload)
+    if (asignacion.fechaProgramada !== undefined) {
+      if (asignacion.fechaProgramada) {
+        const fechaProg = new Date(asignacion.fechaProgramada);
+        updateData.fechaProgramada = fechaProg;
+        
+        // Cambio automático de estado: si la fecha es futura → "programada"
+        const ahora = new Date();
+        if (fechaProg > ahora && mantencion.estado === 'registrado') {
+          updateData.estado = 'programada';
+        }
       } else {
+        // Si se borra la fecha, volver a registrado
         updateData.fechaProgramada = null;
+        if (mantencion.estado === 'programada') {
+          updateData.estado = 'registrado';
+        }
       }
     }
 
@@ -12467,13 +12549,17 @@ export class DatabaseStorage implements IStorage {
 
     // Registrar en historial
     const notas: string[] = [];
-    if (asignacion.tipoEjecucion !== undefined) {
-      if (asignacion.tipoEjecucion === 'programada') {
-        notas.push('Tipo de ejecución: Programada');
-      } else if (asignacion.tipoEjecucion === 'inmediata') {
-        notas.push('Tipo de ejecución: Inmediata');
+    
+    // Registrar fecha programada si cambió
+    if (asignacion.fechaProgramada !== undefined) {
+      if (asignacion.fechaProgramada) {
+        const fechaFormateada = new Date(asignacion.fechaProgramada).toLocaleString('es-CL');
+        notas.push(`Fecha programada: ${fechaFormateada}`);
+      } else {
+        notas.push('Fecha programada removida');
       }
     }
+    
     if (asignacion.tipoAsignacion === 'tecnico_interno') {
       notas.push(`Asignado a técnico: ${asignacion.tecnicoAsignadoName}`);
     } else if (asignacion.tipoAsignacion === 'proveedor_externo') {
@@ -12482,14 +12568,18 @@ export class DatabaseStorage implements IStorage {
       notas.push('Asignación removida');
     }
 
-    if (notas.length > 0) {
+    // Determinar el nuevo estado para el historial
+    const nuevoEstado = updateData.estado || mantencion.estado;
+    const cambioEstado = updateData.estado && updateData.estado !== mantencion.estado;
+
+    if (notas.length > 0 || cambioEstado) {
       await this.createMantencionHistorial({
         mantencionId: id,
         estadoAnterior: mantencion.estado,
-        estadoNuevo: mantencion.estado,
+        estadoNuevo: nuevoEstado,
         userId,
         userName,
-        notas: notas.join('; '),
+        notas: notas.length > 0 ? notas.join('; ') : null,
       });
     }
 
