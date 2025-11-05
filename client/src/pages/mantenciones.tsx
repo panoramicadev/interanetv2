@@ -956,6 +956,11 @@ export default function MantencionesPage() {
   const [tecnicoAsignadoIdEdit, setTecnicoAsignadoIdEdit] = useState("");
   const [proveedorAsignadoIdEdit, setProveedorAsignadoIdEdit] = useState("");
 
+  // Estados para filtros
+  const [filtroTipoEjecucion, setFiltroTipoEjecucion] = useState("todos");
+  const [filtroTecnico, setFiltroTecnico] = useState("todos");
+  const [filtroProveedor, setFiltroProveedor] = useState("todos");
+
   const canSubmitResolution = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
   const canManageMantencion = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
 
