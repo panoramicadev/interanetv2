@@ -3495,8 +3495,13 @@ export const solicitudesMantencion = pgTable("solicitudes_mantencion", {
   gravedad: varchar("gravedad").notNull(), // baja, media, alta, critica (impacto técnico)
   tipoMantencion: varchar("tipo_mantencion").default("correctivo"), // preventivo, correctivo
   
-  // Flujo de trabajo CMMS: Pendiente → En curso → Finalizada → Cerrada
-  estado: varchar("estado").default("pendiente").notNull(), // pendiente, en_curso, finalizada, cerrada
+  // Flujo de trabajo CMMS: Pendiente → En curso → Pausada → Finalizada → Cerrada
+  estado: varchar("estado").default("pendiente").notNull(), // pendiente, en_curso, pausada, finalizada, cerrada
+  
+  // Programación y pausas
+  fechaProgramada: timestamp("fecha_programada"), // Fecha programada para atender la OT (si no es inmediata)
+  motivoPausa: text("motivo_pausa"), // Motivo de pausa (ej: falta material, aprobación pendiente)
+  fechaPausa: timestamp("fecha_pausa"), // Fecha en que se pausó la OT
   
   // Asignaciones
   solicitanteId: varchar("solicitante_id").notNull(), // FK to users.id (quien crea la solicitud)

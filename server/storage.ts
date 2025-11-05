@@ -12254,6 +12254,188 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(mantencionHistorial.createdAt));
   }
 
+  // ===== FUNCIONES AVANZADAS DE ÓRDENES DE TRABAJO =====
+  
+  /**
+   * Pausa una orden de trabajo activa
+   * Registra el motivo de la pausa y crea entrada en el historial
+   */
+  async pausarMantencion(
+    id: string, 
+    motivo: string, 
+    userId: string, 
+    userName: string
+  ): Promise<SolicitudMantencion> {
+    // Verificar que la OT existe y está en estado válido para pausar
+    const mantencion = await this.getSolicitudMantencionById(id);
+    if (!mantencion) {
+      throw new Error('Orden de trabajo no encontrada');
+    }
+    
+    if (mantencion.estado !== 'en_curso') {
+      throw new Error('Solo se pueden pausar órdenes en curso');
+    }
+
+    // Actualizar la OT a estado pausado
+    const [updated] = await db
+      .update(solicitudesMantencion)
+      .set({
+        estado: 'pausada',
+        motivoPausa: motivo,
+        fechaPausa: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(solicitudesMantencion.id, id))
+      .returning();
+
+    // Registrar en historial
+    await this.createMantencionHistorial({
+      mantencionId: id,
+      estadoAnterior: 'en_curso',
+      estadoNuevo: 'pausada',
+      userId,
+      userName,
+      notas: `OT pausada. Motivo: ${motivo}`,
+    });
+
+    return updated;
+  }
+
+  /**
+   * Reanuda una orden de trabajo pausada
+   */
+  async reanudarMantencion(
+    id: string,
+    notas: string | null,
+    userId: string,
+    userName: string
+  ): Promise<SolicitudMantencion> {
+    // Verificar que la OT existe y está pausada
+    const mantencion = await this.getSolicitudMantencionById(id);
+    if (!mantencion) {
+      throw new Error('Orden de trabajo no encontrada');
+    }
+    
+    if (mantencion.estado !== 'pausada') {
+      throw new Error('Solo se pueden reanudar órdenes pausadas');
+    }
+
+    // Actualizar la OT a estado en curso
+    const [updated] = await db
+      .update(solicitudesMantencion)
+      .set({
+        estado: 'en_curso',
+        updatedAt: new Date(),
+      })
+      .where(eq(solicitudesMantencion.id, id))
+      .returning();
+
+    // Registrar en historial
+    await this.createMantencionHistorial({
+      mantencionId: id,
+      estadoAnterior: 'pausada',
+      estadoNuevo: 'en_curso',
+      userId,
+      userName,
+      notas: notas || 'OT reanudada',
+    });
+
+    return updated;
+  }
+
+  /**
+   * Agrega un gasto de material vinculado a una OT
+   */
+  async agregarGastoAMantencion(
+    mantencionId: string,
+    gastoData: InsertGastoMaterialMantencion
+  ): Promise<GastoMaterialMantencion> {
+    // Verificar que la OT existe
+    const mantencion = await this.getSolicitudMantencionById(mantencionId);
+    if (!mantencion) {
+      throw new Error('Orden de trabajo no encontrada');
+    }
+
+    // Crear el gasto
+    const [gasto] = await db
+      .insert(gastosMaterialesMantencion)
+      .values({
+        ...gastoData,
+        mantencionId,
+      })
+      .returning();
+
+    // Actualizar el costo real de la OT sumando todos los gastos
+    const todosLosGastos = await db
+      .select()
+      .from(gastosMaterialesMantencion)
+      .where(eq(gastosMaterialesMantencion.mantencionId, mantencionId));
+
+    const costoTotal = todosLosGastos.reduce((sum, g) => {
+      const monto = typeof g.monto === 'string' ? parseFloat(g.monto) : Number(g.monto);
+      return sum + (isNaN(monto) ? 0 : monto);
+    }, 0);
+
+    await db
+      .update(solicitudesMantencion)
+      .set({
+        costoReal: costoTotal.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(solicitudesMantencion.id, mantencionId));
+
+    return gasto;
+  }
+
+  /**
+   * Actualiza la asignación de técnico o proveedor de una OT
+   */
+  async actualizarAsignacionMantencion(
+    id: string,
+    asignacion: {
+      tipoAsignacion?: 'tecnico_interno' | 'proveedor_externo';
+      tecnicoAsignadoId?: string | null;
+      tecnicoAsignadoName?: string | null;
+      proveedorAsignadoId?: string | null;
+      proveedorAsignadoName?: string | null;
+    },
+    userId: string,
+    userName: string
+  ): Promise<SolicitudMantencion> {
+    // Verificar que la OT existe
+    const mantencion = await this.getSolicitudMantencionById(id);
+    if (!mantencion) {
+      throw new Error('Orden de trabajo no encontrada');
+    }
+
+    // Actualizar la asignación
+    const [updated] = await db
+      .update(solicitudesMantencion)
+      .set({
+        ...asignacion,
+        fechaAsignacion: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(solicitudesMantencion.id, id))
+      .returning();
+
+    // Registrar en historial
+    const notasAsignacion = asignacion.tipoAsignacion === 'tecnico_interno'
+      ? `Asignado a técnico: ${asignacion.tecnicoAsignadoName}`
+      : `Asignado a proveedor: ${asignacion.proveedorAsignadoName}`;
+
+    await this.createMantencionHistorial({
+      mantencionId: id,
+      estadoAnterior: mantencion.estado,
+      estadoNuevo: mantencion.estado,
+      userId,
+      userName,
+      notas: notasAsignacion,
+    });
+
+    return updated;
+  }
+
   // Combined operations
   async getSolicitudMantencionWithDetails(id: string): Promise<(SolicitudMantencion & { 
     photos: MantencionPhoto[];
