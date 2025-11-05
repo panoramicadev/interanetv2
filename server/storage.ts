@@ -12496,6 +12496,16 @@ export class DatabaseStorage implements IStorage {
     // Preparar datos para actualizar
     const updateData: any = {};
     
+    // Actualizar tipo de ejecución
+    if (asignacion.tipoEjecucion !== undefined) {
+      updateData.tipoEjecucion = asignacion.tipoEjecucion;
+      
+      // Si el tipo de ejecución es 'inmediata' y el estado es 'pendiente', cambiar a 'registrado'
+      if (asignacion.tipoEjecucion === 'inmediata' && mantencion.estado === 'pendiente') {
+        updateData.estado = 'registrado';
+      }
+    }
+    
     // Actualizar fecha programada (CRÍTICO: siempre guardar si viene en el payload)
     if (asignacion.fechaProgramada !== undefined) {
       if (asignacion.fechaProgramada) {
@@ -12549,6 +12559,15 @@ export class DatabaseStorage implements IStorage {
 
     // Registrar en historial
     const notas: string[] = [];
+    
+    // Registrar tipo de ejecución si cambió
+    if (asignacion.tipoEjecucion !== undefined) {
+      if (asignacion.tipoEjecucion === 'inmediata') {
+        notas.push('Tipo de ejecución: Inmediata');
+      } else if (asignacion.tipoEjecucion === 'programada') {
+        notas.push('Tipo de ejecución: Programada');
+      }
+    }
     
     // Registrar fecha programada si cambió
     if (asignacion.fechaProgramada !== undefined) {
