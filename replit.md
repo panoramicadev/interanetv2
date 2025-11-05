@@ -9,6 +9,8 @@
 - **Fixed Year Label Bug**: Corrected tooltip display when comparing full years (2024 vs 2025) - was showing "Ene" instead of year label.
 - **Sorted Year Display**: Years now display in ascending order (2023, 2024, 2025) in all comparative charts for better chronological readability.
 - **Fixed Segment Detail View Year Filter**: Added missing 'year' filter case in `getSegmentSalespeople()` to ensure vendor amounts match exactly when selecting a full year period. Now both clients and vendors filter consistently.
+- **Fixed Maintenance Orders Database Schema**: Added missing `plan_preventivo_id` column to `solicitudes_mantencion` table, resolving errors preventing creation and viewing of work orders.
+- **Enabled Inventory Module for Production Role**: Added Inventario module to produccion role navigation menu for stock management access.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
