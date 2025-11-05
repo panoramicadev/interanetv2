@@ -1199,6 +1199,8 @@ export interface IStorage {
   getEquipoCriticoByCodigo(codigo: string): Promise<EquipoCritico | undefined>;
   updateEquipoCritico(id: string, updates: Partial<InsertEquipoCritico>): Promise<EquipoCritico>;
   deleteEquipoCritico(id: string): Promise<void>;
+  getComponentesDeEquipo(equipoPadreId: string): Promise<EquipoCritico[]>;
+  getEquiposPrincipales(): Promise<EquipoCritico[]>;
   
   // ===== PROVEEDORES EXTERNOS =====
   createProveedorMantencion(proveedor: InsertProveedorMantencion): Promise<ProveedorMantencion>;
@@ -12720,6 +12722,22 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEquipoCritico(id: string): Promise<void> {
     await db.delete(equiposCriticos).where(eq(equiposCriticos.id, id));
+  }
+
+  async getComponentesDeEquipo(equipoPadreId: string): Promise<EquipoCritico[]> {
+    return db
+      .select()
+      .from(equiposCriticos)
+      .where(eq(equiposCriticos.equipoPadreId, equipoPadreId))
+      .orderBy(equiposCriticos.nombre);
+  }
+
+  async getEquiposPrincipales(): Promise<EquipoCritico[]> {
+    return db
+      .select()
+      .from(equiposCriticos)
+      .where(isNull(equiposCriticos.equipoPadreId))
+      .orderBy(equiposCriticos.nombre);
   }
 
   // ===== PROVEEDORES EXTERNOS =====
