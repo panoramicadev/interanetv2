@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -85,6 +86,7 @@ export default function ProyeccionManualPage() {
   const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>("all");
   const [selectedSegment, setSelectedSegment] = useState<string>("all");
+  const [onlyClientsWithAllPeriods, setOnlyClientsWithAllPeriods] = useState<boolean>(false);
   const [futureYear, setFutureYear] = useState<number>(2026); // Siempre inicia en 2026
   const [editingCells, setEditingCells] = useState<Record<string, number>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -147,7 +149,7 @@ export default function ProyeccionManualPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedSegment, selectedSalesperson]);
+  }, [searchTerm, selectedSegment, selectedSalesperson, onlyClientsWithAllPeriods]);
 
   // Fetch historical data (segment filter now applied in backend for proper pagination)
   const { data: historicalDataResponse, isLoading: isLoadingHistorical } = useQuery<{
@@ -155,7 +157,7 @@ export default function ProyeccionManualPage() {
     total: number;
     totalClients: number;
   }>({
-    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, selectedSegment, searchTerm, currentPage],
+    queryKey: ['/api/proyecciones/historico', selectedYears.join(','), selectedMonths.join(','), selectedSalesperson, selectedSegment, searchTerm, currentPage, onlyClientsWithAllPeriods],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedYears.length > 0) {
@@ -172,6 +174,9 @@ export default function ProyeccionManualPage() {
       }
       if (searchTerm.trim()) {
         params.append('search', searchTerm.trim());
+      }
+      if (onlyClientsWithAllPeriods) {
+        params.append('onlyWithAllPeriods', 'true');
       }
       params.append('limit', itemsPerPage.toString());
       params.append('offset', ((currentPage - 1) * itemsPerPage).toString());
@@ -782,6 +787,24 @@ export default function ProyeccionManualPage() {
                 Año futuro seleccionado: {futureYear}
               </Badge>
             </div>
+          </div>
+
+          {/* Additional Filter: Only clients with all periods */}
+          <div className="flex items-center justify-between space-x-2 pt-4 border-t">
+            <div className="space-y-0.5">
+              <Label htmlFor="only-all-periods" className="text-base">
+                Solo clientes con compras en TODOS los periodos seleccionados
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Cuando está activo, solo muestra clientes que tengan ventas en todos los años históricos seleccionados
+              </p>
+            </div>
+            <Switch
+              id="only-all-periods"
+              checked={onlyClientsWithAllPeriods}
+              onCheckedChange={setOnlyClientsWithAllPeriods}
+              data-testid="switch-only-all-periods"
+            />
           </div>
         </CardContent>
       </Card>

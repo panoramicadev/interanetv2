@@ -14815,6 +14815,7 @@ export class DatabaseStorage implements IStorage {
     search?: string;
     limit?: number;
     offset?: number;
+    onlyWithAllPeriods?: boolean;
   }): Promise<{
     data: Array<{
       year: number;
@@ -14878,9 +14879,24 @@ export class DatabaseStorage implements IStorage {
         );
 
       // Get unique clients from filtered sales data
-      const uniqueClients = Array.from(
+      let uniqueClients = Array.from(
         new Set(salesData.map((s) => s.clientName))
       ).sort();
+
+      // Apply filter: only clients with sales in ALL selected years
+      if (filters?.onlyWithAllPeriods && filters.years && filters.years.length > 1) {
+        uniqueClients = uniqueClients.filter((clientName) => {
+          // Get years where this client has sales
+          const clientYears = new Set(
+            salesData
+              .filter(s => s.clientName === clientName)
+              .map(s => s.year)
+          );
+          
+          // Check if client has sales in ALL selected years
+          return filters.years!.every(year => clientYears.has(year));
+        });
+      }
 
       // Apply search filter to client names
       let filteredClients = uniqueClients;
