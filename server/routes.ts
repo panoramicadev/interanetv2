@@ -9941,6 +9941,29 @@ export function registerRoutes(app: Express): Server {
       if (warehouse) filters.warehouse = warehouse;
       if (branch) filters.branch = branch;
       
+      // Auto-sync: Check if we need to sync inventory in background
+      const user = req.user;
+      if (user && user.id && user.email) {
+        const lastSync = await storage.getLastSync();
+        const now = Date.now();
+        const oneMinute = 60000; // 1 minute in milliseconds
+        
+        if (!lastSync || (now - new Date(lastSync.createdAt).getTime()) > oneMinute) {
+          console.log('🔄 Auto-sync: Last sync was more than 1 minute ago, triggering background sync...');
+          // Trigger sync in background without waiting
+          storage.syncProductsFromERP(user.id, user.email).then(result => {
+            if (result.status === 'success') {
+              console.log(`✅ Auto-sync completed: ${result.productsNew} new, ${result.productsUpdated} updated`);
+            } else {
+              console.log(`⚠️ Auto-sync ${result.status}: ${result.errorMessage || 'unknown error'}`);
+            }
+          }).catch(err => {
+            console.error('❌ Auto-sync error:', err.message);
+          });
+        }
+      }
+      
+      // Return data immediately (don't wait for sync)
       const inventory = await storage.getInventoryWithPrices(filters);
       res.json(inventory);
     } catch (error: any) {
@@ -9960,6 +9983,29 @@ export function registerRoutes(app: Express): Server {
       if (hideNoStock === 'true') filters.hideNoStock = true;
       if (hideZZProducts === 'true') filters.hideZZProducts = true;
       
+      // Auto-sync: Check if we need to sync inventory in background
+      const user = req.user;
+      if (user && user.id && user.email) {
+        const lastSync = await storage.getLastSync();
+        const now = Date.now();
+        const oneMinute = 60000; // 1 minute in milliseconds
+        
+        if (!lastSync || (now - new Date(lastSync.createdAt).getTime()) > oneMinute) {
+          console.log('🔄 Auto-sync: Last sync was more than 1 minute ago, triggering background sync...');
+          // Trigger sync in background without waiting
+          storage.syncProductsFromERP(user.id, user.email).then(result => {
+            if (result.status === 'success') {
+              console.log(`✅ Auto-sync completed: ${result.productsNew} new, ${result.productsUpdated} updated`);
+            } else {
+              console.log(`⚠️ Auto-sync ${result.status}: ${result.errorMessage || 'unknown error'}`);
+            }
+          }).catch(err => {
+            console.error('❌ Auto-sync error:', err.message);
+          });
+        }
+      }
+      
+      // Return data immediately (don't wait for sync)
       const summary = await storage.getInventorySummaryWithPrices(filters);
       res.json(summary);
     } catch (error: any) {
