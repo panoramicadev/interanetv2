@@ -8,6 +8,21 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### November 5, 2025 - Monthly Sales Breakdown in Manual Projections
+**Complete monthly data visualization for expanded client rows:**
+- **Backend Monthly Query**: `getHistoricoVentasPorAnio` now returns monthly breakdown with `EXTRACT(MONTH)` grouping
+  - Respects month filter when users select specific months
+  - Only queries paginated clients for efficiency
+  - Includes purchase frequency (`COUNT(DISTINCT nudo)`) per month
+- **Frontend Aggregation**: Yearly totals calculated by summing filtered monthly data
+  - Prevents duplication by using monthly rows as single source of truth
+  - Purchase frequency sums correctly from monthly records only
+- **User Experience**: When expanding a client, all 12 months show actual sales data
+  - Previously: All months displayed as "-" (empty)
+  - Now: Each month shows historical sales amount
+- **Filter Accuracy**: Month filters correctly limit displayed data
+  - Example: Selecting Jan-Mar shows only those months and recalculates yearly total from that subset
+
 ### November 5, 2025 - Projection Filtering & Cell Editing Fixes
 **Critical fixes to projection panels (manual and visualization) for accurate filtering and data editing:**
 - **Manual Projection Panel**:
