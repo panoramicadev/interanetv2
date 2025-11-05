@@ -55,6 +55,7 @@
     "@types/papaparse": "^5.3.16",
     "@types/unzipper": "^0.10.11",
     "bcryptjs": "^3.0.2",
+    "browser-image-compression": "^2.0.2",
     "chart.js": "^4.5.0",
     "chartjs-plugin-datalabels": "^2.2.0",
     "class-variance-authority": "^0.7.1",
