@@ -9375,6 +9375,162 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // ===== NUEVAS FUNCIONALIDADES AVANZADAS OT =====
+  
+  // Pausar OT (solo admin, supervisor, produccion)
+  app.post('/api/mantenciones/:id/pausar', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      const pausarSchema = z.object({
+        motivo: z.string().min(10, 'El motivo debe tener al menos 10 caracteres'),
+      });
+
+      const { motivo } = pausarSchema.parse(req.body);
+
+      const solicitud = await storage.pausarMantencion(
+        req.params.id,
+        motivo,
+        user.id,
+        user.name || user.username
+      );
+
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al pausar OT:', error);
+      
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(400).json({ message: error.message || 'Error al pausar orden de trabajo' });
+    }
+  }));
+
+  // Reanudar OT (solo admin, supervisor, produccion)
+  app.post('/api/mantenciones/:id/reanudar', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      const reanudarSchema = z.object({
+        notas: z.string().optional(),
+      });
+
+      const { notas } = reanudarSchema.parse(req.body);
+
+      const solicitud = await storage.reanudarMantencion(
+        req.params.id,
+        notas || null,
+        user.id,
+        user.name || user.username
+      );
+
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al reanudar OT:', error);
+      
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(400).json({ message: error.message || 'Error al reanudar orden de trabajo' });
+    }
+  }));
+
+  // Agregar gasto a OT
+  app.post('/api/mantenciones/:id/gastos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin, supervisor, and produccion can add gastos
+      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para agregar gastos' });
+      }
+
+      const gastoSchema = z.object({
+        descripcion: z.string().min(1, 'La descripción es requerida'),
+        monto: z.string().or(z.number()).transform(val => {
+          const num = typeof val === 'string' ? parseFloat(val) : val;
+          if (isNaN(num)) throw new Error('Monto inválido');
+          return num.toString();
+        }),
+        proveedorId: z.string().optional(),
+        categoria: z.string().optional(),
+        notas: z.string().optional(),
+      });
+
+      const validatedData = gastoSchema.parse(req.body);
+
+      const gasto = await storage.agregarGastoAMantencion(req.params.id, {
+        ...validatedData,
+        fecha: new Date(),
+      });
+
+      res.status(201).json(gasto);
+    } catch (error: any) {
+      console.error('Error al agregar gasto:', error);
+      
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ message: error.message || 'Error al agregar gasto' });
+    }
+  }));
+
+  // Actualizar asignación de OT (técnico o proveedor)
+  app.patch('/api/mantenciones/:id/asignacion', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      
+      // Only admin, supervisor, and produccion can update asignacion
+      const allowedRoles = ['admin', 'supervisor', 'produccion'];
+      if (!allowedRoles.includes(user.role)) {
+        return res.status(403).json({ message: 'No autorizado para actualizar asignación' });
+      }
+
+      const asignacionSchema = z.object({
+        tipoAsignacion: z.enum(['tecnico_interno', 'proveedor_externo']).optional(),
+        tecnicoAsignadoId: z.string().nullable().optional(),
+        tecnicoAsignadoName: z.string().nullable().optional(),
+        proveedorAsignadoId: z.string().nullable().optional(),
+        proveedorAsignadoName: z.string().nullable().optional(),
+      });
+
+      const validatedData = asignacionSchema.parse(req.body);
+
+      const solicitud = await storage.actualizarAsignacionMantencion(
+        req.params.id,
+        validatedData,
+        user.id,
+        user.name || user.username
+      );
+
+      res.json(solicitud);
+    } catch (error: any) {
+      console.error('Error al actualizar asignación:', error);
+      
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Datos inválidos', 
+          errors: error.errors 
+        });
+      }
+      
+      res.status(500).json({ message: error.message || 'Error al actualizar asignación' });
+    }
+  }));
+
   // ==================================================================================
   // CMMS - COMPUTERIZED MAINTENANCE MANAGEMENT SYSTEM ROUTES
   // ==================================================================================
