@@ -1199,6 +1199,10 @@ export default function ProyeccionManualPage() {
                             {isExpanded && (
                               <>
                                 {MONTHS.filter(month => {
+                                  // For FUTURO- clients, always show ALL months so they can add historical data
+                                  const isFutureClient = client.clientCode.startsWith('FUTURO-');
+                                  if (isFutureClient) return true;
+                                  
                                   // If no filter, show all months
                                   if (selectedMonths.length === 0) return true;
                                   
