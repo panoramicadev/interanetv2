@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -1364,27 +1365,26 @@ export default function MantencionesPage() {
             Sistema de solicitudes de mantención de equipos
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+        <Sheet open={isCreateDialogOpen} onOpenChange={(open) => {
           setIsCreateDialogOpen(open);
           if (open) {
             resetFormulario();
           }
         }}>
-          <DialogTrigger asChild>
+          <SheetTrigger asChild>
             <Button data-testid="button-nueva-solicitud">
               <Plus className="h-4 w-4 mr-2" />
               Nueva Solicitud
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh]">
-            <DialogHeader>
-              <DialogTitle>Nueva Orden de Trabajo (OT)</DialogTitle>
-              <DialogDescription>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Nueva Orden de Trabajo (OT)</SheetTitle>
+              <SheetDescription>
                 Crear nueva solicitud de mantención con opciones avanzadas
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateSubmit}>
-              <ScrollArea className="max-h-[65vh] pr-4">
+              </SheetDescription>
+            </SheetHeader>
+            <form onSubmit={handleCreateSubmit} className="mt-6">
                 <div className="space-y-6">
                   {/* Selección de Equipo */}
                   <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
@@ -1705,14 +1705,14 @@ export default function MantencionesPage() {
                     </p>
                   </div>
                 </div>
-              </ScrollArea>
               
-              <DialogFooter className="mt-6">
+              <div className="flex gap-3 mt-6 pt-6 border-t sticky bottom-0 bg-background">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setIsCreateDialogOpen(false)}
                   data-testid="button-cancelar-crear"
+                  className="flex-1"
                 >
                   Cancelar
                 </Button>
@@ -1720,14 +1720,15 @@ export default function MantencionesPage() {
                   type="submit"
                   disabled={createMutation.isPending || (!esManual && !selectedEquipoId)}
                   data-testid="button-submit-crear"
+                  className="flex-1"
                 >
                   {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Crear Orden de Trabajo
                 </Button>
-              </DialogFooter>
+              </div>
             </form>
-          </DialogContent>
-        </Dialog>
+          </SheetContent>
+        </Sheet>
       </div>
 
       <Card>
