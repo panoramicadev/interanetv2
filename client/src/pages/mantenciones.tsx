@@ -947,6 +947,11 @@ export default function MantencionesPage() {
   const [proveedorAsignadoId, setProveedorAsignadoId] = useState("");
   const [esManual, setEsManual] = useState(false);
 
+  // Estados para filtros avanzados
+  const [filtroTipoEjecucion, setFiltroTipoEjecucion] = useState<string>("todos");
+  const [filtroTecnico, setFiltroTecnico] = useState<string>("todos");
+  const [filtroProveedor, setFiltroProveedor] = useState<string>("todos");
+
   const canSubmitResolution = user?.role === 'produccion' || user?.role === 'admin' || user?.role === 'supervisor';
 
   const { data: mantenciones = [], isLoading } = useQuery<MantencionWithDetails[]>({
@@ -1117,9 +1122,58 @@ export default function MantencionesPage() {
     );
   };
 
+  // Obtener listas únicas de técnicos y proveedores
+  const tecnicosUnicos = useMemo(() => {
+    const tecnicos = mantenciones
+      .filter(m => m.tecnicoAsignadoName)
+      .map(m => ({ id: m.tecnicoAsignadoId, name: m.tecnicoAsignadoName }))
+      .filter((t, index, self) => t.id && self.findIndex(x => x.id === t.id) === index);
+    return tecnicos;
+  }, [mantenciones]);
+
+  const proveedoresUnicos = useMemo(() => {
+    const proveedores = mantenciones
+      .filter(m => m.proveedorAsignadoName)
+      .map(m => ({ id: m.proveedorAsignadoId, name: m.proveedorAsignadoName }))
+      .filter((p, index, self) => p.id && self.findIndex(x => x.id === p.id) === index);
+    return proveedores;
+  }, [mantenciones]);
+
+  // Función de filtrado avanzado
+  const aplicarFiltrosAvanzados = (mantenciones: MantencionWithDetails[]) => {
+    let filtered = [...mantenciones];
+
+    // Filtro por tipo de ejecución
+    if (filtroTipoEjecucion === "programada") {
+      filtered = filtered.filter(m => m.fechaProgramada);
+    } else if (filtroTipoEjecucion === "inmediata") {
+      filtered = filtered.filter(m => !m.fechaProgramada);
+    }
+
+    // Filtro por técnico
+    if (filtroTecnico !== "todos") {
+      filtered = filtered.filter(m => m.tecnicoAsignadoId === filtroTecnico);
+    }
+
+    // Filtro por proveedor
+    if (filtroProveedor !== "todos") {
+      filtered = filtered.filter(m => m.proveedorAsignadoId === filtroProveedor);
+    }
+
+    return filtered;
+  };
+
   const filterByEstado = (estado?: string) => {
-    if (!estado) return mantenciones;
-    return mantenciones.filter(m => m.estado === estado);
+    const withFiltrosAvanzados = aplicarFiltrosAvanzados(mantenciones);
+    if (!estado) return withFiltrosAvanzados;
+    return withFiltrosAvanzados.filter(m => m.estado === estado);
+  };
+
+  // Limpiar filtros
+  const limpiarFiltros = () => {
+    setFiltroTipoEjecucion("todos");
+    setFiltroTecnico("todos");
+    setFiltroProveedor("todos");
   };
 
   const renderMantencionesCards = (filteredMantenciones: MantencionWithDetails[]) => {
@@ -1155,6 +1209,27 @@ export default function MantencionesPage() {
                         <Icon className="h-3 w-3 mr-1" />
                         {estadoInfo?.label}
                       </Badge>
+                      
+                      {/* Badge tipo de ejecución */}
+                      {mantencion.fechaProgramada ? (
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border-purple-200" data-testid={`badge-tipo-ejecucion-${mantencion.id}`}>
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Programada
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300 border-sky-200" data-testid={`badge-tipo-ejecucion-${mantencion.id}`}>
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Inmediata
+                        </Badge>
+                      )}
+                      
+                      {/* Badge OT autogenerada */}
+                      {mantencion.numeroOT && mantencion.numeroOT.includes('AUTO') && (
+                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-200" data-testid={`badge-auto-${mantencion.id}`}>
+                          <Wrench className="h-3 w-3 mr-1" />
+                          Automática
+                        </Badge>
+                      )}
                     </div>
                     
                     <p className="text-sm text-muted-foreground line-clamp-2">
@@ -1173,7 +1248,37 @@ export default function MantencionesPage() {
                       {mantencion.equipoCodigo && (
                         <span>Código: {mantencion.equipoCodigo}</span>
                       )}
+                      
+                      {/* Mostrar asignación */}
+                      {mantencion.tecnicoAsignadoName && (
+                        <span className="flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400">
+                          <Wrench className="h-3 w-3" />
+                          Técnico: {mantencion.tecnicoAsignadoName}
+                        </span>
+                      )}
+                      {mantencion.proveedorAsignadoName && (
+                        <span className="flex items-center gap-1 font-medium text-green-600 dark:text-green-400">
+                          <Wrench className="h-3 w-3" />
+                          Proveedor: {mantencion.proveedorAsignadoName}
+                        </span>
+                      )}
                     </div>
+                    
+                    {/* Mostrar motivo de pausa si está pausada */}
+                    {mantencion.estado === 'pausada' && mantencion.motivoPausa && (
+                      <div className="flex items-start gap-2 p-2 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                        <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-yellow-800 dark:text-yellow-400">Pausada</p>
+                          <p className="text-yellow-700 dark:text-yellow-300">{mantencion.motivoPausa}</p>
+                          {mantencion.fechaPausa && (
+                            <p className="text-yellow-600 dark:text-yellow-400 mt-1">
+                              Desde: {format(new Date(mantencion.fechaPausa), "dd MMM yyyy HH:mm", { locale: es })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -1610,10 +1715,93 @@ export default function MantencionesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Filtros Avanzados */}
+          <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Filtros Avanzados
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={limpiarFiltros}
+                data-testid="button-limpiar-filtros"
+              >
+                <XCircle className="h-4 w-4 mr-1" />
+                Limpiar
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Filtro por tipo de ejecución */}
+              <div className="space-y-2">
+                <Label htmlFor="filtro-tipo-ejecucion" className="text-xs">Tipo de Ejecución</Label>
+                <Select value={filtroTipoEjecucion} onValueChange={setFiltroTipoEjecucion}>
+                  <SelectTrigger id="filtro-tipo-ejecucion" data-testid="select-tipo-ejecucion">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="inmediata">Inmediata</SelectItem>
+                    <SelectItem value="programada">Programada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filtro por técnico */}
+              <div className="space-y-2">
+                <Label htmlFor="filtro-tecnico" className="text-xs">Técnico Asignado</Label>
+                <Select value={filtroTecnico} onValueChange={setFiltroTecnico}>
+                  <SelectTrigger id="filtro-tecnico" data-testid="select-tecnico">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {tecnicosUnicos.map((tecnico) => (
+                      <SelectItem key={tecnico.id} value={tecnico.id!}>
+                        {tecnico.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filtro por proveedor */}
+              <div className="space-y-2">
+                <Label htmlFor="filtro-proveedor" className="text-xs">Proveedor Externo</Label>
+                <Select value={filtroProveedor} onValueChange={setFiltroProveedor}>
+                  <SelectTrigger id="filtro-proveedor" data-testid="select-proveedor">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    {proveedoresUnicos.map((proveedor) => (
+                      <SelectItem key={proveedor.id} value={proveedor.id!}>
+                        {proveedor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            {/* Indicador de filtros activos */}
+            {(filtroTipoEjecucion !== "todos" || filtroTecnico !== "todos" || filtroProveedor !== "todos") && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <CheckCircle2 className="h-3 w-3" />
+                Filtros activos: 
+                {filtroTipoEjecucion !== "todos" && <Badge variant="outline" className="ml-1">Tipo: {filtroTipoEjecucion}</Badge>}
+                {filtroTecnico !== "todos" && <Badge variant="outline" className="ml-1">Técnico</Badge>}
+                {filtroProveedor !== "todos" && <Badge variant="outline" className="ml-1">Proveedor</Badge>}
+              </div>
+            )}
+          </div>
+
           <Tabs defaultValue="todos" className="space-y-4">
             <TabsList>
               <TabsTrigger value="todos" data-testid="tab-todos">
-                Todos ({mantenciones.length})
+                Todos ({filterByEstado().length})
               </TabsTrigger>
               <TabsTrigger value="registrado" data-testid="tab-registrado">
                 <Clock className="h-4 w-4 mr-2" />
@@ -1630,7 +1818,7 @@ export default function MantencionesPage() {
             </TabsList>
 
             <TabsContent value="todos">
-              {renderMantencionesCards(mantenciones)}
+              {renderMantencionesCards(filterByEstado())}
             </TabsContent>
             <TabsContent value="registrado">
               {renderMantencionesCards(filterByEstado('registrado'))}
