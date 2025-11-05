@@ -1210,50 +1210,40 @@ export default function MantencionesPage() {
   const handleAsignacionSubmit = () => {
     if (!selectedMantencion) return;
 
-    const data: any = {};
+    const payload: any = {};
 
-    // CRÍTICO: Siempre enviar fechaProgramada si hay una fecha seleccionada
-    // El backend cambiará automáticamente el estado a "programada"
-    console.log('[DEBUG] fechaProgramadaEdit:', fechaProgramadaEdit);
-    console.log('[DEBUG] tipoEjecucionEdit:', tipoEjecucionEdit);
+    // Fecha programada
     if (fechaProgramadaEdit) {
-      data.fechaProgramada = fechaProgramadaEdit.toISOString();
-      console.log('[DEBUG] Enviando fechaProgramada:', data.fechaProgramada);
-    } else if (tipoEjecucionEdit === 'inmediata') {
-      // Solo limpiar la fecha si el usuario explícitamente seleccionó "inmediata"
-      data.fechaProgramada = null;
-      console.log('[DEBUG] Limpiando fechaProgramada');
+      payload.fechaProgramada = fechaProgramadaEdit.toISOString();
+    } else {
+      payload.fechaProgramada = null;
     }
-    console.log('[DEBUG] Data completa a enviar (antes de asignación):', data);
-    console.log('[DEBUG] tipoAsignacionEdit:', tipoAsignacionEdit);
-    console.log('[DEBUG] tecnicoAsignadoIdEdit:', tecnicoAsignadoIdEdit);
-    console.log('[DEBUG] proveedorAsignadoIdEdit:', proveedorAsignadoIdEdit);
 
     // Asignación
     if (tipoAsignacionEdit === 'tecnico_interno' && tecnicoAsignadoIdEdit) {
       const tecnico = tecnicos.find(t => t.id === tecnicoAsignadoIdEdit);
-      data.tipoAsignacion = 'tecnico_interno';
-      data.tecnicoAsignadoId = tecnicoAsignadoIdEdit;
-      data.tecnicoAsignadoName = tecnico?.name || tecnico?.username || '';
-      data.proveedorAsignadoId = null;
-      data.proveedorAsignadoName = null;
+      payload.tipoAsignacion = 'tecnico_interno';
+      payload.tecnicoAsignadoId = tecnicoAsignadoIdEdit;
+      payload.tecnicoAsignadoName = tecnico?.name || tecnico?.username || '';
+      payload.proveedorAsignadoId = null;
+      payload.proveedorAsignadoName = null;
     } else if (tipoAsignacionEdit === 'proveedor_externo' && proveedorAsignadoIdEdit) {
       const proveedor = proveedores.find(p => p.id === proveedorAsignadoIdEdit);
-      data.tipoAsignacion = 'proveedor_externo';
-      data.proveedorAsignadoId = proveedorAsignadoIdEdit;
-      data.proveedorAsignadoName = proveedor?.nombre || '';
-      data.tecnicoAsignadoId = null;
-      data.tecnicoAsignadoName = null;
-    } else if (tipoAsignacionEdit === null) {
-      // Limpiar asignación
-      data.tipoAsignacion = null;
-      data.tecnicoAsignadoId = null;
-      data.tecnicoAsignadoName = null;
-      data.proveedorAsignadoId = null;
-      data.proveedorAsignadoName = null;
+      payload.tipoAsignacion = 'proveedor_externo';
+      payload.proveedorAsignadoId = proveedorAsignadoIdEdit;
+      payload.proveedorAsignadoName = proveedor?.nombre || '';
+      payload.tecnicoAsignadoId = null;
+      payload.tecnicoAsignadoName = null;
+    } else {
+      // Sin asignación
+      payload.tipoAsignacion = null;
+      payload.tecnicoAsignadoId = null;
+      payload.tecnicoAsignadoName = null;
+      payload.proveedorAsignadoId = null;
+      payload.proveedorAsignadoName = null;
     }
 
-    updateAsignacionMutation.mutate({ id: selectedMantencion.id, data });
+    updateAsignacionMutation.mutate({ id: selectedMantencion.id, data: payload });
   };
 
   const startEditingAsignacion = () => {
