@@ -1127,38 +1127,34 @@ export default function SalespersonDashboard() {
       {/* Diálogo de Clientes */}
       <Dialog open={showClientsDialog} onOpenChange={setShowClientsDialog}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+          <DialogHeader className="space-y-4">
             <DialogTitle className="text-2xl font-bold text-gray-900">
-              Clientes del Vendedor ({clients.filter((client: any) => {
+              Clientes del Vendedor
+            </DialogTitle>
+            
+            {/* BUSCADOR - Ahora dentro del DialogHeader para máxima visibilidad */}
+            <div className="w-full bg-blue-100 border-4 border-blue-500 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Search className="h-6 w-6 text-blue-700" />
+                <span className="text-base font-bold text-blue-900">BUSCAR CLIENTE</span>
+              </div>
+              <input
+                type="text"
+                placeholder="Escriba nombre o RUT del cliente..."
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                className="w-full px-4 py-3 text-lg border-2 border-blue-400 rounded-md focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-300"
+                style={{ fontSize: '16px' }}
+              />
+            </div>
+            
+            <div className="text-sm text-gray-600">
+              Mostrando {clients.filter((client: any) => {
                 const clientName = (client.clientName || client.name || '').toLowerCase();
                 return clientName.includes(clientSearch.toLowerCase());
-              }).length})
-            </DialogTitle>
-          </DialogHeader>
-          
-          {/* Campo de búsqueda destacado */}
-          <div className="mt-4 mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-xl shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-500 rounded-full p-2.5 flex-shrink-0">
-                <Search className="h-5 w-5 text-white" />
-              </div>
-              <div className="flex-1 relative">
-                <label htmlFor="client-search-input" className="block text-sm font-semibold text-gray-700 mb-2">
-                  Buscar Cliente
-                </label>
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  id="client-search-input"
-                  type="text"
-                  placeholder="Escribe el nombre o RUT del cliente..."
-                  value={clientSearch}
-                  onChange={(e) => setClientSearch(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 text-base border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-lg bg-white"
-                  data-testid="input-client-search"
-                />
-              </div>
+              }).length} clientes
             </div>
-          </div>
+          </DialogHeader>
           
           <div className="mt-4">
             {loadingClients ? (
