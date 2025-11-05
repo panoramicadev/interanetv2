@@ -12109,7 +12109,7 @@ export class DatabaseStorage implements IStorage {
     await this.createMantencionHistorial({
       mantencionId: newSolicitud.id,
       estadoAnterior: null,
-      estadoNuevo: 'registrado',
+      estadoNuevo: 'pendiente',
       userId: newSolicitud.solicitanteId,
       userName: newSolicitud.solicitanteName || 'Usuario',
       notas: 'Solicitud de mantención creada',
@@ -13035,18 +13035,24 @@ export class DatabaseStorage implements IStorage {
         throw new Error(`Equipo no encontrado: ${plan.equipoId}`);
       }
 
-      // Crear la solicitud de mantención
+      // Crear la solicitud de mantención (usando usuario sistema)
+      const systemUser = await db.select().from(users).where(eq(users.role, 'admin')).limit(1);
+      const systemUserId = systemUser[0]?.id || plan.creadoPorId;
+      
       const nuevaMantencion: InsertSolicitudMantencion = {
         equipoNombre: equipoData.nombre,
         equipoCodigo: equipoData.codigo || undefined,
+        equipoId: equipoData.id,
         area: equipoData.area || 'produccion',
-        ubicacion: equipoData.ubicacion || undefined,
-        descripcionProblema: `Mantención Preventiva Programada: ${plan.nombre}\n\nTareas:\n${plan.descripcion || 'Ver plan preventivo para detalles'}`,
+        ubicacion: equipoData.ubicacionEspecifica || undefined,
+        descripcionProblema: `Mantención Preventiva Programada: ${plan.nombre}\n\nTareas:\n${plan.tareas || 'Ver plan preventivo para detalles'}`,
         tipoMantencion: 'preventivo',
         gravedad: 'media', // Preventivas suelen ser prioridad media
-        estado: 'registrado',
-        solicitadoPor: 'SISTEMA', // Indicar que es automático
-        planPreventivo_id: plan.id, // Vincular con el plan
+        prioridad: 'media',
+        estado: 'pendiente',
+        solicitanteId: systemUserId,
+        solicitanteName: 'SISTEMA AUTOMÁTICO',
+        planPreventivoId: plan.id, // Vincular con el plan
       };
 
       const [result] = await db
