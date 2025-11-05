@@ -9443,6 +9443,20 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Obtener gastos de una OT
+  app.get('/api/mantenciones/:id/gastos', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const gastos = await storage.getGastosMaterialesMantencion({
+        otId: req.params.id
+      });
+
+      res.json(gastos);
+    } catch (error: any) {
+      console.error('Error al obtener gastos:', error);
+      res.status(400).json({ message: error.message || 'Error al obtener gastos' });
+    }
+  }));
+
   // Agregar gasto a OT
   app.post('/api/mantenciones/:id/gastos', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
@@ -9455,21 +9469,37 @@ export function registerRoutes(app: Express): Server {
       }
 
       const gastoSchema = z.object({
-        descripcion: z.string().min(1, 'La descripción es requerida'),
-        monto: z.string().or(z.number()).transform(val => {
+        item: z.string().min(1, 'El nombre del item es requerido'),
+        descripcion: z.string().optional(),
+        cantidad: z.string().or(z.number()).transform(val => {
           const num = typeof val === 'string' ? parseFloat(val) : val;
-          if (isNaN(num)) throw new Error('Monto inválido');
+          if (isNaN(num) || num <= 0) throw new Error('Cantidad inválida');
+          return num.toString();
+        }),
+        costoUnitario: z.string().or(z.number()).transform(val => {
+          const num = typeof val === 'string' ? parseFloat(val) : val;
+          if (isNaN(num) || num < 0) throw new Error('Costo unitario inválido');
           return num.toString();
         }),
         proveedorId: z.string().optional(),
-        categoria: z.string().optional(),
-        notas: z.string().optional(),
+        adjuntoUrl: z.string().optional(),
       });
 
       const validatedData = gastoSchema.parse(req.body);
+      
+      // Calcular costoTotal = cantidad * costoUnitario
+      const cantidad = parseFloat(validatedData.cantidad);
+      const costoUnitario = parseFloat(validatedData.costoUnitario);
+      const costoTotal = (cantidad * costoUnitario).toString();
 
       const gasto = await storage.agregarGastoAMantencion(req.params.id, {
-        ...validatedData,
+        item: validatedData.item,
+        descripcion: validatedData.descripcion || null,
+        cantidad: validatedData.cantidad,
+        costoUnitario: validatedData.costoUnitario,
+        costoTotal,
+        proveedorId: validatedData.proveedorId || null,
+        adjuntoUrl: validatedData.adjuntoUrl || null,
         fecha: new Date(),
       });
 

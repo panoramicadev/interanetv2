@@ -83,6 +83,241 @@ const ESTADO_OPTIONS = [
   { value: 'cerrado', label: 'Cerrado', icon: XCircle, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
 ];
 
+// Componente para el tab de Gastos
+function GastosTab({ mantencionId, canManageGastos }: { mantencionId: string; canManageGastos: boolean }) {
+  const { toast } = useToast();
+  const [isAddGastoDialogOpen, setIsAddGastoDialogOpen] = useState(false);
+
+  // Query para obtener gastos de la OT
+  const { data: gastos = [], isLoading } = useQuery<Array<{
+    id: string;
+    fecha: string;
+    item: string;
+    descripcion: string | null;
+    cantidad: string;
+    costoUnitario: string;
+    costoTotal: string;
+    proveedorId: string | null;
+  }>>({
+    queryKey: ['/api/mantenciones', mantencionId, 'gastos'],
+  });
+
+  // Mutación para agregar gasto
+  const addGastoMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest(`/api/mantenciones/${mantencionId}/gastos`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones', mantencionId, 'gastos'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      setIsAddGastoDialogOpen(false);
+      toast({
+        title: "Gasto agregado",
+        description: "El gasto se ha agregado correctamente a la orden de trabajo.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error al agregar gasto",
+        description: error.message || "No se pudo agregar el gasto. Por favor, intente nuevamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddGastoSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    const data = {
+      item: formData.get('item') as string,
+      descripcion: formData.get('descripcion') as string || undefined,
+      cantidad: parseFloat(formData.get('cantidad') as string),
+      costoUnitario: parseFloat(formData.get('costoUnitario') as string),
+    };
+
+    addGastoMutation.mutate(data);
+  };
+
+  // Calcular total de gastos
+  const totalGastos = gastos.reduce((sum, gasto) => {
+    const total = typeof gasto.costoTotal === 'string' ? parseFloat(gasto.costoTotal) : Number(gasto.costoTotal);
+    return sum + (isNaN(total) ? 0 : total);
+  }, 0);
+
+  return (
+    <>
+      <ScrollArea className="max-h-[60vh] pr-4">
+        <div className="space-y-4">
+          {/* Header con botón para agregar */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Gastos de Materiales</h3>
+              <p className="text-sm text-muted-foreground">
+                Total: ${totalGastos.toLocaleString('es-CL')}
+              </p>
+            </div>
+            {canManageGastos && (
+              <Button
+                size="sm"
+                onClick={() => setIsAddGastoDialogOpen(true)}
+                data-testid="button-add-gasto"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Agregar Gasto
+              </Button>
+            )}
+          </div>
+
+          {/* Tabla de gastos */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : gastos.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No hay gastos registrados para esta orden de trabajo</p>
+            </div>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="text-left p-3 font-medium">Fecha</th>
+                    <th className="text-left p-3 font-medium">Item</th>
+                    <th className="text-right p-3 font-medium">Cantidad</th>
+                    <th className="text-right p-3 font-medium">Costo Unit.</th>
+                    <th className="text-right p-3 font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gastos.map((gasto) => (
+                    <tr key={gasto.id} className="border-t" data-testid={`row-gasto-${gasto.id}`}>
+                      <td className="p-3 text-sm">
+                        {format(new Date(gasto.fecha), 'dd/MM/yyyy', { locale: es })}
+                      </td>
+                      <td className="p-3">
+                        <div>
+                          <p className="font-medium">{gasto.item}</p>
+                          {gasto.descripcion && (
+                            <p className="text-sm text-muted-foreground">{gasto.descripcion}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3 text-right">{Number(gasto.cantidad).toLocaleString('es-CL')}</td>
+                      <td className="p-3 text-right">${Number(gasto.costoUnitario).toLocaleString('es-CL')}</td>
+                      <td className="p-3 text-right font-semibold">
+                        ${Number(gasto.costoTotal).toLocaleString('es-CL')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-muted font-semibold">
+                  <tr>
+                    <td colSpan={4} className="p-3 text-right">Total General:</td>
+                    <td className="p-3 text-right">${totalGastos.toLocaleString('es-CL')}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Dialog para agregar gasto */}
+      <Dialog open={isAddGastoDialogOpen} onOpenChange={setIsAddGastoDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Agregar Gasto de Material</DialogTitle>
+            <DialogDescription>
+              Registre los materiales utilizados en esta orden de trabajo
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddGastoSubmit}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="item">Item / Material *</Label>
+                <Input
+                  id="item"
+                  name="item"
+                  required
+                  placeholder="Ej: Filtro de aire"
+                  data-testid="input-gasto-item"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="descripcion">Descripción</Label>
+                <Textarea
+                  id="descripcion"
+                  name="descripcion"
+                  rows={2}
+                  placeholder="Detalles adicionales..."
+                  data-testid="textarea-gasto-descripcion"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cantidad">Cantidad *</Label>
+                  <Input
+                    id="cantidad"
+                    name="cantidad"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    placeholder="1"
+                    data-testid="input-gasto-cantidad"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="costoUnitario">Costo Unitario *</Label>
+                  <Input
+                    id="costoUnitario"
+                    name="costoUnitario"
+                    type="number"
+                    step="1"
+                    min="0"
+                    required
+                    placeholder="0"
+                    data-testid="input-gasto-costo"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAddGastoDialogOpen(false)}
+                  data-testid="button-cancel-gasto"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={addGastoMutation.isPending}
+                  data-testid="button-submit-gasto"
+                >
+                  {addGastoMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Agregar
+                </Button>
+              </DialogFooter>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function MantencionesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1013,11 +1248,10 @@ export default function MantencionesPage() {
 
               {/* Tab 2: Gastos de Materiales */}
               <TabsContent value="gastos">
-                <ScrollArea className="max-h-[60vh] pr-4">
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">Gestión de gastos de materiales para esta OT (próximamente)</p>
-                  </div>
-                </ScrollArea>
+                <GastosTab
+                  mantencionId={selectedMantencion.id}
+                  canManageGastos={canManageMantencion}
+                />
               </TabsContent>
 
               {/* Tab 3: Seguimiento */}
