@@ -141,6 +141,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
           label: "Planes Preventivos",
           icon: Calendar,
         },
+        {
+          href: "/cmms/calendario",
+          label: "Calendario",
+          icon: Calendar,
+        },
       ],
     },
     {
@@ -294,6 +299,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         {
           href: "/cmms/planes-preventivos",
           label: "Planes Preventivos",
+          icon: Calendar,
+        },
+        {
+          href: "/cmms/calendario",
+          label: "Calendario",
           icon: Calendar,
         },
       ],
@@ -561,6 +571,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
         {
           href: "/cmms/planes-preventivos",
           label: "Planes Preventivos",
+          icon: Calendar,
+        },
+        {
+          href: "/cmms/calendario",
+          label: "Calendario",
           icon: Calendar,
         },
       ],
