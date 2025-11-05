@@ -130,6 +130,8 @@ export default function SalespersonDashboard() {
   
   // Client search state
   const [clientSearch, setClientSearch] = useState("");
+  const [clientCardSearch, setClientCardSearch] = useState("");
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   
   // Dialog state
   const [showClientsDialog, setShowClientsDialog] = useState(false);
@@ -352,6 +354,20 @@ export default function SalespersonDashboard() {
   }), [salespersonData, productsData, transactionsData]);
 
   const clients = groupedClients;
+
+  // Filter clients for card search suggestions
+  const filteredCardClients = useMemo(() => {
+    if (!clientCardSearch.trim()) return [];
+    
+    const searchTerm = clientCardSearch.toLowerCase();
+    return clients
+      .filter((client: any) => {
+        const clientName = (client.clientName || client.name || '').toLowerCase();
+        const clientRut = (client.rut || '').toLowerCase();
+        return clientName.includes(searchTerm) || clientRut.includes(searchTerm);
+      })
+      .slice(0, 8); // Mostrar máximo 8 sugerencias
+  }, [clients, clientCardSearch]);
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
@@ -892,12 +908,14 @@ export default function SalespersonDashboard() {
           </Card>
 
           <Card 
-            className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-blue-50/80 to-blue-100/50 cursor-pointer hover:shadow-md transition-all" 
+            className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-blue-50/80 to-blue-100/50 relative" 
             data-testid="card-clientes"
-            onClick={() => setShowClientsDialog(true)}
           >
             <CardContent className="pt-6 pb-6">
-              <div className="flex items-start justify-between">
+              <div 
+                className="flex items-start justify-between cursor-pointer"
+                onClick={() => setShowClientsDialog(true)}
+              >
                 <div className="flex-1">
                   <p className="text-sm font-medium text-blue-700 mb-2">
                     Clientes
@@ -912,6 +930,72 @@ export default function SalespersonDashboard() {
                 <div className="bg-blue-500 rounded-2xl p-3 shadow-sm">
                   <Users className="h-6 w-6 text-white" />
                 </div>
+              </div>
+              
+              {/* Búsqueda rápida */}
+              <div className="mt-4 relative" onClick={(e) => e.stopPropagation()}>
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-blue-400" />
+                <Input
+                  type="text"
+                  placeholder="Buscar por nombre o RUT..."
+                  value={clientCardSearch}
+                  onChange={(e) => {
+                    setClientCardSearch(e.target.value);
+                    setShowClientSuggestions(e.target.value.trim().length > 0);
+                  }}
+                  onFocus={() => setShowClientSuggestions(clientCardSearch.trim().length > 0)}
+                  onBlur={() => setTimeout(() => setShowClientSuggestions(false), 200)}
+                  className="w-full pl-9 pr-3 py-1.5 text-sm bg-white/80 border-blue-200 focus:border-blue-400 focus:ring-blue-200"
+                  data-testid="input-client-card-search"
+                />
+                
+                {/* Dropdown de sugerencias */}
+                {showClientSuggestions && filteredCardClients.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-blue-200 rounded-lg shadow-lg max-h-80 overflow-y-auto">
+                    {filteredCardClients.map((client: any, index: number) => (
+                      <div
+                        key={index}
+                        className="p-3 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 transition-colors"
+                        onClick={() => {
+                          setClientCardSearch('');
+                          setShowClientSuggestions(false);
+                          setShowClientsDialog(true);
+                        }}
+                        data-testid={`suggestion-${index}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-gray-900 truncate">
+                              {client.clientName || client.name || 'Sin nombre'}
+                            </p>
+                            {client.rut && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                RUT: {client.rut}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs font-semibold text-blue-600">
+                              ${(client.totalSales || 0).toLocaleString()}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {client.transactionCount || 0} transacciones
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* No hay resultados */}
+                {showClientSuggestions && clientCardSearch.trim() && filteredCardClients.length === 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-blue-200 rounded-lg shadow-lg p-4">
+                    <p className="text-sm text-gray-500 text-center">
+                      No se encontraron clientes con "{clientCardSearch}"
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
