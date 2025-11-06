@@ -3457,6 +3457,41 @@ export const gastosMaterialesMantencion = pgTable("gastos_materiales_mantencion"
   otIdIdx: index("IDX_gastos_materiales_ot_id").on(table.otId),
 }));
 
+// ===== MANTENCIONES PLANIFICADAS (Proyectos grandes futuros) =====
+export const mantencionesPlanificadas = pgTable("mantenciones_planificadas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  equipoId: varchar("equipo_id"), // FK a equipos_criticos (puede ser NULL para mantenciones generales)
+  equipoNombre: varchar("equipo_nombre", { length: 255 }).notNull(),
+  
+  titulo: varchar("titulo", { length: 255 }).notNull(), // ej: "Rectificación Eje Dispersora"
+  descripcion: text("descripcion"),
+  categoria: varchar("categoria").notNull(), // gran_mantenimiento, overhaul, rectificacion, reemplazo, mejora
+  
+  costoEstimado: numeric("costo_estimado", { precision: 15, scale: 2 }).notNull(),
+  mes: integer("mes").notNull(), // 1-12
+  anio: integer("anio").notNull(),
+  area: varchar("area"), // NULL para global, o área específica
+  
+  estado: varchar("estado").default("planificado").notNull(), // planificado, aprobado, en_ejecucion, completado, cancelado
+  
+  prioridad: varchar("prioridad").default("media"), // baja, media, alta
+  notas: text("notas"),
+  
+  // Vinculación a OT real cuando se ejecute
+  otGeneradaId: varchar("ot_generada_id"), // FK a solicitudes_mantencion cuando se crea la OT
+  
+  creadoPorId: varchar("creado_por_id").notNull(),
+  creadoPorName: varchar("creado_por_name"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  anioMesIdx: index("IDX_mantenciones_planificadas_anio_mes").on(table.anio, table.mes),
+  estadoIdx: index("IDX_mantenciones_planificadas_estado").on(table.estado),
+  equipoIdIdx: index("IDX_mantenciones_planificadas_equipo_id").on(table.equipoId),
+}));
+
 // ===== PLANES PREVENTIVOS =====
 export const planesPreventivos = pgTable("planes_preventivos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -3611,6 +3646,21 @@ export const planesPreventivosRelations = relations(planesPreventivos, ({ one, m
   ots: many(solicitudesMantencion),
 }));
 
+export const mantencionesPlanificadasRelations = relations(mantencionesPlanificadas, ({ one }) => ({
+  equipo: one(equiposCriticos, {
+    fields: [mantencionesPlanificadas.equipoId],
+    references: [equiposCriticos.id],
+  }),
+  otGenerada: one(solicitudesMantencion, {
+    fields: [mantencionesPlanificadas.otGeneradaId],
+    references: [solicitudesMantencion.id],
+  }),
+  creadoPor: one(users, {
+    fields: [mantencionesPlanificadas.creadoPorId],
+    references: [users.id],
+  }),
+}));
+
 export const gastosMaterialesMantencionRelations = relations(gastosMaterialesMantencion, ({ one }) => ({
   ot: one(solicitudesMantencion, {
     fields: [gastosMaterialesMantencion.otId],
@@ -3696,6 +3746,9 @@ export type InsertGastoMaterialMantencion = typeof gastosMaterialesMantencion.$i
 export type PlanPreventivo = typeof planesPreventivos.$inferSelect;
 export type InsertPlanPreventivo = typeof planesPreventivos.$inferInsert;
 
+export type MantencionPlanificada = typeof mantencionesPlanificadas.$inferSelect;
+export type InsertMantencionPlanificada = typeof mantencionesPlanificadas.$inferInsert;
+
 // Órdenes de Trabajo
 export type SolicitudMantencion = typeof solicitudesMantencion.$inferSelect;
 export type InsertSolicitudMantencion = typeof solicitudesMantencion.$inferInsert;
@@ -3778,6 +3831,24 @@ export const insertPlanPreventivoSchema = createInsertSchema(planesPreventivos).
   nombrePlan: z.string().min(1, "El nombre del plan es requerido"),
   frecuencia: z.enum(["semanal", "mensual", "trimestral", "semestral", "anual"]),
   activo: z.boolean().default(true),
+});
+
+// Mantenciones Planificadas
+export const insertMantencionPlanificadaSchema = createInsertSchema(mantencionesPlanificadas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  equipoNombre: z.string().min(1, "El nombre del equipo es requerido"),
+  titulo: z.string().min(1, "El título es requerido"),
+  categoria: z.enum(["gran_mantenimiento", "overhaul", "rectificacion", "reemplazo", "mejora"]),
+  costoEstimado: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  mes: z.number().int().min(1).max(12),
+  anio: z.number().int().min(2020).max(2100),
+  estado: z.enum(["planificado", "aprobado", "en_ejecucion", "completado", "cancelado"]).default("planificado"),
+  prioridad: z.enum(["baja", "media", "alta"]).default("media").optional(),
 });
 
 // Órdenes de Trabajo (Solicitudes de Mantención)
