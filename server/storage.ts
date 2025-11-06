@@ -12216,6 +12216,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteSolicitudMantencion(id: string): Promise<void> {
+    // Delete all related records first
+    await Promise.all([
+      // Delete photos
+      db.delete(mantencionPhotos).where(eq(mantencionPhotos.mantencionId, id)),
+      // Delete resolution photos
+      db.delete(mantencionResolucionPhotos).where(eq(mantencionResolucionPhotos.mantencionId, id)),
+      // Delete historial
+      db.delete(mantencionHistorial).where(eq(mantencionHistorial.mantencionId, id)),
+      // Delete gastos de materiales asociados
+      db.delete(gastosMaterialesMantencion).where(eq(gastosMaterialesMantencion.otId, id)),
+    ]);
+    
+    // Finally delete the main record
     await db.delete(solicitudesMantencion).where(eq(solicitudesMantencion.id, id));
   }
 
