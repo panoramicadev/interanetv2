@@ -39,10 +39,12 @@ import {
   FileText,
   Server,
   Filter,
-  Settings
+  Settings,
+  Download
 } from "lucide-react";
 import { formatDistanceToNow, format, subDays } from "date-fns";
 import { es } from "date-fns/locale";
+import { Progress } from "@/components/ui/progress";
 
 interface ETLExecution {
   id: string;
@@ -88,6 +90,14 @@ const ETL_CONFIGS = [
     description: 'ETL incremental de ventas desde SQL Server (ejecuta cada 15 min)',
     icon: TrendingUp,
     color: 'blue',
+  },
+  {
+    id: 'sales_sync',
+    name: 'Sincronización Ventas',
+    description: 'Sincronización manual de transacciones de venta desde SQL Server ERP',
+    icon: Download,
+    color: 'green',
+    isManual: true,
   },
   // Aquí se pueden agregar más ETLs en el futuro
   // {
@@ -178,23 +188,30 @@ export default function ETLMonitor() {
         {ETL_CONFIGS.map((etl) => (
           <TabsContent key={etl.id} value={etl.id} className="space-y-6 mt-6">
             {/* ETL Description Card */}
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
+            <Card className={`bg-gradient-to-r ${etl.color === 'green' ? 'from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800' : 'from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800'}`}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
+                <CardTitle className={`flex items-center gap-2 ${etl.color === 'green' ? 'text-green-900 dark:text-green-100' : 'text-blue-900 dark:text-blue-100'}`}>
                   <Server className="h-5 w-5" />
                   {etl.name}
                 </CardTitle>
-                <CardDescription className="text-blue-700 dark:text-blue-300">
+                <CardDescription className={etl.color === 'green' ? 'text-green-700 dark:text-green-300' : 'text-blue-700 dark:text-blue-300'}>
                   {etl.description}
                 </CardDescription>
               </CardHeader>
             </Card>
 
-            {/* Status Section */}
-            <ETLStatusSection etlName={etl.id} autoRefresh={autoRefresh} />
+            {/* Render specialized component for sales sync, regular for automated ETLs */}
+            {etl.id === 'sales_sync' ? (
+              <SalesSyncSection autoRefresh={autoRefresh} />
+            ) : (
+              <>
+                {/* Status Section */}
+                <ETLStatusSection etlName={etl.id} autoRefresh={autoRefresh} />
 
-            {/* History Section */}
-            <ETLHistorySection etlName={etl.id} autoRefresh={autoRefresh} />
+                {/* History Section */}
+                <ETLHistorySection etlName={etl.id} autoRefresh={autoRefresh} />
+              </>
+            )}
           </TabsContent>
         ))}
       </Tabs>
@@ -853,5 +870,320 @@ function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefr
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// Sales Sync Section Component - Manual synchronization
+function SalesSyncSection({ autoRefresh }: { autoRefresh: boolean }) {
+  const { toast } = useToast();
+  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [mode, setMode] = useState<'incremental' | 'full'>('incremental');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(0);
+
+  // Fetch sync history
+  const { data: syncHistory, isLoading: isLoadingHistory } = useQuery<any[]>({
+    queryKey: ['/api/etl/sync-sales/history'],
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  // Fetch last sync status
+  const { data: lastSync } = useQuery<any>({
+    queryKey: ['/api/etl/sync-sales/status'],
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  // Sync mutation
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      setIsSyncing(true);
+      setSyncProgress(10);
+      
+      const result = await apiRequest('/api/etl/sync-sales', {
+        method: 'POST',
+        body: JSON.stringify({ startDate, endDate, mode }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      setSyncProgress(100);
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-sales/history'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-sales/status'] });
+      
+      toast({
+        title: "✅ Sincronización Exitosa",
+        description: `${data.recordsNew} registros procesados en ${(data.duration / 1000).toFixed(2)}s`,
+        variant: "default",
+      });
+      
+      setTimeout(() => {
+        setIsSyncing(false);
+        setSyncProgress(0);
+      }, 1000);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Error en Sincronización",
+        description: error.message || 'Error desconocido',
+        variant: "destructive",
+      });
+      
+      setIsSyncing(false);
+      setSyncProgress(0);
+    },
+  });
+
+  const handleSync = () => {
+    if (!startDate || !endDate) {
+      toast({
+        title: "Fechas requeridas",
+        description: "Por favor selecciona fechas de inicio y fin",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+      toast({
+        title: "Fechas inválidas",
+        description: "La fecha de inicio debe ser anterior a la fecha de fin",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    syncMutation.mutate();
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'success':
+        return <Badge className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" />Exitoso</Badge>;
+      case 'error':
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Error</Badge>;
+      case 'partial':
+        return <Badge className="bg-yellow-500"><Clock className="h-3 w-3 mr-1" />Parcial</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Sync Control Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="h-5 w-5" />
+            Sincronizar Ventas desde ERP
+          </CardTitle>
+          <CardDescription>
+            Extrae y sincroniza transacciones de venta desde SQL Server al repositorio PostgreSQL
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Date Range Selector */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="sync-start-date">Fecha Inicio</Label>
+              <Input
+                id="sync-start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                disabled={isSyncing}
+                data-testid="input-sync-start-date"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sync-end-date">Fecha Fin</Label>
+              <Input
+                id="sync-end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                disabled={isSyncing}
+                data-testid="input-sync-end-date"
+              />
+            </div>
+          </div>
+
+          {/* Mode Selector */}
+          <div className="space-y-2">
+            <Label>Modo de Sincronización</Label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="incremental"
+                  checked={mode === 'incremental'}
+                  onChange={(e) => setMode(e.target.value as 'incremental')}
+                  disabled={isSyncing}
+                  className="cursor-pointer"
+                  data-testid="radio-mode-incremental"
+                />
+                <span>Incremental (UPSERT)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="full"
+                  checked={mode === 'full'}
+                  onChange={(e) => setMode(e.target.value as 'full')}
+                  disabled={isSyncing}
+                  className="cursor-pointer"
+                  data-testid="radio-mode-full"
+                />
+                <span>Completo (Full Refresh)</span>
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {mode === 'incremental' 
+                ? 'Actualiza registros existentes e inserta nuevos (recomendado)' 
+                : 'Reemplaza todos los datos del período seleccionado'}
+            </p>
+          </div>
+
+          {/* Progress Bar */}
+          {isSyncing && (
+            <div className="space-y-2">
+              <Label>Progreso</Label>
+              <Progress value={syncProgress} className="h-2" />
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Sincronizando datos desde SQL Server...
+              </p>
+            </div>
+          )}
+
+          {/* Sync Button */}
+          <Button
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="w-full"
+            size="lg"
+            data-testid="button-sync-sales"
+          >
+            {isSyncing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Sincronizando...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" />
+                Iniciar Sincronización
+              </>
+            )}
+          </Button>
+
+          {/* Last Sync Info */}
+          {lastSync && (
+            <div className="mt-4 p-3 bg-muted rounded-lg text-sm">
+              <p className="font-medium mb-1">Última Sincronización</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Estado: </span>
+                  {getStatusBadge(lastSync.status)}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Fecha: </span>
+                  <span>{formatDistanceToNow(new Date(lastSync.createdAt), { addSuffix: true, locale: es })}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Registros: </span>
+                  <span className="font-mono">{lastSync.recordsNew?.toLocaleString('es-CL') || 0}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Duración: </span>
+                  <span>{lastSync.duration ? `${(lastSync.duration / 1000).toFixed(2)}s` : '-'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* History Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Historial de Sincronizaciones
+          </CardTitle>
+          <CardDescription>
+            Últimas 20 sincronizaciones ejecutadas
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingHistory ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : !syncHistory || syncHistory.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Database className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No hay historial de sincronizaciones disponible</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Modo</TableHead>
+                    <TableHead>Período</TableHead>
+                    <TableHead className="text-right">Registros</TableHead>
+                    <TableHead className="text-right">Tiempo</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {syncHistory.map((sync: any, index: number) => (
+                    <TableRow key={sync.id || index} data-testid={`row-sync-${index}`}>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">
+                            {formatDistanceToNow(new Date(sync.createdAt || sync.startedAt), {
+                              addSuffix: true,
+                              locale: es,
+                            })}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(sync.createdAt || sync.startedAt).toLocaleString('es-CL')}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(sync.status)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {sync.syncMode === 'incremental' ? 'Incremental' : 'Completo'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {sync.startDate && sync.endDate 
+                          ? `${format(new Date(sync.startDate), 'dd/MM/yy')} - ${format(new Date(sync.endDate), 'dd/MM/yy')}`
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {sync.recordsNew?.toLocaleString('es-CL') || '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {sync.duration 
+                          ? `${(sync.duration / 1000).toFixed(2)}s`
+                          : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
