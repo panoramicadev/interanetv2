@@ -531,7 +531,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         dd.stockfis,
         pp.listacost,
         pp.liscosmod,
-        TIMESTAMP '${currentWatermark.toISOString()}'
+        ${sql.raw(`'${currentWatermark.toISOString()}'::timestamp`)}
       FROM ventas.stg_maeddo dd
       INNER JOIN ventas.stg_maeedo ed ON dd.idmaeedo = ed.idmaeedo
       LEFT JOIN ventas.stg_maeen en ON ed.kofudo = en.koen
