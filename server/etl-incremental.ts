@@ -68,15 +68,31 @@ function emitProgress(step: number, totalSteps: number, message: string, details
   }
 }
 
-// Función helper para batch insert
+// Función helper para batch insert con manejo de errores robusto
 async function batchInsert<T>(table: any, records: T[], batchSize: number = 1000) {
   if (records.length === 0) return 0;
   
   let inserted = 0;
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize);
-    await db.insert(table).values(batch).onConflictDoNothing();
-    inserted += batch.length;
+    try {
+      await db.insert(table).values(batch).onConflictDoNothing();
+      inserted += batch.length;
+    } catch (error: any) {
+      // Si falla un batch grande, intentar con batches más pequeños
+      console.warn(`⚠️  Error en batch de ${batch.length} registros. Intentando con batches más pequeños...`);
+      const smallerBatchSize = Math.max(100, Math.floor(batchSize / 10));
+      for (let j = 0; j < batch.length; j += smallerBatchSize) {
+        const smallBatch = batch.slice(j, j + smallerBatchSize);
+        try {
+          await db.insert(table).values(smallBatch).onConflictDoNothing();
+          inserted += smallBatch.length;
+        } catch (smallError: any) {
+          console.error(`❌ Error insertando batch pequeño (${smallBatch.length} registros):`, smallError.message);
+          // Continuar con el siguiente batch en lugar de fallar completamente
+        }
+      }
+    }
   }
   return inserted;
 }
