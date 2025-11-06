@@ -387,11 +387,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     // 5. EXTRAER vendedores (usando KOFUEN de MAEEN)
     console.log('5️⃣  Extrayendo MAEVEN (Vendedores)...');
     const kofuens = [...new Set(maeen.recordset.map(r => r.KOFUEN).filter(k => k))];
-    const maeven = await pool.request().query(`
-      SELECT KOFU, NOKOFU
-      FROM dbo.TABFU
-      WHERE KOFU IN (${kofuens.map(k => `'${k}'`).join(',')})
-    `);
+    let maeven = { recordset: [] };
+    
+    if (kofuens.length > 0) {
+      maeven = await pool.request().query(`
+        SELECT KOFU, NOKOFU
+        FROM dbo.TABFU
+        WHERE KOFU IN (${kofuens.map(k => `'${k}'`).join(',')})
+      `);
+    }
     console.log(`   ✅ ${maeven.recordset.length} registros encontrados`);
 
     for (const row of maeven.recordset) {
@@ -404,11 +408,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     // 6. EXTRAER segmentos/rutas (usando RUEN de MAEEN)
     console.log('6️⃣  Extrayendo TABRU (Segmentos)...');
     const ruens = [...new Set(maeen.recordset.map(r => r.RUEN).filter(r => r))];
-    const tabru = await pool.request().query(`
-      SELECT KORU, NOKORU
-      FROM dbo.TABRU
-      WHERE KORU IN (${ruens.map(r => `'${r}'`).join(',')})
-    `);
+    let tabru = { recordset: [] };
+    
+    if (ruens.length > 0) {
+      tabru = await pool.request().query(`
+        SELECT KORU, NOKORU
+        FROM dbo.TABRU
+        WHERE KORU IN (${ruens.map(r => `'${r}'`).join(',')})
+      `);
+    }
     console.log(`   ✅ ${tabru.recordset.length} registros encontrados`);
 
     for (const row of tabru.recordset) {
