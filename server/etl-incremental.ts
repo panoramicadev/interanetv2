@@ -474,6 +474,10 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     // 9. PROCESAR A FACT_VENTAS (UPSERT - eliminar registros antiguos e insertar nuevos)
     console.log('9️⃣  Procesando FACT_VENTAS (UPSERT)...');
     
+    // Contar filas ANTES del proceso para calcular registros nuevos
+    const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
+    const rowsBeforeUpsert = Number(countBeforeResult.rows[0].count);
+    
     // Primero eliminar registros existentes de los documentos modificados
     const idmaeddosToDelete = maeddo.recordset.map(r => cleanNumeric(r.IDMAEDDO));
     if (idmaeddosToDelete.length > 0) {
