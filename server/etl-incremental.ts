@@ -1,6 +1,7 @@
 import mssql from 'mssql';
 import { db } from './db';
 import { sql, desc, eq } from 'drizzle-orm';
+import { EventEmitter } from 'events';
 import { 
   stgMaeedo, 
   stgMaeddo, 
@@ -37,6 +38,47 @@ interface ETLResult {
   period: string;
   watermarkDate: Date;
   error?: string;
+}
+
+interface ETLProgressEvent {
+  step: number;
+  totalSteps: number;
+  message: string;
+  details?: string;
+  percentage: number;
+}
+
+// Event emitter para progreso del ETL
+export const etlProgressEmitter = new EventEmitter();
+
+// Función helper para emitir progreso
+function emitProgress(step: number, totalSteps: number, message: string, details?: string) {
+  const percentage = Math.round((step / totalSteps) * 100);
+  const event: ETLProgressEvent = {
+    step,
+    totalSteps,
+    message,
+    details,
+    percentage,
+  };
+  etlProgressEmitter.emit('progress', event);
+  console.log(`📊 [${percentage}%] Paso ${step}/${totalSteps}: ${message}`);
+  if (details) {
+    console.log(`   ${details}`);
+  }
+}
+
+// Función helper para batch insert
+async function batchInsert<T>(table: any, records: T[], batchSize: number = 500) {
+  if (records.length === 0) return 0;
+  
+  let inserted = 0;
+  for (let i = 0; i < records.length; i += batchSize) {
+    const batch = records.slice(i, i + batchSize);
+    await db.insert(table).values(batch).onConflictDoNothing();
+    inserted += batch.length;
+  }
+  return inserted;
 }
 
 function cleanNumeric(value: any): number {
@@ -273,6 +315,9 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       };
     }
 
+    const TOTAL_STEPS = 10;
+    emitProgress(1, TOTAL_STEPS, 'Extrayendo MAEEDO', `${maeedo.recordset.length} registros encontrados`);
+    
     console.log(`\n📊 Resumen de extracción MAEEDO:`);
     console.log(`   ✅ ${maeedo.recordset.length} registros encontrados`);
     if (maeedo.recordset.length > 0) {
@@ -283,38 +328,39 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }
     console.log('');
 
-    // Cargar MAEEDO a staging
-    for (const row of maeedo.recordset) {
-      await db.insert(stgMaeedo).values({
-        idmaeedo: cleanNumeric(row.IDMAEEDO),
-        empresa: row.EMPRESA?.trim() || null,
-        tido: row.TIDO?.trim() || null,
-        nudo: row.NUDO?.trim() || null,
-        endo: row.ENDO?.trim() || null,
-        suendo: row.SUENDO?.trim() || null,
-        endofi: row.ENDOFI?.trim() || null,
-        tigedo: row.TIGEDO?.trim() || null,
-        sudo: row.SUDO?.trim() || null,
-        luvtdo: row.LUVTDO?.trim() || null,
-        feemdo: row.FEEMDO || null,
-        kofudo: row.KOFUDO?.trim() || null,
-        esdo: row.ESDO?.trim() || null,
-        espgdo: row.ESPGDO?.trim() || null,
-        suli: row.SULI?.trim() || null,
-        bosulido: row.BOSULIDO?.trim() || null,
-        feer: row.FEER || null,
-        vanedo: cleanNumeric(row.VANEDO),
-        vaivdo: cleanNumeric(row.VAIVDO),
-        vabrdo: cleanNumeric(row.VABRDO),
-        lilg: row.LILG?.trim() || null,
-        modo: row.MODO?.trim() || null,
-        timodo: row.TIMODO?.trim() || null,
-        tamodo: cleanNumeric(row.TAMODO),
-        ocdo: row.OCDO?.trim() || null,
-      });
-    }
+    // Cargar MAEEDO a staging (BATCH INSERT - optimizado)
+    const maeedo_records = maeedo.recordset.map(row => ({
+      idmaeedo: cleanNumeric(row.IDMAEEDO),
+      empresa: row.EMPRESA?.trim() || null,
+      tido: row.TIDO?.trim() || null,
+      nudo: row.NUDO?.trim() || null,
+      endo: row.ENDO?.trim() || null,
+      suendo: row.SUENDO?.trim() || null,
+      endofi: row.ENDOFI?.trim() || null,
+      tigedo: row.TIGEDO?.trim() || null,
+      sudo: row.SUDO?.trim() || null,
+      luvtdo: row.LUVTDO?.trim() || null,
+      feemdo: row.FEEMDO || null,
+      kofudo: row.KOFUDO?.trim() || null,
+      esdo: row.ESDO?.trim() || null,
+      espgdo: row.ESPGDO?.trim() || null,
+      suli: row.SULI?.trim() || null,
+      bosulido: row.BOSULIDO?.trim() || null,
+      feer: row.FEER || null,
+      vanedo: cleanNumeric(row.VANEDO),
+      vaivdo: cleanNumeric(row.VAIVDO),
+      vabrdo: cleanNumeric(row.VABRDO),
+      lilg: row.LILG?.trim() || null,
+      modo: row.MODO?.trim() || null,
+      timodo: row.TIMODO?.trim() || null,
+      tamodo: cleanNumeric(row.TAMODO),
+      ocdo: row.OCDO?.trim() || null,
+    }));
+    await batchInsert(stgMaeedo, maeedo_records);
+    emitProgress(2, TOTAL_STEPS, 'Cargando MAEEDO a staging', `${maeedo_records.length} registros insertados en batch`)
 
     // 2. EXTRAER MAEDDO (detalles de los documentos modificados)
+    emitProgress(3, TOTAL_STEPS, 'Extrayendo MAEDDO', 'Consultando SQL Server...');
     console.log('2️⃣  Extrayendo MAEDDO (Detalles)...');
     const idmaeedos = maeedo.recordset.map(r => r.IDMAEEDO);
     const maeddo = await pool.request().query(`
@@ -324,26 +370,27 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     `);
     console.log(`   ✅ ${maeddo.recordset.length} registros encontrados`);
 
-    // Cargar MAEDDO
-    for (const row of maeddo.recordset) {
-      await db.insert(stgMaeddo).values({
-        idmaeddo: cleanNumeric(row.IDMAEDDO),
-        idmaeedo: cleanNumeric(row.IDMAEEDO),
-        koprct: row.KOPRCT?.trim() || null,
-        nokopr: row.NOKOPR?.trim() || null,
-        udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
-        caprco: cleanNumeric(row.CAPRCO),
-        preuni: cleanNumeric(row.PREUNI),
-        vaneli: cleanNumeric(row.VANELI),
-        feemli: row.FEEMLI || null,
-        feerli: row.FEERLI || null,
-        devol1: cleanNumeric(row.DEVOL1),
-        devol2: cleanNumeric(row.DEVOL2),
-        stockfis: cleanNumeric(row.STOCKFIS),
-      });
-    }
+    // Cargar MAEDDO (BATCH INSERT - optimizado)
+    const maeddo_records = maeddo.recordset.map(row => ({
+      idmaeddo: cleanNumeric(row.IDMAEDDO),
+      idmaeedo: cleanNumeric(row.IDMAEEDO),
+      koprct: row.KOPRCT?.trim() || null,
+      nokopr: row.NOKOPR?.trim() || null,
+      udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
+      caprco: cleanNumeric(row.CAPRCO),
+      preuni: cleanNumeric(row.PREUNI),
+      vaneli: cleanNumeric(row.VANELI),
+      feemli: row.FEEMLI || null,
+      feerli: row.FEERLI || null,
+      devol1: cleanNumeric(row.DEVOL1),
+      devol2: cleanNumeric(row.DEVOL2),
+      stockfis: cleanNumeric(row.STOCKFIS),
+    }));
+    await batchInsert(stgMaeddo, maeddo_records);
+    emitProgress(4, TOTAL_STEPS, 'Cargando MAEDDO a staging', `${maeddo_records.length} registros insertados`)
 
     // 3. EXTRAER entidades (clientes únicos) - ENDO en MAEEDO corresponde a KOEN en MAEEN
+    emitProgress(5, TOTAL_STEPS, 'Extrayendo tablas maestras', 'MAEEN, MAEPR, MAEVEN, TABRU, TABBO...');
     console.log('3️⃣  Extrayendo MAEEN (Entidades)...');
     const endos = [...new Set(maeedo.recordset.map(r => r.ENDO?.trim()).filter(e => e))];
     let maeen = { recordset: [] };
@@ -357,16 +404,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }
     console.log(`   ✅ ${maeen.recordset.length} registros encontrados`);
 
-    for (const row of maeen.recordset) {
-      await db.insert(stgMaeen).values({
-        koen: row.KOEN?.trim() || '',
-        nokoen: row.NOKOEN?.trim() || null,
-        rut: row.RUEN?.trim() || null,
-        ruen: row.RUEN?.trim() || null,
-        zona: row.ZOEN?.trim() || null,
-        kofuen: row.KOFUEN?.trim() || null,
-      }).onConflictDoNothing();
-    }
+    const maeen_records = maeen.recordset.map(row => ({
+      koen: row.KOEN?.trim() || '',
+      nokoen: row.NOKOEN?.trim() || null,
+      rut: row.RUEN?.trim() || null,
+      ruen: row.RUEN?.trim() || null,
+      zona: row.ZOEN?.trim() || null,
+      kofuen: row.KOFUEN?.trim() || null,
+    }));
+    await batchInsert(stgMaeen, maeen_records);
 
     // 4. EXTRAER productos únicos
     console.log('4️⃣  Extrayendo MAEPR (Productos)...');
@@ -378,15 +424,14 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     `);
     console.log(`   ✅ ${maepr.recordset.length} registros encontrados`);
 
-    for (const row of maepr.recordset) {
-      await db.insert(stgMaepr).values({
-        kopr: row.KOPR?.trim() || '',
-        nomrpr: row.NOKOPR?.trim() || null,
-        ud01pr: row.UD01PR?.trim() || null,
-        ud02pr: row.UD02PR?.trim() || null,
-        tipr: row.TIPR?.trim() || null,
-      }).onConflictDoNothing();
-    }
+    const maepr_records = maepr.recordset.map(row => ({
+      kopr: row.KOPR?.trim() || '',
+      nomrpr: row.NOKOPR?.trim() || null,
+      ud01pr: row.UD01PR?.trim() || null,
+      ud02pr: row.UD02PR?.trim() || null,
+      tipr: row.TIPR?.trim() || null,
+    }));
+    await batchInsert(stgMaepr, maepr_records);
 
     // 5. EXTRAER vendedores (usando KOFUEN de MAEEN)
     console.log('5️⃣  Extrayendo MAEVEN (Vendedores)...');
@@ -402,12 +447,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }
     console.log(`   ✅ ${maeven.recordset.length} registros encontrados`);
 
-    for (const row of maeven.recordset) {
-      await db.insert(stgMaeven).values({
-        kofu: row.KOFU?.trim() || '',
-        nokofu: row.NOKOFU?.trim() || null,
-      }).onConflictDoNothing();
-    }
+    const maeven_records = maeven.recordset.map(row => ({
+      kofu: row.KOFU?.trim() || '',
+      nokofu: row.NOKOFU?.trim() || null,
+    }));
+    await batchInsert(stgMaeven, maeven_records);
 
     // 6. EXTRAER segmentos/rutas (usando RUEN de MAEEN)
     console.log('6️⃣  Extrayendo TABRU (Segmentos)...');
@@ -423,12 +467,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     }
     console.log(`   ✅ ${tabru.recordset.length} registros encontrados`);
 
-    for (const row of tabru.recordset) {
-      await db.insert(stgTabru).values({
-        koru: row.KORU?.trim() || '',
-        nokoru: row.NOKORU?.trim() || null,
-      }).onConflictDoNothing();
-    }
+    const tabru_records = tabru.recordset.map(row => ({
+      koru: row.KORU?.trim() || '',
+      nokoru: row.NOKORU?.trim() || null,
+    }));
+    await batchInsert(stgTabru, tabru_records);
 
     // 7. EXTRAER bodegas únicas
     console.log('7️⃣  Extrayendo TABBO (Bodegas)...');
@@ -443,15 +486,16 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     `);
     console.log(`   ✅ ${tabbo.recordset.length} registros encontrados`);
 
-    for (const row of tabbo.recordset) {
-      await db.insert(stgTabbo).values({
-        suli: row.EMPRESA?.trim() || '',
-        bosuli: row.KOBO?.trim() || '',
-        nobosuli: row.NOKOBO?.trim() || null,
-      }).onConflictDoNothing();
-    }
+    const tabbo_records = tabbo.recordset.map(row => ({
+      suli: row.EMPRESA?.trim() || '',
+      bosuli: row.KOBO?.trim() || '',
+      nobosuli: row.NOKOBO?.trim() || null,
+    }));
+    await batchInsert(stgTabbo, tabbo_records);
+    emitProgress(6, TOTAL_STEPS, 'Tablas maestras cargadas', 'MAEEN, MAEPR, MAEVEN, TABRU, TABBO')
 
     // 8. EXTRAER propiedades de productos desde MAEPR
+    emitProgress(7, TOTAL_STEPS, 'Extrayendo TABPP', 'Propiedades de productos...');
     console.log('8️⃣  Extrayendo TABPP (Propiedades Productos desde MAEPR)...');
     const tabpp = await pool.request().query(`
       SELECT DISTINCT
@@ -463,15 +507,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     `);
     console.log(`   ✅ ${tabpp.recordset.length} registros encontrados`);
 
-    for (const row of tabpp.recordset) {
-      await db.insert(stgTabpp).values({
-        kopr: row.KOPR?.trim() || '',
-        listacost: cleanNumeric(row.listacost),
-        liscosmod: cleanNumeric(row.liscosmod),
-      });
-    }
+    const tabpp_records = tabpp.recordset.map(row => ({
+      kopr: row.KOPR?.trim() || '',
+      listacost: cleanNumeric(row.listacost),
+      liscosmod: cleanNumeric(row.liscosmod),
+    }));
+    await batchInsert(stgTabpp, tabpp_records);
 
     // 9. PROCESAR A FACT_VENTAS (UPSERT - eliminar registros antiguos e insertar nuevos)
+    emitProgress(8, TOTAL_STEPS, 'Procesando FACT_VENTAS', 'Aplicando UPSERT...');
     console.log('9️⃣  Procesando FACT_VENTAS (UPSERT)...');
     
     // Contar filas ANTES del proceso para calcular registros nuevos
@@ -609,6 +653,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log(`   📊 ${newRecordsInserted} registros nuevos agregados a fact_ventas (${rowsBeforeUpsert} → ${rowsAfterUpsert})\n`);
 
     // 🔍 VALIDACIÓN POST-ETL: Verificar campos críticos del dashboard
+    emitProgress(9, TOTAL_STEPS, 'Validando datos', 'Verificando campos críticos...');
     console.log('🔍 Validando campos críticos del dashboard...');
     const validationResult = await db.execute(sql`
       SELECT 
@@ -685,6 +730,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
 
     await pool.close();
 
+    emitProgress(10, TOTAL_STEPS, 'ETL Completado', `${newRecordsInserted} registros nuevos agregados`);
+    
     console.log('╔═══════════════════════════════════════════════════╗');
     console.log('║     ✅ ETL INCREMENTAL COMPLETADO                 ║');
     console.log('╚═══════════════════════════════════════════════════╝\n');
