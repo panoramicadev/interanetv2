@@ -10850,7 +10850,7 @@ export function registerRoutes(app: Express): Server {
   // ==================================================================================
 
   // Sync sales from ERP to PostgreSQL
-  app.post('/api/etl/sync-sales', requireRoles('admin', 'supervisor'), asyncHandler(async (req: any, res: any) => {
+  app.post('/api/etl/sync-sales', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
     try {
       const user = req.user;
       if (!user || !user.id || !user.email) {
@@ -10911,7 +10911,7 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // Get sales sync history
-  app.get('/api/etl/sync-sales/history', requireRoles('admin', 'supervisor'), asyncHandler(async (req: any, res: any) => {
+  app.get('/api/etl/sync-sales/history', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
       const history = await storage.getSalesSyncHistory(limit);
