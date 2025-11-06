@@ -11408,6 +11408,7 @@ export class DatabaseStorage implements IStorage {
   async getReclamosGenerales(filters?: {
     vendedorId?: string;
     tecnicoId?: string;
+    responsableAreaId?: string;
     estado?: string;
     gravedad?: string;
     areaResponsable?: string;
@@ -11422,6 +11423,10 @@ export class DatabaseStorage implements IStorage {
     
     if (filters?.tecnicoId) {
       conditions.push(eq(reclamosGenerales.tecnicoId, filters.tecnicoId));
+    }
+    
+    if (filters?.responsableAreaId) {
+      conditions.push(eq(reclamosGenerales.responsableAreaId, filters.responsableAreaId));
     }
     
     if (filters?.estado) {
@@ -11737,6 +11742,26 @@ export class DatabaseStorage implements IStorage {
     // Si no procede: se mantiene en en_revision_tecnica para revisión posterior
     const nuevoEstado = procede ? 'en_area_responsable' : 'en_revision_tecnica';
     
+    // Si procede, buscar un usuario activo del área responsable para asignación automática
+    let responsableArea = null;
+    if (procede && areaResponsable) {
+      // Buscar usuarios con rol que coincida con el área (ej: "laboratorio", "area_laboratorio", "produccion", etc.)
+      const usuariosArea = await db
+        .select()
+        .from(users)
+        .where(
+          or(
+            eq(users.role, areaResponsable),
+            eq(users.role, `area_${areaResponsable}`)
+          )
+        )
+        .limit(1);
+      
+      if (usuariosArea.length > 0) {
+        responsableArea = usuariosArea[0];
+      }
+    }
+    
     const [updated] = await db
       .update(reclamosGenerales)
       .set({
@@ -11745,21 +11770,37 @@ export class DatabaseStorage implements IStorage {
         estado: nuevoEstado,
         updatedAt: new Date(),
         informeTecnico: notas || null,
+        responsableAreaId: responsableArea ? responsableArea.id : null,
+        responsableAreaName: responsableArea ? responsableArea.fullName : null,
       })
       .where(eq(reclamosGenerales.id, id))
       .returning();
     
     // Create historial entry
+    const notasHistorial = notas || (procede 
+      ? `Reclamo validado y derivado a ${areaResponsable}${responsableArea ? ` - Asignado a ${responsableArea.fullName}` : ''}` 
+      : 'Reclamo marcado como no procedente - pendiente revisión');
+    
     await this.createReclamoGeneralHistorial({
       reclamoId: id,
       estadoAnterior: reclamo.estado,
       estadoNuevo: nuevoEstado,
       userId,
       userName,
-      notas: notas || (procede 
-        ? `Reclamo validado y derivado a ${areaResponsable}` 
-        : 'Reclamo marcado como no procedente - pendiente revisión'),
+      notas: notasHistorial,
     });
+    
+    // Crear notificación para el responsable del área si fue asignado
+    if (procede && responsableArea) {
+      await this.createNotification({
+        userId: responsableArea.id,
+        type: 'reclamo_asignado',
+        title: 'Reclamo Asignado',
+        message: `Se te asignó el reclamo del cliente "${updated.clientName}" del área ${areaResponsable}`,
+        relatedReclamoId: updated.id,
+        read: false,
+      });
+    }
     
     return updated;
   }
