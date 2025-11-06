@@ -10846,6 +10846,82 @@ export function registerRoutes(app: Express): Server {
   }));
 
   // ==================================================================================
+  // SALES ETL SYNCHRONIZATION routes
+  // ==================================================================================
+
+  // Sync sales from ERP to PostgreSQL
+  app.post('/api/etl/sync-sales', requireRoles('admin', 'supervisor'), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!user || !user.id || !user.email) {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+
+      const { startDate, endDate, mode = 'incremental' } = req.body;
+
+      // Validate required fields
+      if (!startDate || !endDate) {
+        return res.status(400).json({ 
+          message: 'Fechas de inicio y fin son requeridas',
+          error: 'startDate and endDate are required' 
+        });
+      }
+
+      // Validate mode
+      if (!['incremental', 'full'].includes(mode)) {
+        return res.status(400).json({ 
+          message: 'Modo inválido',
+          error: 'mode must be "incremental" or "full"' 
+        });
+      }
+
+      console.log(`🔄 Starting sales ETL sync requested by ${user.email}`);
+      console.log(`📅 Period: ${startDate} to ${endDate} (${mode})`);
+      
+      const result = await storage.syncSalesFromERP(user.id, user.email, startDate, endDate, mode);
+      
+      if (result.status === 'error') {
+        return res.status(500).json({
+          message: 'Error al sincronizar ventas desde ERP',
+          error: result.errorMessage,
+          ...result,
+        });
+      }
+
+      res.json({
+        message: result.status === 'success' 
+          ? 'Sincronización completada exitosamente' 
+          : 'Sincronización completada con advertencias',
+        ...result,
+      });
+    } catch (error: any) {
+      console.error('Error in sales sync endpoint:', error);
+      res.status(500).json({ message: 'Error al sincronizar ventas', error: error.message });
+    }
+  }));
+
+  // Get last sales sync info
+  app.get('/api/etl/sync-sales/status', requireAuth, asyncHandler(async (req: any, res: any) => {
+    try {
+      const lastSync = await storage.getLastSalesSync();
+      res.json(lastSync);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener última sincronización de ventas', error: error.message });
+    }
+  }));
+
+  // Get sales sync history
+  app.get('/api/etl/sync-sales/history', requireRoles('admin', 'supervisor'), asyncHandler(async (req: any, res: any) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
+      const history = await storage.getSalesSyncHistory(limit);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener historial de sincronización de ventas', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
   // GASTOS EMPRESARIALES routes
   // ==================================================================================
 
