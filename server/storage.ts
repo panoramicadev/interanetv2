@@ -13225,7 +13225,7 @@ export class DatabaseStorage implements IStorage {
         equipoId: equipoData.id,
         area: equipoData.area || 'produccion',
         ubicacion: equipoData.ubicacionEspecifica || undefined,
-        descripcionProblema: `Mantención Preventiva Programada: ${plan.nombre}\n\nTareas:\n${plan.tareas || 'Ver plan preventivo para detalles'}`,
+        descripcionProblema: `Mantención Preventiva Programada: ${plan.nombrePlan}\n\nTareas:\n${plan.tareasPreventivas || 'Ver plan preventivo para detalles'}`,
         tipoMantencion: 'preventivo',
         gravedad: 'media', // Preventivas suelen ser prioridad media
         prioridad: 'media',
@@ -13287,7 +13287,7 @@ export class DatabaseStorage implements IStorage {
 
           otsGenerated++;
 
-          console.log(`✅ OT generada automáticamente: ${ot.id} para plan ${plan.nombre}`);
+          console.log(`✅ OT generada automáticamente: ${ot.id} para plan ${plan.nombrePlan}`);
         } catch (error: any) {
           console.error(`❌ Error procesando plan ${plan.id}:`, error.message);
           // Continuar con el siguiente plan aunque este falle
