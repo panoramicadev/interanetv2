@@ -117,6 +117,19 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     const lastWatermark = await getLastWatermark(etlName);
     const currentWatermark = new Date();
     
+    console.log('╔═══════════════════════════════════════════════════════════════╗');
+    console.log('║  🔍 CONFIGURACIÓN DEL WATERMARK                               ║');
+    console.log('╚═══════════════════════════════════════════════════════════════╝');
+    console.log(`📍 Watermark inicial: ${lastWatermark.toISOString()}`);
+    console.log(`📍 Watermark actual: ${currentWatermark.toISOString()}`);
+    console.log(`📅 Fecha inicio (formato SQL): ${lastWatermark.toISOString().split('T')[0]}`);
+    console.log(`📅 Fecha fin (formato SQL): ${currentWatermark.toISOString().split('T')[0]}`);
+    console.log(`🔧 ¿Watermark personalizado activo?: ${config.useCustomWatermark ? 'SÍ' : 'NO'}`);
+    if (config.useCustomWatermark && config.customWatermark) {
+      console.log(`🎯 Watermark personalizado configurado: ${new Date(config.customWatermark).toISOString()}`);
+    }
+    console.log('');
+    
     // Configurar timeout automático
     timeoutHandle = setTimeout(async () => {
       timedOut = true;
@@ -190,20 +203,36 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     await db.execute(sql`TRUNCATE TABLE ventas.stg_tabpp CASCADE`);
     console.log('✅ Tablas staging limpias\n');
 
-    // 1. EXTRAER MAEEDO (solo registros modificados desde el último watermark)
-    console.log('1️⃣  Extrayendo MAEEDO (Encabezados modificados)...');
+    // 1. EXTRAER MAEEDO (solo registros con fecha de emisión desde el último watermark)
+    console.log('1️⃣  Extrayendo MAEEDO (Encabezados por fecha de emisión)...');
+    const startDateSQL = lastWatermark.toISOString().split('T')[0];
+    const endDateSQL = currentWatermark.toISOString().split('T')[0];
+    
+    console.log('╔═══════════════════════════════════════════════════════════════╗');
+    console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
+    console.log('╚═══════════════════════════════════════════════════════════════╝');
+    console.log(`🔍 TIDO IN: ${tiposDoc.join(', ')}`);
+    console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
+    console.log(`🔍 FEEMDO >= '${startDateSQL}' (Fecha de emisión del documento)`);
+    console.log(`🔍 FEEMDO <= '${endDateSQL}' (Fecha de emisión del documento)`);
+    console.log(`🔍 YEAR(FEEMDO) >= 2024`);
+    console.log('');
+    
     const maeedo = await pool.request().query(`
       SELECT *
       FROM dbo.MAEEDO
       WHERE TIDO IN (${tiposDoc.map(t => `'${t}'`).join(',')})
         AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
         AND YEAR(FEEMDO) >= 2024
-        AND FEER >= '${lastWatermark.toISOString().split('T')[0]}'
+        AND FEEMDO >= '${startDateSQL}'
+        AND FEEMDO <= '${endDateSQL}'
       ORDER BY FEEMDO
     `);
     
     if (maeedo.recordset.length === 0) {
-      console.log('   ℹ️  No hay registros nuevos para procesar');
+      console.log('\n⚠️  No hay registros nuevos para procesar en el período especificado');
+      console.log(`   Fecha inicio: ${startDateSQL}`);
+      console.log(`   Fecha fin: ${endDateSQL}\n`);
       
       await db.update(etlExecutionLog)
         .set({
@@ -224,7 +253,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       };
     }
 
+    console.log(`\n📊 Resumen de extracción MAEEDO:`);
     console.log(`   ✅ ${maeedo.recordset.length} registros encontrados`);
+    if (maeedo.recordset.length > 0) {
+      const firstDate = maeedo.recordset[0].FEEMDO;
+      const lastDate = maeedo.recordset[maeedo.recordset.length - 1].FEEMDO;
+      console.log(`   📅 Primer documento: ${firstDate}`);
+      console.log(`   📅 Último documento: ${lastDate}`);
+    }
+    console.log('');
 
     // Cargar MAEEDO a staging
     for (const row of maeedo.recordset) {
