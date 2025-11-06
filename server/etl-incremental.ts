@@ -106,6 +106,25 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
   let timedOut = false;
 
   try {
+    // 🔒 LOCK: Verificar si ya hay una ejecución en curso
+    const runningETL = await db
+      .select()
+      .from(etlExecutionLog)
+      .where(sql`status = 'running' AND etl_name = ${etlName}`)
+      .limit(1);
+
+    if (runningETL.length > 0) {
+      console.log(`\n⚠️  ETL ya en ejecución (ID: ${runningETL[0].id}). Cancelando solicitud duplicada.`);
+      return {
+        success: false,
+        recordsProcessed: 0,
+        executionTimeMs: Date.now() - startTime,
+        period: '',
+        watermarkDate: new Date(),
+        error: 'ETL ya en ejecución. Por favor espera a que termine la ejecución actual.'
+      };
+    }
+
     console.log('\n🔄 INICIANDO ETL INCREMENTAL');
     console.log('═══════════════════════════════════════════════════');
 
