@@ -3,7 +3,12 @@
 ## Overview
 "PANORAMICA" is a Spanish-language sales analytics dashboard tailored for the Chilean market. It provides comprehensive sales insights through client and user management (with role-based access), detailed sales analytics, and a mobile-responsive design. The application supports CSV sales data import, KPI monitoring, trend analysis, and transaction review. Key features include e-commerce integration, a CRM pipeline, product grouping, technical visit management, robust complaints and maintenance management, sales forecasting, an ETL data warehouse, and an internal notification system. The project aims to enhance sales strategies and operational efficiency.
 
-## Recent Changes (Nov 5, 2025)
+## Recent Changes (Nov 6, 2025)
+- **Integrated Mantenciones Planificadas into Budget Module**: Added comprehensive projection of planned maintenance costs in the annual budget module. Features include: (1) New query fetching planned maintenances filtered by year and area; (2) Additional "Mant. Planificadas" column in monthly table showing estimated costs per month in green; (3) New "Total Planificado" summary card displaying annual sum of future maintenances; (4) Third green bar in annual chart visualizing planned maintenance costs alongside assigned and executed budgets; (5) Equipment catalog integration allowing users to select critical equipment directly when creating planned maintenances, with automatic area population. This integration enables proactive budget planning based on scheduled future maintenance work.
+- **Enhanced Mantenciones Planificadas Form**: Added equipment catalog selector with checkbox toggle between catalog dropdown and custom equipment input. When selecting from catalog, equipment ID and area fields auto-populate, improving data consistency and reducing manual entry errors.
+- **Fixed Missing Imports in Storage**: Added mantencionesPlanificadas table and type imports to server/storage.ts, resolving ReferenceError that prevented CMMS operations.
+
+## Previous Changes (Nov 5, 2025)
 - **Fixed Comparative Analytics Discrepancy**: Corrected `getSegmentAnalysis()` to consistently exclude Guías de Despacho (GDV) across all views (was causing ~$128K differences).
 - **Added Total Acumulado Card**: Implemented green summary card showing sum of all compared periods in both segment and salesperson comparatives.
 - **Fixed Year Label Bug**: Corrected tooltip display when comparing full years (2024 vs 2025) - was showing "Ene" instead of year label.
@@ -69,7 +74,7 @@ Preferred communication style: Simple, everyday language.
   - **Dashboard**: 8 KPIs (MTTR, backlog, preventivas vs correctivas, costos mensuales), 3 gráficos, filtros por período/área
   - **Equipos Críticos**: Catálogo de equipos con área, criticidad, estado operativo, documentación técnica, y jerarquía padre-componente (ej: dispersor → motor) con vista expandible/colapsable. Las OTs vinculan equipos por ID para reflejar cambios del catálogo automáticamente
   - **Proveedores Externos**: Gestión de proveedores de mantención con especialidades, evaluación (5 estrellas), y tiempos de respuesta
-  - **Presupuesto Anual**: Configuración mensual con semáforo de desvíos (verde/amarillo/rojo), ejecución vs planificado
+  - **Presupuesto Anual**: Configuración mensual con semáforo de desvíos (verde/amarillo/rojo), ejecución vs planificado, proyección de mantenciones planificadas integrada (columna y gráfico en verde mostrando costos futuros estimados por mes)
   - **Gastos de Materiales**: Registro de gastos vinculados a OTs y proveedores con cálculo automático de totales
   - **Planes Preventivos**: Programación por frecuencia (diaria-anual), generación automática de OTs, KPIs de cumplimiento
   - **Calendario de Mantención**: Vista mensual con eventos de planes preventivos y OTs activas, navegación y filtros
