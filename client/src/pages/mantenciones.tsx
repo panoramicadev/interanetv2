@@ -744,8 +744,9 @@ export default function MantencionesPage() {
         data: formData,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/mantenciones'] });
       setIsResolutionDialogOpen(false);
       setSelectedMantencion(null);
       toast({
@@ -769,8 +770,9 @@ export default function MantencionesPage() {
         data: data,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/mantenciones'] });
       setIsEditingAsignacion(false);
       toast({
         title: "Asignación actualizada",
@@ -816,8 +818,9 @@ export default function MantencionesPage() {
         method: 'POST',
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/mantenciones'] });
       toast({
         title: "Trabajo iniciado",
         description: "La orden de trabajo ha cambiado a estado 'En Reparación'.",
@@ -862,9 +865,11 @@ export default function MantencionesPage() {
         data: { motivo, fechaProgramada },
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/mantenciones'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/mantenciones'] });
       setIsPausarDialogOpen(false);
+      setSelectedMantencion(null);
       toast({
         title: "Trabajo pausado",
         description: "La orden de trabajo ha sido pausada correctamente.",

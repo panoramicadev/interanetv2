@@ -195,8 +195,9 @@ export default function CmmsMantencionesPlanificadas() {
         data,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cmms/mantenciones-planificadas"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/cmms/mantenciones-planificadas"], exact: false });
+      await queryClient.refetchQueries({ queryKey: ["/api/cmms/mantenciones-planificadas"], exact: false });
       toast({
         title: "Éxito",
         description: "Mantención planificada creada exitosamente",
@@ -221,8 +222,9 @@ export default function CmmsMantencionesPlanificadas() {
         data,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cmms/mantenciones-planificadas"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/cmms/mantenciones-planificadas"], exact: false });
+      await queryClient.refetchQueries({ queryKey: ["/api/cmms/mantenciones-planificadas"], exact: false });
       toast({
         title: "Éxito",
         description: "Mantención planificada actualizada exitosamente",
@@ -247,8 +249,9 @@ export default function CmmsMantencionesPlanificadas() {
         method: 'DELETE',
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cmms/mantenciones-planificadas"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/cmms/mantenciones-planificadas"], exact: false });
+      await queryClient.refetchQueries({ queryKey: ["/api/cmms/mantenciones-planificadas"], exact: false });
       toast({
         title: "Éxito",
         description: "Mantención planificada eliminada exitosamente",
@@ -264,10 +267,18 @@ export default function CmmsMantencionesPlanificadas() {
   });
 
   const onSubmit = (data: MantencionFormValues) => {
+    const cleanedData = {
+      ...data,
+      equipoId: data.equipoId && data.equipoId.trim() !== '' ? data.equipoId : undefined,
+      area: data.area && data.area.trim() !== '' ? data.area : undefined,
+      notas: data.notas && data.notas.trim() !== '' ? data.notas : undefined,
+      descripcion: data.descripcion && data.descripcion.trim() !== '' ? data.descripcion : undefined,
+    };
+    
     if (editingMantencion) {
-      updateMutation.mutate({ id: editingMantencion.id, data });
+      updateMutation.mutate({ id: editingMantencion.id, data: cleanedData });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(cleanedData);
     }
   };
 
