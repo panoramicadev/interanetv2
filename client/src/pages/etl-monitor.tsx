@@ -230,6 +230,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   const [intervalMinutes, setIntervalMinutes] = useState(15);
   const [keepCustomWatermark, setKeepCustomWatermark] = useState(false);
   const [etlProgress, setEtlProgress] = useState<ETLProgress | null>(null);
+  const [isETLExecuting, setIsETLExecuting] = useState(false);
 
   // Fetch ETL status
   const { data: status, isLoading } = useQuery<ETLStatus>({
@@ -241,7 +242,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
 
   // Connect to ETL Progress Stream (SSE)
   useEffect(() => {
-    if (!status?.isRunning) {
+    if (!isETLExecuting && !status?.isRunning) {
       setEtlProgress(null);
       return;
     }
@@ -258,6 +259,13 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
         const progress = JSON.parse(event.data) as ETLProgress;
         console.log('📊 Progreso recibido:', progress);
         setEtlProgress(progress);
+        
+        // If we received 100% completion, mark as not executing
+        if (progress.percentage === 100) {
+          setTimeout(() => {
+            setIsETLExecuting(false);
+          }, 1000);
+        }
       } catch (error) {
         console.error('Error parsing ETL progress:', error);
       }
@@ -266,17 +274,20 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     eventSource.onerror = (error) => {
       console.error('❌ ETL Progress SSE error:', error);
       eventSource.close();
+      setIsETLExecuting(false);
     };
 
     return () => {
       console.log('🔌 Cerrando conexión SSE');
       eventSource.close();
     };
-  }, [status?.isRunning]);
+  }, [isETLExecuting, status?.isRunning]);
 
   // Execute ETL mutation
   const executeMutation = useMutation({
     mutationFn: async () => {
+      // Set executing flag immediately to trigger SSE connection
+      setIsETLExecuting(true);
       return await apiRequest(`/api/etl/execute?etlName=${etlName}`, {
         method: 'POST',
       });
@@ -292,8 +303,9 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
           title: "ETL Ejecutado",
           description: `Se procesaron ${data.recordsProcessed || 0} registros en ${Math.round((data.executionTimeMs || 0) / 1000)}s`,
         });
+        setIsETLExecuting(false);
       }
-      // Invalidate to refetch status and trigger SSE connection
+      // Invalidate to refetch status
       queryClient.invalidateQueries({ queryKey: [`/api/etl/status?etlName=${etlName}`] });
     },
     onError: (error: any) => {
@@ -302,6 +314,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
         description: error.message,
         variant: "destructive",
       });
+      setIsETLExecuting(false);
     },
   });
 
@@ -398,7 +411,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   }
 
   const lastExecution = status?.lastExecution;
-  const isRunning = status?.isRunning || false;
+  const isRunning = isETLExecuting || status?.isRunning || false;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
