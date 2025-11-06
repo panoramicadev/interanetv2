@@ -35,7 +35,7 @@ import {
 } from "../shared/schema";
 import { eq, and, isNotNull, ne, sql, desc, or } from "drizzle-orm";
 import { emailService } from "./services/email";
-import { executeIncrementalETL, getETLStatus, updateETLConfig } from "./etl-incremental";
+import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter } from "./etl-incremental";
 import * as NotifyHelper from "./notifications-helper";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
@@ -11453,6 +11453,27 @@ export function registerRoutes(app: Express): Server {
       });
     }
   }));
+
+  // ETL Progress Stream (Server-Sent Events) - Real-time progress updates
+  app.get('/api/etl/progress', requireAdminOrSupervisor, (req: any, res: any) => {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+
+    const progressListener = (event: any) => {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    etlProgressEmitter.on('progress', progressListener);
+
+    // Cleanup on client disconnect
+    req.on('close', () => {
+      etlProgressEmitter.off('progress', progressListener);
+      res.end();
+    });
+  });
 
   // Get ETL status and history
   app.get('/api/etl/status', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
