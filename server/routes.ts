@@ -10921,6 +10921,16 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Get last sales watermark (for incremental sync)
+  app.get('/api/etl/sync-sales/watermark', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const watermark = await storage.getLastSalesWatermark();
+      res.json({ watermark });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener watermark de sincronización', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // GASTOS EMPRESARIALES routes
   // ==================================================================================
