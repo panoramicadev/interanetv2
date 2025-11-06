@@ -3202,6 +3202,8 @@ export const reclamosGenerales = pgTable("reclamos_generales", {
   vendedorName: varchar("vendedor_name"), // Nombre del vendedor
   tecnicoId: varchar("tecnico_id"), // FK to users.id (técnico asignado)
   tecnicoName: varchar("tecnico_name"), // Nombre del técnico
+  responsableAreaId: varchar("responsable_area_id"), // FK to users.id (responsable del área asignada)
+  responsableAreaName: varchar("responsable_area_name"), // Nombre del responsable del área
   
   // Derivaciones
   derivadoLaboratorio: boolean("derivado_laboratorio").default(false),
@@ -3232,6 +3234,7 @@ export const reclamosGenerales = pgTable("reclamos_generales", {
 }, (table) => ({
   vendedorIdIdx: index("IDX_reclamos_gen_vendedor_id").on(table.vendedorId),
   tecnicoIdIdx: index("IDX_reclamos_gen_tecnico_id").on(table.tecnicoId),
+  responsableAreaIdIdx: index("IDX_reclamos_gen_responsable_area_id").on(table.responsableAreaId),
   estadoIdx: index("IDX_reclamos_gen_estado").on(table.estado),
   gravedadIdx: index("IDX_reclamos_gen_gravedad").on(table.gravedad),
 }));
