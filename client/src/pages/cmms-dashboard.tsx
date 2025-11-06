@@ -512,6 +512,19 @@ export default function CMMSDashboard() {
                       <div className="text-xs text-muted-foreground">Programación</div>
                     </div>
                   </Button>
+
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col items-start p-4 space-y-2 bg-green-50 border-green-200 hover:bg-green-100"
+                    onClick={() => setLocation('/cmms/mantenciones-planificadas')}
+                    data-testid="button-mantenciones-planificadas"
+                  >
+                    <TrendingUp className="h-6 w-6 text-green-600" />
+                    <div className="text-left">
+                      <div className="font-semibold">Mantenciones Planificadas</div>
+                      <div className="text-xs text-muted-foreground">Proyectos grandes</div>
+                    </div>
+                  </Button>
                 </div>
               </CardContent>
             </Card>
