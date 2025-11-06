@@ -411,42 +411,6 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Alert Banner for Running ETL */}
-          {isRunning && (
-            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                <div>
-                  <p className="font-semibold text-blue-900 dark:text-blue-100">
-                    ETL en Ejecución
-                  </p>
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    Hay un proceso ETL activo. Puedes cancelarlo si es necesario.
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={handleCancel}
-                disabled={cancelMutation.isPending}
-                size="sm"
-                variant="destructive"
-                data-testid="button-cancel-etl-banner"
-              >
-                {cancelMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Cancelando...
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Cancelar Proceso
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {isRunning ? (
@@ -491,7 +455,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                 </>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button
                 onClick={() => setShowConfigDialog(true)}
                 disabled={isRunning}
@@ -502,13 +466,16 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                 <Settings className="h-4 w-4 mr-2" />
                 Configurar
               </Button>
-              {isRunning ? (
+              
+              {/* Emergency Cancel Button - Always visible when ETL is running */}
+              {isRunning && (
                 <Button
                   onClick={handleCancel}
                   disabled={cancelMutation.isPending}
                   size="lg"
                   variant="destructive"
-                  data-testid="button-cancel-etl"
+                  data-testid="button-cancel-etl-emergency"
+                  title="Cancela cualquier ETL en ejecución (manual o automático)"
                 >
                   {cancelMutation.isPending ? (
                     <>
@@ -517,12 +484,15 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                     </>
                   ) : (
                     <>
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Cancelar Proceso
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                      Cancelar ETL Bloqueado
                     </>
                   )}
                 </Button>
-              ) : (
+              )}
+              
+              {/* Execute Button - Only when NOT running */}
+              {!isRunning && (
                 <Button
                   onClick={handleExecute}
                   disabled={executeMutation.isPending}
