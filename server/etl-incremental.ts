@@ -662,7 +662,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     await db.update(etlExecutionLog)
       .set({
         status: 'success',
-        recordsProcessed: recordsProcessed,
+        recordsProcessed: newRecordsInserted, // Solo registros NUEVOS agregados
         executionTimeMs: Date.now() - startTime,
         watermarkDate: currentWatermark,
       })
@@ -688,12 +688,13 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('╔═══════════════════════════════════════════════════╗');
     console.log('║     ✅ ETL INCREMENTAL COMPLETADO                 ║');
     console.log('╚═══════════════════════════════════════════════════╝\n');
-    console.log(`📊 Registros procesados: ${recordsProcessed}`);
+    console.log(`📊 Registros procesados del staging: ${recordsProcessed}`);
+    console.log(`✨ Registros nuevos agregados: ${newRecordsInserted}`);
     console.log(`⏱️  Tiempo de ejecución: ${((Date.now() - startTime) / 1000).toFixed(2)}s\n`);
 
     return {
       success: true,
-      recordsProcessed,
+      recordsProcessed: newRecordsInserted, // Retornar solo registros nuevos
       executionTimeMs: Date.now() - startTime,
       period: periodLabel,
       watermarkDate: currentWatermark,
