@@ -46,6 +46,7 @@ import CMmsProveedores from "@/pages/cmms-proveedores";
 import CMmsPresupuesto from "@/pages/cmms-presupuesto";
 import CMmsGastosMateriales from "@/pages/cmms-gastos-materiales";
 import CMmsPlanesPreventivos from "@/pages/cmms-planes-preventivos";
+import CmmsMantencionesPlanificadas from "@/pages/cmms-mantenciones-planificadas";
 import CMmsCalendario from "@/pages/cmms-calendario";
 import ApiKeysPage from "@/pages/api-keys";
 import Marketing from "@/pages/marketing";
@@ -221,6 +222,14 @@ function Router() {
                 return null;
               }
               return <CMmsPlanesPreventivos />;
+            }} />
+            <Route path="/cmms/mantenciones-planificadas" component={() => {
+              // Solo admin, supervisor y produccion pueden acceder a mantenciones planificadas
+              if (!user?.role || !['admin', 'supervisor', 'produccion'].includes(user.role)) {
+                window.location.replace('/');
+                return null;
+              }
+              return <CmmsMantencionesPlanificadas />;
             }} />
             <Route path="/cmms/calendario" component={() => {
               // Solo admin, supervisor y produccion pueden acceder al calendario
