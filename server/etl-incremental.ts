@@ -177,6 +177,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
   const sucursales = ['004', '006', '007'];
   let timeoutHandle: NodeJS.Timeout | null = null;
   let timedOut = false;
+  let executionLogId: string | null = null; // ID del registro de ejecución
 
   try {
     // 🔒 LOCK: Verificar si ya hay una ejecución en curso
@@ -283,6 +284,9 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       branches: sucursales.join(','),
       watermarkDate: currentWatermark,
     }).returning();
+    
+    // Guardar ID para usarlo en el catch block si hay error
+    executionLogId = executionLog.id;
 
     // Limpiar tablas staging
     console.log('🧹 Limpiando tablas staging...');
@@ -788,18 +792,30 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       clearTimeout(timeoutHandle);
     }
     
-    // Registrar error en el log (solo si no fue timeout)
+    // Actualizar el registro existente con el error (NO insertar uno nuevo)
     if (!timedOut) {
       try {
-        await db.insert(etlExecutionLog).values({
-          etlName,
-          status: 'error',
-          period: 'incremental',
-          documentTypes: tiposDoc.join(','),
-          branches: sucursales.join(','),
-          executionTimeMs,
-          errorMessage: error.message,
-        });
+        if (executionLogId) {
+          // Actualizar el registro existente con status 'error' usando el ID guardado
+          await db.update(etlExecutionLog)
+            .set({
+              status: 'error',
+              executionTimeMs,
+              errorMessage: error.message,
+            })
+            .where(sql`id = ${executionLogId}`);
+        } else {
+          // Si no tenemos el ID (error antes de insertar el log), crear uno nuevo
+          await db.insert(etlExecutionLog).values({
+            etlName,
+            status: 'error',
+            period: 'incremental',
+            documentTypes: tiposDoc.join(','),
+            branches: sucursales.join(','),
+            executionTimeMs,
+            errorMessage: error.message,
+          });
+        }
       } catch (logError) {
         console.error('Error registrando fallo:', logError);
       }
