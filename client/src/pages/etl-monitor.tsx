@@ -376,14 +376,8 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   };
 
   const handleCancel = () => {
-    if (!status?.isRunning) {
-      toast({
-        title: "No hay proceso en ejecución",
-        description: "No hay ningún proceso ETL en ejecución para cancelar.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Note: This function is only called when the cancel button is visible,
+    // which already checks isRunning, so we can just execute the cancellation
     cancelMutation.mutate();
   };
 
@@ -474,7 +468,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                   disabled={cancelMutation.isPending}
                   size="lg"
                   variant="destructive"
-                  data-testid="button-cancel-etl-emergency"
+                  data-testid="button-cancel-etl"
                   title="Cancela cualquier ETL en ejecución (manual o automático)"
                 >
                   {cancelMutation.isPending ? (
