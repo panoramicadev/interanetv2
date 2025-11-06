@@ -83,8 +83,12 @@ export default function CMMSDashboard() {
   const [area, setArea] = useState<string>("all");
 
   // Generate start and end dates for the selected period
-  const startDate = `${anio}-${mes.padStart(2, '0')}-01`;
-  const endDate = `${anio}-${mes.padStart(2, '0')}-${new Date(parseInt(anio), parseInt(mes), 0).getDate()}`;
+  const startDate = mes === 'all' 
+    ? `${anio}-01-01` 
+    : `${anio}-${mes.padStart(2, '0')}-01`;
+  const endDate = mes === 'all' 
+    ? `${anio}-12-31` 
+    : `${anio}-${mes.padStart(2, '0')}-${new Date(parseInt(anio), parseInt(mes), 0).getDate()}`;
 
   // Fetch CMMS metrics
   const { data: metrics, isLoading } = useQuery<CMMSMetrics>({
@@ -218,72 +222,72 @@ export default function CMMSDashboard() {
 
         {/* Acciones Rápidas */}
         <Card>
-          <CardHeader>
-            <CardTitle>Acciones Rápidas</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Acciones Rápidas</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <CardContent className="pb-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               <Button
                 variant="outline"
-                className="h-auto flex-col items-start p-4 space-y-2"
+                className="h-auto flex-col items-start p-3 space-y-1"
                 onClick={() => setLocation('/cmms/equipos')}
                 data-testid="button-equipos"
               >
-                <Wrench className="h-6 w-6" />
+                <Wrench className="h-5 w-5" />
                 <div className="text-left">
-                  <div className="font-semibold">Equipos Críticos</div>
+                  <div className="text-sm font-semibold">Equipos Críticos</div>
                   <div className="text-xs text-muted-foreground">Gestionar equipos</div>
                 </div>
               </Button>
 
               <Button
                 variant="outline"
-                className="h-auto flex-col items-start p-4 space-y-2"
+                className="h-auto flex-col items-start p-3 space-y-1"
                 onClick={() => setLocation('/cmms/proveedores')}
                 data-testid="button-proveedores"
               >
-                <Users className="h-6 w-6" />
+                <Users className="h-5 w-5" />
                 <div className="text-left">
-                  <div className="font-semibold">Proveedores</div>
+                  <div className="text-sm font-semibold">Proveedores</div>
                   <div className="text-xs text-muted-foreground">Gestionar proveedores</div>
                 </div>
               </Button>
 
               <Button
                 variant="outline"
-                className="h-auto flex-col items-start p-4 space-y-2"
+                className="h-auto flex-col items-start p-3 space-y-1"
                 onClick={() => setLocation('/cmms/presupuesto')}
                 data-testid="button-presupuesto"
               >
-                <DollarSign className="h-6 w-6" />
+                <DollarSign className="h-5 w-5" />
                 <div className="text-left">
-                  <div className="font-semibold">Presupuesto</div>
+                  <div className="text-sm font-semibold">Presupuesto</div>
                   <div className="text-xs text-muted-foreground">Administrar presupuesto</div>
                 </div>
               </Button>
 
               <Button
                 variant="outline"
-                className="h-auto flex-col items-start p-4 space-y-2"
+                className="h-auto flex-col items-start p-3 space-y-1"
                 onClick={() => setLocation('/cmms/planes-preventivos')}
                 data-testid="button-planes"
               >
-                <Calendar className="h-6 w-6" />
+                <Calendar className="h-5 w-5" />
                 <div className="text-left">
-                  <div className="font-semibold">Planes Preventivos</div>
+                  <div className="text-sm font-semibold">Planes Preventivos</div>
                   <div className="text-xs text-muted-foreground">Programación</div>
                 </div>
               </Button>
 
               <Button
                 variant="outline"
-                className="h-auto flex-col items-start p-4 space-y-2 bg-green-50 border-green-200 hover:bg-green-100"
+                className="h-auto flex-col items-start p-3 space-y-1 bg-green-50 border-green-200 hover:bg-green-100"
                 onClick={() => setLocation('/cmms/mantenciones-planificadas')}
                 data-testid="button-mantenciones-planificadas"
               >
-                <TrendingUp className="h-6 w-6 text-green-600" />
+                <TrendingUp className="h-5 w-5 text-green-600" />
                 <div className="text-left">
-                  <div className="font-semibold">Mantenciones Planificadas</div>
+                  <div className="text-sm font-semibold">Mant. Planificadas</div>
                   <div className="text-xs text-muted-foreground">Proyectos grandes</div>
                 </div>
               </Button>
@@ -305,6 +309,7 @@ export default function CMMSDashboard() {
                     <SelectValue placeholder="Seleccionar mes" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">Todos los meses</SelectItem>
                     <SelectItem value="1">Enero</SelectItem>
                     <SelectItem value="2">Febrero</SelectItem>
                     <SelectItem value="3">Marzo</SelectItem>
@@ -412,10 +417,10 @@ export default function CMMSDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Costo Total */}
+              {/* Costo Ejecutado */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Costo Total</CardTitle>
+                  <CardTitle className="text-sm font-medium">Costo Ejecutado</CardTitle>
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
