@@ -13536,8 +13536,8 @@ export class DatabaseStorage implements IStorage {
     const planes = await db.select().from(planesPreventivos).where(eq(planesPreventivos.activo, true));
     const todosPlanes = await db.select().from(planesPreventivos);
     
-    // Obtener solo equipos PADRES (sin equipoId = componentes)
-    const equipos = await db.select().from(equiposCriticos).where(isNull(equiposCriticos.equipoId));
+    // Obtener solo equipos PADRES (sin equipoPadreId = componentes)
+    const equipos = await db.select().from(equiposCriticos).where(isNull(equiposCriticos.equipoPadreId));
     
     // Contar planes vencidos (proximaEjecucion < hoy)
     const now = new Date();
