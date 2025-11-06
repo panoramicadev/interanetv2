@@ -1239,6 +1239,19 @@ export interface IStorage {
   updatePlanPreventivo(id: string, updates: Partial<InsertPlanPreventivo>): Promise<PlanPreventivo>;
   deletePlanPreventivo(id: string): Promise<void>;
   
+  // ===== MANTENCIONES PLANIFICADAS (Proyectos grandes futuros) =====
+  createMantencionPlanificada(mantencion: InsertMantencionPlanificada): Promise<MantencionPlanificada>;
+  getMantencionesPlanificadas(filters?: {
+    anio?: number;
+    estado?: string;
+    area?: string;
+  }): Promise<MantencionPlanificada[]>;
+  getMantencionPlanificadaById(id: string): Promise<MantencionPlanificada | undefined>;
+  updateMantencionPlanificada(id: string, updates: Partial<InsertMantencionPlanificada>): Promise<MantencionPlanificada>;
+  deleteMantencionPlanificada(id: string): Promise<void>;
+  getPresupuestoEjecutadoDelMes(anio: number, mes: number, area?: string): Promise<number>;
+  getMantencionesPlanificadasDelMes(anio: number, mes: number, area?: string): Promise<MantencionPlanificada[]>;
+  
   // ===== KPIs Y DASHBOARDS CMMS =====
   getCMMSMetrics(filters?: {
     startDate?: string;
@@ -13138,6 +13151,107 @@ export class DatabaseStorage implements IStorage {
 
   async deletePlanPreventivo(id: string): Promise<void> {
     await db.delete(planesPreventivos).where(eq(planesPreventivos.id, id));
+  }
+
+  // ===== MANTENCIONES PLANIFICADAS =====
+  async createMantencionPlanificada(mantencion: InsertMantencionPlanificada): Promise<MantencionPlanificada> {
+    const [result] = await db
+      .insert(mantencionesPlanificadas)
+      .values(mantencion)
+      .returning();
+    return result;
+  }
+
+  async getMantencionesPlanificadas(filters?: {
+    anio?: number;
+    estado?: string;
+    area?: string;
+  }): Promise<MantencionPlanificada[]> {
+    let query = db.select().from(mantencionesPlanificadas);
+    
+    const conditions = [];
+    if (filters?.anio) {
+      conditions.push(eq(mantencionesPlanificadas.anio, filters.anio));
+    }
+    if (filters?.estado) {
+      conditions.push(eq(mantencionesPlanificadas.estado, filters.estado));
+    }
+    if (filters?.area) {
+      conditions.push(eq(mantencionesPlanificadas.area, filters.area));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return query.orderBy(mantencionesPlanificadas.anio, mantencionesPlanificadas.mes);
+  }
+
+  async getMantencionPlanificadaById(id: string): Promise<MantencionPlanificada | undefined> {
+    const [result] = await db
+      .select()
+      .from(mantencionesPlanificadas)
+      .where(eq(mantencionesPlanificadas.id, id));
+    return result;
+  }
+
+  async updateMantencionPlanificada(id: string, updates: Partial<InsertMantencionPlanificada>): Promise<MantencionPlanificada> {
+    const [result] = await db
+      .update(mantencionesPlanificadas)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(mantencionesPlanificadas.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteMantencionPlanificada(id: string): Promise<void> {
+    await db.delete(mantencionesPlanificadas).where(eq(mantencionesPlanificadas.id, id));
+  }
+
+  /**
+   * Calcula el presupuesto ejecutado real del mes sumando todos los gastos de materiales
+   * asociados a OTs del período
+   */
+  async getPresupuestoEjecutadoDelMes(anio: number, mes: number, area?: string): Promise<number> {
+    // Calcular rango de fechas del mes
+    const startDate = new Date(anio, mes - 1, 1);
+    const endDate = new Date(anio, mes, 0, 23, 59, 59); // Último día del mes
+    
+    const conditions = [
+      gte(gastosMaterialesMantencion.fecha, startDate),
+      lte(gastosMaterialesMantencion.fecha, endDate)
+    ];
+    
+    if (area) {
+      conditions.push(eq(gastosMaterialesMantencion.area, area));
+    }
+    
+    const result = await db
+      .select({ total: sql<string>`COALESCE(SUM(${gastosMaterialesMantencion.costoTotal}), 0)` })
+      .from(gastosMaterialesMantencion)
+      .where(and(...conditions));
+    
+    return Number(result[0]?.total || 0);
+  }
+
+  /**
+   * Obtiene mantenciones planificadas para un mes específico
+   */
+  async getMantencionesPlanificadasDelMes(anio: number, mes: number, area?: string): Promise<MantencionPlanificada[]> {
+    const conditions = [
+      eq(mantencionesPlanificadas.anio, anio),
+      eq(mantencionesPlanificadas.mes, mes)
+    ];
+    
+    if (area) {
+      conditions.push(eq(mantencionesPlanificadas.area, area));
+    }
+    
+    return db
+      .select()
+      .from(mantencionesPlanificadas)
+      .where(and(...conditions))
+      .orderBy(mantencionesPlanificadas.costoEstimado);
   }
 
   // ===== SCHEDULER AUTOMATICO PLANES PREVENTIVOS =====
