@@ -13311,10 +13311,20 @@ export class DatabaseStorage implements IStorage {
     otsPendientes: number;
     otsEnCurso: number;
     otsFinalizadas: number;
+    otsCerradas: number;
     mttr: number;
     preventivas: number;
     correctivas: number;
     costoTotal: number;
+    costoPlanificado: number;
+    costoDesviacion: number;
+    equiposCriticos: number;
+    equiposOperativos: number;
+    equiposEnMantencion: number;
+    equiposDetenidos: number;
+    proveedoresActivos: number;
+    planesPreventivosActivos: number;
+    planesVencidos: number;
   }> {
     const conditions = [];
     
@@ -13344,7 +13354,10 @@ export class DatabaseStorage implements IStorage {
       ot.estado === 'en_reparacion' || ot.estado === 'pausada'
     ).length;
     const otsFinalizadas = ots.filter(ot => 
-      ot.estado === 'resuelto' || ot.estado === 'cerrado'
+      ot.estado === 'resuelto'
+    ).length;
+    const otsCerradas = ots.filter(ot => 
+      ot.estado === 'cerrado'
     ).length;
     const preventivas = ots.filter(ot => ot.tipoMantencion === 'preventivo').length;
     const correctivas = ots.filter(ot => ot.tipoMantencion === 'correctivo').length;
@@ -13365,21 +13378,53 @@ export class DatabaseStorage implements IStorage {
       mttr = tiemposTotales.reduce((sum, t) => sum + t, 0) / otsConTiempo.length;
     }
 
-    // Calcular costo total
+    // Calcular costos
     const costoTotal = ots.reduce((sum, ot) => {
       const costo = ot.costoReal ? Number(ot.costoReal) : 0;
       return sum + costo;
     }, 0);
+    
+    const costoPlanificado = ots.reduce((sum, ot) => {
+      const costo = ot.costoEstimado ? Number(ot.costoEstimado) : 0;
+      return sum + costo;
+    }, 0);
+
+    // Obtener contadores adicionales
+    const proveedores = await db.select().from(proveedoresMantencion).where(eq(proveedoresMantencion.activo, true));
+    const planes = await db.select().from(planesPreventivos).where(eq(planesPreventivos.activo, true));
+    const todosPlanes = await db.select().from(planesPreventivos);
+    const equipos = await db.select().from(equiposCriticos);
+    
+    // Contar planes vencidos (proximaEjecucion < hoy)
+    const now = new Date();
+    const planesVencidos = todosPlanes.filter(p => 
+      p.activo && p.proximaEjecucion && new Date(p.proximaEjecucion) < now
+    ).length;
+    
+    // Contar equipos por estado
+    const equiposOperativos = equipos.filter(e => e.estado === 'operativo').length;
+    const equiposEnMantencion = equipos.filter(e => e.estado === 'en_mantenimiento').length;
+    const equiposDetenidos = equipos.filter(e => e.estado === 'fuera_de_servicio').length;
 
     return {
       totalOTs,
       otsPendientes,
       otsEnCurso,
       otsFinalizadas,
+      otsCerradas,
       mttr: Math.round(mttr * 10) / 10, // Redondear a 1 decimal
       preventivas,
       correctivas,
       costoTotal: Math.round(costoTotal),
+      costoPlanificado: Math.round(costoPlanificado),
+      costoDesviacion: Math.round(costoTotal - costoPlanificado),
+      equiposCriticos: equipos.length,
+      equiposOperativos,
+      equiposEnMantencion,
+      equiposDetenidos,
+      proveedoresActivos: proveedores.length,
+      planesPreventivosActivos: planes.length,
+      planesVencidos,
     };
   }
 
