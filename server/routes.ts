@@ -10061,11 +10061,16 @@ export function registerRoutes(app: Express): Server {
   // PATCH actualizar mantención planificada
   app.patch('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
+      console.log('[MANTENCION-UPDATE] ID:', req.params.id);
+      console.log('[MANTENCION-UPDATE] Body recibido:', JSON.stringify(req.body, null, 2));
       const validatedData = insertMantencionPlanificadaSchema.partial().parse(req.body);
+      console.log('[MANTENCION-UPDATE] Datos validados:', JSON.stringify(validatedData, null, 2));
       const mantencion = await storage.updateMantencionPlanificada(req.params.id, validatedData);
+      console.log('[MANTENCION-UPDATE] Resultado:', JSON.stringify(mantencion, null, 2));
       res.json(mantencion);
     } catch (error: any) {
       if (error.name === 'ZodError') {
+        console.error('[MANTENCION-UPDATE] Error de validación Zod:', error.errors);
         return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
       }
       console.error('Error al actualizar mantención planificada:', error);
