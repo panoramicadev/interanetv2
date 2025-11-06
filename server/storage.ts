@@ -14975,70 +14975,46 @@ export class DatabaseStorage implements IStorage {
 
         for (const row of batch) {
           try {
-            // Map SQL Server data to PostgreSQL schema
+            // Helper function to safely convert to numeric string or null
+            const toNumeric = (val: any): string | null => {
+              if (val === null || val === undefined || val === '') return null;
+              const str = String(val).trim();
+              // Check if it's a valid number
+              if (/^-?\d+(\.\d+)?$/.test(str)) return str;
+              return null; // Invalid numeric values become null
+            };
+
+            // Helper function to safely convert to boolean
+            const toBool = (val: any): boolean | null => {
+              if (val === null || val === undefined || val === '') return null;
+              if (typeof val === 'boolean') return val;
+              const str = String(val).toLowerCase();
+              if (str === 'true' || str === '1') return true;
+              if (str === 'false' || str === '0') return false;
+              return null;
+            };
+
+            // Map SQL Server data to PostgreSQL schema with correct types
             const salesRecord = {
-              nudo: row.NUDO?.toString() || '',
-              feemdo: row.FEEMDO,
+              // Primary keys - numeric
+              idmaeedo: toNumeric(row.IDMAEEDO),
+              idmaeddo: toNumeric(row.IDMAEDDO),
+              // Text fields
               tido: row.TIDO?.toString()?.trim() || null,
-              idmaeedo: row.IDMAEEDO?.toString() || null,
-              idmaeddo: row.IDMAEDDO?.toString() || null,
               endo: row.ENDO?.toString()?.trim() || null,
               suendo: row.SUENDO?.toString()?.trim() || null,
-              sudo: row.SUDO?.toString()?.trim() || null,
-              feulvedo: row.FEULVEDO || null,
               kofudo: row.KOFUDO?.toString()?.trim() || null,
               modo: row.MODO?.toString()?.trim() || null,
               timodo: row.TIMODO?.toString()?.trim() || null,
-              tamodo: row.TAMODO?.toString() || null,
-              caprad: row.CAPRAD?.toString() || null,
-              caprex: row.CAPREX?.toString() || null,
-              vanedo: row.VANEDO?.toString() || null,
-              vaivdo: row.VAIVDO?.toString() || null,
-              vabrdo: row.VABRDO?.toString() || null,
               lilg: row.LILG?.toString()?.trim() || null,
-              nulido: row.NULIDO?.toString()?.trim() || null,
-              sulido: row.SULIDO?.toString()?.trim() || null,
-              luvtlido: row.LUVTLIDO ? parseInt(row.LUVTLIDO) : null,
-              bosulido: row.BOSULIDO?.toString()?.trim() || null,
               kofulido: row.KOFULIDO?.toString()?.trim() || null,
-              prct: row.PRCT?.toString()?.trim() || null,
-              tict: row.TICT?.toString()?.trim() || null,
               tipr: row.TIPR?.toString()?.trim() || null,
-              nusepr: row.NUSEPR?.toString()?.trim() || null,
               koprct: row.KOPRCT?.toString()?.trim() || null,
-              udtrpr: row.UDTRPR?.toString() || null,
-              rludpr: row.RLUDPR?.toString() || null,
-              caprco1: row.CAPRCO1?.toString() || null,
-              caprad1: row.CAPRAD1?.toString() || null,
-              caprex1: row.CAPREX1?.toString() || null,
-              caprnc1: row.CAPRNC1?.toString() || null,
               ud01pr: row.UD01PR?.toString()?.trim() || null,
-              caprco2: row.CAPRCO2?.toString() || null,
-              caprad2: row.CAPRAD2?.toString() || null,
-              caprex2: row.CAPREX2?.toString() || null,
-              caprnc2: row.CAPRNC2?.toString() || null,
               ud02pr: row.UD02PR?.toString()?.trim() || null,
-              ppprne: row.PPPRNE?.toString() || null,
-              ppprbr: row.PPPRBR?.toString() || null,
-              vaneli: row.VANELI?.toString() || null,
-              vabrli: row.VABRLI?.toString() || null,
-              feemli: row.FEEMLI || null,
-              feerli: row.FEERLI || null,
-              ppprpm: row.PPPRPM?.toString() || null,
-              ppprpmifrs: row.PPPRPMIFRS?.toString() || null,
-              logistica: row.LOGISTICA?.toString() || null,
               eslido: row.ESLIDO?.toString()?.trim() || null,
-              ppprnere1: row.PPPRNERE1?.toString() || null,
-              ppprnere2: row.PPPRNERE2?.toString() || null,
-              fmpr: row.FMPR?.toString()?.trim() || null,
-              mrpr: row.MRPR?.toString()?.trim() || null,
-              zona: row.ZONA?.toString()?.trim() || null,
-              ruen: row.RUEN?.toString()?.trim() || null,
-              recaprre: row.RECAPRRE?.toString() || null,
-              pfpr: row.PFPR?.toString()?.trim() || null,
-              hfpr: row.HFPR?.toString()?.trim() || null,
-              monto: row.MONTO?.toString() || null,
               ocdo: row.OCDO?.toString()?.trim() || null,
+              // NO fields - text from JOINs
               nokoprct: row.NOKOPRCT?.toString()?.trim() || null,
               nokoen: row.NOKOEN?.toString()?.trim() || null,
               noruen: row.NORUEN?.toString()?.trim() || null,
@@ -15046,16 +15022,68 @@ export class DatabaseStorage implements IStorage {
               nokofudo: row.NOKOFUDO?.toString()?.trim() || null,
               nosudo: row.NOSUDO?.toString()?.trim() || null,
               nobosuli: row.NOBOSULI?.toString()?.trim() || null,
-              nokozo: row.NOKOZO?.toString()?.trim() || null,
-              nomrpr: row.NOMRPR?.toString()?.trim() || null,
               nofmpr: row.NOFMPR?.toString()?.trim() || null,
               nopfpr: row.NOPFPR?.toString()?.trim() || null,
               nohfpr: row.NOHFPR?.toString()?.trim() || null,
-              devol1: row.DEVOL1?.toString() || null,
-              devol2: row.DEVOL2?.toString() || null,
-              stockfis: row.STOCKFIS?.toString() || null,
-              listacost: row.LISTACOST?.toString()?.trim() || null,
-              liscosmod: row.LISCOSMOD?.toString() || null,
+              esdo: row.ESDO?.toString()?.trim() || null,
+              espgdo: row.ESPGDO?.toString()?.trim() || null,
+              // Numeric fields
+              nudo: toNumeric(row.NUDO),
+              sudo: toNumeric(row.SUDO),
+              tamodo: toNumeric(row.TAMODO),
+              caprad: toNumeric(row.CAPRAD),
+              caprex: toNumeric(row.CAPREX),
+              vanedo: toNumeric(row.VANEDO),
+              vaivdo: toNumeric(row.VAIVDO),
+              vabrdo: toNumeric(row.VABRDO),
+              nulido: toNumeric(row.NULIDO),
+              sulido: toNumeric(row.SULIDO),
+              luvtlido: toNumeric(row.LUVTLIDO),
+              bosulido: toNumeric(row.BOSULIDO),
+              tict: toNumeric(row.TICT),
+              nusepr: toNumeric(row.NUSEPR),
+              udtrpr: toNumeric(row.UDTRPR),
+              rludpr: toNumeric(row.RLUDPR),
+              caprco1: toNumeric(row.CAPRCO1),
+              caprad1: toNumeric(row.CAPRAD1),
+              caprex1: toNumeric(row.CAPREX1),
+              caprnc1: toNumeric(row.CAPRNC1),
+              caprco2: toNumeric(row.CAPRCO2),
+              caprad2: toNumeric(row.CAPRAD2),
+              caprex2: toNumeric(row.CAPREX2),
+              caprnc2: toNumeric(row.CAPRNC2),
+              ppprne: toNumeric(row.PPPRNE),
+              ppprbr: toNumeric(row.PPPRBR),
+              vaneli: toNumeric(row.VANELI),
+              vabrli: toNumeric(row.VABRLI),
+              ppprpm: toNumeric(row.PPPRPM),
+              ppprpmifrs: toNumeric(row.PPPRPMIFRS),
+              logistica: toNumeric(row.LOGISTICA),
+              ppprnere1: toNumeric(row.PPPRNERE1),
+              ppprnere2: toNumeric(row.PPPRNERE2),
+              fmpr: toNumeric(row.FMPR),
+              mrpr: toNumeric(row.MRPR),
+              zona: toNumeric(row.ZONA),
+              ruen: toNumeric(row.RUEN),
+              pfpr: toNumeric(row.PFPR),
+              hfpr: toNumeric(row.HFPR),
+              monto: toNumeric(row.MONTO),
+              nokozo: toNumeric(row.NOKOZO),
+              nomrpr: toNumeric(row.NOMRPR),
+              devol1: toNumeric(row.DEVOL1),
+              devol2: toNumeric(row.DEVOL2),
+              stockfis: toNumeric(row.STOCKFIS),
+              listacost: toNumeric(row.LISTACOST),
+              liscosmod: toNumeric(row.LISCOSMOD),
+              // Boolean fields
+              prct: toBool(row.PRCT),
+              recaprre: toBool(row.RECAPRRE),
+              // Date fields
+              feemdo: row.FEEMDO || null,
+              feulvedo: row.FEULVEDO || null,
+              feemli: row.FEEMLI || null,
+              feerli: row.FEERLI || null,
+              // Metadata
               dataSource: 'etl_sql_server',
               lastEtlSync: new Date(),
             };
