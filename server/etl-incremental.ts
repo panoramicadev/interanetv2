@@ -7,7 +7,8 @@ import {
   stgMaeen, 
   stgMaepr, 
   stgMaeven, 
-  stgTabbo, 
+  stgTabbo,
+  stgTabru, 
   stgTabpp,
   factVentas,
   etlExecutionLog,
@@ -346,7 +347,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('3️⃣  Extrayendo MAEEN (Entidades)...');
     const kofudos = [...new Set(maeedo.recordset.map(r => r.KOFUDO))];
     const maeen = await pool.request().query(`
-      SELECT KOEN, NOKOEN, RUEN, ZOEN
+      SELECT KOEN, NOKOEN, RUEN, ZOEN, KOFUEN
       FROM dbo.MAEEN
       WHERE KOEN IN (${kofudos.map(k => `'${k}'`).join(',')})
     `);
@@ -357,7 +358,9 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         koen: row.KOEN?.trim() || '',
         nokoen: row.NOKOEN?.trim() || null,
         rut: row.RUEN?.trim() || null,
+        ruen: row.RUEN?.trim() || null,
         zona: row.ZOEN?.trim() || null,
+        kofuen: row.KOFUEN?.trim() || null,
       });
     }
 
@@ -381,13 +384,13 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       });
     }
 
-    // 5. EXTRAER vendedores
+    // 5. EXTRAER vendedores (usando KOFUEN de MAEEN)
     console.log('5️⃣  Extrayendo MAEVEN (Vendedores)...');
-    const kofulidos = [...new Set(maeedo.recordset.map(r => r.KOFULIDO))];
+    const kofuens = [...new Set(maeen.recordset.map(r => r.KOFUEN).filter(k => k))];
     const maeven = await pool.request().query(`
       SELECT KOFU, NOKOFU
       FROM dbo.TABFU
-      WHERE KOFU IN (${kofulidos.map(k => `'${k}'`).join(',')})
+      WHERE KOFU IN (${kofuens.map(k => `'${k}'`).join(',')})
     `);
     console.log(`   ✅ ${maeven.recordset.length} registros encontrados`);
 
@@ -398,8 +401,25 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       });
     }
 
-    // 6. EXTRAER bodegas únicas
-    console.log('6️⃣  Extrayendo TABBO (Bodegas)...');
+    // 6. EXTRAER segmentos/rutas (usando RUEN de MAEEN)
+    console.log('6️⃣  Extrayendo TABRU (Segmentos)...');
+    const ruens = [...new Set(maeen.recordset.map(r => r.RUEN).filter(r => r))];
+    const tabru = await pool.request().query(`
+      SELECT KORU, NOKORU
+      FROM dbo.TABRU
+      WHERE KORU IN (${ruens.map(r => `'${r}'`).join(',')})
+    `);
+    console.log(`   ✅ ${tabru.recordset.length} registros encontrados`);
+
+    for (const row of tabru.recordset) {
+      await db.insert(stgTabru).values({
+        koru: row.KORU?.trim() || '',
+        nokoru: row.NOKORU?.trim() || null,
+      });
+    }
+
+    // 7. EXTRAER bodegas únicas
+    console.log('7️⃣  Extrayendo TABBO (Bodegas)...');
     const sulis = [...new Set(maeedo.recordset.map(r => r.SULI))];
     const bosulis = [...new Set(maeedo.recordset.map(r => r.BOSULIDO))];
     
@@ -419,8 +439,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       });
     }
 
-    // 7. EXTRAER propiedades de productos desde MAEPR
-    console.log('7️⃣  Extrayendo TABPP (Propiedades Productos desde MAEPR)...');
+    // 8. EXTRAER propiedades de productos desde MAEPR
+    console.log('8️⃣  Extrayendo TABPP (Propiedades Productos desde MAEPR)...');
     const tabpp = await pool.request().query(`
       SELECT DISTINCT
         pr.KOPR,
@@ -439,8 +459,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       });
     }
 
-    // 8. PROCESAR A FACT_VENTAS (UPSERT - eliminar registros antiguos e insertar nuevos)
-    console.log('8️⃣  Procesando FACT_VENTAS (UPSERT)...');
+    // 9. PROCESAR A FACT_VENTAS (UPSERT - eliminar registros antiguos e insertar nuevos)
+    console.log('9️⃣  Procesando FACT_VENTAS (UPSERT)...');
     
     // Primero eliminar registros existentes de los documentos modificados
     const idmaeddosToDelete = maeddo.recordset.map(r => cleanNumeric(r.IDMAEDDO));
@@ -540,7 +560,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         en.nokoen,
         bo.nobosuli,
         en.nokoen,
-        en.rut,
+        ru.nokoru,
         CASE WHEN pr.nomrpr ~ '^[0-9]+\.?[0-9]*$' THEN CAST(pr.nomrpr AS NUMERIC(18,6)) ELSE NULL END,
         CAST(NULL AS TEXT),
         CAST(NULL AS TEXT),
@@ -555,7 +575,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       INNER JOIN ventas.stg_maeedo ed ON dd.idmaeedo = ed.idmaeedo
       LEFT JOIN ventas.stg_maeen en ON ed.kofudo = en.koen
       LEFT JOIN ventas.stg_maepr pr ON dd.koprct = pr.kopr
-      LEFT JOIN ventas.stg_maeven ve ON ed.kofudo = ve.kofu
+      LEFT JOIN ventas.stg_maeven ve ON en.kofuen = ve.kofu
+      LEFT JOIN ventas.stg_tabru ru ON en.ruen = ru.koru
       LEFT JOIN ventas.stg_tabbo bo ON ed.suli = bo.suli AND ed.bosulido = bo.bosuli
       LEFT JOIN ventas.stg_tabpp pp ON dd.koprct = pp.kopr
     `);
@@ -563,8 +584,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     const recordsProcessed = maeddo.recordset.length;
     console.log(`   ✅ ${recordsProcessed} registros procesados\n`);
 
-    // 9. VALIDACIÓN POST-ETL: Verificar campos críticos
-    console.log('9️⃣  Validando datos críticos...');
+    // 🔍 VALIDACIÓN POST-ETL: Verificar campos críticos del dashboard
+    console.log('🔍 Validando campos críticos del dashboard...');
     const validationResult = await db.execute(sql`
       SELECT 
         COUNT(*) as total_registros,
@@ -572,29 +593,46 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         SUM(CASE WHEN feulvedo IS NULL THEN 1 ELSE 0 END) as null_feulvedo,
         SUM(CASE WHEN sudo IS NULL THEN 1 ELSE 0 END) as null_sudo,
         SUM(CASE WHEN esdo IS NULL THEN 1 ELSE 0 END) as null_esdo,
-        SUM(CASE WHEN espgdo IS NULL THEN 1 ELSE 0 END) as null_espgdo
+        SUM(CASE WHEN espgdo IS NULL THEN 1 ELSE 0 END) as null_espgdo,
+        SUM(CASE WHEN nokoen IS NULL THEN 1 ELSE 0 END) as null_nokoen,
+        SUM(CASE WHEN nokofu IS NULL THEN 1 ELSE 0 END) as null_nokofu,
+        SUM(CASE WHEN noruen IS NULL THEN 1 ELSE 0 END) as null_noruen
       FROM ventas.fact_ventas
       WHERE idmaeddo IN (${sql.raw(idmaeddosToDelete.join(','))})
     `);
 
     const validation = validationResult.rows[0];
-    const hasNulls = 
+    const hasCriticalNulls = 
+      Number(validation.null_nokoen) > 0 || 
+      Number(validation.null_nokofu) > 0 || 
+      Number(validation.null_noruen) > 0;
+
+    const hasOtherNulls = 
       Number(validation.null_feemdo) > 0 || 
       Number(validation.null_feulvedo) > 0 || 
       Number(validation.null_sudo) > 0 || 
       Number(validation.null_esdo) > 0 || 
       Number(validation.null_espgdo) > 0;
 
-    if (hasNulls) {
-      console.log('   ⚠️  ADVERTENCIA: Se encontraron campos críticos NULL:');
+    if (hasCriticalNulls) {
+      console.log('   🔴 CRÍTICO: Campos esenciales del dashboard NULL:');
+      if (Number(validation.null_nokoen) > 0) console.log(`      - nokoen (cliente): ${validation.null_nokoen} registros`);
+      if (Number(validation.null_nokofu) > 0) console.log(`      - nokofu (vendedor): ${validation.null_nokofu} registros`);
+      if (Number(validation.null_noruen) > 0) console.log(`      - noruen (segmento): ${validation.null_noruen} registros`);
+    } else {
+      console.log(`   ✅ Campos del dashboard OK: nokoen, nokofu, noruen (${validation.total_registros} registros)`);
+    }
+
+    if (hasOtherNulls) {
+      console.log('   ⚠️  Campos secundarios NULL:');
       if (Number(validation.null_feemdo) > 0) console.log(`      - feemdo: ${validation.null_feemdo} registros`);
       if (Number(validation.null_feulvedo) > 0) console.log(`      - feulvedo: ${validation.null_feulvedo} registros`);
       if (Number(validation.null_sudo) > 0) console.log(`      - sudo: ${validation.null_sudo} registros`);
       if (Number(validation.null_esdo) > 0) console.log(`      - esdo: ${validation.null_esdo} registros`);
       if (Number(validation.null_espgdo) > 0) console.log(`      - espgdo: ${validation.null_espgdo} registros`);
-    } else {
-      console.log(`   ✅ Todos los campos críticos completos (${validation.total_registros} registros validados)\n`);
     }
+    
+    console.log('');
 
     // Actualizar log de ejecución
     await db.update(etlExecutionLog)
