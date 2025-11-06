@@ -399,6 +399,26 @@ export const inventorySyncLog = pgTable("inventory_sync_log", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Sales ETL Sync Log table
+export const salesEtlSyncLog = pgTable("sales_etl_sync_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // User who triggered the sync
+  userEmail: varchar("user_email"), // Email of user for reference
+  status: varchar("status").notNull(), // 'success', 'error', 'partial'
+  syncMode: varchar("sync_mode").notNull(), // 'incremental' | 'full'
+  startDate: date("start_date"), // Start date filter
+  endDate: date("end_date"), // End date filter
+  recordsNew: integer("records_new").default(0), // New records inserted
+  recordsUpdated: integer("records_updated").default(0), // Records updated
+  totalProcessed: integer("total_processed").default(0), // Total records processed
+  duration: integer("duration"), // Sync duration in milliseconds
+  errorMessage: text("error_message"), // Error details if failed
+  summary: jsonb("summary"), // Detailed summary of changes
+  startedAt: timestamp("started_at").notNull(), // When sync started
+  completedAt: timestamp("completed_at"), // When sync completed
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Clients table - Complete structure from CSV import
 export const clients = pgTable("clients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

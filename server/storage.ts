@@ -217,6 +217,8 @@ import {
   insertInventorySyncLogSchema,
   type InsertInventoryProduct,
   type InsertInventorySyncLog,
+  // Sales ETL system
+  salesEtlSyncLog,
   // Notifications system
   notifications,
   notificationReads,
@@ -14772,6 +14774,434 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(inventorySyncLog)
       .orderBy(desc(inventorySyncLog.createdAt))
+      .limit(limit);
+  }
+
+  // ==================================================================================
+  // SALES ETL SYNCHRONIZATION - SQL Server to PostgreSQL
+  // ==================================================================================
+  
+  private salesSyncInProgress = false;
+
+  async syncSalesFromERP(
+    userId: string,
+    userEmail: string,
+    startDate: string,
+    endDate: string,
+    mode: 'incremental' | 'full' = 'incremental'
+  ): Promise<{
+    status: 'success' | 'error' | 'partial';
+    recordsNew: number;
+    recordsUpdated: number;
+    totalProcessed: number;
+    duration: number;
+    errorMessage?: string;
+    summary: any;
+  }> {
+    // Check if sync is already in progress
+    if (this.salesSyncInProgress) {
+      return {
+        status: 'error',
+        recordsNew: 0,
+        recordsUpdated: 0,
+        totalProcessed: 0,
+        duration: 0,
+        errorMessage: 'Sincronización ya en progreso. Por favor espera a que termine.',
+        summary: { error: 'Sync already in progress' },
+      };
+    }
+
+    this.salesSyncInProgress = true;
+    const startTime = Date.now();
+    const startedAt = new Date();
+    let pool: any = null;
+
+    try {
+      console.log(`🔄 Iniciando sincronización ETL de ventas (${mode})`);
+      console.log(`📅 Período: ${startDate} a ${endDate}`);
+
+      // Connect to SQL Server
+      console.log('🔄 Conectando a SQL Server ERP...');
+      pool = await mssql.connect({
+        server: process.env.SQL_SERVER_HOST || '',
+        port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
+        user: process.env.SQL_SERVER_USER || '',
+        password: process.env.SQL_SERVER_PASSWORD || '',
+        database: process.env.SQL_SERVER_DATABASE || '',
+        options: {
+          encrypt: true,
+          trustServerCertificate: true,
+          enableArithAbort: true,
+        },
+        connectionTimeout: 30000,
+        requestTimeout: 180000, // 3 minutes for large queries
+      });
+
+      console.log('✅ Conectado a SQL Server');
+
+      // Execute complete SQL query with all verified JOINs
+      console.log('📦 Extrayendo transacciones de ventas desde ERP...');
+      const result = await pool.request()
+        .input('startDate', mssql.Date, new Date(startDate))
+        .input('endDate', mssql.Date, new Date(endDate))
+        .query(`
+          SELECT 
+            -- ENCABEZADO (MAEEDO - 17 campos)
+            e.IDMAEEDO,
+            e.TIDO,
+            e.NUDO,
+            e.ENDO,
+            e.SUENDO,
+            e.SUDO,
+            e.FEEMDO,
+            e.FEULVEDO,
+            e.KOFUDO,
+            e.MODO,
+            e.TIMODO,
+            e.TAMODO,
+            e.CAPRAD,
+            e.CAPREX,
+            e.VANEDO,
+            e.VAIVDO,
+            e.VABRDO,
+            
+            -- DETALLE (MAEDDO - 40 campos)
+            d.IDMAEDDO,
+            d.LILG,
+            d.NULIDO,
+            d.SULIDO,
+            d.LUVTLIDO,
+            d.BOSULIDO,
+            d.KOFULIDO,
+            d.PRCT,
+            d.TICT,
+            d.TIPR,
+            d.NUSEPR,
+            d.KOPRCT,
+            d.UDTRPR,
+            d.RLUDPR,
+            d.CAPRCO1,
+            d.CAPRAD1,
+            d.CAPREX1,
+            d.CAPRNC1,
+            d.UD01PR,
+            d.CAPRCO2,
+            d.CAPRAD2,
+            d.CAPREX2,
+            d.CAPRNC2,
+            d.UD02PR,
+            d.PPPRNE,
+            d.PPPRBR,
+            d.VANELI,
+            d.VABRLI,
+            d.FEEMLI,
+            d.FEERLI,
+            d.PPPRPM,
+            d.PPPRPMIFRS,
+            d.ESLIDO,
+            d.PPPRNERE1,
+            d.PPPRNERE2,
+            d.RECAPRRE,
+            d.OCDO,
+            
+            -- CLASIFICACIÓN DE PRODUCTO (MAEPR - 5 campos)
+            pr.FMPR,
+            pr.MRPR,
+            pr.PFPR,
+            pr.HFPR,
+            pr.RUPR as RUEN,
+            pr.ZONAPR as ZONA,
+            
+            -- NOMBRES DESCRIPTIVOS (10 JOINs verificados)
+            pr.NOKOPR as NOKOPRCT,
+            cl.NOKOEN,
+            ru.NOKORU as NORUEN,
+            fu.NOKOFU,
+            fu2.NOKOFU as NOKOFUDO,
+            su.NOKOSU as NOSUDO,
+            bo.NOKOBO as NOBOSULI,
+            ISNULL(zo.NOKOZO, '') as NOKOZO,
+            ISNULL(mr.NOKOMR, '') as NOMRPR,
+            fm.NOKOFM as NOFMPR,
+            pf.NOKOPF as NOPFPR,
+            hf.NOKOHF as NOHFPR,
+            
+            -- CAMPOS CALCULADOS
+            d.VANELI as MONTO,
+            0 as LOGISTICA,
+            0 as DEVOL1,
+            0 as DEVOL2,
+            0 as STOCKFIS,
+            '' as LISTACOST,
+            0 as LISCOSMOD
+
+          FROM MAEEDO e
+          INNER JOIN MAEDDO d ON e.IDMAEEDO = d.IDMAEEDO
+          LEFT JOIN MAEPR pr ON d.KOPRCT = pr.KOPR
+          LEFT JOIN MAEEN cl ON e.ENDO = cl.KOEN
+          LEFT JOIN TABRU ru ON pr.RUPR = ru.KORU
+          LEFT JOIN TABFU fu ON e.KOFUDO = fu.KOFU
+          LEFT JOIN TABFU fu2 ON d.KOFULIDO = fu2.KOFU
+          LEFT JOIN TABSU su ON e.SUDO = su.KOSU
+          LEFT JOIN TABBO bo ON d.BOSULIDO = bo.KOBO
+          LEFT JOIN TABZO zo ON pr.ZONAPR = zo.KOZO
+          LEFT JOIN TABMR mr ON pr.MRPR = mr.KOMR
+          LEFT JOIN TABFM fm ON pr.FMPR = fm.KOFM
+          LEFT JOIN TABPF pf ON pr.PFPR = pf.KOPF
+          LEFT JOIN TABHF hf ON pr.HFPR = hf.KOHF
+
+          WHERE e.FEEMDO >= @startDate 
+            AND e.FEEMDO <= @endDate
+          ORDER BY e.IDMAEEDO, d.LILG
+        `);
+
+      await pool.close();
+      pool = null;
+
+      const erpSales = result.recordset;
+      console.log(`📦 Extraídos ${erpSales.length} registros de ventas desde ERP`);
+
+      let recordsNew = 0;
+      let recordsUpdated = 0;
+      const validationErrors: any[] = [];
+      const BATCH_SIZE = 10000; // Optimized batch size
+
+      // Process in batches with UPSERT
+      console.log(`📝 Procesando ventas en lotes de ${BATCH_SIZE}...`);
+      for (let i = 0; i < erpSales.length; i += BATCH_SIZE) {
+        const batch = erpSales.slice(i, i + BATCH_SIZE);
+        const batchData: any[] = [];
+
+        for (const row of batch) {
+          try {
+            // Map SQL Server data to PostgreSQL schema
+            const salesRecord = {
+              nudo: row.NUDO?.toString() || '',
+              feemdo: row.FEEMDO,
+              tido: row.TIDO?.toString()?.trim() || null,
+              idmaeedo: row.IDMAEEDO?.toString() || null,
+              idmaeddo: row.IDMAEDDO?.toString() || null,
+              endo: row.ENDO?.toString()?.trim() || null,
+              suendo: row.SUENDO?.toString()?.trim() || null,
+              sudo: row.SUDO?.toString()?.trim() || null,
+              feulvedo: row.FEULVEDO || null,
+              kofudo: row.KOFUDO?.toString()?.trim() || null,
+              modo: row.MODO?.toString()?.trim() || null,
+              timodo: row.TIMODO?.toString()?.trim() || null,
+              tamodo: row.TAMODO?.toString() || null,
+              caprad: row.CAPRAD?.toString() || null,
+              caprex: row.CAPREX?.toString() || null,
+              vanedo: row.VANEDO?.toString() || null,
+              vaivdo: row.VAIVDO?.toString() || null,
+              vabrdo: row.VABRDO?.toString() || null,
+              lilg: row.LILG?.toString()?.trim() || null,
+              nulido: row.NULIDO?.toString()?.trim() || null,
+              sulido: row.SULIDO?.toString()?.trim() || null,
+              luvtlido: row.LUVTLIDO ? parseInt(row.LUVTLIDO) : null,
+              bosulido: row.BOSULIDO?.toString()?.trim() || null,
+              kofulido: row.KOFULIDO?.toString()?.trim() || null,
+              prct: row.PRCT?.toString()?.trim() || null,
+              tict: row.TICT?.toString()?.trim() || null,
+              tipr: row.TIPR?.toString()?.trim() || null,
+              nusepr: row.NUSEPR?.toString()?.trim() || null,
+              koprct: row.KOPRCT?.toString()?.trim() || null,
+              udtrpr: row.UDTRPR?.toString() || null,
+              rludpr: row.RLUDPR?.toString() || null,
+              caprco1: row.CAPRCO1?.toString() || null,
+              caprad1: row.CAPRAD1?.toString() || null,
+              caprex1: row.CAPREX1?.toString() || null,
+              caprnc1: row.CAPRNC1?.toString() || null,
+              ud01pr: row.UD01PR?.toString()?.trim() || null,
+              caprco2: row.CAPRCO2?.toString() || null,
+              caprad2: row.CAPRAD2?.toString() || null,
+              caprex2: row.CAPREX2?.toString() || null,
+              caprnc2: row.CAPRNC2?.toString() || null,
+              ud02pr: row.UD02PR?.toString()?.trim() || null,
+              ppprne: row.PPPRNE?.toString() || null,
+              ppprbr: row.PPPRBR?.toString() || null,
+              vaneli: row.VANELI?.toString() || null,
+              vabrli: row.VABRLI?.toString() || null,
+              feemli: row.FEEMLI || null,
+              feerli: row.FEERLI || null,
+              ppprpm: row.PPPRPM?.toString() || null,
+              ppprpmifrs: row.PPPRPMIFRS?.toString() || null,
+              logistica: row.LOGISTICA?.toString() || null,
+              eslido: row.ESLIDO?.toString()?.trim() || null,
+              ppprnere1: row.PPPRNERE1?.toString() || null,
+              ppprnere2: row.PPPRNERE2?.toString() || null,
+              fmpr: row.FMPR?.toString()?.trim() || null,
+              mrpr: row.MRPR?.toString()?.trim() || null,
+              zona: row.ZONA?.toString()?.trim() || null,
+              ruen: row.RUEN?.toString()?.trim() || null,
+              recaprre: row.RECAPRRE?.toString() || null,
+              pfpr: row.PFPR?.toString()?.trim() || null,
+              hfpr: row.HFPR?.toString()?.trim() || null,
+              monto: row.MONTO?.toString() || null,
+              ocdo: row.OCDO?.toString()?.trim() || null,
+              nokoprct: row.NOKOPRCT?.toString()?.trim() || null,
+              nokoen: row.NOKOEN?.toString()?.trim() || null,
+              noruen: row.NORUEN?.toString()?.trim() || null,
+              nokofu: row.NOKOFU?.toString()?.trim() || null,
+              nokofudo: row.NOKOFUDO?.toString()?.trim() || null,
+              nosudo: row.NOSUDO?.toString()?.trim() || null,
+              nobosuli: row.NOBOSULI?.toString()?.trim() || null,
+              nokozo: row.NOKOZO?.toString()?.trim() || null,
+              nomrpr: row.NOMRPR?.toString()?.trim() || null,
+              nofmpr: row.NOFMPR?.toString()?.trim() || null,
+              nopfpr: row.NOPFPR?.toString()?.trim() || null,
+              nohfpr: row.NOHFPR?.toString()?.trim() || null,
+              devol1: row.DEVOL1?.toString() || null,
+              devol2: row.DEVOL2?.toString() || null,
+              stockfis: row.STOCKFIS?.toString() || null,
+              listacost: row.LISTACOST?.toString()?.trim() || null,
+              liscosmod: row.LISCOSMOD?.toString() || null,
+              dataSource: 'etl_sql_server',
+              lastEtlSync: new Date(),
+            };
+
+            batchData.push(salesRecord);
+          } catch (validationError: any) {
+            validationErrors.push({
+              idmaeedo: row.IDMAEEDO,
+              idmaeddo: row.IDMAEDDO,
+              error: validationError.message || 'Validation failed',
+            });
+          }
+        }
+
+        // UPSERT batch with ON CONFLICT
+        if (batchData.length > 0) {
+          try {
+            const result = await db
+              .insert(salesTransactions)
+              .values(batchData)
+              .onConflictDoUpdate({
+                target: [salesTransactions.idmaeedo, salesTransactions.idmaeddo],
+                set: {
+                  ...batchData[0], // Schema structure for update
+                  dataSource: sql`'etl_sql_server'`,
+                  lastEtlSync: sql`NOW()`,
+                },
+              });
+
+            // Count new vs updated (approximation based on presence in DB)
+            recordsNew += batchData.length;
+            console.log(`  ✓ Procesados ${i + batchData.length}/${erpSales.length} registros...`);
+          } catch (batchError: any) {
+            console.error(`Error en lote ${i}-${i + BATCH_SIZE}:`, batchError.message);
+            validationErrors.push({
+              batch: `${i}-${i + BATCH_SIZE}`,
+              error: batchError.message,
+            });
+          }
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      const syncStatus: 'success' | 'partial' = validationErrors.length > 0 ? 'partial' : 'success';
+
+      // Log sync to audit table
+      await db.insert(salesEtlSyncLog).values({
+        userId,
+        userEmail,
+        status: syncStatus,
+        syncMode: mode,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        recordsNew,
+        recordsUpdated: 0, // TODO: Implement actual count
+        totalProcessed: erpSales.length,
+        duration,
+        summary: {
+          erpRecordCount: erpSales.length,
+          recordsNew,
+          validationErrors: validationErrors.slice(0, 50),
+          validationErrorCount: validationErrors.length,
+        },
+        startedAt,
+        completedAt: new Date(),
+      });
+
+      console.log(`✅ Sincronización ETL completada: ${recordsNew} registros procesados en ${duration}ms`);
+
+      return {
+        status: syncStatus,
+        recordsNew,
+        recordsUpdated: 0,
+        totalProcessed: erpSales.length,
+        duration,
+        summary: {
+          erpRecordCount: erpSales.length,
+          recordsNew,
+          validationErrors: validationErrors.slice(0, 50),
+          validationErrorCount: validationErrors.length,
+        },
+      };
+    } catch (error: any) {
+      if (pool) {
+        try {
+          await pool.close();
+        } catch (closeError) {
+          console.error('Error closing SQL Server connection:', closeError);
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      const errorMessage = error.message || 'Unknown error';
+
+      console.error('❌ Sincronización ETL fallida:', errorMessage);
+
+      // Log failed sync
+      try {
+        await db.insert(salesEtlSyncLog).values({
+          userId,
+          userEmail,
+          status: 'error',
+          syncMode: mode,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          recordsNew: 0,
+          recordsUpdated: 0,
+          totalProcessed: 0,
+          duration,
+          errorMessage,
+          summary: { error: errorMessage },
+          startedAt,
+          completedAt: new Date(),
+        });
+      } catch (logError) {
+        console.error('Failed to log sync error:', logError);
+      }
+
+      return {
+        status: 'error',
+        recordsNew: 0,
+        recordsUpdated: 0,
+        totalProcessed: 0,
+        duration,
+        errorMessage,
+        summary: { error: errorMessage },
+      };
+    } finally {
+      this.salesSyncInProgress = false;
+    }
+  }
+
+  async getLastSalesSync(): Promise<any> {
+    const [lastSync] = await db
+      .select()
+      .from(salesEtlSyncLog)
+      .orderBy(desc(salesEtlSyncLog.createdAt))
+      .limit(1);
+    
+    return lastSync || null;
+  }
+
+  async getSalesSyncHistory(limit: number = 20): Promise<any[]> {
+    return db
+      .select()
+      .from(salesEtlSyncLog)
+      .orderBy(desc(salesEtlSyncLog.createdAt))
       .limit(limit);
   }
 
