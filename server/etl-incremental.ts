@@ -343,14 +343,18 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       });
     }
 
-    // 3. EXTRAER entidades (clientes únicos)
+    // 3. EXTRAER entidades (clientes únicos) - ENDO en MAEEDO corresponde a KOEN en MAEEN
     console.log('3️⃣  Extrayendo MAEEN (Entidades)...');
-    const kofudos = [...new Set(maeedo.recordset.map(r => r.KOFUDO))];
-    const maeen = await pool.request().query(`
-      SELECT KOEN, NOKOEN, RUEN, ZOEN, KOFUEN
-      FROM dbo.MAEEN
-      WHERE KOEN IN (${kofudos.map(k => `'${k}'`).join(',')})
-    `);
+    const endos = [...new Set(maeedo.recordset.map(r => r.ENDO).filter(e => e))];
+    let maeen = { recordset: [] };
+    
+    if (endos.length > 0) {
+      maeen = await pool.request().query(`
+        SELECT KOEN, NOKOEN, RUEN, ZOEN, KOFUEN
+        FROM dbo.MAEEN
+        WHERE KOEN IN (${endos.map(e => `'${e}'`).join(',')})
+      `);
+    }
     console.log(`   ✅ ${maeen.recordset.length} registros encontrados`);
 
     for (const row of maeen.recordset) {
@@ -581,7 +585,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         ${sql.raw(`'${currentWatermark.toISOString()}'::timestamp`)}
       FROM ventas.stg_maeddo dd
       INNER JOIN ventas.stg_maeedo ed ON dd.idmaeedo = ed.idmaeedo
-      LEFT JOIN ventas.stg_maeen en ON ed.kofudo = en.koen
+      LEFT JOIN ventas.stg_maeen en ON ed.endo = en.koen
       LEFT JOIN ventas.stg_maepr pr ON dd.koprct = pr.kopr
       LEFT JOIN ventas.stg_maeven ve ON en.kofuen = ve.kofu
       LEFT JOIN ventas.stg_tabru ru ON en.ruen = ru.koru
