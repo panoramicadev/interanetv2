@@ -10017,6 +10017,23 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // POST ejecutar scheduler de mantenimiento preventivo (TEMPORAL - SOLO PARA PRUEBAS)
+  app.post('/api/cmms/scheduler/run-preventive', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      console.log('🔧 [MANUAL] Ejecutando scheduler de mantenimiento preventivo...');
+      const otsGenerated = await storage.processPreventiveMaintenanceSchedule();
+      console.log(`✅ [MANUAL] Scheduler completado - ${otsGenerated} OTs generadas`);
+      res.json({ 
+        success: true, 
+        otsGenerated,
+        message: `Scheduler ejecutado exitosamente. ${otsGenerated} OTs generadas.`
+      });
+    } catch (error: any) {
+      console.error('Error al ejecutar scheduler:', error);
+      res.status(500).json({ message: 'Error al ejecutar scheduler', error: error.message });
+    }
+  }));
+
   // ==================================================================================
   // MARKETING MODULE routes
   // ==================================================================================
