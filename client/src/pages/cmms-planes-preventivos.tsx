@@ -49,14 +49,12 @@ import { format, differenceInDays } from "date-fns";
 interface PlanPreventivo {
   id: string;
   equipoId: string;
-  nombre: string;
+  nombrePlan: string;
   descripcion: string | null;
   frecuencia: string;
-  diasTolerancia: number;
   ultimaEjecucion: string | null;
   proximaEjecucion: string;
-  checklist: string | null;
-  horasEstimadas: string | null;
+  tareasPreventivas: string | null;
   activo: boolean;
   createdAt: string;
   updatedAt: string;
@@ -69,13 +67,11 @@ interface PlanPreventivo {
 
 const planSchema = z.object({
   equipoId: z.string().min(1, "Debe seleccionar un equipo"),
-  nombre: z.string().min(1, "El nombre es requerido"),
+  nombrePlan: z.string().min(1, "El nombre es requerido"),
   descripcion: z.string().optional(),
   frecuencia: z.enum(["semanal", "mensual", "trimestral", "semestral", "anual"]),
-  diasTolerancia: z.coerce.number().int().min(1, "Los días de tolerancia son requeridos"),
   proximaEjecucion: z.string().min(1, "La próxima ejecución es requerida"),
-  checklist: z.string().optional(),
-  horasEstimadas: z.coerce.number().optional(),
+  tareasPreventivas: z.string().optional(),
   activo: z.boolean().default(true),
 });
 
@@ -103,13 +99,11 @@ export default function CMmsPlanesPreventivos() {
     resolver: zodResolver(planSchema),
     defaultValues: {
       equipoId: "",
-      nombre: "",
+      nombrePlan: "",
       descripcion: "",
       frecuencia: "mensual",
-      diasTolerancia: 7,
       proximaEjecucion: new Date().toISOString().split('T')[0],
-      checklist: "",
-      horasEstimadas: undefined,
+      tareasPreventivas: "",
       activo: true,
     },
   });
@@ -190,13 +184,11 @@ export default function CMmsPlanesPreventivos() {
     setEditingPlan(null);
     form.reset({
       equipoId: "",
-      nombre: "",
+      nombrePlan: "",
       descripcion: "",
       frecuencia: "mensual" as const,
-      diasTolerancia: 7,
       proximaEjecucion: new Date().toISOString().split('T')[0],
-      checklist: "",
-      horasEstimadas: undefined,
+      tareasPreventivas: "",
       activo: true,
     });
     setDialogOpen(true);
@@ -206,13 +198,11 @@ export default function CMmsPlanesPreventivos() {
     setEditingPlan(plan);
     form.reset({
       equipoId: plan.equipoId,
-      nombre: plan.nombre,
+      nombrePlan: plan.nombrePlan,
       descripcion: plan.descripcion || "",
       frecuencia: plan.frecuencia as any,
-      diasTolerancia: plan.diasTolerancia,
       proximaEjecucion: plan.proximaEjecucion.split('T')[0],
-      checklist: plan.checklist || "",
-      horasEstimadas: plan.horasEstimadas ? parseFloat(plan.horasEstimadas) : undefined,
+      tareasPreventivas: plan.tareasPreventivas || "",
       activo: plan.activo,
     });
     setDialogOpen(true);
@@ -438,7 +428,7 @@ export default function CMmsPlanesPreventivos() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <div className="font-medium">{plan.nombre}</div>
+                            <div className="font-medium">{plan.nombrePlan}</div>
                             {plan.descripcion && (
                               <div className="text-xs text-muted-foreground max-w-xs truncate">
                                 {plan.descripcion}
@@ -515,15 +505,15 @@ export default function CMmsPlanesPreventivos() {
                     )}
                   />
 
-                  {/* Nombre */}
+                  {/* Nombre del Plan */}
                   <FormField
                     control={form.control}
-                    name="nombre"
+                    name="nombrePlan"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Nombre del Plan *</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Ej: Lubricación mensual" data-testid="input-nombre" />
+                          <Input {...field} placeholder="Ej: Lubricación mensual" data-testid="input-nombre-plan" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -554,21 +544,6 @@ export default function CMmsPlanesPreventivos() {
                     )}
                   />
 
-                  {/* Días Tolerancia */}
-                  <FormField
-                    control={form.control}
-                    name="diasTolerancia"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Días Tolerancia *</FormLabel>
-                        <FormControl>
-                          <Input {...field} type="number" placeholder="7" data-testid="input-dias-tolerancia" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
                   {/* Próxima Ejecución */}
                   <FormField
                     control={form.control}
@@ -578,21 +553,6 @@ export default function CMmsPlanesPreventivos() {
                         <FormLabel>Próxima Ejecución *</FormLabel>
                         <FormControl>
                           <Input {...field} type="date" data-testid="input-proxima-ejecucion" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Horas Estimadas */}
-                  <FormField
-                    control={form.control}
-                    name="horasEstimadas"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Horas Estimadas</FormLabel>
-                        <FormControl>
-                          <Input {...field} type="number" step="0.5" placeholder="2.5" data-testid="input-horas-estimadas" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -614,15 +574,15 @@ export default function CMmsPlanesPreventivos() {
                     )}
                   />
 
-                  {/* Checklist */}
+                  {/* Tareas Preventivas */}
                   <FormField
                     control={form.control}
-                    name="checklist"
+                    name="tareasPreventivas"
                     render={({ field }) => (
                       <FormItem className="md:col-span-2">
                         <FormLabel>Checklist de Tareas</FormLabel>
                         <FormControl>
-                          <Textarea {...field} placeholder="1. Revisar lubricación&#10;2. Inspeccionar rodamientos&#10;3. Verificar tensión correas" rows={4} data-testid="textarea-checklist" />
+                          <Textarea {...field} placeholder="1. Revisar lubricación&#10;2. Inspeccionar rodamientos&#10;3. Verificar tensión correas" rows={4} data-testid="textarea-tareas-preventivas" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
