@@ -900,16 +900,15 @@ function SalesSyncSection({ autoRefresh }: { autoRefresh: boolean }) {
       setIsSyncing(true);
       setSyncProgress(10);
       
-      const result = await apiRequest('/api/etl/sync-sales', {
+      const result: any = await apiRequest('/api/etl/sync-sales', {
         method: 'POST',
-        body: JSON.stringify({ startDate, endDate, mode }),
-        headers: { 'Content-Type': 'application/json' },
+        data: { startDate, endDate, mode },
       });
       
       setSyncProgress(100);
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-sales/history'] });
       queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-sales/status'] });
       
