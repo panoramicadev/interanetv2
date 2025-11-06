@@ -187,19 +187,6 @@ export default function ETLMonitor() {
 
         {ETL_CONFIGS.map((etl) => (
           <TabsContent key={etl.id} value={etl.id} className="space-y-6 mt-6">
-            {/* ETL Description Card */}
-            <Card className={`bg-gradient-to-r ${etl.color === 'green' ? 'from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800' : 'from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800'}`}>
-              <CardHeader>
-                <CardTitle className={`flex items-center gap-2 ${etl.color === 'green' ? 'text-green-900 dark:text-green-100' : 'text-blue-900 dark:text-blue-100'}`}>
-                  <Server className="h-5 w-5" />
-                  {etl.name}
-                </CardTitle>
-                <CardDescription className={etl.color === 'green' ? 'text-green-700 dark:text-green-300' : 'text-blue-700 dark:text-blue-300'}>
-                  {etl.description}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
             {/* Status Section */}
             <ETLStatusSection etlName={etl.id} autoRefresh={autoRefresh} />
 
