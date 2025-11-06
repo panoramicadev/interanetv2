@@ -1481,6 +1481,7 @@ export interface IStorage {
   
   getRunningETLExecution(etlName: string): Promise<any | undefined>;
   cancelETLExecution(executionId: string, cancelledBy: string): Promise<void>;
+  getLastSalesWatermark(): Promise<Date | null>;
 
   // ==================================================================================
   // NOTIFICATIONS operations - Sistema robusto de notificaciones internas
@@ -15728,6 +15729,17 @@ export class DatabaseStorage implements IStorage {
         execution_time_ms = EXTRACT(EPOCH FROM (${now.toISOString()}::timestamp - execution_date)) * 1000
       WHERE id = ${executionId}
     `);
+  }
+
+  async getLastSalesWatermark(): Promise<Date | null> {
+    const result = await db
+      .select({ endDate: salesEtlSyncLog.endDate })
+      .from(salesEtlSyncLog)
+      .where(eq(salesEtlSyncLog.status, 'success'))
+      .orderBy(desc(salesEtlSyncLog.completedAt))
+      .limit(1);
+    
+    return result[0]?.endDate || null;
   }
 
   // ==================================================================================
