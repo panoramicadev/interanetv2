@@ -13219,13 +13219,22 @@ export class DatabaseStorage implements IStorage {
       const systemUser = await db.select().from(users).where(eq(users.role, 'admin')).limit(1);
       const systemUserId = systemUser[0]?.id || plan.creadoPorId;
       
+      // Preparar descripción con checklist completo
+      const checklistText = plan.tareasPreventivas 
+        ? `\n\n📋 CHECKLIST DE TAREAS:\n${plan.tareasPreventivas}`
+        : '\n\n📋 Ver plan preventivo para detalles de las tareas';
+      
+      const descripcionText = plan.descripcion 
+        ? `\n\nDescripción: ${plan.descripcion}`
+        : '';
+      
       const nuevaMantencion: InsertSolicitudMantencion = {
         equipoNombre: equipoData.nombre,
         equipoCodigo: equipoData.codigo || undefined,
         equipoId: equipoData.id,
         area: equipoData.area || 'produccion',
         ubicacion: equipoData.ubicacionEspecifica || undefined,
-        descripcionProblema: `Mantención Preventiva Programada: ${plan.nombrePlan}\n\nTareas:\n${plan.tareasPreventivas || 'Ver plan preventivo para detalles'}`,
+        descripcionProblema: `🔧 MANTENCIÓN PREVENTIVA PROGRAMADA\n\nPlan: ${plan.nombrePlan}${descripcionText}${checklistText}`,
         tipoMantencion: 'preventivo',
         gravedad: 'media', // Preventivas suelen ser prioridad media
         prioridad: 'media',
