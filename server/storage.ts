@@ -14964,7 +14964,7 @@ export class DatabaseStorage implements IStorage {
       let recordsNew = 0;
       let recordsUpdated = 0;
       const validationErrors: any[] = [];
-      const BATCH_SIZE = 10000; // Optimized batch size
+      const BATCH_SIZE = 1000; // Reduced batch size to avoid stack overflow
 
       // Process in batches with UPSERT
       console.log(`📝 Procesando ventas en lotes de ${BATCH_SIZE}...`);
@@ -15069,24 +15069,23 @@ export class DatabaseStorage implements IStorage {
           }
         }
 
-        // UPSERT batch with ON CONFLICT
+        // UPSERT batch - process each record individually for reliability
         if (batchData.length > 0) {
           try {
-            const result = await db
-              .insert(salesTransactions)
-              .values(batchData)
-              .onConflictDoUpdate({
-                target: [salesTransactions.idmaeedo, salesTransactions.idmaeddo],
-                set: {
-                  ...batchData[0], // Schema structure for update
-                  dataSource: sql`'etl_sql_server'`,
-                  lastEtlSync: sql`NOW()`,
-                },
-              });
+            for (const record of batchData) {
+              await db
+                .insert(factVentas)
+                .values(record as any)
+                .onConflictDoUpdate({
+                  target: [factVentas.idmaeedo, factVentas.idmaeddo],
+                  set: record as any,
+                });
+            }
 
-            // Count new vs updated (approximation based on presence in DB)
             recordsNew += batchData.length;
-            console.log(`  ✓ Procesados ${i + batchData.length}/${erpSales.length} registros...`);
+            if ((i + batchData.length) % 5000 === 0 || i + batchData.length === erpSales.length) {
+              console.log(`  ✓ Procesados ${i + batchData.length}/${erpSales.length} registros...`);
+            }
           } catch (batchError: any) {
             console.error(`Error en lote ${i}-${i + BATCH_SIZE}:`, batchError.message);
             validationErrors.push({
