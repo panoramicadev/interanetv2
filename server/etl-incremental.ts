@@ -299,6 +299,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('1️⃣  Extrayendo MAEEDO (Encabezados por fecha de emisión)...');
     const startDateSQL = lastWatermark.toISOString().split('T')[0];
     const endDateSQL = currentWatermark.toISOString().split('T')[0];
+    const startYear = lastWatermark.getFullYear();
     
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
@@ -307,7 +308,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
     console.log(`🔍 FEEMDO >= '${startDateSQL}' (Fecha de emisión del documento)`);
     console.log(`🔍 FEEMDO <= '${endDateSQL}' (Fecha de emisión del documento)`);
-    console.log(`🔍 YEAR(FEEMDO) >= 2024`);
+    console.log(`🔍 YEAR(FEEMDO) >= ${startYear} (dinámico según watermark)`);
     console.log('');
     
     const maeedo = await pool.request().query(`
@@ -315,7 +316,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       FROM dbo.MAEEDO
       WHERE TIDO IN (${tiposDoc.map(t => `'${t}'`).join(',')})
         AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-        AND YEAR(FEEMDO) >= 2024
+        AND YEAR(FEEMDO) >= ${startYear}
         AND FEEMDO >= '${startDateSQL}'
         AND FEEMDO <= '${endDateSQL}'
       ORDER BY FEEMDO
