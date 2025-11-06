@@ -4289,7 +4289,7 @@ export const etlExecutionLog = ventasSchema.table("etl_execution_log", {
 export type EtlExecutionLog = typeof etlExecutionLog.$inferSelect;
 export type InsertEtlExecutionLog = typeof etlExecutionLog.$inferInsert;
 
-// ===== TABLA FINAL: FACT_VENTAS (79 columnas) =====
+// ===== TABLA FINAL: FACT_VENTAS (84 columnas - incluye campos de control) =====
 export const factVentas = ventasSchema.table("fact_ventas", {
   idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(),
   idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }),
@@ -4372,12 +4372,25 @@ export const factVentas = ventasSchema.table("fact_ventas", {
   stockfis: numeric("stockfis", { precision: 20, scale: 0 }),
   listacost: numeric("listacost", { precision: 18, scale: 6 }),
   liscosmod: numeric("liscosmod", { precision: 20, scale: 0 }),
+  
+  // ETL control fields - for compatibility with sales_transactions
+  id: varchar("id").notNull().default(sql`gen_random_uuid()`).unique(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  dataSource: varchar("data_source", { length: 20 }).notNull().default('etl_sql_server'),
+  lastEtlSync: timestamp("last_etl_sync"),
 }, (table) => ({
   ixFeemli: index("ix_fact_ventas_feemli_id").on(table.feemli, table.idmaeedo, table.idmaeddo),
   ixCliente: index("ix_fact_ventas_cliente").on(table.endo),
   ixProducto: index("ix_fact_ventas_producto").on(table.koprct),
   ixVendedor: index("ix_fact_ventas_vendedor").on(table.kofudo),
   ixBodega: index("ix_fact_ventas_bodega").on(table.bosulido),
+  // Additional indexes for query optimization
+  ixFeemdo: index("ix_fact_ventas_feemdo").on(table.feemdo),
+  ixNokoen: index("ix_fact_ventas_nokoen").on(table.nokoen),
+  ixNoruen: index("ix_fact_ventas_noruen").on(table.noruen),
+  ixNokofu: index("ix_fact_ventas_nokofu").on(table.nokofu),
+  ixDataSource: index("ix_fact_ventas_data_source").on(table.dataSource),
 }));
 
 // Types para fact_ventas
