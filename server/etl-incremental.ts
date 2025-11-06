@@ -73,6 +73,9 @@ async function batchInsert<T>(table: any, records: T[], batchSize: number = 1000
   if (records.length === 0) return 0;
   
   let inserted = 0;
+  let failedCount = 0;
+  const errors: string[] = [];
+  
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize);
     try {
@@ -82,18 +85,29 @@ async function batchInsert<T>(table: any, records: T[], batchSize: number = 1000
       // Si falla un batch grande, intentar con batches más pequeños
       console.warn(`⚠️  Error en batch de ${batch.length} registros. Intentando con batches más pequeños...`);
       const smallerBatchSize = Math.max(100, Math.floor(batchSize / 10));
+      
       for (let j = 0; j < batch.length; j += smallerBatchSize) {
         const smallBatch = batch.slice(j, j + smallerBatchSize);
         try {
           await db.insert(table).values(smallBatch).onConflictDoNothing();
           inserted += smallBatch.length;
         } catch (smallError: any) {
-          console.error(`❌ Error insertando batch pequeño (${smallBatch.length} registros):`, smallError.message);
-          // Continuar con el siguiente batch en lugar de fallar completamente
+          const errorMsg = `Error insertando batch pequeño (${smallBatch.length} registros): ${smallError.message}`;
+          console.error(`❌ ${errorMsg}`);
+          errors.push(errorMsg);
+          failedCount += smallBatch.length;
+          // Propagar el error para que el ETL falle en lugar de perder datos silenciosamente
+          throw new Error(`Batch insert failed: ${failedCount} registros fallaron. Errores: ${errors.join('; ')}`);
         }
       }
     }
   }
+  
+  // Si hubo errores en el fallback, reportarlos
+  if (errors.length > 0) {
+    console.warn(`⚠️  Fallback activado: ${errors.length} errores de batch pequeño detectados`);
+  }
+  
   return inserted;
 }
 
