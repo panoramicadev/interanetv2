@@ -14901,7 +14901,6 @@ export class DatabaseStorage implements IStorage {
             d.ESLIDO,
             d.PPPRNERE1,
             d.PPPRNERE2,
-            d.RECAPRRE,
             
             -- CLASIFICACIÓN DE PRODUCTO (MAEPR - 5 campos)
             pr.FMPR,
@@ -14933,7 +14932,8 @@ export class DatabaseStorage implements IStorage {
             0 as STOCKFIS,
             '' as LISTACOST,
             0 as LISCOSMOD,
-            '' as OCDO
+            '' as OCDO,
+            '' as RECAPRRE
 
           FROM MAEEDO e
           INNER JOIN MAEDDO d ON e.IDMAEEDO = d.IDMAEEDO
