@@ -193,11 +193,11 @@ app.use((req, res, next) => {
       console.error('Failed to initialize low stock scheduler:', error.message);
     }
 
-    // Start preventive maintenance scheduler (runs every hour)
+    // Start preventive maintenance scheduler (runs daily at 6 AM)
     try {
-      const PREVENTIVE_MAINTENANCE_INTERVAL = 60 * 60 * 1000; // 1 hour
+      const PREVENTIVE_MAINTENANCE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
       
-      log('🔧 Preventive maintenance scheduler initialized (runs every hour)');
+      log('🔧 Preventive maintenance scheduler initialized (runs daily)');
       
       // Run on startup after 2.5 minutes (give the app time to fully initialize)
       setTimeout(async () => {
@@ -210,7 +210,7 @@ app.use((req, res, next) => {
         }
       }, 150000);
       
-      // Run every hour
+      // Run daily (every 24 hours)
       setInterval(async () => {
         try {
           log('🔧 Running scheduled preventive maintenance check...');
