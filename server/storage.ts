@@ -1264,11 +1264,24 @@ export interface IStorage {
     totalOTs: number;
     otsPendientes: number;
     otsEnCurso: number;
+    otsPausadas: number;
     otsFinalizadas: number;
-    mttr: number; // Mean Time To Repair
+    mttr: number;
     preventivas: number;
     correctivas: number;
     costoTotal: number;
+    costoPlanificado: number;
+    costoDesviacion: number;
+    equiposCriticos: number;
+    equiposOperativos: number;
+    equiposEnMantencion: number;
+    equiposDetenidos: number;
+    proveedoresActivos: number;
+    planesPreventivosActivos: number;
+    planesVencidos: number;
+    mantencionesPlanificadasTotal: number;
+    mantencionesPlanificadasAprobadas: number;
+    mantencionesPlanificadasCosto: number;
   }>;
 
   // ==================================================================================
@@ -13436,8 +13449,8 @@ export class DatabaseStorage implements IStorage {
     totalOTs: number;
     otsPendientes: number;
     otsEnCurso: number;
+    otsPausadas: number;
     otsFinalizadas: number;
-    otsCerradas: number;
     mttr: number;
     preventivas: number;
     correctivas: number;
@@ -13451,6 +13464,9 @@ export class DatabaseStorage implements IStorage {
     proveedoresActivos: number;
     planesPreventivosActivos: number;
     planesVencidos: number;
+    mantencionesPlanificadasTotal: number;
+    mantencionesPlanificadasAprobadas: number;
+    mantencionesPlanificadasCosto: number;
   }> {
     const conditions = [];
     
@@ -13477,13 +13493,13 @@ export class DatabaseStorage implements IStorage {
       ot.estado === 'pendiente' || ot.estado === 'registrado' || ot.estado === 'programada'
     ).length;
     const otsEnCurso = ots.filter(ot => 
-      ot.estado === 'en_reparacion' || ot.estado === 'pausada'
+      ot.estado === 'en_reparacion'
+    ).length;
+    const otsPausadas = ots.filter(ot => 
+      ot.estado === 'pausada'
     ).length;
     const otsFinalizadas = ots.filter(ot => 
-      ot.estado === 'resuelto'
-    ).length;
-    const otsCerradas = ots.filter(ot => 
-      ot.estado === 'cerrado'
+      ot.estado === 'resuelto' || ot.estado === 'cerrado'
     ).length;
     const preventivas = ots.filter(ot => ot.tipoMantencion === 'preventivo').length;
     const correctivas = ots.filter(ot => ot.tipoMantencion === 'correctivo').length;
@@ -13519,7 +13535,9 @@ export class DatabaseStorage implements IStorage {
     const proveedores = await db.select().from(proveedoresMantencion).where(eq(proveedoresMantencion.activo, true));
     const planes = await db.select().from(planesPreventivos).where(eq(planesPreventivos.activo, true));
     const todosPlanes = await db.select().from(planesPreventivos);
-    const equipos = await db.select().from(equiposCriticos);
+    
+    // Obtener solo equipos PADRES (sin equipoId = componentes)
+    const equipos = await db.select().from(equiposCriticos).where(isNull(equiposCriticos.equipoId));
     
     // Contar planes vencidos (proximaEjecucion < hoy)
     const now = new Date();
@@ -13527,17 +13545,55 @@ export class DatabaseStorage implements IStorage {
       p.activo && p.proximaEjecucion && new Date(p.proximaEjecucion) < now
     ).length;
     
-    // Contar equipos por estado
-    const equiposOperativos = equipos.filter(e => e.estado === 'operativo').length;
-    const equiposEnMantencion = equipos.filter(e => e.estado === 'en_mantenimiento').length;
-    const equiposDetenidos = equipos.filter(e => e.estado === 'fuera_de_servicio').length;
+    // Obtener OTs activas (pendientes, en curso, pausadas) para vincular con equipos
+    const otsActivas = await db.select()
+      .from(solicitudesMantencion)
+      .where(
+        and(
+          inArray(solicitudesMantencion.estado, ['pendiente', 'registrado', 'programada', 'en_reparacion', 'pausada']),
+          isNotNull(solicitudesMantencion.equipoId)
+        )
+      );
+    
+    // Crear set de IDs de equipos con OTs activas
+    const equiposConOTsActivas = new Set(otsActivas.map(ot => ot.equipoId).filter(Boolean));
+    
+    // Clasificar equipos
+    let equiposOperativos = 0;
+    let equiposEnMantencion = 0;
+    let equiposDetenidos = 0;
+    
+    for (const equipo of equipos) {
+      if (equipo.estado === 'fuera_de_servicio') {
+        equiposDetenidos++;
+      } else if (equiposConOTsActivas.has(equipo.id)) {
+        equiposEnMantencion++;
+      } else {
+        equiposOperativos++;
+      }
+    }
+
+    // Obtener métricas de mantenciones planificadas del año actual
+    const currentYear = new Date().getFullYear();
+    const mantencionesConditions: any[] = [eq(mantencionesPlanificadas.anio, currentYear)];
+    if (filters?.area) {
+      mantencionesConditions.push(eq(mantencionesPlanificadas.area, filters.area));
+    }
+    
+    const mantencionesPlan = await db.select()
+      .from(mantencionesPlanificadas)
+      .where(and(...mantencionesConditions));
+    
+    const mantPlanTotal = mantencionesPlan.length;
+    const mantPlanAprobadas = mantencionesPlan.filter(m => m.estado === 'aprobado').length;
+    const mantPlanCosto = mantencionesPlan.reduce((sum, m) => sum + Number(m.costoEstimado), 0);
 
     return {
       totalOTs,
       otsPendientes,
       otsEnCurso,
+      otsPausadas,
       otsFinalizadas,
-      otsCerradas,
       mttr: Math.round(mttr * 10) / 10, // Redondear a 1 decimal
       preventivas,
       correctivas,
@@ -13551,6 +13607,9 @@ export class DatabaseStorage implements IStorage {
       proveedoresActivos: proveedores.length,
       planesPreventivosActivos: planes.length,
       planesVencidos,
+      mantencionesPlanificadasTotal: mantPlanTotal,
+      mantencionesPlanificadasAprobadas: mantPlanAprobadas,
+      mantencionesPlanificadasCosto: Math.round(mantPlanCosto),
     };
   }
 
