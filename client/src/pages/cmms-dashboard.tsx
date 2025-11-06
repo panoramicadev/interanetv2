@@ -53,8 +53,8 @@ interface CMMSMetrics {
   totalOTs: number;
   otsPendientes: number;
   otsEnCurso: number;
+  otsPausadas: number;
   otsFinalizadas: number;
-  otsCerradas: number;
   preventivas: number;
   correctivas: number;
   mttr: number;
@@ -68,6 +68,9 @@ interface CMMSMetrics {
   proveedoresActivos: number;
   planesPreventivosActivos: number;
   planesVencidos: number;
+  mantencionesPlanificadasTotal: number;
+  mantencionesPlanificadasAprobadas: number;
+  mantencionesPlanificadasCosto: number;
 }
 
 export default function CMMSDashboard() {
@@ -118,20 +121,20 @@ export default function CMMSDashboard() {
 
   // Chart: OTs por Estado
   const estadoChartData = {
-    labels: ['Pendientes', 'En Curso', 'Finalizadas', 'Cerradas'],
+    labels: ['Pendientes', 'En Curso', 'Finalizadas', 'Pausadas'],
     datasets: [{
       label: 'Órdenes de Trabajo',
       data: [
         metrics?.otsPendientes || 0,
         metrics?.otsEnCurso || 0,
         metrics?.otsFinalizadas || 0,
-        metrics?.otsCerradas || 0,
+        metrics?.otsPausadas || 0,
       ],
       backgroundColor: [
         'rgba(251, 146, 60, 0.8)',
         'rgba(59, 130, 246, 0.8)',
         'rgba(34, 197, 94, 0.8)',
-        'rgba(148, 163, 184, 0.8)',
+        'rgba(234, 179, 8, 0.8)',
       ],
     }]
   };
@@ -213,6 +216,81 @@ export default function CMMSDashboard() {
           </div>
         </div>
 
+        {/* Acciones Rápidas */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Acciones Rápidas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Button
+                variant="outline"
+                className="h-auto flex-col items-start p-4 space-y-2"
+                onClick={() => setLocation('/cmms/equipos')}
+                data-testid="button-equipos"
+              >
+                <Wrench className="h-6 w-6" />
+                <div className="text-left">
+                  <div className="font-semibold">Equipos Críticos</div>
+                  <div className="text-xs text-muted-foreground">Gestionar equipos</div>
+                </div>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto flex-col items-start p-4 space-y-2"
+                onClick={() => setLocation('/cmms/proveedores')}
+                data-testid="button-proveedores"
+              >
+                <Users className="h-6 w-6" />
+                <div className="text-left">
+                  <div className="font-semibold">Proveedores</div>
+                  <div className="text-xs text-muted-foreground">Gestionar proveedores</div>
+                </div>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto flex-col items-start p-4 space-y-2"
+                onClick={() => setLocation('/cmms/presupuesto')}
+                data-testid="button-presupuesto"
+              >
+                <DollarSign className="h-6 w-6" />
+                <div className="text-left">
+                  <div className="font-semibold">Presupuesto</div>
+                  <div className="text-xs text-muted-foreground">Administrar presupuesto</div>
+                </div>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto flex-col items-start p-4 space-y-2"
+                onClick={() => setLocation('/cmms/planes-preventivos')}
+                data-testid="button-planes"
+              >
+                <Calendar className="h-6 w-6" />
+                <div className="text-left">
+                  <div className="font-semibold">Planes Preventivos</div>
+                  <div className="text-xs text-muted-foreground">Programación</div>
+                </div>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto flex-col items-start p-4 space-y-2 bg-green-50 border-green-200 hover:bg-green-100"
+                onClick={() => setLocation('/cmms/mantenciones-planificadas')}
+                data-testid="button-mantenciones-planificadas"
+              >
+                <TrendingUp className="h-6 w-6 text-green-600" />
+                <div className="text-left">
+                  <div className="font-semibold">Mantenciones Planificadas</div>
+                  <div className="text-xs text-muted-foreground">Proyectos grandes</div>
+                </div>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Filters */}
         <Card>
           <CardHeader>
@@ -287,7 +365,7 @@ export default function CMMSDashboard() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {/* Total OTs */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -413,6 +491,54 @@ export default function CMMSDashboard() {
                   </p>
                 </CardContent>
               </Card>
+
+              {/* Mant. Planificadas */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Mant. Planificadas</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600" data-testid="text-mant-planificadas">
+                    {metrics?.mantencionesPlanificadasTotal || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {metrics?.mantencionesPlanificadasAprobadas || 0} aprobadas
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Aprobadas Pendientes */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Aprobadas Pendientes</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600" data-testid="text-aprobadas-pendientes">
+                    {metrics?.mantencionesPlanificadasAprobadas || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Pendientes de ejecutar
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Costo Planificado */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Costo Planificado</CardTitle>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold" data-testid="text-costo-planificado">
+                    {formatCurrency(metrics?.mantencionesPlanificadasCosto || 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Proyectos grandes
+                  </p>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Charts */}
@@ -453,81 +579,6 @@ export default function CMMSDashboard() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Acciones Rápidas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col items-start p-4 space-y-2"
-                    onClick={() => setLocation('/cmms/equipos')}
-                    data-testid="button-equipos"
-                  >
-                    <Wrench className="h-6 w-6" />
-                    <div className="text-left">
-                      <div className="font-semibold">Equipos Críticos</div>
-                      <div className="text-xs text-muted-foreground">Gestionar equipos</div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col items-start p-4 space-y-2"
-                    onClick={() => setLocation('/cmms/proveedores')}
-                    data-testid="button-proveedores"
-                  >
-                    <Users className="h-6 w-6" />
-                    <div className="text-left">
-                      <div className="font-semibold">Proveedores</div>
-                      <div className="text-xs text-muted-foreground">Gestionar proveedores</div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col items-start p-4 space-y-2"
-                    onClick={() => setLocation('/cmms/presupuesto')}
-                    data-testid="button-presupuesto"
-                  >
-                    <DollarSign className="h-6 w-6" />
-                    <div className="text-left">
-                      <div className="font-semibold">Presupuesto</div>
-                      <div className="text-xs text-muted-foreground">Administrar presupuesto</div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col items-start p-4 space-y-2"
-                    onClick={() => setLocation('/cmms/planes-preventivos')}
-                    data-testid="button-planes"
-                  >
-                    <Calendar className="h-6 w-6" />
-                    <div className="text-left">
-                      <div className="font-semibold">Planes Preventivos</div>
-                      <div className="text-xs text-muted-foreground">Programación</div>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col items-start p-4 space-y-2 bg-green-50 border-green-200 hover:bg-green-100"
-                    onClick={() => setLocation('/cmms/mantenciones-planificadas')}
-                    data-testid="button-mantenciones-planificadas"
-                  >
-                    <TrendingUp className="h-6 w-6 text-green-600" />
-                    <div className="text-left">
-                      <div className="font-semibold">Mantenciones Planificadas</div>
-                      <div className="text-xs text-muted-foreground">Proyectos grandes</div>
-                    </div>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </>
         )}
       </div>
