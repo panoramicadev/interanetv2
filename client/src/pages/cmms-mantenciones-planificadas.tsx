@@ -326,7 +326,7 @@ export default function CmmsMantencionesPlanificadas() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setLocation('/cmms-dashboard')}
+              onClick={() => setLocation('/cmms/dashboard')}
               data-testid="button-back"
             >
               <ArrowLeft className="h-5 w-5" />
