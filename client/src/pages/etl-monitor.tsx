@@ -18,6 +18,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -40,7 +45,10 @@ import {
   Server,
   Filter,
   Settings,
-  Download
+  Download,
+  ChevronDown,
+  ChevronRight,
+  AlertCircle
 } from "lucide-react";
 import { formatDistanceToNow, format, subDays } from "date-fns";
 import { es } from "date-fns/locale";
@@ -284,11 +292,10 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
 
   // Update ETL configuration mutation
   const updateConfigMutation = useMutation({
-    mutationFn: async (data: { customWatermark?: string; timeoutMinutes?: number; intervalMinutes?: number; keepCustomWatermark?: boolean }) => {
+    mutationFn: async (configData: { customWatermark?: string; timeoutMinutes?: number; intervalMinutes?: number; keepCustomWatermark?: boolean }) => {
       return await apiRequest(`/api/etl/config?etlName=${etlName}`, {
         method: 'POST',
-        body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' },
+        data: configData,
       });
     },
     onSuccess: (data: any) => {
@@ -873,6 +880,103 @@ function ETLHistorySection({ etlName, autoRefresh }: { etlName: string; autoRefr
   );
 }
 
+// Sync History Row Component with collapsible error details
+function SyncHistoryRow({ sync, index }: { sync: any; index: number }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasError = sync.status === 'error' && sync.errorMessage;
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'success':
+        return <Badge className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" />Exitoso</Badge>;
+      case 'error':
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Error</Badge>;
+      case 'partial':
+        return <Badge className="bg-yellow-500"><Clock className="h-3 w-3 mr-1" />Parcial</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <TableRow data-testid={`row-sync-${index}`}>
+        <TableCell>
+          <div className="flex flex-col">
+            <span className="font-medium">
+              {formatDistanceToNow(new Date(sync.createdAt || sync.startedAt), {
+                addSuffix: true,
+                locale: es,
+              })}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {new Date(sync.createdAt || sync.startedAt).toLocaleString('es-CL')}
+            </span>
+          </div>
+        </TableCell>
+        <TableCell>{getStatusBadge(sync.status)}</TableCell>
+        <TableCell>
+          <Badge variant="outline" className="text-xs">
+            {sync.syncMode === 'incremental' ? 'Incremental' : 'Completo'}
+          </Badge>
+        </TableCell>
+        <TableCell className="text-sm">
+          {sync.startDate && sync.endDate 
+            ? `${format(new Date(sync.startDate), 'dd/MM/yy')} - ${format(new Date(sync.endDate), 'dd/MM/yy')}`
+            : '-'}
+        </TableCell>
+        <TableCell className="text-right font-mono">
+          {sync.recordsNew?.toLocaleString('es-CL') || '-'}
+        </TableCell>
+        <TableCell className="text-right">
+          {sync.duration 
+            ? `${(sync.duration / 1000).toFixed(2)}s`
+            : '-'}
+        </TableCell>
+        <TableCell>
+          {hasError && (
+            <CollapsibleTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="h-8 w-8 p-0"
+                data-testid={`button-toggle-error-${index}`}
+              >
+                {isOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </Button>
+            </CollapsibleTrigger>
+          )}
+        </TableCell>
+      </TableRow>
+      {hasError && (
+        <TableRow>
+          <TableCell colSpan={7} className="p-0 border-0">
+            <CollapsibleContent>
+              <div className="px-4 py-3 bg-destructive/10 border-l-4 border-destructive">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-destructive mb-1">
+                      Error de Sincronización
+                    </p>
+                    <p className="text-sm text-muted-foreground font-mono whitespace-pre-wrap break-all">
+                      {sync.errorMessage}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </TableCell>
+        </TableRow>
+      )}
+    </Collapsible>
+  );
+}
+
 // Sales Sync Section Component - Manual synchronization
 function SalesSyncSection({ autoRefresh }: { autoRefresh: boolean }) {
   const { toast } = useToast();
@@ -1138,44 +1242,12 @@ function SalesSyncSection({ autoRefresh }: { autoRefresh: boolean }) {
                     <TableHead>Período</TableHead>
                     <TableHead className="text-right">Registros</TableHead>
                     <TableHead className="text-right">Tiempo</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {syncHistory.map((sync: any, index: number) => (
-                    <TableRow key={sync.id || index} data-testid={`row-sync-${index}`}>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium">
-                            {formatDistanceToNow(new Date(sync.createdAt || sync.startedAt), {
-                              addSuffix: true,
-                              locale: es,
-                            })}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(sync.createdAt || sync.startedAt).toLocaleString('es-CL')}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(sync.status)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {sync.syncMode === 'incremental' ? 'Incremental' : 'Completo'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {sync.startDate && sync.endDate 
-                          ? `${format(new Date(sync.startDate), 'dd/MM/yy')} - ${format(new Date(sync.endDate), 'dd/MM/yy')}`
-                          : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {sync.recordsNew?.toLocaleString('es-CL') || '-'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {sync.duration 
-                          ? `${(sync.duration / 1000).toFixed(2)}s`
-                          : '-'}
-                      </TableCell>
-                    </TableRow>
+                    <SyncHistoryRow key={sync.id || index} sync={sync} index={index} />
                   ))}
                 </TableBody>
               </Table>
