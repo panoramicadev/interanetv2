@@ -212,6 +212,15 @@ export default function ETLMonitor() {
   );
 }
 
+// ETL Progress State
+interface ETLProgress {
+  step: number;
+  totalSteps: number;
+  message: string;
+  details?: string;
+  percentage: number;
+}
+
 // ETL Status Section Component
 function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefresh: boolean }) {
   const { toast } = useToast();
@@ -220,6 +229,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   const [timeoutMinutes, setTimeoutMinutes] = useState(10);
   const [intervalMinutes, setIntervalMinutes] = useState(15);
   const [keepCustomWatermark, setKeepCustomWatermark] = useState(false);
+  const [etlProgress, setEtlProgress] = useState<ETLProgress | null>(null);
 
   // Fetch ETL status
   const { data: status, isLoading } = useQuery<ETLStatus>({
@@ -228,6 +238,34 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     retry: 2, // Max 2 retries on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
   });
+
+  // Connect to ETL Progress Stream (SSE)
+  useEffect(() => {
+    if (!status?.isRunning) {
+      setEtlProgress(null);
+      return;
+    }
+
+    const eventSource = new EventSource('/api/etl/progress');
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const progress = JSON.parse(event.data) as ETLProgress;
+        setEtlProgress(progress);
+      } catch (error) {
+        console.error('Error parsing ETL progress:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('ETL Progress SSE error:', error);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [status?.isRunning]);
 
   // Execute ETL mutation
   const executeMutation = useMutation({
@@ -359,17 +397,39 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1">
               {isRunning ? (
-                <>
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                  <div>
-                    <p className="font-semibold text-lg">ETL en Ejecución</p>
-                    <p className="text-sm text-muted-foreground">
-                      Procesando datos desde SQL Server...
-                    </p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <div>
+                      <p className="font-semibold text-lg">ETL en Ejecución</p>
+                      {etlProgress ? (
+                        <p className="text-sm text-muted-foreground">
+                          {etlProgress.message} {etlProgress.details && `- ${etlProgress.details}`}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Procesando datos desde SQL Server...
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </>
+                  {/* Progress Bar */}
+                  {etlProgress && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          Paso {etlProgress.step} de {etlProgress.totalSteps}
+                        </span>
+                        <span className="font-semibold text-blue-600">
+                          {etlProgress.percentage}%
+                        </span>
+                      </div>
+                      <Progress value={etlProgress.percentage} className="h-2" />
+                    </div>
+                  )}
+                </div>
               ) : lastExecution?.status === 'success' ? (
                 <>
                   <CheckCircle className="h-8 w-8 text-green-600" />
