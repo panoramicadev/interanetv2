@@ -306,7 +306,7 @@ function getDateRange(period?: string, filterType?: string): { startDate?: strin
   };
 }
 
-import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema } from "@shared/schema";
+import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSchema, insertProductSchema, insertProductStockSchema, insertTaskSchema, insertTaskAssignmentSchema, insertOrderSchema, insertOrderItemSchema, addOrderItemSchema, updateOrderItemByIdSchema, insertPriceListSchema, insertQuoteSchema, insertQuoteItemSchema, InsertTask, insertSolicitudMantencionSchema, insertMantencionPhotoSchema, insertCrmLeadSchema, insertCrmCommentSchema, insertNotificationSchema, insertApiKeySchema, insertProyeccionVentaSchema, insertMantencionPlanificadaSchema } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
@@ -10000,6 +10000,104 @@ export function registerRoutes(app: Express): Server {
     } catch (error: any) {
       console.error('Error al eliminar plan:', error);
       res.status(500).json({ message: 'Error al eliminar plan', error: error.message });
+    }
+  }));
+
+  // ===== MANTENCIONES PLANIFICADAS =====
+
+  // GET lista de mantenciones planificadas
+  app.get('/api/cmms/mantenciones-planificadas', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const { anio, estado, area } = req.query;
+      const filters: any = {};
+      if (anio) filters.anio = parseInt(anio);
+      if (estado) filters.estado = estado;
+      if (area) filters.area = area;
+      
+      const mantenciones = await storage.getMantencionesPlanificadas(filters);
+      res.json(mantenciones);
+    } catch (error: any) {
+      console.error('Error al obtener mantenciones planificadas:', error);
+      res.status(500).json({ message: 'Error al obtener mantenciones planificadas', error: error.message });
+    }
+  }));
+
+  // GET mantención planificada por ID
+  app.get('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const mantencion = await storage.getMantencionPlanificadaById(req.params.id);
+      if (!mantencion) {
+        return res.status(404).json({ message: 'Mantención planificada no encontrada' });
+      }
+      res.json(mantencion);
+    } catch (error: any) {
+      console.error('Error al obtener mantención planificada:', error);
+      res.status(500).json({ message: 'Error al obtener mantención planificada', error: error.message });
+    }
+  }));
+
+  // POST crear mantención planificada
+  app.post('/api/cmms/mantenciones-planificadas', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      const validatedData = insertMantencionPlanificadaSchema.parse(req.body);
+      
+      const nuevaMantencion = await storage.createMantencionPlanificada({
+        ...validatedData,
+        creadoPorId: user.id,
+        creadoPorName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+      });
+      
+      res.status(201).json(nuevaMantencion);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al crear mantención planificada:', error);
+      res.status(500).json({ message: 'Error al crear mantención planificada', error: error.message });
+    }
+  }));
+
+  // PATCH actualizar mantención planificada
+  app.patch('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const validatedData = insertMantencionPlanificadaSchema.partial().parse(req.body);
+      const mantencion = await storage.updateMantencionPlanificada(req.params.id, validatedData);
+      res.json(mantencion);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
+      }
+      console.error('Error al actualizar mantención planificada:', error);
+      res.status(500).json({ message: 'Error al actualizar mantención planificada', error: error.message });
+    }
+  }));
+
+  // DELETE mantención planificada
+  app.delete('/api/cmms/mantenciones-planificadas/:id', requireAuth, requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      await storage.deleteMantencionPlanificada(req.params.id);
+      res.json({ message: 'Mantención planificada eliminada exitosamente' });
+    } catch (error: any) {
+      console.error('Error al eliminar mantención planificada:', error);
+      res.status(500).json({ message: 'Error al eliminar mantención planificada', error: error.message });
+    }
+  }));
+
+  // GET presupuesto ejecutado del mes (gastos reales de OTs)
+  app.get('/api/cmms/presupuesto-ejecutado/:anio/:mes', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const { anio, mes } = req.params;
+      const { area } = req.query;
+      const ejecutado = await storage.getPresupuestoEjecutadoDelMes(
+        parseInt(anio),
+        parseInt(mes),
+        area
+      );
+      res.json({ ejecutado });
+    } catch (error: any) {
+      console.error('Error al obtener presupuesto ejecutado:', error);
+      res.status(500).json({ message: 'Error al obtener presupuesto ejecutado', error: error.message });
     }
   }));
 
