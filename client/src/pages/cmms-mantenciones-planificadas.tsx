@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -137,6 +138,7 @@ export default function CmmsMantencionesPlanificadas() {
   const [filterArea, setFilterArea] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMantencion, setEditingMantencion] = useState<MantencionPlanificada | null>(null);
+  const [useEquipoFromCatalog, setUseEquipoFromCatalog] = useState(false);
 
   const form = useForm<MantencionFormValues>({
     resolver: zodResolver(mantencionSchema),
@@ -574,23 +576,77 @@ export default function CmmsMantencionesPlanificadas() {
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="equipoNombre"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Equipo / Sistema</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Nombre del equipo"
-                            {...field}
-                            data-testid="input-equipment"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                  <div className="col-span-2 space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="use-catalog"
+                        checked={useEquipoFromCatalog}
+                        onCheckedChange={(checked) => setUseEquipoFromCatalog(checked as boolean)}
+                        data-testid="checkbox-use-catalog"
+                      />
+                      <label
+                        htmlFor="use-catalog"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Seleccionar equipo del catálogo de equipos críticos
+                      </label>
+                    </div>
+
+                    {useEquipoFromCatalog ? (
+                      <FormField
+                        control={form.control}
+                        name="equipoId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Equipo Crítico *</FormLabel>
+                            <Select
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                                const selectedEquipo = equipos?.find((e: any) => e.id === value);
+                                if (selectedEquipo) {
+                                  form.setValue("equipoNombre", selectedEquipo.nombre);
+                                  form.setValue("area", selectedEquipo.area);
+                                }
+                              }}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger data-testid="select-equipment-catalog">
+                                  <SelectValue placeholder="Seleccione un equipo" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {equipos?.map((equipo: any) => (
+                                  <SelectItem key={equipo.id} value={equipo.id}>
+                                    {equipo.nombre} - {equipo.area}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    ) : (
+                      <FormField
+                        control={form.control}
+                        name="equipoNombre"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Equipo / Sistema *</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Nombre del equipo o sistema"
+                                {...field}
+                                data-testid="input-equipment"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     )}
-                  />
+                  </div>
 
                   <FormField
                     control={form.control}
