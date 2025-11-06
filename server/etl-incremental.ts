@@ -69,7 +69,7 @@ function emitProgress(step: number, totalSteps: number, message: string, details
 }
 
 // Función helper para batch insert
-async function batchInsert<T>(table: any, records: T[], batchSize: number = 500) {
+async function batchInsert<T>(table: any, records: T[], batchSize: number = 1000) {
   if (records.length === 0) return 0;
   
   let inserted = 0;
