@@ -190,8 +190,7 @@ export default function CmmsMantencionesPlanificadas() {
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async (data: MantencionFormValues) => {
-      return await apiRequest({
-        url: '/api/cmms/mantenciones-planificadas',
+      return await apiRequest('/api/cmms/mantenciones-planificadas', {
         method: 'POST',
         data,
       });
@@ -217,8 +216,7 @@ export default function CmmsMantencionesPlanificadas() {
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<MantencionFormValues> }) => {
-      return await apiRequest({
-        url: `/api/cmms/mantenciones-planificadas/${id}`,
+      return await apiRequest(`/api/cmms/mantenciones-planificadas/${id}`, {
         method: 'PATCH',
         data,
       });
@@ -245,8 +243,7 @@ export default function CmmsMantencionesPlanificadas() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest({
-        url: `/api/cmms/mantenciones-planificadas/${id}`,
+      return await apiRequest(`/api/cmms/mantenciones-planificadas/${id}`, {
         method: 'DELETE',
       });
     },
