@@ -428,7 +428,7 @@ export default function CMMSDashboard() {
                     {formatCurrency(metrics?.costoTotal || 0)}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Planificado: {formatCurrency(metrics?.costoPlanificado || 0)}
+                    Presupuesto: {formatCurrency(metrics?.costoPlanificado || 0)}
                   </p>
                 </CardContent>
               </Card>
