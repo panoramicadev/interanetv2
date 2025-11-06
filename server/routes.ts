@@ -11443,8 +11443,22 @@ export function registerRoutes(app: Express): Server {
     try {
       const { etlName = 'ventas_incremental' } = req.query;
       console.log(`📊 ETL manual execution requested by: ${req.user.email} for ETL: ${etlName}`);
-      const result = await executeIncrementalETL(etlName as string);
-      res.json(result);
+      
+      // Execute ETL in background (non-blocking)
+      executeIncrementalETL(etlName as string)
+        .then((result) => {
+          console.log(`✅ ETL background execution completed: ${result.recordsProcessed} records processed`);
+        })
+        .catch((error) => {
+          console.error('❌ ETL background execution error:', error);
+        });
+      
+      // Return immediately
+      res.json({ 
+        success: true, 
+        message: 'ETL iniciado en segundo plano',
+        isRunning: true
+      });
     } catch (error: any) {
       console.error('ETL execution error:', error);
       res.status(500).json({ 

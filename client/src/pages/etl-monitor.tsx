@@ -246,11 +246,17 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
       return;
     }
 
+    console.log('🔌 Conectando a SSE para progreso ETL...');
     const eventSource = new EventSource('/api/etl/progress');
+    
+    eventSource.onopen = () => {
+      console.log('✅ SSE conectado');
+    };
     
     eventSource.onmessage = (event) => {
       try {
         const progress = JSON.parse(event.data) as ETLProgress;
+        console.log('📊 Progreso recibido:', progress);
         setEtlProgress(progress);
       } catch (error) {
         console.error('Error parsing ETL progress:', error);
@@ -258,11 +264,12 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     };
 
     eventSource.onerror = (error) => {
-      console.error('ETL Progress SSE error:', error);
+      console.error('❌ ETL Progress SSE error:', error);
       eventSource.close();
     };
 
     return () => {
+      console.log('🔌 Cerrando conexión SSE');
       eventSource.close();
     };
   }, [status?.isRunning]);
@@ -275,10 +282,18 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
       });
     },
     onSuccess: (data: any) => {
-      toast({
-        title: "ETL Ejecutado",
-        description: `Se procesaron ${data.recordsProcessed || 0} registros en ${Math.round(data.executionTimeMs / 1000)}s`,
-      });
+      if (data.isRunning) {
+        toast({
+          title: "ETL Iniciado",
+          description: data.message || "El proceso ETL se está ejecutando en segundo plano",
+        });
+      } else {
+        toast({
+          title: "ETL Ejecutado",
+          description: `Se procesaron ${data.recordsProcessed || 0} registros en ${Math.round((data.executionTimeMs || 0) / 1000)}s`,
+        });
+      }
+      // Invalidate to refetch status and trigger SSE connection
       queryClient.invalidateQueries({ queryKey: [`/api/etl/status?etlName=${etlName}`] });
     },
     onError: (error: any) => {
