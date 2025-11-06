@@ -4218,7 +4218,9 @@ export const stgMaeen = ventasSchema.table("stg_maeen", {
   koen: text("koen").primaryKey(),
   nokoen: text("nokoen"),
   rut: text("rut"),
+  ruen: text("ruen"),
   zona: text("zona"),
+  kofuen: text("kofuen"),
 });
 
 // Staging: MAEPR (Productos)
@@ -4244,6 +4246,12 @@ export const stgTabbo = ventasSchema.table("stg_tabbo", {
 }, (table) => ({
   pk: primaryKey({ columns: [table.suli, table.bosuli] }),
 }));
+
+// Staging: TABRU (Segmentos/Rutas)
+export const stgTabru = ventasSchema.table("stg_tabru", {
+  koru: text("koru").primaryKey(),
+  nokoru: text("nokoru"),
+});
 
 // Staging: TABPP (Precios de productos)
 export const stgTabpp = ventasSchema.table("stg_tabpp", {
