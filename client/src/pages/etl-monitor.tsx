@@ -397,39 +397,17 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 flex-1">
+            <div className="flex items-center gap-3">
               {isRunning ? (
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                    <div>
-                      <p className="font-semibold text-lg">ETL en Ejecución</p>
-                      {etlProgress ? (
-                        <p className="text-sm text-muted-foreground">
-                          {etlProgress.message} {etlProgress.details && `- ${etlProgress.details}`}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Procesando datos desde SQL Server...
-                        </p>
-                      )}
-                    </div>
+                <>
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <div>
+                    <p className="font-semibold text-lg">ETL en Ejecución</p>
+                    <p className="text-sm text-muted-foreground">
+                      Procesando datos desde SQL Server...
+                    </p>
                   </div>
-                  {/* Progress Bar */}
-                  {etlProgress && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          Paso {etlProgress.step} de {etlProgress.totalSteps}
-                        </span>
-                        <span className="font-semibold text-blue-600">
-                          {etlProgress.percentage}%
-                        </span>
-                      </div>
-                      <Progress value={etlProgress.percentage} className="h-2" />
-                    </div>
-                  )}
-                </div>
+                </>
               ) : lastExecution?.status === 'success' ? (
                 <>
                   <CheckCircle className="h-8 w-8 text-green-600" />
@@ -557,6 +535,34 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
               <p className="text-xs text-red-800 dark:text-red-200 mt-1">
                 {lastExecution.errorMessage}
               </p>
+            </div>
+          )}
+
+          {/* Progress Bar - Shown when ETL is running */}
+          {isRunning && etlProgress && (
+            <div className="pt-4 border-t space-y-2">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                    {etlProgress.message}
+                  </p>
+                </div>
+                <span className="text-sm font-semibold text-blue-600">
+                  {etlProgress.percentage}%
+                </span>
+              </div>
+              {etlProgress.details && (
+                <p className="text-xs text-muted-foreground">
+                  {etlProgress.details}
+                </p>
+              )}
+              <div className="space-y-1">
+                <Progress value={etlProgress.percentage} className="h-2" />
+                <p className="text-xs text-muted-foreground text-right">
+                  Paso {etlProgress.step} de {etlProgress.totalSteps}
+                </p>
+              </div>
             </div>
           )}
         </CardContent>
