@@ -130,6 +130,10 @@ export const salesTransactions = pgTable("sales_transactions", {
   nobosuli: varchar("nobosuli"), // Warehouse branch name
   nomrpr: varchar("nomrpr"), // Name field
   
+  // ETL control fields
+  dataSource: varchar("data_source", { length: 20 }).default('csv'), // 'csv' | 'etl_sql_server'
+  lastEtlSync: timestamp("last_etl_sync"), // Last ETL synchronization timestamp
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
