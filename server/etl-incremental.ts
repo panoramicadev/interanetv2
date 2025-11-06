@@ -345,14 +345,14 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
 
     // 3. EXTRAER entidades (clientes únicos) - ENDO en MAEEDO corresponde a KOEN en MAEEN
     console.log('3️⃣  Extrayendo MAEEN (Entidades)...');
-    const endos = [...new Set(maeedo.recordset.map(r => r.ENDO).filter(e => e))];
+    const endos = [...new Set(maeedo.recordset.map(r => r.ENDO?.trim()).filter(e => e))];
     let maeen = { recordset: [] };
     
     if (endos.length > 0) {
       maeen = await pool.request().query(`
         SELECT KOEN, NOKOEN, RUEN, ZOEN, KOFUEN
         FROM dbo.MAEEN
-        WHERE KOEN IN (${endos.map(e => `'${e}'`).join(',')})
+        WHERE LTRIM(RTRIM(KOEN)) IN (${endos.map(e => `'${e}'`).join(',')})
       `);
     }
     console.log(`   ✅ ${maeen.recordset.length} registros encontrados`);
@@ -365,7 +365,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         ruen: row.RUEN?.trim() || null,
         zona: row.ZOEN?.trim() || null,
         kofuen: row.KOFUEN?.trim() || null,
-      });
+      }).onConflictDoNothing();
     }
 
     // 4. EXTRAER productos únicos
@@ -385,7 +385,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         ud01pr: row.UD01PR?.trim() || null,
         ud02pr: row.UD02PR?.trim() || null,
         tipr: row.TIPR?.trim() || null,
-      });
+      }).onConflictDoNothing();
     }
 
     // 5. EXTRAER vendedores (usando KOFUEN de MAEEN)
@@ -406,7 +406,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       await db.insert(stgMaeven).values({
         kofu: row.KOFU?.trim() || '',
         nokofu: row.NOKOFU?.trim() || null,
-      });
+      }).onConflictDoNothing();
     }
 
     // 6. EXTRAER segmentos/rutas (usando RUEN de MAEEN)
@@ -427,7 +427,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       await db.insert(stgTabru).values({
         koru: row.KORU?.trim() || '',
         nokoru: row.NOKORU?.trim() || null,
-      });
+      }).onConflictDoNothing();
     }
 
     // 7. EXTRAER bodegas únicas
@@ -448,7 +448,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         suli: row.EMPRESA?.trim() || '',
         bosuli: row.KOBO?.trim() || '',
         nobosuli: row.NOKOBO?.trim() || null,
-      });
+      }).onConflictDoNothing();
     }
 
     // 8. EXTRAER propiedades de productos desde MAEPR
