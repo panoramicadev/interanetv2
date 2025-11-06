@@ -14975,12 +14975,23 @@ export class DatabaseStorage implements IStorage {
 
         for (const row of batch) {
           try {
-            // Helper function to safely convert to numeric string or null
+            // Helper function to safely convert to numeric string or null (preserves precision)
             const toNumeric = (val: any): string | null => {
               if (val === null || val === undefined || val === '') return null;
+              // If already a number, convert to string
+              if (typeof val === 'number') {
+                if (isNaN(val) || !isFinite(val)) return null;
+                return String(val);
+              }
+              // Validate string is numeric
               const str = String(val).trim();
-              // Check if it's a valid number
-              if (/^-?\d+(\.\d+)?$/.test(str)) return str;
+              // Check if it's a valid number (integers or decimals, with optional negative sign)
+              if (/^-?\d+(\.\d+)?$/.test(str)) {
+                // Further validate it's parseable (not too large, etc)
+                const num = parseFloat(str);
+                if (isNaN(num) || !isFinite(num)) return null;
+                return str; // Return original string to preserve precision
+              }
               return null; // Invalid numeric values become null
             };
 
@@ -14988,7 +14999,7 @@ export class DatabaseStorage implements IStorage {
             const toBool = (val: any): boolean | null => {
               if (val === null || val === undefined || val === '') return null;
               if (typeof val === 'boolean') return val;
-              const str = String(val).toLowerCase();
+              const str = String(val).toLowerCase().trim();
               if (str === 'true' || str === '1') return true;
               if (str === 'false' || str === '0') return false;
               return null;
