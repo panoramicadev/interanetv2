@@ -597,8 +597,16 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       LEFT JOIN ventas.stg_tabpp pp ON dd.koprct = pp.kopr
     `);
 
+    // Contar filas DESPUÉS del proceso para calcular registros nuevos
+    const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
+    const rowsAfterUpsert = Number(countAfterResult.rows[0].count);
+    
+    // Calcular registros nuevos netos (después - antes)
+    const newRecordsInserted = rowsAfterUpsert - rowsBeforeUpsert;
     const recordsProcessed = maeddo.recordset.length;
-    console.log(`   ✅ ${recordsProcessed} registros procesados\n`);
+    
+    console.log(`   ✅ ${recordsProcessed} registros procesados del staging`);
+    console.log(`   📊 ${newRecordsInserted} registros nuevos agregados a fact_ventas (${rowsBeforeUpsert} → ${rowsAfterUpsert})\n`);
 
     // 🔍 VALIDACIÓN POST-ETL: Verificar campos críticos del dashboard
     console.log('🔍 Validando campos críticos del dashboard...');
