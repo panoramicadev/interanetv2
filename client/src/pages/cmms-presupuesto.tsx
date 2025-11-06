@@ -38,7 +38,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, DollarSign, TrendingUp, TrendingDown, AlertCircle, Edit, Calendar } from "lucide-react";
+import { ArrowLeft, DollarSign, TrendingUp, TrendingDown, AlertCircle, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +87,20 @@ interface MantencionPlanificada {
   estado: string;
   prioridad: string;
   notas: string | null;
+}
+
+interface GastoMaterial {
+  id: string;
+  fecha: string;
+  item: string;
+  descripcion: string | null;
+  cantidad: string;
+  costoUnitario: string;
+  costoTotal: string;
+  area: string | null;
+  otId: string | null;
+  proveedorId: string | null;
+  createdAt: string;
 }
 
 const presupuestoSchema = z.object({
@@ -161,6 +175,25 @@ export default function CMmsPresupuesto() {
         credentials: 'include',
       });
       if (!response.ok) throw new Error('Error al cargar mantenciones planificadas');
+      return response.json();
+    }
+  });
+
+  // Fetch gastos de materiales
+  const { data: gastosMateriales, isLoading: isLoadingGastos } = useQuery<GastoMaterial[]>({
+    queryKey: ["/api/cmms/gastos-materiales", selectedYear, selectedArea],
+    queryFn: async () => {
+      const startDate = `${selectedYear}-01-01`;
+      const endDate = `${selectedYear}-12-31`;
+      const params = new URLSearchParams({
+        startDate,
+        endDate,
+        ...(selectedArea !== "global" && { area: selectedArea }),
+      });
+      const response = await fetch(`/api/cmms/gastos-materiales?${params.toString()}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Error al cargar gastos de materiales');
       return response.json();
     }
   });
@@ -267,11 +300,38 @@ export default function CMmsPresupuesto() {
     return <TrendingDown className="h-4 w-4" />;
   };
 
-  // Calculate planned maintenance costs by month
-  const getPlanificadosPorMes = (mes: number) => {
-    return mantencionesPlanificadas
-      ?.filter(m => m.mes === mes && m.estado !== 'cancelado')
+  // Calculate presupuesto asignado = base + mantenciones aprobadas
+  const getPresupuestoAsignado = (mes: number) => {
+    const presupuesto = presupuestos?.find(p => p.mes === mes);
+    const base = presupuesto ? parseFloat(presupuesto.presupuestoAsignado) : 0;
+    
+    // Sumar mantenciones planificadas aprobadas del mes
+    const mantAprobadas = mantencionesPlanificadas
+      ?.filter(m => m.mes === mes && m.estado === 'aprobado')
       .reduce((sum, m) => sum + parseFloat(m.costoEstimado), 0) || 0;
+    
+    return base + mantAprobadas;
+  };
+
+  // Calculate presupuesto ejecutado = base + gastos materiales + mantenciones completadas
+  const getPresupuestoEjecutado = (mes: number) => {
+    const presupuesto = presupuestos?.find(p => p.mes === mes);
+    const base = presupuesto ? parseFloat(presupuesto.presupuestoEjecutado) : 0;
+    
+    // Sumar gastos de materiales del mes (usar UTC para evitar problemas de zona horaria)
+    const gastosDelMes = gastosMateriales
+      ?.filter(g => {
+        const fecha = new Date(g.fecha);
+        return fecha.getUTCMonth() + 1 === mes;
+      })
+      .reduce((sum, g) => sum + parseFloat(g.costoTotal), 0) || 0;
+    
+    // Sumar mantenciones planificadas completadas del mes
+    const mantCompletadas = mantencionesPlanificadas
+      ?.filter(m => m.mes === mes && m.estado === 'completado')
+      .reduce((sum, m) => sum + parseFloat(m.costoEstimado), 0) || 0;
+    
+    return base + gastosDelMes + mantCompletadas;
   };
 
   // Prepare data for chart
@@ -280,29 +340,16 @@ export default function CMmsPresupuesto() {
     datasets: [
       {
         label: 'Presupuesto Asignado',
-        data: MESES.map((_, idx) => {
-          const pres = presupuestos?.find(p => p.mes === idx + 1);
-          return pres ? parseFloat(pres.presupuestoAsignado) : 0;
-        }),
+        data: MESES.map((_, idx) => getPresupuestoAsignado(idx + 1)),
         backgroundColor: 'rgba(59, 130, 246, 0.5)',
         borderColor: 'rgb(59, 130, 246)',
         borderWidth: 1,
       },
       {
         label: 'Presupuesto Ejecutado',
-        data: MESES.map((_, idx) => {
-          const pres = presupuestos?.find(p => p.mes === idx + 1);
-          return pres ? parseFloat(pres.presupuestoEjecutado) : 0;
-        }),
+        data: MESES.map((_, idx) => getPresupuestoEjecutado(idx + 1)),
         backgroundColor: 'rgba(234, 88, 12, 0.5)',
         borderColor: 'rgb(234, 88, 12)',
-        borderWidth: 1,
-      },
-      {
-        label: 'Mantenciones Planificadas',
-        data: MESES.map((_, idx) => getPlanificadosPorMes(idx + 1)),
-        backgroundColor: 'rgba(34, 197, 94, 0.5)',
-        borderColor: 'rgb(34, 197, 94)',
         borderWidth: 1,
       },
     ],
@@ -327,14 +374,11 @@ export default function CMmsPresupuesto() {
   };
 
   // Calculate totals
-  const totalAsignado = presupuestos?.reduce((sum, p) => sum + parseFloat(p.presupuestoAsignado), 0) || 0;
-  const totalEjecutado = presupuestos?.reduce((sum, p) => sum + parseFloat(p.presupuestoEjecutado), 0) || 0;
-  const totalPlanificado = mantencionesPlanificadas
-    ?.filter(m => m.estado !== 'cancelado')
-    .reduce((sum, m) => sum + parseFloat(m.costoEstimado), 0) || 0;
+  const totalAsignado = MESES.reduce((sum, _, idx) => sum + getPresupuestoAsignado(idx + 1), 0);
+  const totalEjecutado = MESES.reduce((sum, _, idx) => sum + getPresupuestoEjecutado(idx + 1), 0);
   const totalDesvio = getDesvioPercentage(totalAsignado.toString(), totalEjecutado.toString());
 
-  if (isLoading || isLoadingPlanificadas) {
+  if (isLoading || isLoadingPlanificadas || isLoadingGastos) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-muted-foreground">Cargando presupuestos...</p>
@@ -409,7 +453,7 @@ export default function CMmsPresupuesto() {
         </Card>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Asignado</CardTitle>
@@ -430,20 +474,6 @@ export default function CMmsPresupuesto() {
               <div className="text-2xl font-bold" data-testid="text-total-ejecutado">
                 {formatCurrency(totalEjecutado)}
               </div>
-            </CardContent>
-          </Card>
-          <Card className="border-green-200 dark:border-green-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Planificado</CardTitle>
-              <Calendar className="h-4 w-4 text-green-600 dark:text-green-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400" data-testid="text-total-planificado">
-                {formatCurrency(totalPlanificado)}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Mantenciones futuras
-              </p>
             </CardContent>
           </Card>
           <Card>
@@ -472,7 +502,6 @@ export default function CMmsPresupuesto() {
                   <TableRow>
                     <TableHead>Mes</TableHead>
                     <TableHead>Presupuesto Asignado</TableHead>
-                    <TableHead className="text-green-600 dark:text-green-400">Mant. Planificadas</TableHead>
                     <TableHead>Presupuesto Ejecutado</TableHead>
                     <TableHead>Desvío (%)</TableHead>
                     <TableHead>Estado</TableHead>
@@ -483,18 +512,14 @@ export default function CMmsPresupuesto() {
                   {MESES.map((mes, idx) => {
                     const mesNum = idx + 1;
                     const presupuesto = presupuestos?.find(p => p.mes === mesNum);
-                    const asignado = presupuesto ? parseFloat(presupuesto.presupuestoAsignado) : 0;
-                    const ejecutado = presupuesto ? parseFloat(presupuesto.presupuestoEjecutado) : 0;
-                    const planificado = getPlanificadosPorMes(mesNum);
-                    const desvio = presupuesto ? getDesvioPercentage(presupuesto.presupuestoAsignado, presupuesto.presupuestoEjecutado) : 0;
+                    const asignado = getPresupuestoAsignado(mesNum);
+                    const ejecutado = getPresupuestoEjecutado(mesNum);
+                    const desvio = getDesvioPercentage(asignado.toString(), ejecutado.toString());
 
                     return (
                       <TableRow key={mesNum} data-testid={`row-mes-${mesNum}`}>
                         <TableCell className="font-medium">{mes}</TableCell>
                         <TableCell>{formatCurrency(asignado)}</TableCell>
-                        <TableCell className="text-green-600 dark:text-green-400 font-medium">
-                          {formatCurrency(planificado)}
-                        </TableCell>
                         <TableCell>{formatCurrency(ejecutado)}</TableCell>
                         <TableCell>
                           <span className={`flex items-center gap-1 ${getDesvioColor(desvio)}`}>
@@ -503,7 +528,7 @@ export default function CMmsPresupuesto() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {presupuesto ? (
+                          {asignado > 0 ? (
                             <Badge variant={desvio > 10 ? "destructive" : desvio > 0 ? "secondary" : "default"}>
                               {desvio > 10 ? "Sobrepresupuesto" : desvio > 0 ? "En seguimiento" : "Normal"}
                             </Badge>
