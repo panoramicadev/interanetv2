@@ -68,7 +68,7 @@ Preferred communication style: Simple, everyday language.
 - **Promesas de Compra Semanales**: Weekly purchase promise tracking.
 - **Internal Notifications System**: Role-based and automatic event notifications.
 - **Sales Forecasting System**: Holt-Winters triple exponential smoothing for monthly sales projections.
-- **ETL Data Warehouse**: PostgreSQL schema with staging tables and a denormalized `fact_ventas` table, supporting Full Annual and Automatic Incremental ETL with monitoring.
+- **ETL Data Warehouse**: PostgreSQL schema with staging tables and a denormalized `fact_ventas` table. Automated incremental ETL runs every 15 minutes, with unique index on (idmaeedo, idmaeddo) for UPSERT support. Data mapper validates and preserves precision for 18-20 digit IDs and monetary values using string-based numerics.
 - **Manual Sales Projection**: Monthly to yearly calculation and "future clients" management.
 
 ### Production Deployment
