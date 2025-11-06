@@ -3461,16 +3461,14 @@ export const gastosMaterialesMantencion = pgTable("gastos_materiales_mantencion"
 export const planesPreventivos = pgTable("planes_preventivos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   equipoId: varchar("equipo_id").notNull(), // FK a equipos_criticos
-  nombre: varchar("nombre", { length: 255 }).notNull(),
+  nombrePlan: varchar("nombre_plan", { length: 255 }).notNull(),
   descripcion: text("descripcion"),
   frecuencia: varchar("frecuencia").notNull(), // semanal, mensual, trimestral, semestral, anual
-  diasTolerancia: integer("dias_tolerancia").default(7), // ±7 días por defecto
   
-  ultimaEjecucion: timestamp("ultima_ejecucion"),
-  proximaEjecucion: timestamp("proxima_ejecucion").notNull(),
+  ultimaEjecucion: date("ultima_ejecucion"),
+  proximaEjecucion: date("proxima_ejecucion"),
   
-  checklist: text("checklist"), // Checklist de tareas (texto o JSON)
-  horasEstimadas: numeric("horas_estimadas", { precision: 5, scale: 2 }),
+  tareasPreventivas: text("tareas_preventivas"), // Checklist de tareas (texto o JSON)
   
   activo: boolean("activo").default(true),
   
@@ -3777,9 +3775,8 @@ export const insertPlanPreventivoSchema = createInsertSchema(planesPreventivos).
   updatedAt: true,
 }).extend({
   equipoId: z.string().min(1, "El ID del equipo es requerido"),
-  nombre: z.string().min(1, "El nombre del plan es requerido"),
+  nombrePlan: z.string().min(1, "El nombre del plan es requerido"),
   frecuencia: z.enum(["semanal", "mensual", "trimestral", "semestral", "anual"]),
-  diasTolerancia: z.number().int().min(0).max(30).default(7),
   activo: z.boolean().default(true),
 });
 
