@@ -509,6 +509,52 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
             </div>
           </div>
 
+          {/* ETL Configuration Section */}
+          {status?.config && (
+            <div className="pt-4 border-t">
+              <div className="flex items-center gap-2 mb-3">
+                <Settings className="h-4 w-4 text-muted-foreground" />
+                <p className="text-sm font-semibold text-muted-foreground">Configuración ETL</p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground">Intervalo Automático</p>
+                  <p className="font-semibold text-sm">Cada {status.config.intervalMinutes} min</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Timeout</p>
+                  <p className="font-semibold text-sm">{status.config.timeoutMinutes} min</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Watermark Personalizado</p>
+                  <p className="font-semibold text-sm">
+                    {status.config.useCustomWatermark && status.config.customWatermark
+                      ? new Date(status.config.customWatermark).toLocaleDateString('es-CL')
+                      : 'No activo'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Modo Persistente</p>
+                  <p className="font-semibold text-sm">
+                    {status.config.keepCustomWatermark ? 'Sí' : 'No'}
+                  </p>
+                </div>
+              </div>
+              {lastExecution && (
+                <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Tipos de Documento</p>
+                    <p className="font-semibold text-sm">{lastExecution.documentTypes}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sucursales</p>
+                    <p className="font-semibold text-sm">{lastExecution.branches}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {lastExecution && (
             <div className="grid grid-cols-2 gap-4 pt-4 border-t">
               <div>
