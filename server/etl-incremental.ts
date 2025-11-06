@@ -443,7 +443,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         feemli, feerli, ppprpm, ppprpmifrs, logistica, eslido, ppprnere1, ppprnere2,
         fmpr, mrpr, zona, ruen, recaprre, pfpr, hfpr, monto, ocdo,
         nokoprct, nokozo, nosudo, nokofu, nokofudo, nobosuli, nokoen, noruen,
-        nomrpr, nofmpr, nopfpr, nohfpr, devol1, devol2, stockfis, listacost, liscosmod
+        nomrpr, nofmpr, nopfpr, nohfpr, devol1, devol2, stockfis, listacost, liscosmod,
+        last_etl_sync
       )
       SELECT 
         dd.idmaeddo,
@@ -529,7 +530,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         dd.devol2,
         dd.stockfis,
         pp.listacost,
-        pp.liscosmod
+        pp.liscosmod,
+        TIMESTAMP '${currentWatermark.toISOString()}'
       FROM ventas.stg_maeddo dd
       INNER JOIN ventas.stg_maeedo ed ON dd.idmaeedo = ed.idmaeedo
       LEFT JOIN ventas.stg_maeen en ON ed.kofudo = en.koen
