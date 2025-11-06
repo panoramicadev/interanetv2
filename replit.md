@@ -1,29 +1,7 @@
 # Sales Analytics Dashboard
 
 ## Overview
-"PANORAMICA" is a Spanish-language sales analytics dashboard tailored for the Chilean market. It provides comprehensive sales insights through client and user management (with role-based access), detailed sales analytics, and a mobile-responsive design. The application supports CSV sales data import, KPI monitoring, trend analysis, and transaction review. Key features include e-commerce integration, a CRM pipeline, product grouping, technical visit management, robust complaints and maintenance management, sales forecasting, an ETL data warehouse, and an internal notification system. The project aims to enhance sales strategies and operational efficiency.
-
-## Recent Changes (Nov 6, 2025)
-- **Implemented Sales ETL Synchronization from SQL Server**: Complete system for manual sales data synchronization from ERP to PostgreSQL. Features include: (1) Optimized SQL Server query with 62 fields and 10 verified JOINs (NOKOPRCT, NOKOEN, NOKOFU, NOKOFUDO, NOSUDO, NOBOSULI, NORUEN, NOFMPR, NOPFPR, NOHFPR); (2) UPSERT logic with unique index on (idmaeedo, idmaeddo) enabling idempotent operations; (3) Batch processing of 10,000 records for optimal performance; (4) New `sales_etl_sync_log` audit table tracking all synchronization attempts with status, duration, and record counts; (5) Three API endpoints (POST /api/etl/sync-sales for execution, GET /status and /history); (6) New "Sincronización Ventas" tab in ETL Monitor panel with date range selector, sync mode (incremental/full), progress bar, and complete synchronization history display; (7) Hybrid data approach: existing 38,308 CSV records marked as `data_source='csv'`, new ERP syncs as `data_source='etl_sql_server'` for gradual migration and validation.
-- **Enhanced Inventory Sync Button Access**: Enabled "Sincronizar Catálogo" button for ALL roles with inventory module access (admin, supervisor, salesperson, produccion, laboratorio, logistica_bodega). Added automatic page refresh 1.5 seconds after sync completes to display updated stock data immediately.
-- **Implemented Automatic Complaint Assignment by Area**: Added automated assignment of complaints to area-specific users when validated by technicians. Features include: (1) New database fields `responsableAreaId` and `responsableAreaName` in reclamos_generales table for explicit user assignment; (2) Auto-assignment logic in `validarReclamoTecnico()` that searches for users with matching role (e.g., "laboratorio" or "area_laboratorio") and assigns them as responsible; (3) Automatic notification sent to assigned user upon derivation; (4) Enhanced historial entries showing assigned user details; (5) Updated filtering logic so area users only see complaints explicitly assigned to them. This resolves issue where complaints derived to laboratory/production weren't visible to departmental users.
-- **Improved CMMS Budget Calculation in Dashboard**: Changed dashboard presupuesto metric to calculate from presupuesto_mantencion table (assigned budget configuration) instead of summing estimated costs from work orders. Updated KPI label from "Planificado" to "Presupuesto" for clarity. Fixed area='all' filter handling to properly aggregate budgets across all areas.
-- **Fixed Navigation in Mantenciones Planificadas**: Corrected back button routing from '/cmms-dashboard' to '/cmms/dashboard' to properly return to CMMS dashboard.
-- **Enhanced CMMS Dashboard with New Metrics and Layout**: Comprehensive dashboard improvements including: (1) Chart update: replaced "Cerradas" with "Pausadas" in OTs por Estado chart (yellow bar); (2) Equipment status now linked to active OTs - shows real-time classification (Operativos/En Mantención/Detenidos) based on parent equipment with active work orders; (3) Added 3 new KPI cards for planned maintenances: total count, approved pending execution, and estimated cost; (4) Reorganized layout - moved "Acciones Rápidas" section above filters for better UX and quick navigation to key CMMS modules. Fixed bug: corrected column reference from equipoId to equipoPadreId in equipment query.
-- **Integrated Mantenciones Planificadas into Budget Module**: Added comprehensive projection of planned maintenance costs in the annual budget module. Features include: (1) New query fetching planned maintenances filtered by year and area; (2) Additional "Mant. Planificadas" column in monthly table showing estimated costs per month in green; (3) New "Total Planificado" summary card displaying annual sum of future maintenances; (4) Third green bar in annual chart visualizing planned maintenance costs alongside assigned and executed budgets; (5) Equipment catalog integration allowing users to select critical equipment directly when creating planned maintenances, with automatic area population. This integration enables proactive budget planning based on scheduled future maintenance work.
-- **Enhanced Mantenciones Planificadas Form**: Added equipment catalog selector with checkbox toggle between catalog dropdown and custom equipment input. When selecting from catalog, equipment ID and area fields auto-populate, improving data consistency and reducing manual entry errors.
-- **Fixed Missing Imports in Storage**: Added mantencionesPlanificadas table and type imports to server/storage.ts, resolving ReferenceError that prevented CMMS operations.
-
-## Previous Changes (Nov 5, 2025)
-- **Fixed Comparative Analytics Discrepancy**: Corrected `getSegmentAnalysis()` to consistently exclude Guías de Despacho (GDV) across all views (was causing ~$128K differences).
-- **Added Total Acumulado Card**: Implemented green summary card showing sum of all compared periods in both segment and salesperson comparatives.
-- **Fixed Year Label Bug**: Corrected tooltip display when comparing full years (2024 vs 2025) - was showing "Ene" instead of year label.
-- **Sorted Year Display**: Years now display in ascending order (2023, 2024, 2025) in all comparative charts for better chronological readability.
-- **Fixed Segment Detail View Year Filter**: Added missing 'year' filter case in `getSegmentSalespeople()` to ensure vendor amounts match exactly when selecting a full year period. Now both clients and vendors filter consistently.
-- **Fixed Maintenance Orders Database Schema**: Added missing `plan_preventivo_id` column to `solicitudes_mantencion` table, resolving errors preventing creation and viewing of work orders.
-- **Enabled Inventory Module for Production Role**: Added Inventario module to produccion role navigation menu for stock management access.
-- **Reorganized Maintenance Request Workflow**: Simplified request creation by removing execution type and assignment fields from initial form. Admin/supervisor/produccion users now configure execution (immediate/scheduled) and assignment (internal technician/external provider) post-creation through a dedicated section in the details dialog. Updated PATCH endpoint and storage function to handle combined execution and assignment updates with proper role validation.
-- **Implemented Work State Management for Maintenance Orders**: Added complete work lifecycle tracking with state machine transitions (registrado → programada → en_reparacion → pausada → resuelto → cerrado). Features include: (1) New database fields `motivoPausa` and `fechaInicioTrabajo` to track pause reasons and work start times; (2) POST `/api/mantenciones/:id/iniciar-trabajo` endpoint to start work and transition to en_reparacion; (3) Enhanced PATCH `/api/mantenciones/:id/pausar` endpoint to capture pause motive (minimum 10 characters) with optional date reassignment, auto-transitioning to programada if future date provided; (4) Frontend "Iniciar Trabajo" and "Pausar Trabajo" buttons with conditional visibility based on current state; (5) Pause dialog for capturing motive and optional rescheduling; (6) UI display of work start time and pause motive with highlighted styling. Role permissions restricted to admin, supervisor, and produccion for state management operations.
+"PANORAMICA" is a sales analytics dashboard designed for the Chilean market, providing comprehensive sales insights through client and user management (with role-based access), detailed sales analytics, and a mobile-responsive design. Key capabilities include CSV sales data import, KPI monitoring, trend analysis, transaction review, e-commerce integration, a CRM pipeline, product grouping, technical visit management, robust complaints and maintenance management, sales forecasting, an ETL data warehouse, and an internal notification system. The project aims to enhance sales strategies and operational efficiency.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -64,36 +42,34 @@ Preferred communication style: Simple, everyday language.
 
 ### Key Features
 - **Client & User Management**: Role-based access and client linking.
-- **CRM Pipeline System**: Kanban-style lead management with customizable stages and activity tracking.
+- **CRM Pipeline System**: Kanban-style lead management.
 - **E-commerce**: Order management and notifications.
 - **Product Grouping System**: Parent-child product variations.
 - **Technical Visits**: Multi-step creation flow, custom product support, PDF generation.
-- **Sales Analytics**: KPIs, trend charts, detailed transaction records, segment analysis, period-to-period comparisons, and interactive projection visualizations.
-- **Quote Management**: Role-based visibility, status updates, PDF integration.
+- **Sales Analytics**: KPIs, trend charts, transaction records, segment analysis, period-to-period comparisons, and interactive projection visualizations.
+- **Quote Management**: Role-based visibility and status updates.
 - **Task Management**: For admin/supervisor roles.
-- **NVV Import & Dashboard Integration**: CSV import and dashboard display.
 - **Goals Progress**: Sales goals tracking.
-- **Dashboard Enhancements**: Modern 3-card layout, YTD comparison, salesperson detail views, and goal metrics.
 - **Complaints Management (Reclamos Generales)**: Multi-area resolution with workflow automation, photo uploads, role-based filtering, and state machine.
-- **Maintenance Management (Mantención)**: Equipment request system with workflow, technician assignment, photo evidence, and history logging. Drawer lateral (Sheet) para creación de solicitudes con formulario multi-sección.
-- **CMMS (Computerized Maintenance Management System)**: Complete preventive and corrective maintenance management with:
-  - **Dashboard**: 8 KPIs (MTTR, backlog, preventivas vs correctivas, costos mensuales), 3 gráficos, filtros por período/área
-  - **Equipos Críticos**: Catálogo de equipos con área, criticidad, estado operativo, documentación técnica, y jerarquía padre-componente (ej: dispersor → motor) con vista expandible/colapsable. Las OTs vinculan equipos por ID para reflejar cambios del catálogo automáticamente
-  - **Proveedores Externos**: Gestión de proveedores de mantención con especialidades, evaluación (5 estrellas), y tiempos de respuesta
-  - **Presupuesto Anual**: Configuración mensual con semáforo de desvíos (verde/amarillo/rojo), ejecución vs planificado, proyección de mantenciones planificadas integrada (columna y gráfico en verde mostrando costos futuros estimados por mes)
-  - **Gastos de Materiales**: Registro de gastos vinculados a OTs y proveedores con cálculo automático de totales
-  - **Planes Preventivos**: Programación por frecuencia (diaria-anual), generación automática de OTs, KPIs de cumplimiento
-  - **Calendario de Mantención**: Vista mensual con eventos de planes preventivos y OTs activas, navegación y filtros
-  - **Scheduler Automático**: Job que genera OTs preventivas cada hora según planes activos, con ventana de anticipación de 2 horas
-  - **Control de Acceso**: Roles especializados (admin, supervisor, produccion) con validación en frontend y backend
-- **Marketing Module**: Budget configuration, request workflow, metrics dashboard, customizable checklists, and interactive calendar.
-- **Inventory Module (Hybrid System)**: Real-time stock levels with integrated average pricing, combining PostgreSQL catalog with live SQL Server stock queries. Includes low stock alerts.
+- **Maintenance Management (Mantención)**: Equipment request system with workflow, technician assignment, and history logging.
+- **CMMS (Computerized Maintenance Management System)**: Comprehensive preventive and corrective maintenance management with:
+    - **Dashboard**: KPIs (MTTR, backlog, etc.), charts, filters.
+    - **Equipos Críticos**: Equipment catalog with hierarchy and technical documentation.
+    - **Proveedores Externos**: External maintenance provider management and evaluation.
+    - **Presupuesto Anual**: Monthly budget configuration with deviation tracking and integrated planned maintenance projections.
+    - **Gastos de Materiales**: Expense recording linked to work orders and suppliers.
+    - **Planes Preventivos**: Scheduled preventive maintenance with automatic work order generation.
+    - **Calendario de Mantención**: Monthly calendar view of preventive plans and active work orders.
+    - **Scheduler Automático**: Automated job for preventive work order generation.
+    - **Control de Acceso**: Specialized role-based access.
+- **Marketing Module**: Budget configuration, request workflow, metrics dashboard, and calendar.
+- **Inventory Module (Hybrid System)**: Real-time stock levels with integrated average pricing and low stock alerts, combining PostgreSQL catalog with live SQL Server queries.
 - **Expense Management (Gastos Empresariales)**: Expense creation, approval workflow, and analytics.
 - **Promesas de Compra Semanales**: Weekly purchase promise tracking.
-- **Internal Notifications System**: Role-based notifications, archiving, and automatic event notifications, including smart sales notifications.
+- **Internal Notifications System**: Role-based and automatic event notifications.
 - **Sales Forecasting System**: Holt-Winters triple exponential smoothing for monthly sales projections.
 - **ETL Data Warehouse**: PostgreSQL schema with staging tables and a denormalized `fact_ventas` table, supporting Full Annual and Automatic Incremental ETL with monitoring.
-- **Manual Sales Projection**: Monthly to yearly calculation, creation of "future clients," and robust role-based access control.
+- **Manual Sales Projection**: Monthly to yearly calculation and "future clients" management.
 
 ### Production Deployment
 - **Platform**: Replit Autoscale Deployment
