@@ -13520,16 +13520,34 @@ export class DatabaseStorage implements IStorage {
       mttr = tiemposTotales.reduce((sum, t) => sum + t, 0) / otsConTiempo.length;
     }
 
-    // Calcular costos
+    // Calcular costos ejecutados (costoReal de las OTs)
     const costoTotal = ots.reduce((sum, ot) => {
       const costo = ot.costoReal ? Number(ot.costoReal) : 0;
       return sum + costo;
     }, 0);
     
-    const costoPlanificado = ots.reduce((sum, ot) => {
-      const costo = ot.costoEstimado ? Number(ot.costoEstimado) : 0;
-      return sum + costo;
-    }, 0);
+    // Calcular presupuesto desde presupuesto_mantencion (no de OTs)
+    // Extraer año y rango de meses desde filtros
+    const startDateObj = filters?.startDate ? new Date(filters.startDate) : new Date();
+    const endDateObj = filters?.endDate ? new Date(filters.endDate) : new Date();
+    const yearFromFilter = startDateObj.getFullYear();
+    const startMonth = startDateObj.getMonth() + 1; // 1-12
+    const endMonth = endDateObj.getMonth() + 1; // 1-12
+    
+    // Obtener presupuestos del año
+    const presupuestoConditions: any[] = [eq(presupuestoMantencion.anio, yearFromFilter)];
+    if (filters?.area && filters.area !== 'all') {
+      presupuestoConditions.push(eq(presupuestoMantencion.area, filters.area));
+    }
+    
+    const presupuestos = await db.select()
+      .from(presupuestoMantencion)
+      .where(and(...presupuestoConditions));
+    
+    // Filtrar por meses dentro del rango y sumar presupuestoAsignado
+    const costoPlanificado = presupuestos
+      .filter(p => p.mes >= startMonth && p.mes <= endMonth)
+      .reduce((sum, p) => sum + Number(p.presupuestoAsignado), 0);
 
     // Obtener contadores adicionales
     const proveedores = await db.select().from(proveedoresMantencion).where(eq(proveedoresMantencion.activo, true));
