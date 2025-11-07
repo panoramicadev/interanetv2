@@ -11442,25 +11442,44 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/etl/execute', requireAdminOrSupervisor, asyncHandler(async (req: any, res: any) => {
     try {
       const { etlName = 'ventas_incremental' } = req.query;
-      console.log(`📊 ETL manual execution requested by: ${req.user.email} for ETL: ${etlName}`);
+      console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║  🚀 ETL MANUAL EXECUTION INICIADO                            ║');
+      console.log('╚═══════════════════════════════════════════════════════════════╝');
+      console.log(`👤 Solicitado por: ${req.user.email}`);
+      console.log(`📝 ETL: ${etlName}`);
+      console.log(`⏰ Timestamp: ${new Date().toISOString()}\n`);
       
       // Execute ETL in background (non-blocking)
       executeIncrementalETL(etlName as string)
         .then((result) => {
-          console.log(`✅ ETL background execution completed: ${result.recordsProcessed} records processed`);
+          console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+          console.log('║  ✅ ETL BACKGROUND EXECUTION COMPLETADO                      ║');
+          console.log('╚═══════════════════════════════════════════════════════════════╝');
+          console.log(`📊 Registros procesados: ${result.recordsProcessed}`);
+          console.log(`⏱️  Tiempo de ejecución: ${result.executionTimeMs}ms`);
+          console.log(`📅 Watermark: ${result.watermarkDate}`);
+          console.log('═══════════════════════════════════════════════════════════════\n');
         })
         .catch((error) => {
-          console.error('❌ ETL background execution error:', error);
+          console.error('\n╔═══════════════════════════════════════════════════════════════╗');
+          console.error('║  ❌ ETL BACKGROUND EXECUTION ERROR                           ║');
+          console.error('╚═══════════════════════════════════════════════════════════════╝');
+          console.error('🔴 Error completo:', error);
+          console.error('📝 Mensaje:', error.message);
+          console.error('📚 Stack trace:', error.stack);
+          console.error('═══════════════════════════════════════════════════════════════\n');
         });
       
       // Return immediately
+      console.log('✅ Respuesta enviada al cliente: ETL iniciado en segundo plano\n');
       res.json({ 
         success: true, 
         message: 'ETL iniciado en segundo plano',
         isRunning: true
       });
     } catch (error: any) {
-      console.error('ETL execution error:', error);
+      console.error('\n❌ ETL EXECUTION ERROR (endpoint):', error);
+      console.error('Stack:', error.stack);
       res.status(500).json({ 
         success: false,
         error: error.message 

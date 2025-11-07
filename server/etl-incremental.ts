@@ -171,6 +171,12 @@ export async function getETLConfig(etlName: string = 'ventas_incremental') {
 }
 
 export async function executeIncrementalETL(etlName: string = 'ventas_incremental'): Promise<ETLResult> {
+  console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+  console.log('║  🎯 FUNCIÓN executeIncrementalETL LLAMADA                    ║');
+  console.log('╚═══════════════════════════════════════════════════════════════╝');
+  console.log(`📝 ETL Name: ${etlName}`);
+  console.log(`⏰ Start Time: ${new Date().toISOString()}`);
+  
   const startTime = Date.now();
   let pool: mssql.ConnectionPool | null = null;
   const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV', 'BLV', 'FDV'];
@@ -180,7 +186,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
   let executionLogId: string | null = null; // ID del registro de ejecución
 
   try {
+    console.log('🔍 Verificando credenciales SQL Server...');
+    console.log(`   Host: ${sqlServerConfig.server ? '✅ Configurado' : '❌ FALTA'}`);
+    console.log(`   Port: ${sqlServerConfig.port}`);
+    console.log(`   Database: ${sqlServerConfig.database ? '✅ Configurado' : '❌ FALTA'}`);
+    console.log(`   User: ${sqlServerConfig.user ? '✅ Configurado' : '❌ FALTA'}`);
+    console.log(`   Password: ${sqlServerConfig.password ? '✅ Configurado' : '❌ FALTA'}\n`);
+
     // 🔒 LOCK: Verificar si ya hay una ejecución en curso
+    console.log('🔒 Verificando si hay ETL en ejecución...');
     const runningETL = await db
       .select()
       .from(etlExecutionLog)
@@ -198,6 +212,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         error: 'ETL ya en ejecución. Por favor espera a que termine la ejecución actual.'
       };
     }
+    console.log('✅ No hay ETL en ejecución. Procediendo...\n');
 
     console.log('\n🔄 INICIANDO ETL INCREMENTAL');
     console.log('═══════════════════════════════════════════════════');
