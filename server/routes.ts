@@ -12012,8 +12012,28 @@ export function registerRoutes(app: Express): Server {
           }
         }
 
-        migrationsExecuted.push(`Tabla ventas.etl_execution_log actualizada (${columnsAdded} columnas verificadas/agregadas)`);
-        console.log(`   ✅ Tabla etl_execution_log actualizada (${columnsAdded} columnas)\n`);
+        // Update column types to ensure they're large enough
+        console.log('   📏 Actualizando tamaños de columnas...');
+        const columnTypeUpdates = [
+          'ALTER TABLE ventas.etl_execution_log ALTER COLUMN etl_name TYPE VARCHAR(100)',
+          'ALTER TABLE ventas.etl_execution_log ALTER COLUMN status TYPE VARCHAR(20)',
+          'ALTER TABLE ventas.etl_execution_log ALTER COLUMN period TYPE VARCHAR(100)',
+          'ALTER TABLE ventas.etl_execution_log ALTER COLUMN execution_time_ms TYPE BIGINT'
+        ];
+
+        for (const alterQuery of columnTypeUpdates) {
+          try {
+            await db.execute(sql.raw(alterQuery));
+          } catch (alterErr: any) {
+            // Ignore errors if column doesn't exist yet
+            if (!alterErr.message.includes('does not exist')) {
+              console.error(`   ⚠️  Error actualizando tipo de columna:`, alterErr.message);
+            }
+          }
+        }
+
+        migrationsExecuted.push(`Tabla ventas.etl_execution_log actualizada (${columnsAdded} columnas verificadas/agregadas, tamaños actualizados)`);
+        console.log(`   ✅ Tabla etl_execution_log actualizada (${columnsAdded} columnas, tamaños corregidos)\n`);
       } catch (err: any) {
         errors.push(`Error creando/actualizando etl_execution_log: ${err.message}`);
         console.error('   ❌ Error:', err.message, '\n');
