@@ -12162,29 +12162,143 @@ export function registerRoutes(app: Express): Server {
         console.error('   ❌ Error:', err.message, '\n');
       }
 
-      // 5. Create staging tables
-      console.log('5️⃣  Creando tablas staging...');
-      const stagingTables = [
-        { name: 'stg_maeedo', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maeedo (datos JSONB)` },
-        { name: 'stg_maeddo', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maeddo (datos JSONB)` },
-        { name: 'stg_maeen', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maeen (datos JSONB)` },
-        { name: 'stg_maepr', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maepr (datos JSONB)` },
-        { name: 'stg_tabbo', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_tabbo (datos JSONB)` },
-        { name: 'stg_tabpp', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_tabpp (datos JSONB)` },
-        { name: 'stg_tabru', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_tabru (datos JSONB)` },
-        { name: 'stg_maeven', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maeven (datos JSONB)` },
-      ];
-
-      for (const table of stagingTables) {
+      // 5. Recreate staging tables with correct structure
+      console.log('5️⃣  Recreando tablas staging con estructura correcta...');
+      console.log('   ⚠️  Las tablas staging son temporales - se limpian en cada ETL');
+      
+      // Drop existing staging tables first
+      const stagingTableNames = ['stg_maeedo', 'stg_maeddo', 'stg_maeen', 'stg_maepr', 'stg_tabbo', 'stg_tabpp', 'stg_tabru', 'stg_maeven', 'stg_tabfu'];
+      
+      for (const tableName of stagingTableNames) {
         try {
-          await db.execute(sql.raw(table.sql));
-          migrationsExecuted.push(`Tabla ventas.${table.name} creada`);
-          console.log(`   ✅ Tabla ${table.name} creada`);
+          await db.execute(sql.raw(`DROP TABLE IF EXISTS ventas.${tableName} CASCADE`));
+          console.log(`   🗑️  Dropped ventas.${tableName}`);
         } catch (err: any) {
-          errors.push(`Error creando ${table.name}: ${err.message}`);
-          console.error(`   ❌ Error en ${table.name}:`, err.message);
+          console.error(`   ⚠️  Error dropping ${tableName}:`, err.message);
         }
       }
+
+      // Create with correct structure using Drizzle schema
+      // stg_maeedo
+      try {
+        await db.execute(sql`
+          CREATE TABLE ventas.stg_maeedo (
+            idmaeedo NUMERIC(20,0) PRIMARY KEY,
+            empresa TEXT,
+            tido TEXT,
+            nudo TEXT,
+            endo TEXT,
+            suendo TEXT,
+            endofi TEXT,
+            tigedo TEXT,
+            sudo TEXT,
+            luvtdo TEXT,
+            feemdo DATE,
+            kofudo TEXT,
+            esdo TEXT,
+            espgdo TEXT,
+            suli TEXT,
+            bosulido TEXT,
+            feer DATE,
+            vanedo NUMERIC(18,4),
+            vaivdo NUMERIC(18,4),
+            vabrdo NUMERIC(18,4),
+            lilg TEXT,
+            modo TEXT,
+            timodo TEXT,
+            tamodo NUMERIC(18,4),
+            ocdo TEXT
+          )
+        `);
+        console.log(`   ✅ stg_maeedo creada`);
+      } catch (err: any) {
+        errors.push(`Error creando stg_maeedo: ${err.message}`);
+        console.error(`   ❌ Error stg_maeedo:`, err.message);
+      }
+
+      // stg_maeddo
+      try {
+        await db.execute(sql`
+          CREATE TABLE ventas.stg_maeddo (
+            idmaeddo NUMERIC(20,0) PRIMARY KEY,
+            idmaeedo NUMERIC(20,0) NOT NULL,
+            koprct TEXT,
+            nokopr TEXT,
+            udtrpr TEXT,
+            caprco NUMERIC(18,4),
+            preuni NUMERIC(18,6),
+            vaneli NUMERIC(18,4),
+            feemli TIMESTAMP,
+            feerli TIMESTAMP,
+            devol1 NUMERIC(18,4),
+            devol2 NUMERIC(18,4),
+            stockfis NUMERIC(18,4)
+          )
+        `);
+        console.log(`   ✅ stg_maeddo creada`);
+      } catch (err: any) {
+        errors.push(`Error creando stg_maeddo: ${err.message}`);
+        console.error(`   ❌ Error stg_maeddo:`, err.message);
+      }
+
+      // stg_maeen
+      try {
+        await db.execute(sql`
+          CREATE TABLE ventas.stg_maeen (
+            koen TEXT PRIMARY KEY,
+            nokoen TEXT,
+            rut TEXT,
+            ruen TEXT,
+            zona TEXT,
+            kofuen TEXT
+          )
+        `);
+        console.log(`   ✅ stg_maeen creada`);
+      } catch (err: any) {
+        errors.push(`Error creando stg_maeen: ${err.message}`);
+        console.error(`   ❌ Error stg_maeen:`, err.message);
+      }
+
+      // stg_maepr
+      try {
+        await db.execute(sql`
+          CREATE TABLE ventas.stg_maepr (
+            kopr TEXT PRIMARY KEY,
+            nomrpr TEXT,
+            ud01pr TEXT,
+            ud02pr TEXT,
+            nokoen TEXT,
+            fmpr TEXT,
+            pfpr TEXT,
+            hfpr TEXT
+          )
+        `);
+        console.log(`   ✅ stg_maepr creada`);
+      } catch (err: any) {
+        errors.push(`Error creando stg_maepr: ${err.message}`);
+        console.error(`   ❌ Error stg_maepr:`, err.message);
+      }
+
+      // stg_tabbo, stg_tabpp, stg_tabru, stg_maeven, stg_tabfu
+      const simpleStagingTables = [
+        { name: 'stg_tabbo', sql: `CREATE TABLE ventas.stg_tabbo (kobo TEXT PRIMARY KEY, nokobo TEXT)` },
+        { name: 'stg_tabpp', sql: `CREATE TABLE ventas.stg_tabpp (kopr TEXT PRIMARY KEY, nokopr TEXT, fmpr TEXT, pfpr TEXT, hfpr TEXT)` },
+        { name: 'stg_tabru', sql: `CREATE TABLE ventas.stg_tabru (koru TEXT PRIMARY KEY, noruen TEXT)` },
+        { name: 'stg_maeven', sql: `CREATE TABLE ventas.stg_maeven (kofu TEXT PRIMARY KEY, nokofu TEXT, kofupr TEXT, kofumay TEXT)` },
+        { name: 'stg_tabfu', sql: `CREATE TABLE ventas.stg_tabfu (kofu TEXT PRIMARY KEY, nokofu TEXT)` },
+      ];
+
+      for (const table of simpleStagingTables) {
+        try {
+          await db.execute(sql.raw(table.sql));
+          console.log(`   ✅ ${table.name} creada`);
+        } catch (err: any) {
+          errors.push(`Error creando ${table.name}: ${err.message}`);
+          console.error(`   ❌ Error ${table.name}:`, err.message);
+        }
+      }
+      
+      migrationsExecuted.push('Tablas staging recreadas con estructura correcta');
       console.log('');
 
       // 6. Insert default ETL config if not exists
