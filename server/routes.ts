@@ -11862,7 +11862,7 @@ export function registerRoutes(app: Express): Server {
       // Return sanitized summary (no sensitive data)
       res.json({
         success: true,
-        message: 'Diagnóstico completado. Ver logs del servidor para detalles completos.',
+        message: 'Diagnóstico completado',
         summary: {
           timestamp: diagnosticResults.timestamp,
           environment: diagnosticResults.environment,
@@ -11872,8 +11872,18 @@ export function registerRoutes(app: Express): Server {
           errors: errorCount,
           criticalIssues: diagnosticResults.checks
             .filter((c: any) => c.status === 'ERROR')
-            .map((c: any) => ({ name: c.name, error: c.error }))
-        }
+            .map((c: any) => c.name)
+        },
+        checks: diagnosticResults.checks.map((check: any) => ({
+          name: check.name,
+          success: check.status === 'OK',
+          details: check.status === 'OK' 
+            ? `✅ ${check.name.replace(/_/g, ' ')}`
+            : check.status === 'INCOMPLETE'
+            ? `⚠️ ${check.name.replace(/_/g, ' ')} - Incompleto`
+            : `❌ ${check.name.replace(/_/g, ' ')}`,
+          error: check.error || undefined
+        }))
       });
 
     } catch (error: any) {
