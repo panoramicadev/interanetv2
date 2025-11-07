@@ -384,6 +384,31 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     },
   });
 
+  // Run migrations mutation (Admin only)
+  const migrationsMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/etl/run-migrations', {
+        method: 'POST',
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Migraciones Ejecutadas",
+        description: data.message || "Las tablas del schema ventas fueron creadas exitosamente",
+      });
+      // Refresh status and re-run diagnostics
+      queryClient.invalidateQueries({ queryKey: [`/api/etl/status?etlName=${etlName}`] });
+      diagnosticsMutation.mutate();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error ejecutando migraciones",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Initialize config form values when dialog opens
   useEffect(() => {
     if (showConfigDialog && status?.config) {
@@ -494,26 +519,49 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
               
               {/* Diagnostics Button - Admin only */}
               {user.role === 'admin' && (
-                <Button
-                  onClick={() => diagnosticsMutation.mutate()}
-                  disabled={diagnosticsMutation.isPending}
-                  size="lg"
-                  variant="outline"
-                  data-testid="button-diagnostics"
-                  title="Ejecuta diagnóstico completo del sistema (logs en servidor)"
-                >
-                  {diagnosticsMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Diagnosticando...
-                    </>
-                  ) : (
-                    <>
-                      <Server className="h-4 w-4 mr-2" />
-                      Diagnóstico
-                    </>
-                  )}
-                </Button>
+                <>
+                  <Button
+                    onClick={() => diagnosticsMutation.mutate()}
+                    disabled={diagnosticsMutation.isPending}
+                    size="lg"
+                    variant="outline"
+                    data-testid="button-diagnostics"
+                    title="Ejecuta diagnóstico completo del sistema (logs en servidor)"
+                  >
+                    {diagnosticsMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Diagnosticando...
+                      </>
+                    ) : (
+                      <>
+                        <Server className="h-4 w-4 mr-2" />
+                        Diagnóstico
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button
+                    onClick={() => migrationsMutation.mutate()}
+                    disabled={migrationsMutation.isPending}
+                    size="lg"
+                    variant="outline"
+                    data-testid="button-migrations"
+                    title="Ejecuta migraciones para crear las tablas del schema ventas"
+                  >
+                    {migrationsMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Migrando...
+                      </>
+                    ) : (
+                      <>
+                        <Database className="h-4 w-4 mr-2" />
+                        Ejecutar Migraciones
+                      </>
+                    )}
+                  </Button>
+                </>
               )}
               
               {/* Emergency Cancel Button - Always visible when ETL is running */}

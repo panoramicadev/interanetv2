@@ -11898,6 +11898,209 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Run ETL migrations - Admin only, creates missing tables in ventas schema
+  app.post('/api/etl/run-migrations', requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║  🔧 EJECUTANDO MIGRACIONES ETL - SCHEMA VENTAS               ║');
+      console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+      
+      const migrationsExecuted: string[] = [];
+      const errors: string[] = [];
+
+      // 1. Ensure ventas schema exists
+      console.log('1️⃣  Verificando/creando schema "ventas"...');
+      try {
+        await db.execute(sql`CREATE SCHEMA IF NOT EXISTS ventas`);
+        migrationsExecuted.push('Schema "ventas" verificado/creado');
+        console.log('   ✅ Schema "ventas" OK\n');
+      } catch (err: any) {
+        errors.push(`Error creando schema: ${err.message}`);
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 2. Create etl_config table
+      console.log('2️⃣  Creando tabla ventas.etl_config...');
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS ventas.etl_config (
+            id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+            etl_name VARCHAR(100) NOT NULL UNIQUE,
+            custom_watermark TIMESTAMP,
+            use_custom_watermark BOOLEAN NOT NULL DEFAULT false,
+            keep_custom_watermark BOOLEAN NOT NULL DEFAULT false,
+            timeout_minutes INTEGER NOT NULL DEFAULT 10,
+            interval_minutes INTEGER NOT NULL DEFAULT 15,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+          )
+        `);
+        migrationsExecuted.push('Tabla ventas.etl_config creada');
+        console.log('   ✅ Tabla etl_config creada\n');
+      } catch (err: any) {
+        errors.push(`Error creando etl_config: ${err.message}`);
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 3. Create etl_execution_log table
+      console.log('3️⃣  Creando tabla ventas.etl_execution_log...');
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS ventas.etl_execution_log (
+            id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+            etl_name VARCHAR(100) NOT NULL DEFAULT 'ventas_incremental',
+            execution_date TIMESTAMP NOT NULL DEFAULT NOW(),
+            status VARCHAR(20) NOT NULL,
+            period VARCHAR(100) NOT NULL,
+            document_types TEXT NOT NULL,
+            branches TEXT NOT NULL,
+            records_processed INTEGER,
+            execution_time_ms BIGINT,
+            error_message TEXT,
+            watermark_date TIMESTAMP
+          )
+        `);
+        migrationsExecuted.push('Tabla ventas.etl_execution_log creada');
+        console.log('   ✅ Tabla etl_execution_log creada\n');
+      } catch (err: any) {
+        errors.push(`Error creando etl_execution_log: ${err.message}`);
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 4. Create fact_ventas table (simplified - main columns only)
+      console.log('4️⃣  Creando tabla ventas.fact_ventas...');
+      try {
+        await db.execute(sql`
+          CREATE TABLE IF NOT EXISTS ventas.fact_ventas (
+            idmaeddo NUMERIC(20,0) PRIMARY KEY,
+            idmaeedo NUMERIC(20,0),
+            tido TEXT,
+            nudo NUMERIC(20,0),
+            endo TEXT,
+            suendo TEXT,
+            sudo NUMERIC(20,0),
+            feemdo DATE,
+            feulvedo DATE,
+            esdo TEXT,
+            kofudo TEXT,
+            nokofudo TEXT,
+            vabrdo NUMERIC(18,5),
+            vabrne NUMERIC(18,5),
+            vabrne2 NUMERIC(18,5),
+            caprco1 NUMERIC(18,5),
+            poivdo TEXT,
+            ppprne TEXT,
+            prct NUMERIC(18,5),
+            ecuadoneto NUMERIC(18,5),
+            koprct TEXT,
+            nokopr TEXT,
+            koprli TEXT,
+            lictd TEXT,
+            kotu TEXT,
+            nokotu TEXT,
+            kobo TEXT,
+            nokobo TEXT,
+            korg TEXT,
+            nokorg TEXT,
+            kozo TEXT,
+            nokozo TEXT,
+            kocc TEXT,
+            nokocc TEXT,
+            caprco2 NUMERIC(18,5),
+            udtrpr INTEGER,
+            rtudoneto NUMERIC(18,5),
+            rtudbrut NUMERIC(18,5),
+            vanedo NUMERIC(18,5),
+            vane NUMERIC(18,5),
+            vaivdo NUMERIC(18,5),
+            vaivev NUMERIC(18,5),
+            koendoori TEXT,
+            esdoori TEXT,
+            timodoori TEXT,
+            nudoori NUMERIC(20,0),
+            nokoen TEXT,
+            koen TEXT,
+            nokofuen TEXT,
+            kofu TEXT,
+            noruen TEXT,
+            ruen TEXT,
+            nokorg TEXT AS kozo,
+            nokobo TEXT AS kozo,
+            CONSTRAINT unique_idmaeedo_idmaeddo UNIQUE (idmaeedo, idmaeddo)
+          )
+        `);
+        migrationsExecuted.push('Tabla ventas.fact_ventas creada');
+        console.log('   ✅ Tabla fact_ventas creada\n');
+      } catch (err: any) {
+        errors.push(`Error creando fact_ventas: ${err.message}`);
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 5. Create staging tables
+      console.log('5️⃣  Creando tablas staging...');
+      const stagingTables = [
+        { name: 'stg_maeedo', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maeedo (datos JSONB)` },
+        { name: 'stg_maeddo', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maeddo (datos JSONB)` },
+        { name: 'stg_maeen', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maeen (datos JSONB)` },
+        { name: 'stg_maepr', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maepr (datos JSONB)` },
+        { name: 'stg_tabbo', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_tabbo (datos JSONB)` },
+        { name: 'stg_tabpp', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_tabpp (datos JSONB)` },
+        { name: 'stg_tabru', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_tabru (datos JSONB)` },
+        { name: 'stg_maeven', sql: `CREATE TABLE IF NOT EXISTS ventas.stg_maeven (datos JSONB)` },
+      ];
+
+      for (const table of stagingTables) {
+        try {
+          await db.execute(sql.raw(table.sql));
+          migrationsExecuted.push(`Tabla ventas.${table.name} creada`);
+          console.log(`   ✅ Tabla ${table.name} creada`);
+        } catch (err: any) {
+          errors.push(`Error creando ${table.name}: ${err.message}`);
+          console.error(`   ❌ Error en ${table.name}:`, err.message);
+        }
+      }
+      console.log('');
+
+      // 6. Insert default ETL config if not exists
+      console.log('6️⃣  Insertando configuración ETL por defecto...');
+      try {
+        await db.execute(sql`
+          INSERT INTO ventas.etl_config (etl_name, custom_watermark, use_custom_watermark, timeout_minutes, interval_minutes)
+          VALUES ('ventas_incremental', '2025-01-02 00:00:00', true, 3, 15)
+          ON CONFLICT (etl_name) DO NOTHING
+        `);
+        migrationsExecuted.push('Configuración ETL por defecto insertada');
+        console.log('   ✅ Configuración por defecto insertada\n');
+      } catch (err: any) {
+        errors.push(`Error insertando config por defecto: ${err.message}`);
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      console.log('╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║  📊 RESUMEN DE MIGRACIONES                                   ║');
+      console.log('╚═══════════════════════════════════════════════════════════════╝');
+      console.log(`Total migraciones ejecutadas: ${migrationsExecuted.length}`);
+      console.log(`Total errores: ${errors.length}`);
+      console.log('═══════════════════════════════════════════════════════════════\n');
+
+      res.json({
+        success: errors.length === 0,
+        message: errors.length === 0 
+          ? 'Migraciones ejecutadas exitosamente' 
+          : 'Migraciones completadas con algunos errores',
+        migrations: migrationsExecuted,
+        errors: errors.length > 0 ? errors : undefined
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error fatal en migraciones:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Error ejecutando migraciones. Ver logs del servidor.' 
+      });
+    }
+  }));
+
   // ============================================================================================
   // PROYECCIONES DE VENTAS - Manual Forecasting System
   // ============================================================================================
