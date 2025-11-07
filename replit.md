@@ -32,7 +32,8 @@ Preferred communication style: Simple, everyday language.
 - **Database**: PostgreSQL (Neon serverless)
 - **ORM**: Drizzle ORM
 - **Key Schemas**: Users, sales transactions, e-commerce, CRM, complaints, maintenance, marketing, expenses, ETL
-- **Migrations**: Drizzle Kit
+- **Migrations**: Drizzle Kit + Custom production migrations via POST /api/etl/run-migrations (admin-only endpoint)
+- **Schema Management**: ETL tables in "ventas" schema with ALTER TABLE-based migrations to preserve production data
 
 ### UI/UX
 - **Branding**: Panoramica 30th-anniversary logo on login and PDFs.

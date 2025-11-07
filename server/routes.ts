@@ -11967,72 +11967,126 @@ export function registerRoutes(app: Express): Server {
         console.error('   ❌ Error:', err.message, '\n');
       }
 
-      // 4. Create fact_ventas table (simplified - main columns only)
-      console.log('4️⃣  Creando tabla ventas.fact_ventas...');
+      // 4. Ensure fact_ventas exists with base structure, then add missing columns
+      console.log('4️⃣  Verificando/completando estructura de ventas.fact_ventas...');
       try {
+        // First, create table if not exists with minimal structure
         await db.execute(sql`
           CREATE TABLE IF NOT EXISTS ventas.fact_ventas (
             idmaeddo NUMERIC(20,0) PRIMARY KEY,
             idmaeedo NUMERIC(20,0),
-            tido TEXT,
-            nudo NUMERIC(20,0),
-            endo TEXT,
-            suendo TEXT,
-            sudo NUMERIC(20,0),
-            feemdo DATE,
-            feulvedo DATE,
-            esdo TEXT,
-            kofudo TEXT,
-            nokofudo TEXT,
-            vabrdo NUMERIC(18,5),
-            vabrne NUMERIC(18,5),
-            vabrne2 NUMERIC(18,5),
-            caprco1 NUMERIC(18,5),
-            poivdo TEXT,
-            ppprne TEXT,
-            prct NUMERIC(18,5),
-            ecuadoneto NUMERIC(18,5),
-            koprct TEXT,
-            nokopr TEXT,
-            koprli TEXT,
-            lictd TEXT,
-            kotu TEXT,
-            nokotu TEXT,
-            kobo TEXT,
-            nokobo TEXT,
-            korg TEXT,
-            nokorg TEXT,
-            kozo TEXT,
-            nokozo TEXT,
-            kocc TEXT,
-            nokocc TEXT,
-            caprco2 NUMERIC(18,5),
-            udtrpr INTEGER,
-            rtudoneto NUMERIC(18,5),
-            rtudbrut NUMERIC(18,5),
-            vanedo NUMERIC(18,5),
-            vane NUMERIC(18,5),
-            vaivdo NUMERIC(18,5),
-            vaivev NUMERIC(18,5),
-            koendoori TEXT,
-            esdoori TEXT,
-            timodoori TEXT,
-            nudoori NUMERIC(20,0),
-            nokoen TEXT,
-            koen TEXT,
-            nokofuen TEXT,
-            kofu TEXT,
-            noruen TEXT,
-            ruen TEXT,
-            nokorg TEXT AS kozo,
-            nokobo TEXT AS kozo,
             CONSTRAINT unique_idmaeedo_idmaeddo UNIQUE (idmaeedo, idmaeddo)
           )
         `);
-        migrationsExecuted.push('Tabla ventas.fact_ventas creada');
-        console.log('   ✅ Tabla fact_ventas creada\n');
+        console.log('   ✅ Tabla base verificada');
+        
+        // Add all required columns using ALTER TABLE (safe, preserves data)
+        const columnsToAdd = [
+          'tido TEXT',
+          'nudo NUMERIC(20,0)',
+          'endo TEXT',
+          'suendo TEXT',
+          'sudo NUMERIC(20,0)',
+          'feemdo DATE',
+          'feulvedo DATE',
+          'esdo TEXT',
+          'espgdo TEXT',
+          'kofudo TEXT',
+          'modo TEXT',
+          'timodo TEXT',
+          'tamodo TEXT',
+          'caprad NUMERIC(18,5)',
+          'caprex NUMERIC(18,5)',
+          'vanedo NUMERIC(18,5)',
+          'vaivdo NUMERIC(18,5)',
+          'vabrdo NUMERIC(18,5)',
+          'lilg TEXT',
+          'nulido NUMERIC(20,0)',
+          'sulido NUMERIC(20,0)',
+          'luvtlido DATE',
+          'bosulido TEXT',
+          'kofulido TEXT',
+          'prct TEXT',
+          'tict TEXT',
+          'tipr TEXT',
+          'nusepr TEXT',
+          'koprct TEXT',
+          'udtrpr INTEGER',
+          'rludpr NUMERIC(18,5)',
+          'caprco1 NUMERIC(18,5)',
+          'caprad1 NUMERIC(18,5)',
+          'caprex1 NUMERIC(18,5)',
+          'caprnc1 NUMERIC(18,5)',
+          'ud01pr NUMERIC(18,5)',
+          'caprco2 NUMERIC(18,5)',
+          'caprad2 NUMERIC(18,5)',
+          'caprex2 NUMERIC(18,5)',
+          'caprnc2 NUMERIC(18,5)',
+          'ud02pr NUMERIC(18,5)',
+          'ppprne TEXT',
+          'ppprbr TEXT',
+          'vaneli NUMERIC(18,5)',
+          'vabrli NUMERIC(18,5)',
+          'feemli DATE',
+          'feerli DATE',
+          'ppprpm TEXT',
+          'ppprpmifrs TEXT',
+          'logistica TEXT',
+          'eslido TEXT',
+          'ppprnere1 TEXT',
+          'ppprnere2 TEXT',
+          'fmpr TEXT',
+          'mrpr TEXT',
+          'zona TEXT',
+          'ruen TEXT',
+          'recaprre TEXT',
+          'pfpr TEXT',
+          'hfpr TEXT',
+          'monto NUMERIC(18,5)',
+          'ocdo TEXT',
+          'nokoprct TEXT',
+          'nokozo TEXT',
+          'nosudo TEXT',
+          'nokofu TEXT',
+          'nokofudo TEXT',
+          'nobosuli TEXT',
+          'nokoen TEXT',
+          'noruen TEXT',
+          'nomrpr TEXT',
+          'nofmpr TEXT',
+          'nopfpr TEXT',
+          'nohfpr TEXT',
+          'devol1 NUMERIC(18,5)',
+          'devol2 NUMERIC(18,5)',
+          'stockfis NUMERIC(18,5)',
+          'listacost TEXT',
+          'liscosmod TEXT',
+          'last_etl_sync TIMESTAMP',
+          'koen TEXT',
+          'kofu TEXT',
+        ];
+
+        let columnsAdded = 0;
+        for (const column of columnsToAdd) {
+          const columnName = column.split(' ')[0];
+          try {
+            await db.execute(sql.raw(`
+              ALTER TABLE ventas.fact_ventas 
+              ADD COLUMN IF NOT EXISTS ${column}
+            `));
+            columnsAdded++;
+          } catch (colErr: any) {
+            // Column might already exist, that's OK
+            if (!colErr.message.includes('already exists')) {
+              console.error(`   ⚠️  Error agregando columna ${columnName}:`, colErr.message);
+            }
+          }
+        }
+        
+        migrationsExecuted.push(`Tabla ventas.fact_ventas completada (${columnsAdded} columnas agregadas/verificadas)`);
+        console.log(`   ✅ ${columnsAdded} columnas verificadas/agregadas\n`);
       } catch (err: any) {
-        errors.push(`Error creando fact_ventas: ${err.message}`);
+        errors.push(`Error completando fact_ventas: ${err.message}`);
         console.error('   ❌ Error:', err.message, '\n');
       }
 
