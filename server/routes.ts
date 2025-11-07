@@ -11591,6 +11591,300 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Production Diagnostics - Admin only, logs detailed info to server console
+  app.post('/api/etl/diagnostics', requireRoles(['admin']), asyncHandler(async (req: any, res: any) => {
+    try {
+      console.log('\n╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║  🔍 DIAGNÓSTICO DE PRODUCCIÓN - ETL SCHEMA VENTAS            ║');
+      console.log('╚═══════════════════════════════════════════════════════════════╝\n');
+      
+      const diagnosticResults: any = {
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'unknown',
+        checks: []
+      };
+
+      // 1. Check database connection
+      console.log('1️⃣  Verificando conexión a base de datos...');
+      try {
+        await db.execute(sql`SELECT 1 as test`);
+        diagnosticResults.checks.push({ name: 'database_connection', status: 'OK' });
+        console.log('   ✅ Conexión OK\n');
+      } catch (err: any) {
+        diagnosticResults.checks.push({ name: 'database_connection', status: 'ERROR', error: err.message });
+        console.error('   ❌ Error de conexión:', err.message, '\n');
+      }
+
+      // 2. Check current user and search_path
+      console.log('2️⃣  Verificando usuario actual y search_path...');
+      try {
+        const userResult = await db.execute(sql`SELECT current_user, current_database(), current_schema()`);
+        const searchPathResult = await db.execute(sql`SHOW search_path`);
+        
+        console.log('   Usuario actual:', userResult.rows[0]);
+        console.log('   Search path:', searchPathResult.rows[0]);
+        
+        diagnosticResults.checks.push({ 
+          name: 'user_and_search_path', 
+          status: 'OK',
+          searchPath: searchPathResult.rows[0]?.search_path
+        });
+        console.log('   ✅ Usuario y search_path obtenidos\n');
+      } catch (err: any) {
+        diagnosticResults.checks.push({ name: 'user_and_search_path', status: 'ERROR', error: err.message });
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 3. List all schemas
+      console.log('3️⃣  Listando schemas disponibles...');
+      try {
+        const schemasResult = await db.execute(sql`
+          SELECT schema_name 
+          FROM information_schema.schemata 
+          ORDER BY schema_name
+        `);
+        
+        console.log('   Schemas encontrados:');
+        schemasResult.rows.forEach((row: any) => {
+          console.log(`     - ${row.schema_name}`);
+        });
+        
+        const hasVentasSchema = schemasResult.rows.some((row: any) => row.schema_name === 'ventas');
+        diagnosticResults.checks.push({ 
+          name: 'schemas_list', 
+          status: 'OK',
+          hasVentasSchema,
+          totalSchemas: schemasResult.rows.length
+        });
+        console.log(`   ✅ Total schemas: ${schemasResult.rows.length}, Schema 'ventas': ${hasVentasSchema ? 'SÍ' : 'NO'}\n`);
+      } catch (err: any) {
+        diagnosticResults.checks.push({ name: 'schemas_list', status: 'ERROR', error: err.message });
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 4. Check if ventas schema tables exist
+      console.log('4️⃣  Verificando tablas en schema "ventas"...');
+      try {
+        const tablesResult = await db.execute(sql`
+          SELECT table_name 
+          FROM information_schema.tables 
+          WHERE table_schema = 'ventas'
+          ORDER BY table_name
+        `);
+        
+        console.log('   Tablas en schema "ventas":');
+        tablesResult.rows.forEach((row: any) => {
+          console.log(`     - ${row.table_name}`);
+        });
+        
+        const expectedTables = ['stg_maeedo', 'stg_maeddo', 'fact_ventas', 'etl_config', 'etl_execution_log'];
+        const foundTables = tablesResult.rows.map((row: any) => row.table_name);
+        const missingTables = expectedTables.filter(t => !foundTables.includes(t));
+        
+        diagnosticResults.checks.push({ 
+          name: 'ventas_schema_tables', 
+          status: missingTables.length === 0 ? 'OK' : 'INCOMPLETE',
+          totalTables: foundTables.length,
+          missingTables: missingTables.length > 0 ? missingTables : undefined
+        });
+        
+        if (missingTables.length > 0) {
+          console.log(`   ⚠️  Tablas faltantes: ${missingTables.join(', ')}`);
+        }
+        console.log(`   ✅ Total tablas en "ventas": ${foundTables.length}\n`);
+      } catch (err: any) {
+        diagnosticResults.checks.push({ name: 'ventas_schema_tables', status: 'ERROR', error: err.message });
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 5. Try to access fact_ventas with full schema qualification
+      console.log('5️⃣  Intentando acceso a ventas.fact_ventas...');
+      try {
+        const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
+        const count = countResult.rows[0]?.count;
+        
+        diagnosticResults.checks.push({ 
+          name: 'fact_ventas_access_qualified', 
+          status: 'OK',
+          recordCount: parseInt(count)
+        });
+        console.log(`   ✅ Acceso exitoso. Registros: ${count}\n`);
+      } catch (err: any) {
+        diagnosticResults.checks.push({ 
+          name: 'fact_ventas_access_qualified', 
+          status: 'ERROR', 
+          error: err.message,
+          errorCode: err.code
+        });
+        console.error('   ❌ Error accediendo con schema calificado:', err.message);
+        console.error('   Código de error:', err.code, '\n');
+      }
+
+      // 6. Try to access fact_ventas WITHOUT schema qualification
+      console.log('6️⃣  Intentando acceso a fact_ventas SIN schema calificado...');
+      try {
+        const countResult = await db.execute(sql`SELECT COUNT(*) as count FROM fact_ventas`);
+        const count = countResult.rows[0]?.count;
+        
+        diagnosticResults.checks.push({ 
+          name: 'fact_ventas_access_unqualified', 
+          status: 'OK',
+          recordCount: parseInt(count)
+        });
+        console.log(`   ✅ Acceso exitoso. Registros: ${count}\n`);
+      } catch (err: any) {
+        diagnosticResults.checks.push({ 
+          name: 'fact_ventas_access_unqualified', 
+          status: 'ERROR', 
+          error: err.message,
+          errorCode: err.code
+        });
+        console.error('   ❌ Error accediendo SIN schema calificado:', err.message);
+        console.error('   Código de error:', err.code, '\n');
+      }
+
+      // 7. Check etl_config table
+      console.log('7️⃣  Verificando tabla ventas.etl_config...');
+      try {
+        const configResult = await db.execute(sql`
+          SELECT etl_name, custom_watermark, use_custom_watermark, timeout_minutes 
+          FROM ventas.etl_config 
+          WHERE etl_name = 'ventas_incremental'
+        `);
+        
+        if (configResult.rows.length > 0) {
+          console.log('   Configuración actual:', configResult.rows[0]);
+          diagnosticResults.checks.push({ 
+            name: 'etl_config_access', 
+            status: 'OK',
+            hasConfig: true
+          });
+        } else {
+          console.log('   ⚠️  No existe configuración para ventas_incremental');
+          diagnosticResults.checks.push({ 
+            name: 'etl_config_access', 
+            status: 'OK',
+            hasConfig: false
+          });
+        }
+        console.log('   ✅ Tabla etl_config accesible\n');
+      } catch (err: any) {
+        diagnosticResults.checks.push({ 
+          name: 'etl_config_access', 
+          status: 'ERROR', 
+          error: err.message 
+        });
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 8. Check user permissions on ventas schema
+      console.log('8️⃣  Verificando permisos en schema "ventas"...');
+      try {
+        const permsResult = await db.execute(sql`
+          SELECT 
+            has_schema_privilege(current_user, 'ventas', 'USAGE') as has_usage,
+            has_schema_privilege(current_user, 'ventas', 'CREATE') as has_create
+        `);
+        
+        console.log('   Permisos del usuario actual:');
+        console.log('     - USAGE en schema "ventas":', permsResult.rows[0]?.has_usage);
+        console.log('     - CREATE en schema "ventas":', permsResult.rows[0]?.has_create);
+        
+        diagnosticResults.checks.push({ 
+          name: 'ventas_schema_permissions', 
+          status: 'OK',
+          hasUsage: permsResult.rows[0]?.has_usage,
+          hasCreate: permsResult.rows[0]?.has_create
+        });
+        console.log('   ✅ Permisos verificados\n');
+      } catch (err: any) {
+        diagnosticResults.checks.push({ 
+          name: 'ventas_schema_permissions', 
+          status: 'ERROR', 
+          error: err.message 
+        });
+        console.error('   ❌ Error:', err.message, '\n');
+      }
+
+      // 9. Test Drizzle ORM access to factVentas
+      console.log('9️⃣  Probando acceso vía Drizzle ORM a factVentas...');
+      try {
+        const drizzleResult = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(factVentas)
+          .limit(1);
+        
+        diagnosticResults.checks.push({ 
+          name: 'drizzle_fact_ventas_access', 
+          status: 'OK',
+          recordCount: drizzleResult[0]?.count
+        });
+        console.log(`   ✅ Drizzle ORM funciona. Registros: ${drizzleResult[0]?.count}\n`);
+      } catch (err: any) {
+        diagnosticResults.checks.push({ 
+          name: 'drizzle_fact_ventas_access', 
+          status: 'ERROR', 
+          error: err.message,
+          errorCode: err.code
+        });
+        console.error('   ❌ Error con Drizzle ORM:', err.message);
+        console.error('   Código de error:', err.code, '\n');
+      }
+
+      // 10. Environment checks (NO sensitive data)
+      console.log('🔟 Verificando variables de entorno críticas...');
+      const envChecks = {
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        hasNodeEnv: !!process.env.NODE_ENV,
+        nodeEnv: process.env.NODE_ENV
+      };
+      console.log('   Variables:', envChecks);
+      diagnosticResults.checks.push({ 
+        name: 'environment_variables', 
+        status: 'OK',
+        ...envChecks
+      });
+      console.log('   ✅ Variables verificadas\n');
+
+      // Summary
+      const errorCount = diagnosticResults.checks.filter((c: any) => c.status === 'ERROR').length;
+      const warningCount = diagnosticResults.checks.filter((c: any) => c.status === 'INCOMPLETE').length;
+      
+      console.log('╔═══════════════════════════════════════════════════════════════╗');
+      console.log('║  📊 RESUMEN DEL DIAGNÓSTICO                                  ║');
+      console.log('╚═══════════════════════════════════════════════════════════════╝');
+      console.log(`Total verificaciones: ${diagnosticResults.checks.length}`);
+      console.log(`✅ Exitosas: ${diagnosticResults.checks.length - errorCount - warningCount}`);
+      console.log(`⚠️  Advertencias: ${warningCount}`);
+      console.log(`❌ Errores: ${errorCount}`);
+      console.log('═══════════════════════════════════════════════════════════════\n');
+
+      // Return sanitized summary (no sensitive data)
+      res.json({
+        success: true,
+        message: 'Diagnóstico completado. Ver logs del servidor para detalles completos.',
+        summary: {
+          timestamp: diagnosticResults.timestamp,
+          environment: diagnosticResults.environment,
+          totalChecks: diagnosticResults.checks.length,
+          successful: diagnosticResults.checks.length - errorCount - warningCount,
+          warnings: warningCount,
+          errors: errorCount,
+          criticalIssues: diagnosticResults.checks
+            .filter((c: any) => c.status === 'ERROR')
+            .map((c: any) => ({ name: c.name, error: c.error }))
+        }
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error fatal en diagnóstico:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Error ejecutando diagnóstico. Ver logs del servidor.' 
+      });
+    }
+  }));
+
   // ============================================================================================
   // PROYECCIONES DE VENTAS - Manual Forecasting System
   // ============================================================================================
