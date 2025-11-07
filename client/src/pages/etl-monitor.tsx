@@ -353,6 +353,32 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     },
   });
 
+  // Run diagnostics mutation (Admin only)
+  const diagnosticsMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/etl/diagnostics', {
+        method: 'POST',
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Diagnóstico Completado",
+        description: `${data.summary.successful} exitosas, ${data.summary.errors} errores. Ver logs del servidor.`,
+      });
+      console.log('📊 Resumen de diagnóstico:', data.summary);
+      if (data.summary.criticalIssues?.length > 0) {
+        console.error('🔴 Problemas críticos encontrados:', data.summary.criticalIssues);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error en diagnóstico",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Initialize config form values when dialog opens
   useEffect(() => {
     if (showConfigDialog && status?.config) {
@@ -460,6 +486,30 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
                 <Settings className="h-4 w-4 mr-2" />
                 Configurar
               </Button>
+              
+              {/* Diagnostics Button - Admin only */}
+              {user.role === 'admin' && (
+                <Button
+                  onClick={() => diagnosticsMutation.mutate()}
+                  disabled={diagnosticsMutation.isPending}
+                  size="lg"
+                  variant="outline"
+                  data-testid="button-diagnostics"
+                  title="Ejecuta diagnóstico completo del sistema (logs en servidor)"
+                >
+                  {diagnosticsMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Diagnosticando...
+                    </>
+                  ) : (
+                    <>
+                      <Server className="h-4 w-4 mr-2" />
+                      Diagnóstico
+                    </>
+                  )}
+                </Button>
+              )}
               
               {/* Emergency Cancel Button - Always visible when ETL is running */}
               {isRunning && (
