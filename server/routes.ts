@@ -12167,7 +12167,7 @@ export function registerRoutes(app: Express): Server {
       console.log('   ⚠️  Las tablas staging son temporales - se limpian en cada ETL');
       
       // Drop existing staging tables first
-      const stagingTableNames = ['stg_maeedo', 'stg_maeddo', 'stg_maeen', 'stg_maepr', 'stg_tabbo', 'stg_tabpp', 'stg_tabru', 'stg_maeven', 'stg_tabfu'];
+      const stagingTableNames = ['stg_maeedo', 'stg_maeddo', 'stg_maeen', 'stg_maepr', 'stg_tabbo', 'stg_tabpp', 'stg_tabru', 'stg_maeven'];
       
       for (const tableName of stagingTableNames) {
         try {
@@ -12267,10 +12267,7 @@ export function registerRoutes(app: Express): Server {
             nomrpr TEXT,
             ud01pr TEXT,
             ud02pr TEXT,
-            nokoen TEXT,
-            fmpr TEXT,
-            pfpr TEXT,
-            hfpr TEXT
+            tipr TEXT
           )
         `);
         console.log(`   ✅ stg_maepr creada`);
@@ -12279,24 +12276,65 @@ export function registerRoutes(app: Express): Server {
         console.error(`   ❌ Error stg_maepr:`, err.message);
       }
 
-      // stg_tabbo, stg_tabpp, stg_tabru, stg_maeven, stg_tabfu
-      const simpleStagingTables = [
-        { name: 'stg_tabbo', sql: `CREATE TABLE ventas.stg_tabbo (kobo TEXT PRIMARY KEY, nokobo TEXT)` },
-        { name: 'stg_tabpp', sql: `CREATE TABLE ventas.stg_tabpp (kopr TEXT PRIMARY KEY, nokopr TEXT, fmpr TEXT, pfpr TEXT, hfpr TEXT)` },
-        { name: 'stg_tabru', sql: `CREATE TABLE ventas.stg_tabru (koru TEXT PRIMARY KEY, noruen TEXT)` },
-        { name: 'stg_maeven', sql: `CREATE TABLE ventas.stg_maeven (kofu TEXT PRIMARY KEY, nokofu TEXT, kofupr TEXT, kofumay TEXT)` },
-        { name: 'stg_tabfu', sql: `CREATE TABLE ventas.stg_tabfu (kofu TEXT PRIMARY KEY, nokofu TEXT)` },
-      ];
-
-      for (const table of simpleStagingTables) {
-        try {
-          await db.execute(sql.raw(table.sql));
-          console.log(`   ✅ ${table.name} creada`);
-        } catch (err: any) {
-          errors.push(`Error creando ${table.name}: ${err.message}`);
-          console.error(`   ❌ Error ${table.name}:`, err.message);
-        }
+      // stg_maeven
+      try {
+        await db.execute(sql`
+          CREATE TABLE ventas.stg_maeven (
+            kofu TEXT PRIMARY KEY,
+            nokofu TEXT
+          )
+        `);
+        console.log(`   ✅ stg_maeven creada`);
+      } catch (err: any) {
+        errors.push(`Error creando stg_maeven: ${err.message}`);
+        console.error(`   ❌ Error stg_maeven:`, err.message);
       }
+
+      // stg_tabbo (composite primary key)
+      try {
+        await db.execute(sql`
+          CREATE TABLE ventas.stg_tabbo (
+            suli TEXT NOT NULL,
+            bosuli TEXT NOT NULL,
+            nobosuli TEXT,
+            PRIMARY KEY (suli, bosuli)
+          )
+        `);
+        console.log(`   ✅ stg_tabbo creada`);
+      } catch (err: any) {
+        errors.push(`Error creando stg_tabbo: ${err.message}`);
+        console.error(`   ❌ Error stg_tabbo:`, err.message);
+      }
+
+      // stg_tabru
+      try {
+        await db.execute(sql`
+          CREATE TABLE ventas.stg_tabru (
+            koru TEXT PRIMARY KEY,
+            nokoru TEXT
+          )
+        `);
+        console.log(`   ✅ stg_tabru creada`);
+      } catch (err: any) {
+        errors.push(`Error creando stg_tabru: ${err.message}`);
+        console.error(`   ❌ Error stg_tabru:`, err.message);
+      }
+
+      // stg_tabpp
+      try {
+        await db.execute(sql`
+          CREATE TABLE ventas.stg_tabpp (
+            kopr TEXT PRIMARY KEY,
+            listacost NUMERIC(18,4),
+            liscosmod NUMERIC(18,4)
+          )
+        `);
+        console.log(`   ✅ stg_tabpp creada`);
+      } catch (err: any) {
+        errors.push(`Error creando stg_tabpp: ${err.message}`);
+        console.error(`   ❌ Error stg_tabpp:`, err.message);
+      }
+
       
       migrationsExecuted.push('Tablas staging recreadas con estructura correcta');
       console.log('');
