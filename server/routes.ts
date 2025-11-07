@@ -11962,8 +11962,9 @@ export function registerRoutes(app: Express): Server {
       }
 
       // 3. Create etl_execution_log table
-      console.log('3️⃣  Creando tabla ventas.etl_execution_log...');
+      console.log('3️⃣  Creando/actualizando tabla ventas.etl_execution_log...');
       try {
+        // First create the table if it doesn't exist
         await db.execute(sql`
           CREATE TABLE IF NOT EXISTS ventas.etl_execution_log (
             id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -11979,10 +11980,42 @@ export function registerRoutes(app: Express): Server {
             watermark_date TIMESTAMP
           )
         `);
-        migrationsExecuted.push('Tabla ventas.etl_execution_log creada');
-        console.log('   ✅ Tabla etl_execution_log creada\n');
+
+        // Then add missing columns if table already existed with old schema
+        const columnsToAdd = [
+          'etl_name VARCHAR(100) DEFAULT \'ventas_incremental\'',
+          'execution_date TIMESTAMP DEFAULT NOW()',
+          'status VARCHAR(20)',
+          'period VARCHAR(100)',
+          'document_types TEXT',
+          'branches TEXT',
+          'records_processed INTEGER',
+          'execution_time_ms BIGINT',
+          'error_message TEXT',
+          'watermark_date TIMESTAMP'
+        ];
+
+        let columnsAdded = 0;
+        for (const column of columnsToAdd) {
+          const columnName = column.split(' ')[0];
+          try {
+            await db.execute(sql.raw(`
+              ALTER TABLE ventas.etl_execution_log 
+              ADD COLUMN IF NOT EXISTS ${column}
+            `));
+            columnsAdded++;
+          } catch (colErr: any) {
+            // Column might already exist, that's OK
+            if (!colErr.message.includes('already exists')) {
+              console.error(`   ⚠️  Error agregando columna ${columnName}:`, colErr.message);
+            }
+          }
+        }
+
+        migrationsExecuted.push(`Tabla ventas.etl_execution_log actualizada (${columnsAdded} columnas verificadas/agregadas)`);
+        console.log(`   ✅ Tabla etl_execution_log actualizada (${columnsAdded} columnas)\n`);
       } catch (err: any) {
-        errors.push(`Error creando etl_execution_log: ${err.message}`);
+        errors.push(`Error creando/actualizando etl_execution_log: ${err.message}`);
         console.error('   ❌ Error:', err.message, '\n');
       }
 
