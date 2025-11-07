@@ -1860,44 +1860,37 @@ export class DatabaseStorage implements IStorage {
     const { startDate, endDate, salesperson, segment, client, supplier } = filters;
     const conditions = [];
     
-    // Use proper date boundaries for inclusive range
-    const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(startDate, endDate);
-    
-    if (startDateCondition) {
-      conditions.push(startDateCondition);
+    if (startDate) {
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
-    if (endDateCondition) {
-      conditions.push(endDateCondition);
+    if (endDate) {
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (salesperson) {
-      conditions.push(eq(salesTransactions.nokofu, salesperson));
+      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(salesTransactions.noruen, segment));
+      conditions.push(eq(factVentas.noruen, segment));
     }
     if (client) {
-      conditions.push(eq(salesTransactions.nokoen, client));
-    }
-    if (supplier) {
-      // Note: No supplier field in current schema, so this will be a no-op for now
-      // When suppliers are implemented, add the appropriate condition here
+      conditions.push(eq(factVentas.nokoen, client));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Calculate metrics using MONTO field directly - NCV already comes with negative values
-    // totalSales EXCLUDES TIDO='GDV' to avoid double counting
-    // gdvSales is calculated separately for TIDO = 'GDV' transactions only
+    // Calculate metrics using fact_ventas
+    // totalSales EXCLUDES TIDO='GDV' with ESDO='C' (cancelled guides)
+    // gdvSales is calculated separately for TIDO = 'GDV' transactions only (excluding cancelled)
     const [metrics] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN ${salesTransactions.monto} ELSE 0 END), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CASE WHEN NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C') THEN ${factVentas.monto} ELSE 0 END), 0)`,
         totalTransactions: sql<number>`COUNT(*)`,
-        totalOrders: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
-        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
-        activeCustomers: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
-        gdvSales: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} = 'GDV' THEN ${salesTransactions.monto} ELSE 0 END), 0)`,
+        totalOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
+        activeCustomers: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+        gdvSales: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' AND ${factVentas.esdo} != 'C' THEN ${factVentas.monto} ELSE 0 END), 0)`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(whereClause);
 
     return {
@@ -1954,31 +1947,31 @@ export class DatabaseStorage implements IStorage {
       previousYearEnd = `${previousYear}-12-31`;
     }
 
-    // Get requested year total (excluding GDV)
+    // Get requested year total (excluding GDV with status 'C')
     const [requestedYearMetrics] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(
         and(
-          gte(salesTransactions.feemdo, requestedYearStart),
-          lte(salesTransactions.feemdo, requestedYearEnd),
-          ne(salesTransactions.tido, 'GDV')
+          sql`${factVentas.feemdo} >= ${requestedYearStart}::date`,
+          sql`${factVentas.feemdo} <= ${requestedYearEnd}::date`,
+          sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
         )
       );
 
-    // Get previous year total (excluding GDV) - same period
+    // Get previous year total (excluding GDV with status 'C') - same period
     const [previousYearMetrics] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(
         and(
-          gte(salesTransactions.feemdo, previousYearStart),
-          lte(salesTransactions.feemdo, previousYearEnd),
-          ne(salesTransactions.tido, 'GDV')
+          sql`${factVentas.feemdo} >= ${previousYearStart}::date`,
+          sql`${factVentas.feemdo} <= ${previousYearEnd}::date`,
+          sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
         )
       );
 
@@ -1995,16 +1988,16 @@ export class DatabaseStorage implements IStorage {
     bestYear: number;
     bestYearTotal: number;
   }> {
-    // Get sales by year (excluding GDV)
+    // Get sales by year (excluding GDV with status 'C')
     const yearlyTotals = await db
       .select({
-        year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
-        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+        year: sql<number>`EXTRACT(YEAR FROM ${factVentas.feemdo})`,
+        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
-      .from(salesTransactions)
-      .where(ne(salesTransactions.tido, 'GDV'))
-      .groupBy(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`)
-      .orderBy(sql`COALESCE(SUM(${salesTransactions.monto}), 0) DESC`)
+      .from(factVentas)
+      .where(sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`)
+      .groupBy(sql`EXTRACT(YEAR FROM ${factVentas.feemdo})`)
+      .orderBy(sql`COALESCE(SUM(${factVentas.monto}), 0) DESC`)
       .limit(1);
 
     if (yearlyTotals.length === 0) {
@@ -2029,38 +2022,40 @@ export class DatabaseStorage implements IStorage {
     periodTotalSales: number;
   }> {
     const conditions = [
-      sql`nokofu IS NOT NULL AND nokofu != ''`,
-      sql`tido != 'GDV'`
+      sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`,
+      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
     ];
     
     if (startDate) {
-      conditions.push(sql`feemdo >= ${startDate}`);
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
     if (endDate) {
-      conditions.push(sql`feemdo <= ${endDate}`);
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (segment) {
-      conditions.push(sql`noruen = ${segment}`);
+      conditions.push(sql`${factVentas.noruen} = ${segment}`);
     }
     
-    const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
-    // Get period total sales (exclude GDV to match dashboard metrics)
+    // Get period total sales (exclude GDV with status 'C')
     const [totalResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(monto AS NUMERIC)), 0)`,
+        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
-      .from(sql`${salesTransactions} ${whereClause}`);
+      .from(factVentas)
+      .where(whereClause);
     
     const results = await db
       .select({
-        salesperson: sql<string>`nokofu`,
-        totalSales: sql<number>`COALESCE(SUM(CAST(monto AS NUMERIC)), 0)`,
+        salesperson: factVentas.nokofu,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
-      .from(sql`${salesTransactions} ${whereClause}`)
-      .groupBy(sql`nokofu`)
-      .orderBy(sql`SUM(CAST(monto AS NUMERIC)) DESC`)
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokofu)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
       .limit(limit);
 
     return {
@@ -2084,62 +2079,56 @@ export class DatabaseStorage implements IStorage {
     }>;
     periodTotalSales: number;
   }> {
-    const conditions = [];
+    const conditions = [
+      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+    ];
     
-    // Use proper date boundaries for inclusive range
-    const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(startDate, endDate);
-    
-    if (startDateCondition) {
-      conditions.push(startDateCondition);
+    if (startDate) {
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
-    if (endDateCondition) {
-      conditions.push(endDateCondition);
+    if (endDate) {
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (salesperson) {
-      conditions.push(eq(salesTransactions.nokofu, salesperson));
+      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(salesTransactions.noruen, segment));
+      conditions.push(eq(factVentas.noruen, segment));
     }
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
-    // Get period total sales using MONTO (to match dashboard metrics)
-    // Exclude GDV to be consistent with getSalesMetrics
+    // Get period total sales
     const [totalResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN ${salesTransactions.monto} ELSE 0 END), 0)`,
+        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(whereClause);
     
     const periodTotal = Number(totalResult.total);
     
-    // For products, filter only transactions with product name and exclude GDV
+    // For products, filter only transactions with product name
     const productConditions = [
-      sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`,
-      sql`${salesTransactions.tido} != 'GDV'`
+      ...conditions,
+      sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`
     ];
     
-    if (whereClause) {
-      productConditions.push(whereClause);
-    }
+    const productWhereClause = productConditions.length > 0 ? and(...productConditions) : undefined;
     
-    const productWhereClause = sql.join(productConditions, sql` AND `);
-    
-    // For products, sum by individual product lines using MONTO
+    // Sum by individual product lines using MONTO
     const results = await db
       .select({
-        productName: salesTransactions.nokoprct,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
+        productName: factVentas.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        uniqueOrders: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
+        uniqueOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(productWhereClause)
-      .groupBy(salesTransactions.nokoprct)
-      .orderBy(sql`SUM(${salesTransactions.monto}) DESC`)
+      .groupBy(factVentas.nokoprct)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
       .limit(limit);
 
     return {
@@ -2168,41 +2157,43 @@ export class DatabaseStorage implements IStorage {
     periodTotalSales: number;
   }> {
     const conditions = [
-      sql`nokoen IS NOT NULL AND nokoen != ''`,
-      sql`tido != 'GDV'`
+      sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
+      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
     ];
     
     if (startDate) {
-      conditions.push(sql`feemdo >= ${startDate}`);
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
     if (endDate) {
-      conditions.push(sql`feemdo <= ${endDate}`);
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (salesperson) {
-      conditions.push(sql`nokofu = ${salesperson}`);
+      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(sql`noruen = ${segment}`);
+      conditions.push(eq(factVentas.noruen, segment));
     }
     
-    const whereClause = conditions.length > 0 ? sql`WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
-    // Get period total sales (exclude GDV to match dashboard metrics)
+    // Get period total sales
     const [totalResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(monto AS NUMERIC)), 0)`,
+        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
-      .from(sql`${salesTransactions} ${whereClause}`);
+      .from(factVentas)
+      .where(whereClause);
     
     const results = await db
       .select({
-        clientName: sql<string>`nokoen`,
-        totalSales: sql<number>`COALESCE(SUM(CAST(monto AS NUMERIC)), 0)`,
+        clientName: factVentas.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
-      .from(sql`${salesTransactions} ${whereClause}`)
-      .groupBy(sql`nokoen`)
-      .orderBy(sql`SUM(CAST(monto AS NUMERIC)) DESC`)
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokoen)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
       .limit(limit);
 
     return {
