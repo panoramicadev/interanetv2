@@ -11860,7 +11860,7 @@ export function registerRoutes(app: Express): Server {
       console.log('═══════════════════════════════════════════════════════════════\n');
 
       // Return sanitized summary (no sensitive data)
-      res.json({
+      const response = {
         success: true,
         message: 'Diagnóstico completado',
         summary: {
@@ -11884,7 +11884,10 @@ export function registerRoutes(app: Express): Server {
             : `❌ ${check.name.replace(/_/g, ' ')}`,
           error: check.error || undefined
         }))
-      });
+      };
+      
+      console.log('[DIAGNOSTIC RESPONSE] Enviando respuesta al cliente:', JSON.stringify(response, null, 2));
+      res.json(response);
 
     } catch (error: any) {
       console.error('❌ Error fatal en diagnóstico:', error);
