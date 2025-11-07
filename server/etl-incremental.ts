@@ -27,8 +27,8 @@ const sqlServerConfig: mssql.config = {
     trustServerCertificate: true,
     enableArithAbort: true,
   },
-  connectionTimeout: 30000,
-  requestTimeout: 60000,
+  connectionTimeout: 90000,
+  requestTimeout: 180000,
 };
 
 interface ETLResult {
