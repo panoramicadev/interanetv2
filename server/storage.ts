@@ -17038,27 +17038,46 @@ export class DatabaseStorage implements IStorage {
 
   async checkAndNotifyLowStock(): Promise<void> {
     try {
-      // Obtener todos los productos con stock bajo (stock < minStock)
-      const lowStockProducts = await db
-        .select({
-          productSku: productStock.productSku,
-          productName: productStock.productName,
-          warehouseCode: productStock.warehouseCode,
-          warehouseName: productStock.warehouseName,
-          currentStock: productStock.currentStock,
-          minStock: productStock.minStock,
-        })
-        .from(productStock)
-        .where(
-          and(
-            isNotNull(productStock.minStock),
-            sql`${productStock.currentStock} < ${productStock.minStock}`
-          )
-        );
-
-      if (!lowStockProducts || lowStockProducts.length === 0) {
-        return; // No hay productos con stock bajo
+      console.log('[NOTIF] Iniciando verificación de stock bajo...');
+      
+      // Verificar si la tabla productStock existe consultando primero
+      console.log('[NOTIF] Verificando existencia de tabla productStock...');
+      
+      let lowStockProducts;
+      try {
+        // Obtener todos los productos con stock bajo (stock < minStock)
+        console.log('[NOTIF] Consultando productos con stock bajo...');
+        lowStockProducts = await db
+          .select({
+            productSku: productStock.productSku,
+            productName: productStock.productName,
+            warehouseCode: productStock.warehouseCode,
+            warehouseName: productStock.warehouseName,
+            currentStock: productStock.currentStock,
+            minStock: productStock.minStock,
+          })
+          .from(productStock)
+          .where(
+            and(
+              isNotNull(productStock.minStock),
+              sql`${productStock.currentStock} < ${productStock.minStock}`
+            )
+          );
+        
+        console.log(`[NOTIF] Query completada. Tipo: ${typeof lowStockProducts}, Array: ${Array.isArray(lowStockProducts)}, Length: ${lowStockProducts?.length}`);
+      } catch (queryError: any) {
+        console.error('[NOTIF] Error en query de stock bajo:', queryError.message);
+        console.log('[NOTIF] La tabla productStock probablemente no existe o tiene un problema de esquema. Saltando verificación de stock bajo.');
+        return;
       }
+
+      // Validar que lowStockProducts sea un array válido
+      if (!lowStockProducts || !Array.isArray(lowStockProducts) || lowStockProducts.length === 0) {
+        console.log('[NOTIF] No hay productos con stock bajo o query devolvió datos inválidos');
+        return;
+      }
+
+      console.log(`[NOTIF] Se encontraron ${lowStockProducts.length} productos con stock bajo`);
 
       // Agrupar por bodega para enviar una notificación consolidada por bodega
       const stockByWarehouse = lowStockProducts.reduce((acc, product) => {
@@ -17076,6 +17095,12 @@ export class DatabaseStorage implements IStorage {
         return acc;
       }, {} as Record<string, { warehouseName: string; products: typeof lowStockProducts }>);
 
+      // Validar que stockByWarehouse sea un objeto válido
+      if (!stockByWarehouse || typeof stockByWarehouse !== 'object') {
+        console.log('[NOTIF] Error agrupando productos por bodega');
+        return;
+      }
+
       // Obtener usuarios admin y de bodega
       const usersToNotify = await db
         .select({ id: users.id })
@@ -17085,10 +17110,17 @@ export class DatabaseStorage implements IStorage {
           eq(users.role, 'bodega')
         ));
 
+      // Validar que usersToNotify sea un array válido
+      if (!usersToNotify || !Array.isArray(usersToNotify) || usersToNotify.length === 0) {
+        console.log('[NOTIF] No hay usuarios admin o bodega para notificar');
+        return;
+      }
+
       const notificationPromises = [];
 
       // Crear notificaciones para cada bodega con stock bajo
-      for (const [warehouseCode, data] of Object.entries(stockByWarehouse)) {
+      const warehouseEntries = Object.entries(stockByWarehouse);
+      for (const [warehouseCode, data] of warehouseEntries) {
         if (!data || !data.products || data.products.length === 0) {
           continue; // Skip empty warehouses
         }
