@@ -359,9 +359,10 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   // Run diagnostics mutation (Admin only)
   const diagnosticsMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest('/api/etl/diagnostics', {
+      const response = await apiRequest('/api/etl/diagnostics', {
         method: 'POST',
       });
+      return await response.json();
     },
     onSuccess: (data: any) => {
       console.log('Diagnostics response:', data);
