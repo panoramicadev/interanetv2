@@ -11547,12 +11547,18 @@ export function registerRoutes(app: Express): Server {
       const { etlName = 'ventas_incremental' } = req.query;
       const { customWatermark, timeoutMinutes, intervalMinutes, keepCustomWatermark } = req.body;
       
-      console.log(`⚙️  ETL config update requested by: ${req.user.email} for ETL: ${etlName}`);
+      console.log('═══════════════════════════════════════════════════════');
+      console.log(`⚙️  ETL config update requested`);
+      console.log(`   User: ${req.user?.email || 'unknown'}`);
+      console.log(`   ETL: ${etlName}`);
+      console.log(`   Body received:`, JSON.stringify(req.body, null, 2));
       console.log(`   Watermark: ${customWatermark || 'no change'}`);
       console.log(`   Timeout: ${timeoutMinutes || 'no change'} minutes`);
       console.log(`   Interval: ${intervalMinutes || 'no change'} minutes`);
       console.log(`   Keep watermark: ${keepCustomWatermark !== undefined ? keepCustomWatermark : 'no change'}`);
+      console.log('═══════════════════════════════════════════════════════');
       
+      console.log('⏳ Calling updateETLConfig...');
       const config = await updateETLConfig(
         etlName as string,
         customWatermark ? new Date(customWatermark) : undefined,
@@ -11562,16 +11568,25 @@ export function registerRoutes(app: Express): Server {
         intervalMinutes ? parseInt(intervalMinutes) : undefined
       );
       
+      console.log('✅ ETL config updated successfully:', config);
+      
       res.json({ 
         success: true,
         message: 'Configuración ETL actualizada exitosamente',
         config
       });
     } catch (error: any) {
-      console.error('ETL config update error:', error);
+      console.error('❌ ETL config update error (DETAILED):', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code,
+        detail: error.detail
+      });
       res.status(500).json({ 
         success: false,
-        error: error.message 
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   }));

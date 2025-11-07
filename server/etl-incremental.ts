@@ -844,13 +844,19 @@ export async function updateETLConfig(
   timeoutMinutes?: number,
   intervalMinutes?: number
 ) {
+  const startTime = Date.now();
   try {
+    console.log(`[ETL-CONFIG] Starting config update for ${etlName}`);
+    
     // Verificar si existe configuración
+    console.log('[ETL-CONFIG] Checking for existing config...');
     const existing = await db
       .select()
       .from(etlConfig)
       .where(eq(etlConfig.etlName, etlName))
       .limit(1);
+
+    console.log(`[ETL-CONFIG] Existing config found: ${existing.length > 0}`);
 
     if (existing.length > 0) {
       // Actualizar configuración existente
@@ -861,27 +867,51 @@ export async function updateETLConfig(
       if (timeoutMinutes !== undefined) updateData.timeoutMinutes = timeoutMinutes;
       if (intervalMinutes !== undefined) updateData.intervalMinutes = intervalMinutes;
 
+      console.log('[ETL-CONFIG] Updating existing config with:', updateData);
+      
       const [updated] = await db.update(etlConfig)
         .set(updateData)
         .where(eq(etlConfig.etlName, etlName))
         .returning();
 
+      console.log(`[ETL-CONFIG] Config updated successfully in ${Date.now() - startTime}ms`);
       return updated;
     } else {
       // Crear nueva configuración
-      const [newConfig] = await db.insert(etlConfig).values({
+      const newConfigData = {
         etlName,
         customWatermark: customWatermark || null,
         useCustomWatermark: useCustomWatermark || false,
         timeoutMinutes: timeoutMinutes || 10,
         intervalMinutes: intervalMinutes || 15,
-      }).returning();
+      };
+      
+      console.log('[ETL-CONFIG] Creating new config with:', newConfigData);
+      
+      const [newConfig] = await db.insert(etlConfig).values(newConfigData).returning();
 
+      console.log(`[ETL-CONFIG] Config created successfully in ${Date.now() - startTime}ms`);
       return newConfig;
     }
   } catch (error: any) {
-    console.error('Error updating ETL config:', error);
-    throw error;
+    const duration = Date.now() - startTime;
+    console.error(`[ETL-CONFIG] Error updating ETL config after ${duration}ms:`, {
+      etlName,
+      errorMessage: error.message,
+      errorCode: error.code,
+      errorName: error.name,
+      errorStack: error.stack,
+      customWatermark,
+      useCustomWatermark,
+      keepCustomWatermark,
+      timeoutMinutes,
+      intervalMinutes
+    });
+    
+    // Re-throw con más contexto
+    const enhancedError = new Error(`Failed to update ETL config for ${etlName}: ${error.message}`);
+    enhancedError.stack = error.stack;
+    throw enhancedError;
   }
 }
 
