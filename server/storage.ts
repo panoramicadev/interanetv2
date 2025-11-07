@@ -1641,7 +1641,7 @@ export class DatabaseStorage implements IStorage {
       .insert(users)
       .values(userData)
       .onConflictDoUpdate({
-        target: users.id,
+        target: [users.id],
         set: {
           ...userData,
           updatedAt: new Date(),
@@ -16112,7 +16112,7 @@ export class DatabaseStorage implements IStorage {
         const salesperson = await db
           .select()
           .from(salespeopleUsers)
-          .where(eq(salespeopleUsers.name, client.salesperson_name))
+          .where(eq(salespeopleUsers.salespersonName, client.salesperson_name))
           .limit(1);
 
         if (salesperson.length > 0) {
@@ -16128,7 +16128,7 @@ export class DatabaseStorage implements IStorage {
             
             if (supervisor.length > 0) {
               supervisorId = supervisor[0].id;
-              supervisorName = supervisor[0].name;
+              supervisorName = supervisor[0].salespersonName;
             }
           }
         } else {
@@ -16140,39 +16140,49 @@ export class DatabaseStorage implements IStorage {
               .where(
                 and(
                   eq(salespeopleUsers.role, 'supervisor'),
-                  eq(salespeopleUsers.noruen, client.segment)
+                  eq(salespeopleUsers.assignedSegment, client.segment)
                 )
               )
               .limit(1);
 
             if (supervisorBySegment.length > 0) {
               supervisorId = supervisorBySegment[0].id;
-              supervisorName = supervisorBySegment[0].name;
+              supervisorName = supervisorBySegment[0].salespersonName;
             }
           }
         }
 
-        // UPSERT: Insertar o actualizar si ya existe basándose en clientKoen
-        await db.insert(clientesInactivos).values({
-          clientName: client.client_name,
-          clientKoen: client.client_koen,
-          lastPurchaseDate: client.last_purchase_date,
-          lastPurchaseAmount: client.last_purchase_amount?.toString() || '0',
-          daysSinceLastPurchase: parseInt(client.days_since_last_purchase) || 0,
-          totalPurchasesLastYear: client.total_purchases_last_year?.toString() || '0',
-          segment: client.segment,
-          salespersonId,
-          salespersonName: client.salesperson_name,
-          supervisorId,
-          supervisorName,
-          addedToCrm: false,
-          dismissed: false,
-        })
-        .onConflictDoUpdate({
-          target: clientesInactivos.clientKoen,
-          set: {
+        // UPSERT manual: Primero intenta actualizar, luego inserta si no existe
+        const existingClient = await db
+          .select()
+          .from(clientesInactivos)
+          .where(eq(clientesInactivos.clientKoen, client.client_koen))
+          .limit(1);
+
+        if (existingClient.length > 0) {
+          // Cliente ya existe, actualizarlo
+          await db
+            .update(clientesInactivos)
+            .set({
+              clientName: client.client_name,
+              lastPurchaseDate: client.last_purchase_date ? new Date(client.last_purchase_date) : new Date(),
+              lastPurchaseAmount: client.last_purchase_amount?.toString() || '0',
+              daysSinceLastPurchase: parseInt(client.days_since_last_purchase) || 0,
+              totalPurchasesLastYear: client.total_purchases_last_year?.toString() || '0',
+              segment: client.segment,
+              salespersonId,
+              salespersonName: client.salesperson_name,
+              supervisorId,
+              supervisorName,
+              updatedAt: new Date(),
+            })
+            .where(eq(clientesInactivos.clientKoen, client.client_koen));
+        } else {
+          // Cliente no existe, insertarlo
+          await db.insert(clientesInactivos).values({
             clientName: client.client_name,
-            lastPurchaseDate: client.last_purchase_date,
+            clientKoen: client.client_koen,
+            lastPurchaseDate: client.last_purchase_date ? new Date(client.last_purchase_date) : new Date(),
             lastPurchaseAmount: client.last_purchase_amount?.toString() || '0',
             daysSinceLastPurchase: parseInt(client.days_since_last_purchase) || 0,
             totalPurchasesLastYear: client.total_purchases_last_year?.toString() || '0',
@@ -16181,10 +16191,10 @@ export class DatabaseStorage implements IStorage {
             salespersonName: client.salesperson_name,
             supervisorId,
             supervisorName,
-            updatedAt: new Date(),
-            // Preservar addedToCrm y dismissed si ya existían
-          }
-        });
+            addedToCrm: false,
+            dismissed: false,
+          });
+        }
       }
 
       return inactiveClients.length;
@@ -17046,16 +17056,19 @@ export class DatabaseStorage implements IStorage {
           )
         );
 
-      if (lowStockProducts.length === 0) {
+      if (!lowStockProducts || lowStockProducts.length === 0) {
         return; // No hay productos con stock bajo
       }
 
       // Agrupar por bodega para enviar una notificación consolidada por bodega
       const stockByWarehouse = lowStockProducts.reduce((acc, product) => {
+        if (!product || !product.warehouseCode || !product.productSku) {
+          return acc; // Skip invalid products
+        }
         const key = product.warehouseCode;
         if (!acc[key]) {
           acc[key] = {
-            warehouseName: product.warehouseName || product.warehouseCode,
+            warehouseName: product.warehouseName || product.warehouseCode || 'Sin nombre',
             products: []
           };
         }
@@ -17076,10 +17089,14 @@ export class DatabaseStorage implements IStorage {
 
       // Crear notificaciones para cada bodega con stock bajo
       for (const [warehouseCode, data] of Object.entries(stockByWarehouse)) {
+        if (!data || !data.products || data.products.length === 0) {
+          continue; // Skip empty warehouses
+        }
         const productCount = data.products.length;
         const productList = data.products
           .slice(0, 3)
-          .map(p => `${p.productName} (${p.currentStock}/${p.minStock})`)
+          .filter(p => p && p.productName)
+          .map(p => `${p.productName || 'Sin nombre'} (${p.currentStock || 0}/${p.minStock || 0})`)
           .join(', ');
         const moreText = productCount > 3 ? ` y ${productCount - 3} más` : '';
 
