@@ -211,6 +211,7 @@ interface ETLProgress {
 // ETL Status Section Component
 function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefresh: boolean }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [customWatermark, setCustomWatermark] = useState('');
   const [timeoutMinutes, setTimeoutMinutes] = useState(10);
