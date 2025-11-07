@@ -869,6 +869,25 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
             </DialogDescription>
           </DialogHeader>
 
+          {!diagnosticsResults && (
+            <div className="p-8 text-center text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <p>Ejecutando diagnóstico...</p>
+            </div>
+          )}
+
+          {diagnosticsResults && !diagnosticsResults.summary && (
+            <div className="p-8 text-center">
+              <AlertCircle className="h-12 w-12 text-yellow-600 mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground mb-4">
+                Diagnóstico completado pero sin datos de resumen.
+              </p>
+              <pre className="text-left text-xs bg-muted p-4 rounded overflow-auto max-h-96">
+                {JSON.stringify(diagnosticsResults, null, 2)}
+              </pre>
+            </div>
+          )}
+
           {diagnosticsResults && diagnosticsResults.summary && (
             <div className="space-y-4">
               {/* Summary */}
