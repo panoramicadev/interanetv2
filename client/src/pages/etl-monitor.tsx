@@ -364,6 +364,9 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
       });
     },
     onSuccess: (data: any) => {
+      console.log('Diagnostics response:', data);
+      console.log('Has summary?', !!data.summary);
+      console.log('Has checks?', !!data.checks);
       setDiagnosticsResults(data);
       setShowDiagnosticsDialog(true);
       toast({
