@@ -368,7 +368,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
       setShowDiagnosticsDialog(true);
       toast({
         title: "Diagnóstico Completado",
-        description: `${data.summary.successful} exitosas, ${data.summary.errors} errores.`,
+        description: `${data.summary?.successful || 0} exitosas, ${data.summary?.errors || 0} errores.`,
       });
     },
     onError: (error: any) => {
@@ -866,32 +866,32 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
             </DialogDescription>
           </DialogHeader>
 
-          {diagnosticsResults && (
+          {diagnosticsResults && diagnosticsResults.summary && (
             <div className="space-y-4">
               {/* Summary */}
               <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-green-600">
-                    {diagnosticsResults.summary.successful}
+                    {diagnosticsResults.summary.successful || 0}
                   </p>
                   <p className="text-xs text-muted-foreground">Exitosas</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-yellow-600">
-                    {diagnosticsResults.summary.warnings}
+                    {diagnosticsResults.summary.warnings || 0}
                   </p>
                   <p className="text-xs text-muted-foreground">Advertencias</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-red-600">
-                    {diagnosticsResults.summary.errors}
+                    {diagnosticsResults.summary.errors || 0}
                   </p>
                   <p className="text-xs text-muted-foreground">Errores</p>
                 </div>
               </div>
 
               {/* Critical Issues */}
-              {diagnosticsResults.summary.criticalIssues?.length > 0 && (
+              {diagnosticsResults.summary?.criticalIssues?.length > 0 && (
                 <div className="p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
                   <h3 className="font-semibold text-red-900 dark:text-red-100 mb-2">
                     ⚠️ Problemas Críticos
