@@ -213,6 +213,8 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   const { toast } = useToast();
   const { user } = useAuth();
   const [showConfigDialog, setShowConfigDialog] = useState(false);
+  const [showDiagnosticsDialog, setShowDiagnosticsDialog] = useState(false);
+  const [diagnosticsResults, setDiagnosticsResults] = useState<any>(null);
   const [customWatermark, setCustomWatermark] = useState('');
   const [timeoutMinutes, setTimeoutMinutes] = useState(10);
   const [intervalMinutes, setIntervalMinutes] = useState(15);
@@ -362,14 +364,12 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
       });
     },
     onSuccess: (data: any) => {
+      setDiagnosticsResults(data);
+      setShowDiagnosticsDialog(true);
       toast({
         title: "Diagnóstico Completado",
-        description: `${data.summary.successful} exitosas, ${data.summary.errors} errores. Ver logs del servidor.`,
+        description: `${data.summary.successful} exitosas, ${data.summary.errors} errores.`,
       });
-      console.log('📊 Resumen de diagnóstico:', data.summary);
-      if (data.summary.criticalIssues?.length > 0) {
-        console.error('🔴 Problemas críticos encontrados:', data.summary.criticalIssues);
-      }
     },
     onError: (error: any) => {
       toast({
@@ -851,6 +851,104 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
               ) : (
                 'Guardar Configuración'
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diagnostics Results Dialog */}
+      <Dialog open={showDiagnosticsDialog} onOpenChange={setShowDiagnosticsDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resultados del Diagnóstico ETL</DialogTitle>
+            <DialogDescription>
+              Diagnóstico completo del sistema de schemas y permisos de PostgreSQL
+            </DialogDescription>
+          </DialogHeader>
+
+          {diagnosticsResults && (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-green-600">
+                    {diagnosticsResults.summary.successful}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Exitosas</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {diagnosticsResults.summary.warnings}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Advertencias</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-red-600">
+                    {diagnosticsResults.summary.errors}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Errores</p>
+                </div>
+              </div>
+
+              {/* Critical Issues */}
+              {diagnosticsResults.summary.criticalIssues?.length > 0 && (
+                <div className="p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
+                  <h3 className="font-semibold text-red-900 dark:text-red-100 mb-2">
+                    ⚠️ Problemas Críticos
+                  </h3>
+                  <ul className="space-y-1">
+                    {diagnosticsResults.summary.criticalIssues.map((issue: string, i: number) => (
+                      <li key={i} className="text-sm text-red-800 dark:text-red-200">
+                        • {issue}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Detailed Results */}
+              <div className="space-y-2">
+                <h3 className="font-semibold">Detalle de Verificaciones:</h3>
+                {diagnosticsResults.checks?.map((check: any, i: number) => (
+                  <div 
+                    key={i}
+                    className={`p-3 rounded-lg border ${
+                      check.success 
+                        ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800' 
+                        : 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      {check.success ? (
+                        <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-600 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold">
+                          {check.name}
+                        </p>
+                        {check.details && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {check.details}
+                          </p>
+                        )}
+                        {check.error && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            Error: {check.error}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setShowDiagnosticsDialog(false)}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>
