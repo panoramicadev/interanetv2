@@ -1793,7 +1793,7 @@ export class DatabaseStorage implements IStorage {
     const { startDate, endDate, salesperson, segment, limit = 50, offset = 0 } = filters;
     
     const conditions = [
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
@@ -2216,7 +2216,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [
       sql`LOWER(${factVentas.nokoen}) LIKE ${`%${searchTerm.toLowerCase()}%`}`,
       sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
@@ -2262,7 +2262,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [
       sql`LOWER(${factVentas.nokoprct}) LIKE ${`%${searchTerm.toLowerCase()}%`}`,
       sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
@@ -2305,7 +2305,7 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const dateConditions = [
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
@@ -2333,7 +2333,7 @@ export class DatabaseStorage implements IStorage {
 
     const conditions = [
       sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`,
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
@@ -2372,7 +2372,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       sql`${factVentas.feemdo} IS NOT NULL`,
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
@@ -2445,7 +2445,7 @@ export class DatabaseStorage implements IStorage {
         yearMonth: sql<string>`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`,
       })
       .from(factVentas)
-      .where(sql`${factVentas.feemdo} IS NOT NULL AND NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`)
+      .where(sql`${factVentas.feemdo} IS NOT NULL AND ${factVentas.tido} != 'GDV'`)
       .groupBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`)
       .orderBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') DESC`);
 
@@ -2455,7 +2455,7 @@ export class DatabaseStorage implements IStorage {
         year: sql<string>`EXTRACT(YEAR FROM ${factVentas.feemdo})::text`,
       })
       .from(factVentas)
-      .where(sql`${factVentas.feemdo} IS NOT NULL AND NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`)
+      .where(sql`${factVentas.feemdo} IS NOT NULL AND ${factVentas.tido} != 'GDV'`)
       .groupBy(sql`EXTRACT(YEAR FROM ${factVentas.feemdo})`)
       .orderBy(sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) DESC`);
 
@@ -2495,7 +2495,7 @@ export class DatabaseStorage implements IStorage {
     unitPercentage: number;
   }>> {
     const conditions = [
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (filters?.startDate) {
@@ -3215,7 +3215,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(factVentas.noruen, segmentName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -3305,7 +3305,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(factVentas.noruen, segmentName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`,
+      sql`${factVentas.tido} != 'GDV'`,
       sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year}`
     ];
 
@@ -3344,7 +3344,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(factVentas.noruen, segmentName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -3433,7 +3433,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(factVentas.nosudo, branchName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -3509,7 +3509,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(factVentas.nosudo, branchName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -3667,7 +3667,7 @@ export class DatabaseStorage implements IStorage {
   }> {
     const conditions = [
       eq(factVentas.nokofu, salespersonName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -3742,7 +3742,7 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(and(
         eq(factVentas.nokofu, salespersonName),
-        sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+        sql`${factVentas.tido} != 'GDV'`
       ));
 
     // Calculate sales frequency (average days between sales)
@@ -3779,7 +3779,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(factVentas.nokofu, salespersonName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
     
     // Filter by segment if provided
@@ -3878,7 +3878,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(factVentas.nokofu, salespersonName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
     
     // Filter by segment if provided
@@ -3969,7 +3969,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(factVentas.nokofu, salespersonName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`, // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'`, // Exclude GDV - only show invoiced sales
       sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`
     ];
 
@@ -4038,7 +4038,7 @@ export class DatabaseStorage implements IStorage {
   }> {
     const conditions = [
       eq(factVentas.nokoen, clientName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -4130,7 +4130,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const conditions = [
       eq(factVentas.nokoen, clientName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -16599,7 +16599,7 @@ export class DatabaseStorage implements IStorage {
         isNotNull(factVentas.nokofu),
         isNotNull(factVentas.nokoen),
         ne(factVentas.nokofu, '.'),
-        sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+        sql`${factVentas.tido} != 'GDV'`
       ];
 
       // Add year filter if provided
@@ -16704,7 +16704,7 @@ export class DatabaseStorage implements IStorage {
         isNotNull(factVentas.nokofu),
         isNotNull(factVentas.nokoen),
         ne(factVentas.nokofu, '.'),
-        sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+        sql`${factVentas.tido} != 'GDV'`
       ];
 
       // Filter by paginated clients
