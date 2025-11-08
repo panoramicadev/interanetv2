@@ -660,7 +660,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         false,
         CAST(NULL AS NUMERIC(18,6)),
         CAST(NULL AS NUMERIC(18,6)),
-        dd.vaneli,
+        CASE WHEN ed.tido = 'NCV' THEN -ABS(dd.vaneli) ELSE dd.vaneli END,
         ed.ocdo,
         dd.nokopr,
         CAST(NULL AS NUMERIC(18,6)),
