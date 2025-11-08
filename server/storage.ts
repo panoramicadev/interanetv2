@@ -1887,7 +1887,7 @@ export class DatabaseStorage implements IStorage {
         totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN ${factVentas.monto} ELSE 0 END), 0)`,
         totalTransactions: sql<number>`COUNT(*)`,
         totalOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
-        totalUnits: sql<number>`COALESCE(SUM(COALESCE(${factVentas.caprco1}, 0) + COALESCE(${factVentas.caprco2}, 0)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
         gdvSales: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' AND ${factVentas.esdo} != 'C' THEN ${factVentas.monto} ELSE 0 END), 0)`,
       })
@@ -2122,7 +2122,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         productName: factVentas.nokoprct,
         totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(COALESCE(${factVentas.caprco1}, 0) + COALESCE(${factVentas.caprco2}, 0)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
         uniqueOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
       })
@@ -2284,7 +2284,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         name: factVentas.nokoprct,
         totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(COALESCE(${factVentas.caprco1}, 0) + COALESCE(${factVentas.caprco2}, 0)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
       })
       .from(factVentas)
       .where(whereClause)
@@ -2518,7 +2518,7 @@ export class DatabaseStorage implements IStorage {
     const [totalResult] = await db
       .select({
         totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(COALESCE(${factVentas.caprco1}, 0) + COALESCE(${factVentas.caprco2}, 0)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
       })
       .from(factVentas)
       .where(and(...conditions));
@@ -2545,7 +2545,7 @@ export class DatabaseStorage implements IStorage {
             ELSE 'OT'
           END`,
         totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(COALESCE(${factVentas.caprco1}, 0) + COALESCE(${factVentas.caprco2}, 0)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
       .from(factVentas)
@@ -2611,7 +2611,7 @@ export class DatabaseStorage implements IStorage {
     const [metrics] = await db
       .select({
         totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(COALESCE(${factVentas.caprco1}, 0) + COALESCE(${factVentas.caprco2}, 0)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
         averageOrderValue: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
       })
@@ -2694,7 +2694,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         productName: factVentas.nokoprct,
         totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(COALESCE(${factVentas.caprco1}, 0) + COALESCE(${factVentas.caprco2}, 0)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
       })
       .from(factVentas)
       .where(whereClause)
@@ -2788,7 +2788,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         productName: factVentas.nokoprct,
         totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(COALESCE(${factVentas.caprco1}, 0) + COALESCE(${factVentas.caprco2}, 0)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
       })
       .from(factVentas)
       .where(whereClause)
@@ -3945,7 +3945,7 @@ export class DatabaseStorage implements IStorage {
         transactionCount: sql<number>`COUNT(*)`,
         averagePrice: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
         lastSale: sql<string>`MAX(${factVentas.feemdo})`,
-        totalUnits: sql<number>`COALESCE(SUM(COALESCE(CAST(${factVentas.caprco1} AS NUMERIC), 0) + COALESCE(CAST(${factVentas.caprco2} AS NUMERIC), 0)), 0)`
+        totalUnits: sql<number>`COALESCE(SUM(CAST(${factVentas.caprco2} AS NUMERIC)), 0)`
       })
       .from(factVentas)
       .where(and(...conditions))
