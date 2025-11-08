@@ -1880,11 +1880,11 @@ export class DatabaseStorage implements IStorage {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Calculate metrics using fact_ventas
-    // totalSales EXCLUDES TIDO='GDV' with ESDO='C' (cancelled guides)
+    // totalSales EXCLUDES ALL GDV (Guías de Despacho are not sales, tracked separately)
     // gdvSales is calculated separately for TIDO = 'GDV' transactions only (excluding cancelled)
     const [metrics] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(CASE WHEN NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C') THEN ${factVentas.monto} ELSE 0 END), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN ${factVentas.monto} ELSE 0 END), 0)`,
         totalTransactions: sql<number>`COUNT(*)`,
         totalOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
         totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
@@ -1948,7 +1948,7 @@ export class DatabaseStorage implements IStorage {
       previousYearEnd = `${previousYear}-12-31`;
     }
 
-    // Get requested year total (excluding GDV with status 'C')
+    // Get requested year total (excluding ALL GDV)
     const [requestedYearMetrics] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
@@ -1958,11 +1958,11 @@ export class DatabaseStorage implements IStorage {
         and(
           sql`${factVentas.feemdo} >= ${requestedYearStart}::date`,
           sql`${factVentas.feemdo} <= ${requestedYearEnd}::date`,
-          sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+          sql`${factVentas.tido} != 'GDV'`
         )
       );
 
-    // Get previous year total (excluding GDV with status 'C') - same period
+    // Get previous year total (excluding ALL GDV) - same period
     const [previousYearMetrics] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
@@ -1972,7 +1972,7 @@ export class DatabaseStorage implements IStorage {
         and(
           sql`${factVentas.feemdo} >= ${previousYearStart}::date`,
           sql`${factVentas.feemdo} <= ${previousYearEnd}::date`,
-          sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+          sql`${factVentas.tido} != 'GDV'`
         )
       );
 
@@ -1989,14 +1989,14 @@ export class DatabaseStorage implements IStorage {
     bestYear: number;
     bestYearTotal: number;
   }> {
-    // Get sales by year (excluding GDV with status 'C')
+    // Get sales by year (excluding ALL GDV)
     const yearlyTotals = await db
       .select({
         year: sql<number>`EXTRACT(YEAR FROM ${factVentas.feemdo})`,
         total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
       .from(factVentas)
-      .where(sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`)
+      .where(sql`${factVentas.tido} != 'GDV'`)
       .groupBy(sql`EXTRACT(YEAR FROM ${factVentas.feemdo})`)
       .orderBy(sql`COALESCE(SUM(${factVentas.monto}), 0) DESC`)
       .limit(1);
@@ -2024,7 +2024,7 @@ export class DatabaseStorage implements IStorage {
   }> {
     const conditions = [
       sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`,
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
@@ -2081,7 +2081,7 @@ export class DatabaseStorage implements IStorage {
     periodTotalSales: number;
   }> {
     const conditions = [
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
@@ -2159,7 +2159,7 @@ export class DatabaseStorage implements IStorage {
   }> {
     const conditions = [
       sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     if (startDate) {
