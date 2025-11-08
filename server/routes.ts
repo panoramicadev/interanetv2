@@ -7387,22 +7387,22 @@ export function registerRoutes(app: Express): Server {
     }
 
     // Usar la MISMA lógica que el gráfico del módulo NVV:
-    // 1. Obtener mapping kofulido → segment de sales_transactions
+    // 1. Obtener mapping kofulido → segment de ETL fact_ventas
     // 2. Filtrar NVV por los KOFULIDO que mapean a este segmento
     
-    // Get kofulido to segment mapping
+    // Get kofulido to segment mapping from ETL fact_ventas
     const salespersonSegmentResults = await db
       .selectDistinct({
-        kofulido: salesTransactions.kofulido,
-        noruen: salesTransactions.noruen,
+        kofulido: factVentas.kofudo,
+        noruen: factVentas.noruen,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(
         and(
-          isNotNull(salesTransactions.kofulido),
-          isNotNull(salesTransactions.noruen),
-          ne(salesTransactions.kofulido, ''),
-          ne(salesTransactions.noruen, '')
+          isNotNull(factVentas.kofudo),
+          isNotNull(factVentas.noruen),
+          ne(factVentas.kofudo, ''),
+          ne(factVentas.noruen, '')
         )
       );
 
