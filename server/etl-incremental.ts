@@ -428,7 +428,9 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       nokopr: row.NOKOPR?.trim() || null,
       udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
       caprco: cleanNumeric(row.CAPRCO),
-      preuni: cleanNumeric(row.PPPRNERE1),  // CORREGIDO: usar PPPRNERE1 (precio neto) en lugar de PREUNI
+      // CORREGIDO: VANELI contiene el valor neto ya calculado (con signo correcto para NCV)
+      // Calcular preuni retrocompatible = VANELI / CAPRCO (para tener precio unitario)
+      preuni: cleanNumeric(row.CAPRCO) !== 0 ? cleanNumeric(row.VANELI) / cleanNumeric(row.CAPRCO) : 0,
       vaneli: cleanNumeric(row.VANELI),
       feemli: row.FEEMLI || null,
       feerli: row.FEERLI || null,
@@ -658,10 +660,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         false,
         CAST(NULL AS NUMERIC(18,6)),
         CAST(NULL AS NUMERIC(18,6)),
-        CASE 
-          WHEN ed.tido = 'NCV' THEN CAST(dd.caprco AS NUMERIC(20,0)) * dd.preuni * -1
-          ELSE CAST(dd.caprco AS NUMERIC(20,0)) * dd.preuni
-        END,
+        dd.vaneli,
         ed.ocdo,
         dd.nokopr,
         CAST(NULL AS NUMERIC(18,6)),
