@@ -1792,32 +1792,33 @@ export class DatabaseStorage implements IStorage {
   } = {}): Promise<SalesTransaction[]> {
     const { startDate, endDate, salesperson, segment, limit = 50, offset = 0 } = filters;
     
-    let query = db.select().from(salesTransactions);
-    const conditions = [];
+    const conditions = [
+      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+    ];
     
     if (startDate) {
-      conditions.push(gte(salesTransactions.feemdo, startDate));
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
     if (endDate) {
-      conditions.push(lte(salesTransactions.feemdo, endDate));
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (salesperson) {
-      conditions.push(eq(salesTransactions.nokofu, salesperson));
+      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(salesTransactions.noruen, segment));
+      conditions.push(eq(factVentas.noruen, segment));
     }
     
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
-    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
-    const result = await query
-      .orderBy(desc(salesTransactions.feemdo))
+    const result = await db.select()
+      .from(factVentas)
+      .where(whereClause)
+      .orderBy(desc(factVentas.feemdo))
       .limit(limit)
       .offset(offset);
     
-    return result;
+    return result as any;
   }
 
   // Helper function for date range normalization  
@@ -2213,36 +2214,36 @@ export class DatabaseStorage implements IStorage {
   }>> {
     // Search clients by name (case-insensitive) and return aggregated sales data
     const conditions = [
-      sql`LOWER(nokoen) LIKE ${`%${searchTerm}%`}`,
-      sql`nokoen IS NOT NULL AND nokoen != ''`,
-      sql`tido != 'GDV'`
+      sql`LOWER(${factVentas.nokoen}) LIKE ${`%${searchTerm.toLowerCase()}%`}`,
+      sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
+      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
     ];
     
     if (startDate) {
-      conditions.push(sql`feemdo >= ${startDate}`);
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
     if (endDate) {
-      conditions.push(sql`feemdo <= ${endDate}`);
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (salesperson) {
-      conditions.push(sql`nokofu = ${salesperson}`);
+      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(sql`noruen = ${segment}`);
+      conditions.push(eq(factVentas.noruen, segment));
     }
     
-    const whereClause = sql.join(conditions, sql` AND `);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
     const results = await db
       .select({
-        name: sql<string>`nokoen`,
-        totalSales: sql<number>`COALESCE(SUM(CAST(monto AS NUMERIC)), 0)`,
+        name: factVentas.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(whereClause)
-      .groupBy(sql`nokoen`)
-      .orderBy(sql`SUM(CAST(monto AS NUMERIC)) DESC`)
+      .groupBy(factVentas.nokoen)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
       .limit(20);
 
     return results.map(r => ({
@@ -2259,36 +2260,36 @@ export class DatabaseStorage implements IStorage {
   }>> {
     // Search products by name (case-insensitive) and return aggregated sales data
     const conditions = [
-      sql`LOWER(nokoprct) LIKE ${`%${searchTerm}%`}`,
-      sql`nokoprct IS NOT NULL AND nokoprct != ''`,
-      sql`tido != 'GDV'`
+      sql`LOWER(${factVentas.nokoprct}) LIKE ${`%${searchTerm.toLowerCase()}%`}`,
+      sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
+      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
     ];
     
     if (startDate) {
-      conditions.push(sql`feemdo >= ${startDate}`);
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
     if (endDate) {
-      conditions.push(sql`feemdo <= ${endDate}`);
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (salesperson) {
-      conditions.push(sql`nokofu = ${salesperson}`);
+      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(sql`noruen = ${segment}`);
+      conditions.push(eq(factVentas.noruen, segment));
     }
     
-    const whereClause = sql.join(conditions, sql` AND `);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
     const results = await db
       .select({
-        name: sql<string>`nokoprct`,
-        totalSales: sql<number>`COALESCE(SUM(CAST(monto AS NUMERIC)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(CAST(caprco1 AS NUMERIC)), 0)`,
+        name: factVentas.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(whereClause)
-      .groupBy(sql`nokoprct`)
-      .orderBy(sql`SUM(CAST(monto AS NUMERIC)) DESC`)
+      .groupBy(factVentas.nokoprct)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
       .limit(20);
 
     return results.map(r => ({
@@ -2303,61 +2304,60 @@ export class DatabaseStorage implements IStorage {
     totalSales: number;
     percentage: number;
   }>> {
-    // Use proper date boundaries for inclusive range
-    const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(startDate, endDate);
-    
     const dateConditions = [
-      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
     ];
-    if (startDateCondition) {
-      dateConditions.push(startDateCondition);
+    
+    if (startDate) {
+      dateConditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
-    if (endDateCondition) {
-      dateConditions.push(endDateCondition);
+    if (endDate) {
+      dateConditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (salesperson) {
-      dateConditions.push(sql`${salesTransactions.nokofu} = ${salesperson}`);
+      dateConditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      dateConditions.push(sql`${salesTransactions.noruen} = ${segment}`);
+      dateConditions.push(eq(factVentas.noruen, segment));
     }
     const dateFilter = dateConditions.length > 0 ? and(...dateConditions) : undefined;
 
     const [totalSalesResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(dateFilter);
 
     const totalSales = Number(totalSalesResult.total);
 
     const conditions = [
-      sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`,
-      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
+      sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`,
+      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
     ];
-    if (startDateCondition) {
-      conditions.push(startDateCondition);
+    
+    if (startDate) {
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
-    if (endDateCondition) {
-      conditions.push(endDateCondition);
+    if (endDate) {
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (salesperson) {
-      conditions.push(sql`${salesTransactions.nokofu} = ${salesperson}`);
+      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(sql`${salesTransactions.noruen} = ${segment}`);
+      conditions.push(eq(factVentas.noruen, segment));
     }
 
     const results = await db
       .select({
-        segment: salesTransactions.noruen,
-        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
+        segment: factVentas.noruen,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
       })
-      .from(salesTransactions)
+      .from(factVentas)
       .where(and(...conditions))
-      .groupBy(salesTransactions.noruen)
-      .orderBy(sql`SUM(${salesTransactions.monto}) DESC`);
+      .groupBy(factVentas.noruen)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`);
 
     return results.map(r => ({
       segment: r.segment || '',
@@ -2370,22 +2370,22 @@ export class DatabaseStorage implements IStorage {
     period: string;
     sales: number;
   }>> {
-    const conditions = [sql`${salesTransactions.feemdo} IS NOT NULL`];
+    const conditions = [
+      sql`${factVentas.feemdo} IS NOT NULL`,
+      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+    ];
     
-    // Use proper date boundaries for inclusive range
-    const { startDateCondition, endDateCondition } = this.normalizeDateForSQL(startDate, endDate);
-    
-    if (startDateCondition) {
-      conditions.push(startDateCondition);
+    if (startDate) {
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
     }
-    if (endDateCondition) {
-      conditions.push(endDateCondition);
+    if (endDate) {
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
     }
     if (salesperson) {
-      conditions.push(eq(salesTransactions.nokofu, salesperson));
+      conditions.push(eq(factVentas.nokofu, salesperson));
     }
     if (segment) {
-      conditions.push(eq(salesTransactions.noruen, segment));
+      conditions.push(eq(factVentas.noruen, segment));
     }
     
     let query: any;
@@ -2394,36 +2394,36 @@ export class DatabaseStorage implements IStorage {
       case 'daily':
         query = db
           .select({
-            period: sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`,
-            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+            period: sql<string>`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM-DD')`,
+            sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
           })
-          .from(salesTransactions)
+          .from(factVentas)
           .where(and(...conditions))
-          .groupBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`)
-          .orderBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM-DD')`);
+          .groupBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM-DD')`)
+          .orderBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM-DD')`);
         break;
       case 'weekly':
         query = db
           .select({
-            period: sql<string>`'Semana ' || EXTRACT(week FROM ${salesTransactions.feemdo})`,
-            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+            period: sql<string>`'Semana ' || EXTRACT(week FROM ${factVentas.feemdo})`,
+            sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
           })
-          .from(salesTransactions)
+          .from(factVentas)
           .where(and(...conditions))
-          .groupBy(sql`EXTRACT(week FROM ${salesTransactions.feemdo})`)
-          .orderBy(sql`EXTRACT(week FROM ${salesTransactions.feemdo})`);
+          .groupBy(sql`EXTRACT(week FROM ${factVentas.feemdo})`)
+          .orderBy(sql`EXTRACT(week FROM ${factVentas.feemdo})`);
         break;
       case 'monthly':
       default:
         query = db
           .select({
-            period: sql<string>`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`,
-            sales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+            period: sql<string>`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`,
+            sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
           })
-          .from(salesTransactions)
+          .from(factVentas)
           .where(and(...conditions))
-          .groupBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`)
-          .orderBy(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM')`);
+          .groupBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`)
+          .orderBy(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM')`);
         break;
     }
 
