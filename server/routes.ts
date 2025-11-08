@@ -7257,22 +7257,22 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
-  // Get salesperson mapping endpoint - using direct sales transactions queries
+  // Get salesperson mapping endpoint - using ETL fact_ventas
   app.get('/api/sales-transactions/salesperson-mapping', requireAuth, asyncHandler(async (req: any, res: any) => {
     try {
-      // Get unique salesperson mapping directly from sales transactions
+      // Get unique salesperson mapping from ETL fact_ventas
       const salespersonResults = await db
         .selectDistinct({
-          kofulido: salesTransactions.kofulido,
-          nokofu: salesTransactions.nokofu,
+          kofulido: factVentas.kofudo,
+          nokofu: factVentas.nokofu,
         })
-        .from(salesTransactions)
+        .from(factVentas)
         .where(
           and(
-            isNotNull(salesTransactions.kofulido),
-            isNotNull(salesTransactions.nokofu),
-            ne(salesTransactions.kofulido, ''),
-            ne(salesTransactions.nokofu, '')
+            isNotNull(factVentas.kofudo),
+            isNotNull(factVentas.nokofu),
+            ne(factVentas.kofudo, ''),
+            ne(factVentas.nokofu, '')
           )
         );
 
@@ -7284,16 +7284,16 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      // Get unique segments directly from sales transactions
+      // Get unique segments from ETL fact_ventas
       const segmentResults = await db
         .selectDistinct({
-          segment: salesTransactions.noruen,
+          segment: factVentas.noruen,
         })
-        .from(salesTransactions)
+        .from(factVentas)
         .where(
           and(
-            isNotNull(salesTransactions.noruen),
-            ne(salesTransactions.noruen, '')
+            isNotNull(factVentas.noruen),
+            ne(factVentas.noruen, '')
           )
         );
 
@@ -7307,19 +7307,19 @@ export function registerRoutes(app: Express): Server {
         }
       });
 
-      // Get mapping from salesperson (kofulido) to segment (noruen)
+      // Get mapping from salesperson (kofudo) to segment (noruen)
       const salespersonSegmentResults = await db
         .selectDistinct({
-          kofulido: salesTransactions.kofulido,
-          noruen: salesTransactions.noruen,
+          kofulido: factVentas.kofudo,
+          noruen: factVentas.noruen,
         })
-        .from(salesTransactions)
+        .from(factVentas)
         .where(
           and(
-            isNotNull(salesTransactions.kofulido),
-            isNotNull(salesTransactions.noruen),
-            ne(salesTransactions.kofulido, ''),
-            ne(salesTransactions.noruen, '')
+            isNotNull(factVentas.kofudo),
+            isNotNull(factVentas.noruen),
+            ne(factVentas.kofudo, ''),
+            ne(factVentas.noruen, '')
           )
         );
 
