@@ -428,7 +428,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       nokopr: row.NOKOPR?.trim() || null,
       udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
       caprco: cleanNumeric(row.CAPRCO),
-      preuni: cleanNumeric(row.PREUNI),
+      preuni: cleanNumeric(row.PPPRNERE1),  // CORREGIDO: usar PPPRNERE1 (precio neto) en lugar de PREUNI
       vaneli: cleanNumeric(row.VANELI),
       feemli: row.FEEMLI || null,
       feerli: row.FEERLI || null,
