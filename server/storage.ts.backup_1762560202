@@ -1690,9 +1690,9 @@ export class DatabaseStorage implements IStorage {
       const validBatchIds = batchIds.filter(id => id != null && id !== '').map(id => id!.toString());
       
       const existingIds = validBatchIds.length > 0 ? await db
-        .select({ idmaeedo: factVentas.idmaeedo })
-        .from(factVentas)
-        .where(inArray(factVentas.idmaeedo, validBatchIds)) : [];
+        .select({ idmaeedo: salesTransactions.idmaeedo })
+        .from(salesTransactions)
+        .where(inArray(salesTransactions.idmaeedo, validBatchIds)) : [];
       
       const existingIdSet = new Set(existingIds.map(row => row.idmaeedo?.toString()));
       
@@ -1829,7 +1829,7 @@ export class DatabaseStorage implements IStorage {
     const conditions: any = {};
     
     if (startDate) {
-      conditions.startDateCondition = sql`${factVentas.feemdo} >= ${startDate}::date`;
+      conditions.startDateCondition = gte(salesTransactions.feemdo, startDate);
     }
     
     if (endDate) {
@@ -1837,7 +1837,7 @@ export class DatabaseStorage implements IStorage {
       const endDateObj = new Date(endDate);
       endDateObj.setDate(endDateObj.getDate() + 1);
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
-      conditions.endDateCondition = sql`${factVentas.feemdo} < ${endDateExclusive}::date`;
+      conditions.endDateCondition = lt(salesTransactions.feemdo, endDateExclusive);
     }
     
     return conditions;
@@ -2591,18 +2591,18 @@ export class DatabaseStorage implements IStorage {
     topSalesperson: string;
   }> {
     const conditions = [
-      sql`LOWER(${factVentas.nokoprct}) = LOWER(${productName})`
+      sql`LOWER(${salesTransactions.nokoprct}) = LOWER(${productName})`
     ];
     
     if (filters?.startDate) {
-      conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
       // Create exclusive end date by adding 1 day for proper inclusive range
       const endDateObj = new Date(filters.endDate);
       endDateObj.setDate(endDateObj.getDate() + 1);
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
-      conditions.push(sql`${factVentas.feemdo} < ${endDateExclusive}::date`);
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
     
     const whereClause = and(...conditions);
@@ -2610,36 +2610,36 @@ export class DatabaseStorage implements IStorage {
     // Get main product metrics
     const [metrics] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageOrderValue: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
+        averageOrderValue: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(whereClause);
 
     // Get top client for this product
     const [topClient] = await db
       .select({
-        clientName: sql<string>`${factVentas.nokoen}`,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
+        clientName: sql<string>`${salesTransactions.nokoen}`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(whereClause)
-      .groupBy(factVentas.nokoen)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS DECIMAL)) DESC`)
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) DESC`)
       .limit(1);
 
     // Get top salesperson for this product
     const [topSalesperson] = await db
       .select({
-        salesperson: sql<string>`${factVentas.nokofu}`,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
+        salesperson: sql<string>`${salesTransactions.nokofu}`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(whereClause)
-      .groupBy(factVentas.nokofu)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS DECIMAL)) DESC`)
+      .groupBy(salesTransactions.nokofu)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) DESC`)
       .limit(1);
 
     return {
@@ -2663,18 +2663,18 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      sql`LOWER(${factVentas.nokoprct}) = LOWER(${productName})`
+      sql`LOWER(${salesTransactions.nokoprct}) = LOWER(${productName})`
     ];
     
     if (filters?.startDate) {
-      conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
       // Create exclusive end date by adding 1 day for proper inclusive range
       const endDateObj = new Date(filters.endDate);
       endDateObj.setDate(endDateObj.getDate() + 1);
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
-      conditions.push(sql`${factVentas.feemdo} < ${endDateExclusive}::date`);
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
     
     const whereClause = and(...conditions);
@@ -2682,9 +2682,9 @@ export class DatabaseStorage implements IStorage {
     // Get total sales for percentage calculation
     const [totalResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(whereClause);
     
     const totalSales = Number(totalResult.total);
@@ -2692,13 +2692,13 @@ export class DatabaseStorage implements IStorage {
     // Extract format from product names using regex patterns for common formats
     const results = await db
       .select({
-        productName: factVentas.nokoprct,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
+        productName: salesTransactions.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(whereClause)
-      .groupBy(factVentas.nokoprct);
+      .groupBy(salesTransactions.nokoprct);
 
     // Process results to extract formats
     const formatMap = new Map<string, { totalSales: number; totalUnits: number }>();
@@ -2757,18 +2757,18 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      sql`LOWER(${factVentas.nokoprct}) = LOWER(${productName})`
+      sql`LOWER(${salesTransactions.nokoprct}) = LOWER(${productName})`
     ];
     
     if (filters?.startDate) {
-      conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
       // Create exclusive end date by adding 1 day for proper inclusive range
       const endDateObj = new Date(filters.endDate);
       endDateObj.setDate(endDateObj.getDate() + 1);
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
-      conditions.push(sql`${factVentas.feemdo} < ${endDateExclusive}::date`);
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
     
     const whereClause = and(...conditions);
@@ -2776,9 +2776,9 @@ export class DatabaseStorage implements IStorage {
     // Get total sales for percentage calculation
     const [totalResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
+        total: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(whereClause);
     
     const totalSales = Number(totalResult.total);
@@ -2786,13 +2786,13 @@ export class DatabaseStorage implements IStorage {
     // Get all product variations for this product
     const results = await db
       .select({
-        productName: factVentas.nokoprct,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS DECIMAL)), 0)`,
-        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco2}), 0)`,
+        productName: salesTransactions.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS DECIMAL)), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${salesTransactions.caprco2}), 0)`,
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(whereClause)
-      .groupBy(factVentas.nokoprct);
+      .groupBy(salesTransactions.nokoprct);
 
     // Process results to extract colors
     const colorMap = new Map<string, { totalSales: number; totalUnits: number }>();
@@ -2900,8 +2900,8 @@ export class DatabaseStorage implements IStorage {
   async getTransactionDetails(transactionId: string) {
     const [transaction] = await db
       .select()
-      .from(factVentas)
-      .where(eq(factVentas.id, transactionId));
+      .from(salesTransactions)
+      .where(eq(salesTransactions.id, transactionId));
 
     return transaction;
   }
@@ -2914,15 +2914,15 @@ export class DatabaseStorage implements IStorage {
       // 1. Clientes que no han comprado hace tiempo (más de 60 días)
       const inactiveClients = await db
         .select({
-          client: factVentas.nokoen,
-          lastPurchase: sql<string>`MAX(${factVentas.feemdo})`,
-          daysSince: sql<number>`EXTRACT(DAY FROM NOW() - MAX(${factVentas.feemdo}))`
+          client: salesTransactions.nokoen,
+          lastPurchase: sql<string>`MAX(${salesTransactions.feemdo})`,
+          daysSince: sql<number>`EXTRACT(DAY FROM NOW() - MAX(${salesTransactions.feemdo}))`
         })
-        .from(factVentas)
-        .where(eq(factVentas.nokofu, salesperson))
-        .groupBy(factVentas.nokoen)
-        .having(sql`EXTRACT(DAY FROM NOW() - MAX(${factVentas.feemdo})) > 60`)
-        .orderBy(sql`MAX(${factVentas.feemdo}) DESC`)
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson))
+        .groupBy(salesTransactions.nokoen)
+        .having(sql`EXTRACT(DAY FROM NOW() - MAX(${salesTransactions.feemdo})) > 60`)
+        .orderBy(sql`MAX(${salesTransactions.feemdo}) DESC`)
         .limit(3);
 
       inactiveClients.forEach(client => {
@@ -2941,13 +2941,13 @@ export class DatabaseStorage implements IStorage {
       // 2. Clientes con patrones estacionales (compran en fechas similares cada mes)
       const seasonalClients = await db
         .select({
-          client: factVentas.nokoen,
-          purchaseMonth: sql<string>`EXTRACT(MONTH FROM ${factVentas.feemdo})`,
+          client: salesTransactions.nokoen,
+          purchaseMonth: sql<string>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
           transactionCount: sql<number>`COUNT(*)`
         })
-        .from(factVentas)
-        .where(eq(factVentas.nokofu, salesperson))
-        .groupBy(factVentas.nokoen, sql`EXTRACT(MONTH FROM ${factVentas.feemdo})`)
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson))
+        .groupBy(salesTransactions.nokoen, sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`)
         .having(sql`COUNT(*) >= 2`)
         .limit(2);
 
@@ -2969,15 +2969,15 @@ export class DatabaseStorage implements IStorage {
       // 3. Clientes con alto volumen que pueden necesitar atención especial
       const highValueClients = await db
         .select({
-          client: factVentas.nokoen,
-          totalSales: sql<number>`SUM(CAST(${factVentas.monto} AS DECIMAL))`,
+          client: salesTransactions.nokoen,
+          totalSales: sql<number>`SUM(CAST(${salesTransactions.monto} AS DECIMAL))`,
           transactionCount: sql<number>`COUNT(*)`
         })
-        .from(factVentas)
-        .where(eq(factVentas.nokofu, salesperson))
-        .groupBy(factVentas.nokoen)
-        .having(sql`SUM(CAST(${factVentas.monto} AS DECIMAL)) > 1000000`)
-        .orderBy(sql`SUM(CAST(${factVentas.monto} AS DECIMAL)) DESC`)
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson))
+        .groupBy(salesTransactions.nokoen)
+        .having(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) > 1000000`)
+        .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS DECIMAL)) DESC`)
         .limit(2);
 
       highValueClients.forEach(client => {
@@ -3000,14 +3000,14 @@ export class DatabaseStorage implements IStorage {
       // 4. Oportunidades de venta cruzada (clientes que compran pocos productos)
       const crossSellOpportunities = await db
         .select({
-          client: factVentas.nokoen,
-          uniqueProducts: sql<number>`COUNT(DISTINCT ${factVentas.koprct})`,
+          client: salesTransactions.nokoen,
+          uniqueProducts: sql<number>`COUNT(DISTINCT ${salesTransactions.koprct})`,
           totalTransactions: sql<number>`COUNT(*)`
         })
-        .from(factVentas)
-        .where(eq(factVentas.nokofu, salesperson))
-        .groupBy(factVentas.nokoen)
-        .having(sql`COUNT(*) > 3 AND COUNT(DISTINCT ${factVentas.koprct}) <= 2`)
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson))
+        .groupBy(salesTransactions.nokoen)
+        .having(sql`COUNT(*) > 3 AND COUNT(DISTINCT ${salesTransactions.koprct}) <= 2`)
         .limit(2);
 
       crossSellOpportunities.forEach(client => {
@@ -3033,30 +3033,30 @@ export class DatabaseStorage implements IStorage {
   // Data for goals form
   async getUniqueSegments(): Promise<string[]> {
     const result = await db
-      .selectDistinct({ segment: factVentas.noruen })
-      .from(factVentas)
-      .where(sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`)
-      .orderBy(factVentas.noruen);
+      .selectDistinct({ segment: salesTransactions.noruen })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`)
+      .orderBy(salesTransactions.noruen);
     
     return result.map((r: any) => r.segment).filter((segment: string | null): segment is string => Boolean(segment));
   }
 
   async getUniqueSalespeople(): Promise<string[]> {
     const result = await db
-      .selectDistinct({ salesperson: factVentas.nokofu })
-      .from(factVentas)
-      .where(sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`)
-      .orderBy(factVentas.nokofu);
+      .selectDistinct({ salesperson: salesTransactions.nokofu })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.nokofu} IS NOT NULL AND ${salesTransactions.nokofu} != ''`)
+      .orderBy(salesTransactions.nokofu);
     
     return result.map((r: any) => r.salesperson).filter((salesperson: string | null): salesperson is string => Boolean(salesperson));
   }
 
   async getUniqueClients(): Promise<string[]> {
     const result = await db
-      .selectDistinct({ client: factVentas.nokoen })
-      .from(factVentas)
-      .where(sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`)
-      .orderBy(factVentas.nokoen);
+      .selectDistinct({ client: salesTransactions.nokoen })
+      .from(salesTransactions)
+      .where(sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`)
+      .orderBy(salesTransactions.nokoen);
     
     return result.map((r: any) => r.client).filter((client: string | null): client is string => Boolean(client));
   }
@@ -3162,10 +3162,10 @@ export class DatabaseStorage implements IStorage {
   async getGlobalSalesForPeriod(period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN CAST(${factVentas.monto} AS DECIMAL) ELSE 0 END), 0)`
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS DECIMAL) ELSE 0 END), 0)`
       })
-      .from(factVentas)
-      .where(sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`)
+      .from(salesTransactions)
+      .where(sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`)
       .execute();
 
     return Number(result[0]?.total || 0);
@@ -3174,13 +3174,13 @@ export class DatabaseStorage implements IStorage {
   async getSegmentSalesForPeriod(segment: string, period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN CAST(${factVentas.monto} AS DECIMAL) ELSE 0 END), 0)`
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS DECIMAL) ELSE 0 END), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(
         and(
-          eq(factVentas.noruen, segment),
-          sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`
+          eq(salesTransactions.noruen, segment),
+          sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`
         )
       )
       .execute();
@@ -3191,13 +3191,13 @@ export class DatabaseStorage implements IStorage {
   async getSalespersonSalesForPeriod(salesperson: string, period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN CAST(${factVentas.monto} AS DECIMAL) ELSE 0 END), 0)`
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS DECIMAL) ELSE 0 END), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(
         and(
-          eq(factVentas.nokofu, salesperson),
-          sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`
+          eq(salesTransactions.nokofu, salesperson),
+          sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`
         )
       )
       .execute();
@@ -3214,8 +3214,8 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      eq(factVentas.noruen, segmentName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      eq(salesTransactions.noruen, segmentName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -3224,23 +3224,23 @@ export class DatabaseStorage implements IStorage {
         case 'day':
           // Period format: YYYY-MM-DD
           conditions.push(
-            sql`DATE(${factVentas.feemdo}) = ${period}`
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
           );
           break;
         case 'month':
           // Period format: YYYY-MM
           if (period === 'current-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
             );
           } else if (period === 'last-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
             );
           } else {
             const [year, month] = period.split('-');
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
           break;
@@ -3248,22 +3248,22 @@ export class DatabaseStorage implements IStorage {
           // Period format: YYYY or YYYY-MM (extract year only)
           const yearForFilter = period.split('-')[0];
           conditions.push(
-            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter}`
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`
           );
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
             conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
             );
           } else if (period === 'last-30-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
             );
           } else if (period === 'last-7-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
             );
           }
           break;
@@ -3272,16 +3272,16 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db
       .select({
-        clientName: factVentas.nokoen,
-        salespersonName: sql<string>`MAX(${factVentas.nokofu})`,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        clientName: salesTransactions.nokoen,
+        salespersonName: sql<string>`MAX(${salesTransactions.nokofu})`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(factVentas.nokoen)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
     
     // Calculate segment total for percentages - ensure proper number conversion
     const segmentTotal = result.reduce((sum, client) => sum + Number(client.totalSales || 0), 0);
@@ -3304,22 +3304,22 @@ export class DatabaseStorage implements IStorage {
     averageTicket: number;
   }>> {
     const conditions = [
-      eq(factVentas.noruen, segmentName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`,
-      sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year}`
+      eq(salesTransactions.noruen, segmentName),
+      ne(salesTransactions.tido, 'GDV'),
+      sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year}`
     ];
 
     const result = await db
       .select({
-        month: sql<number>`EXTRACT(MONTH FROM ${factVentas.feemdo})::int`,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(sql`EXTRACT(MONTH FROM ${factVentas.feemdo})`)
-      .orderBy(sql`EXTRACT(MONTH FROM ${factVentas.feemdo})`);
+      .groupBy(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`)
+      .orderBy(sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`);
 
     const monthNames = [
       'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -3343,8 +3343,8 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      eq(factVentas.noruen, segmentName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      eq(salesTransactions.noruen, segmentName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -3353,23 +3353,23 @@ export class DatabaseStorage implements IStorage {
         case 'day':
           // Period format: YYYY-MM-DD
           conditions.push(
-            sql`DATE(${factVentas.feemdo}) = ${period}`
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
           );
           break;
         case 'month':
           // Period format: YYYY-MM
           if (period === 'current-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
             );
           } else if (period === 'last-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
             );
           } else {
             const [year, month] = period.split('-');
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
           break;
@@ -3377,22 +3377,22 @@ export class DatabaseStorage implements IStorage {
           // Period format: YYYY or YYYY-MM (extract year only)
           const yearForFilter = period.split('-')[0];
           conditions.push(
-            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter}`
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`
           );
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
             conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
             );
           } else if (period === 'last-30-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
             );
           } else if (period === 'last-7-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
             );
           }
           break;
@@ -3401,15 +3401,15 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db
       .select({
-        salespersonName: factVentas.nokofu,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        salespersonName: salesTransactions.nokofu,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(factVentas.nokofu)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
+      .groupBy(salesTransactions.nokofu)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
     
     // Calculate segment total for percentages - ensure proper number conversion
     const segmentTotal = result.reduce((sum, salesperson) => sum + Number(salesperson.totalSales || 0), 0);
@@ -3432,46 +3432,46 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      eq(factVentas.nosudo, branchName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      eq(salesTransactions.nosudo, branchName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
     if (period) {
       switch (filterType) {
         case 'day':
-          conditions.push(sql`DATE(${factVentas.feemdo}) = ${period}`);
+          conditions.push(sql`DATE(${salesTransactions.feemdo}) = ${period}`);
           break;
         case 'month':
           if (period === 'current-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
             );
           } else if (period === 'last-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
             );
           } else {
             const [year, month] = period.split('-');
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
           break;
         case 'year':
           const yearForFilter = period.split('-')[0];
-          conditions.push(sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter}`);
+          conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`);
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
             conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
             );
           } else if (period === 'last-30-days') {
-            conditions.push(sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`);
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`);
           } else if (period === 'last-7-days') {
-            conditions.push(sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`);
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`);
           }
           break;
       }
@@ -3479,15 +3479,15 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db
       .select({
-        clientName: factVentas.nokoen,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        clientName: salesTransactions.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(factVentas.nokoen)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
     
     const branchTotal = result.reduce((sum, client) => sum + Number(client.totalSales || 0), 0);
     
@@ -3508,45 +3508,45 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      eq(factVentas.nosudo, branchName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      eq(salesTransactions.nosudo, branchName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
     if (period) {
       switch (filterType) {
         case 'day':
-          conditions.push(sql`DATE(${factVentas.feemdo}) = ${period}`);
+          conditions.push(sql`DATE(${salesTransactions.feemdo}) = ${period}`);
           break;
         case 'month':
           if (period === 'current-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
             );
           } else if (period === 'last-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
             );
           } else {
             const [year, month] = period.split('-');
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
           break;
         case 'year':
           const yearForFilter = period.split('-')[0];
-          conditions.push(sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter}`);
+          conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`);
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
             conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
             );
           } else if (period.includes('last-')) {
             const days = period.includes('30') ? '30' : '7';
-            conditions.push(sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '${sql.raw(days)} days'`);
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '${sql.raw(days)} days'`);
           }
           break;
       }
@@ -3554,15 +3554,15 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db
       .select({
-        salespersonName: factVentas.nokofu,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        salespersonName: salesTransactions.nokofu,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(factVentas.nokofu)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
+      .groupBy(salesTransactions.nokofu)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
     
     const branchTotal = result.reduce((sum, salesperson) => sum + Number(salesperson.totalSales || 0), 0);
     
@@ -3578,13 +3578,13 @@ export class DatabaseStorage implements IStorage {
   async getBranchSalesForPeriod(branchName: string, period: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN CAST(${factVentas.monto} AS DECIMAL) ELSE 0 END), 0)`
+        total: sql<number>`COALESCE(SUM(CASE WHEN ${salesTransactions.tido} != 'GDV' THEN CAST(${salesTransactions.monto} AS DECIMAL) ELSE 0 END), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(
         and(
-          eq(factVentas.nosudo, branchName),
-          sql`TO_CHAR(${factVentas.feemdo}, 'YYYY-MM') = ${period}`
+          eq(salesTransactions.nosudo, branchName),
+          sql`TO_CHAR(${salesTransactions.feemdo}, 'YYYY-MM') = ${period}`
         )
       )
       .execute();
@@ -3596,16 +3596,16 @@ export class DatabaseStorage implements IStorage {
     // Get kofulido to branch mapping from sales_transactions
     const salespersonBranchResults = await db
       .selectDistinct({
-        kofulido: factVentas.kofulido,
-        nosudo: factVentas.nosudo,
+        kofulido: salesTransactions.kofulido,
+        nosudo: salesTransactions.nosudo,
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(
         and(
-          isNotNull(factVentas.kofulido),
-          isNotNull(factVentas.nosudo),
-          ne(factVentas.kofulido, ''),
-          ne(factVentas.nosudo, '')
+          isNotNull(salesTransactions.kofulido),
+          isNotNull(salesTransactions.nosudo),
+          ne(salesTransactions.kofulido, ''),
+          ne(salesTransactions.nosudo, '')
         )
       );
 
@@ -3666,8 +3666,8 @@ export class DatabaseStorage implements IStorage {
     lastSaleDate: string | null;
   }> {
     const conditions = [
-      eq(factVentas.nokofu, salespersonName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      eq(salesTransactions.nokofu, salespersonName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -3676,23 +3676,23 @@ export class DatabaseStorage implements IStorage {
         case 'day':
           // Period format: YYYY-MM-DD
           conditions.push(
-            sql`DATE(${factVentas.feemdo}) = ${period}`
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
           );
           break;
         case 'month':
           // Period format: YYYY-MM
           if (period === 'current-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
             );
           } else if (period === 'last-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
             );
           } else {
             const [year, month] = period.split('-');
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
           break;
@@ -3700,22 +3700,22 @@ export class DatabaseStorage implements IStorage {
           // Period format: YYYY or YYYY-MM (extract year only)
           const yearForFilter2 = period.split('-')[0];
           conditions.push(
-            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter2}`
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter2}`
           );
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
             conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
             );
           } else if (period === 'last-30-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
             );
           } else if (period === 'last-7-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
             );
           }
           break;
@@ -3724,25 +3724,25 @@ export class DatabaseStorage implements IStorage {
 
     const [result] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
-        totalClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        totalClients: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
-        firstSale: sql<string>`MIN(${factVentas.feemdo})`,
-        lastSale: sql<string>`MAX(${factVentas.feemdo})`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        firstSale: sql<string>`MIN(${salesTransactions.feemdo})`,
+        lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions));
 
     // Calculate days since ACTUAL last sale (without period filters)
     const [actualLastSale] = await db
       .select({
-        lastSale: sql<string>`MAX(${factVentas.feemdo})`
+        lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(
-        eq(factVentas.nokofu, salespersonName),
-        sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+        eq(salesTransactions.nokofu, salespersonName),
+        ne(salesTransactions.tido, 'GDV')
       ));
 
     // Calculate sales frequency (average days between sales)
@@ -3778,13 +3778,13 @@ export class DatabaseStorage implements IStorage {
     daysSinceLastSale: number;
   }>> {
     const conditions = [
-      eq(factVentas.nokofu, salespersonName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      eq(salesTransactions.nokofu, salespersonName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
     
     // Filter by segment if provided
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(eq(salesTransactions.noruen, segment));
     }
 
     // Apply date filters if period is provided
@@ -3793,23 +3793,23 @@ export class DatabaseStorage implements IStorage {
         case 'day':
           // Period format: YYYY-MM-DD
           conditions.push(
-            sql`DATE(${factVentas.feemdo}) = ${period}`
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
           );
           break;
         case 'month':
           // Period format: YYYY-MM
           if (period === 'current-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
             );
           } else if (period === 'last-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
             );
           } else {
             const [year, month] = period.split('-');
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
           break;
@@ -3817,22 +3817,22 @@ export class DatabaseStorage implements IStorage {
           // Period format: YYYY or YYYY-MM (extract year only)
           const yearForFilter = period.split('-')[0];
           conditions.push(
-            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter}`
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`
           );
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
             conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
             );
           } else if (period === 'last-30-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
             );
           } else if (period === 'last-7-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
             );
           }
           break;
@@ -3841,16 +3841,16 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db
       .select({
-        clientName: factVentas.nokoen,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        clientName: salesTransactions.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
-        lastSale: sql<string>`MAX(${factVentas.feemdo})`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(factVentas.nokoen)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
 
     const today = new Date();
     return result.map(client => {
@@ -3877,13 +3877,13 @@ export class DatabaseStorage implements IStorage {
     totalUnits: number;
   }>> {
     const conditions = [
-      eq(factVentas.nokofu, salespersonName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      eq(salesTransactions.nokofu, salespersonName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
     
     // Filter by segment if provided
     if (segment) {
-      conditions.push(eq(factVentas.noruen, segment));
+      conditions.push(eq(salesTransactions.noruen, segment));
     }
 
     // Apply date filters if period is provided
@@ -3892,23 +3892,23 @@ export class DatabaseStorage implements IStorage {
         case 'day':
           // Period format: YYYY-MM-DD
           conditions.push(
-            sql`DATE(${factVentas.feemdo}) = ${period}`
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
           );
           break;
         case 'month':
           // Period format: YYYY-MM
           if (period === 'current-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
             );
           } else if (period === 'last-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
             );
           } else {
             const [year, month] = period.split('-');
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
           break;
@@ -3916,22 +3916,22 @@ export class DatabaseStorage implements IStorage {
           // Period format: YYYY or YYYY-MM (extract year only)
           const yearForFilter = period.split('-')[0];
           conditions.push(
-            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter}`
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter}`
           );
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
             conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
             );
           } else if (period === 'last-30-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
             );
           } else if (period === 'last-7-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
             );
           }
           break;
@@ -3940,17 +3940,17 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db
       .select({
-        productName: factVentas.nokoprct,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        productName: salesTransactions.nokoprct,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averagePrice: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
-        lastSale: sql<string>`MAX(${factVentas.feemdo})`,
-        totalUnits: sql<number>`COALESCE(SUM(CAST(${factVentas.caprco1} AS NUMERIC)), 0)`
+        averagePrice: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        lastSale: sql<string>`MAX(${salesTransactions.feemdo})`,
+        totalUnits: sql<number>`COALESCE(SUM(CAST(${salesTransactions.caprco1} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(factVentas.nokoprct)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
+      .groupBy(salesTransactions.nokoprct)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
 
     return result.map(product => ({
       productName: product.productName || 'Producto desconocido',
@@ -3968,42 +3968,42 @@ export class DatabaseStorage implements IStorage {
     percentage: number;
   }>> {
     const conditions = [
-      eq(factVentas.nokofu, salespersonName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`, // Exclude GDV - only show invoiced sales
-      sql`${factVentas.noruen} IS NOT NULL AND ${factVentas.noruen} != ''`
+      eq(salesTransactions.nokofu, salespersonName),
+      ne(salesTransactions.tido, 'GDV'), // Exclude GDV - only show invoiced sales
+      sql`${salesTransactions.noruen} IS NOT NULL AND ${salesTransactions.noruen} != ''`
     ];
 
     // Apply date filters if period is provided
     if (period) {
       switch (filterType) {
         case 'day':
-          conditions.push(sql`DATE(${factVentas.feemdo}) = ${period}`);
+          conditions.push(sql`DATE(${salesTransactions.feemdo}) = ${period}`);
           break;
         case 'month':
           if (period === 'current-month') {
-            conditions.push(sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`);
+            conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`);
           } else if (period === 'last-month') {
-            conditions.push(sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`);
+            conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`);
           } else {
             const [year, month] = period.split('-');
-            conditions.push(sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`);
+            conditions.push(sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`);
           }
           break;
         case 'year':
           // Period format: YYYY or YYYY-MM (extract year only)
           const yearForFilter3 = period.split('-')[0];
           conditions.push(
-            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter3}`
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter3}`
           );
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
-            conditions.push(sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`);
+            conditions.push(sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`);
           } else if (period === 'last-30-days') {
-            conditions.push(sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`);
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`);
           } else if (period === 'last-7-days') {
-            conditions.push(sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`);
+            conditions.push(sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`);
           }
           break;
       }
@@ -4011,13 +4011,13 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db
       .select({
-        segment: factVentas.noruen,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+        segment: salesTransactions.noruen,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(factVentas.noruen)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
+      .groupBy(salesTransactions.noruen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
 
     const totalSales = result.reduce((sum, segment) => sum + Number(segment.totalSales), 0);
 
@@ -4037,8 +4037,8 @@ export class DatabaseStorage implements IStorage {
     purchaseFrequency: number;
   }> {
     const conditions = [
-      eq(factVentas.nokoen, clientName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      eq(salesTransactions.nokoen, clientName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -4047,23 +4047,23 @@ export class DatabaseStorage implements IStorage {
         case 'day':
           // Period format: YYYY-MM-DD
           conditions.push(
-            sql`DATE(${factVentas.feemdo}) = ${period}`
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
           );
           break;
         case 'month':
           // Period format: YYYY-MM
           if (period === 'current-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
             );
           } else if (period === 'last-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
             );
           } else {
             const [year, month] = period.split('-');
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
           break;
@@ -4071,22 +4071,22 @@ export class DatabaseStorage implements IStorage {
           // Period format: YYYY or YYYY-MM (extract year only)
           const yearForFilter2 = period.split('-')[0];
           conditions.push(
-            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter2}`
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter2}`
           );
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
             conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
             );
           } else if (period === 'last-30-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
             );
           } else if (period === 'last-7-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
             );
           }
           break;
@@ -4095,14 +4095,14 @@ export class DatabaseStorage implements IStorage {
 
     const [result] = await db
       .select({
-        totalPurchases: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
-        totalProducts: sql<number>`COUNT(DISTINCT ${factVentas.nokoprct})`,
+        totalPurchases: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        totalProducts: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoprct})`,
         transactionCount: sql<number>`COUNT(*)`,
-        averageTicket: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
-        firstPurchase: sql<string>`MIN(${factVentas.feemdo})`,
-        lastPurchase: sql<string>`MAX(${factVentas.feemdo})`
+        averageTicket: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        firstPurchase: sql<string>`MIN(${salesTransactions.feemdo})`,
+        lastPurchase: sql<string>`MAX(${salesTransactions.feemdo})`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions));
 
     // Calculate purchase frequency
@@ -4129,8 +4129,8 @@ export class DatabaseStorage implements IStorage {
     daysSinceLastPurchase: number;
   }>> {
     const conditions = [
-      eq(factVentas.nokoen, clientName),
-      sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')` // Exclude GDV - only show invoiced sales
+      eq(salesTransactions.nokoen, clientName),
+      ne(salesTransactions.tido, 'GDV') // Exclude GDV - only show invoiced sales
     ];
 
     // Apply date filters if period is provided
@@ -4139,23 +4139,23 @@ export class DatabaseStorage implements IStorage {
         case 'day':
           // Period format: YYYY-MM-DD
           conditions.push(
-            sql`DATE(${factVentas.feemdo}) = ${period}`
+            sql`DATE(${salesTransactions.feemdo}) = ${period}`
           );
           break;
         case 'month':
           // Period format: YYYY-MM
           if (period === 'current-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
             );
           } else if (period === 'last-month') {
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
             );
           } else {
             const [year, month] = period.split('-');
             conditions.push(
-              sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+              sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${salesTransactions.feemdo}) = ${month}`
             );
           }
           break;
@@ -4163,22 +4163,22 @@ export class DatabaseStorage implements IStorage {
           // Period format: YYYY or YYYY-MM (extract year only)
           const yearForFilter4 = period.split('-')[0];
           conditions.push(
-            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter4}`
+            sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo}) = ${yearForFilter4}`
           );
           break;
         case 'range':
           if (period.includes('_')) {
             const [startDate, endDate] = period.split('_');
             conditions.push(
-              sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+              sql`DATE(${salesTransactions.feemdo}) >= ${startDate} AND DATE(${salesTransactions.feemdo}) <= ${endDate}`
             );
           } else if (period === 'last-30-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
             );
           } else if (period === 'last-7-days') {
             conditions.push(
-              sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+              sql`${salesTransactions.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
             );
           }
           break;
@@ -4187,16 +4187,16 @@ export class DatabaseStorage implements IStorage {
 
     const result = await db
       .select({
-        productName: factVentas.nokoprct,
-        totalPurchases: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        productName: salesTransactions.nokoprct,
+        totalPurchases: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        averagePrice: sql<number>`COALESCE(AVG(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
-        lastPurchase: sql<string>`MAX(${factVentas.feemdo})`
+        averagePrice: sql<number>`COALESCE(AVG(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
+        lastPurchase: sql<string>`MAX(${salesTransactions.feemdo})`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(...conditions))
-      .groupBy(factVentas.nokoprct)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
+      .groupBy(salesTransactions.nokoprct)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
 
     const today = new Date();
     return result.map(product => {
@@ -4225,16 +4225,16 @@ export class DatabaseStorage implements IStorage {
   } | null> {
     const [result] = await db
       .select({
-        id: factVentas.id,
-        nudo: factVentas.nudo,
-        feemdo: factVentas.feemdo,
-        nokoprct: factVentas.nokoprct,
-        monto: sql<string>`CAST(${factVentas.monto} AS TEXT)`,
-        nokofu: factVentas.nokofu
+        id: salesTransactions.id,
+        nudo: salesTransactions.nudo,
+        feemdo: salesTransactions.feemdo,
+        nokoprct: salesTransactions.nokoprct,
+        monto: sql<string>`CAST(${salesTransactions.monto} AS TEXT)`,
+        nokofu: salesTransactions.nokofu
       })
-      .from(factVentas)
-      .where(eq(factVentas.nokoen, clientName))
-      .orderBy(desc(factVentas.feemdo))
+      .from(salesTransactions)
+      .where(eq(salesTransactions.nokoen, clientName))
+      .orderBy(desc(salesTransactions.feemdo))
       .limit(1);
 
     if (!result) return null;
@@ -4259,16 +4259,16 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const result = await db
       .select({
-        id: factVentas.id,
-        nudo: factVentas.nudo,
-        feemdo: factVentas.feemdo,
-        nokoprct: factVentas.nokoprct,
-        monto: sql<string>`CAST(${factVentas.monto} AS TEXT)`,
-        nokofu: factVentas.nokofu
+        id: salesTransactions.id,
+        nudo: salesTransactions.nudo,
+        feemdo: salesTransactions.feemdo,
+        nokoprct: salesTransactions.nokoprct,
+        monto: sql<string>`CAST(${salesTransactions.monto} AS TEXT)`,
+        nokofu: salesTransactions.nokofu
       })
-      .from(factVentas)
-      .where(eq(factVentas.nokoen, clientName))
-      .orderBy(desc(factVentas.feemdo))
+      .from(salesTransactions)
+      .where(eq(salesTransactions.nokoen, clientName))
+      .orderBy(desc(salesTransactions.feemdo))
       .limit(limit);
 
     return result.map(r => ({
@@ -4534,19 +4534,19 @@ export class DatabaseStorage implements IStorage {
     // Obtener todos los clientes del vendedor con estadísticas
     const allClients = await db
       .select({
-        clientName: factVentas.nokoen,
-        totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+        clientName: salesTransactions.nokoen,
+        totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
-        lastPurchaseDate: sql<string>`MAX(${factVentas.feemdo})`,
-        firstPurchaseDate: sql<string>`MIN(${factVentas.feemdo})`
+        lastPurchaseDate: sql<string>`MAX(${salesTransactions.feemdo})`,
+        firstPurchaseDate: sql<string>`MIN(${salesTransactions.feemdo})`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(
-        eq(factVentas.nokofu, salesperson),
-        sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`
       ))
-      .groupBy(factVentas.nokoen)
-      .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`);
+      .groupBy(salesTransactions.nokoen)
+      .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`);
 
     // Calcular métricas para cada cliente
     const clientsWithMetrics = allClients.map(client => {
@@ -4598,17 +4598,17 @@ export class DatabaseStorage implements IStorage {
     for (const client of clientsWithMetrics.slice(0, 20)) { // Top 20 clientes
       const topProducts = await db
         .select({
-          productName: factVentas.nokoprct,
-          productSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+          productName: salesTransactions.nokoprct,
+          productSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
         })
-        .from(factVentas)
+        .from(salesTransactions)
         .where(and(
-          eq(factVentas.nokofu, salesperson),
-          eq(factVentas.nokoen, client.clientName),
-          sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`
+          eq(salesTransactions.nokofu, salesperson),
+          eq(salesTransactions.nokoen, client.clientName),
+          sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`
         ))
-        .groupBy(factVentas.nokoprct)
-        .orderBy(sql`SUM(CAST(${factVentas.monto} AS NUMERIC)) DESC`)
+        .groupBy(salesTransactions.nokoprct)
+        .orderBy(sql`SUM(CAST(${salesTransactions.monto} AS NUMERIC)) DESC`)
         .limit(1);
 
       if (topProducts.length > 0) {
@@ -4656,8 +4656,8 @@ export class DatabaseStorage implements IStorage {
     // 1. Clientes inactivos (30+ días sin comprar)
     const inactiveClientsData = await db
       .select({
-        clientName: factVentas.nokoen,
-        lastPurchaseDate: sql<string>`MAX(${factVentas.feemdo})`,
+        clientName: salesTransactions.nokoen,
+        lastPurchaseDate: sql<string>`MAX(${salesTransactions.feemdo})`,
         lastPurchaseAmount: sql<number>`COALESCE((
           SELECT CAST(monto AS NUMERIC)
           FROM sales_transactions st2
@@ -4666,16 +4666,16 @@ export class DatabaseStorage implements IStorage {
           ORDER BY st2.feemdo DESC
           LIMIT 1
         ), 0)`,
-        totalHistoricalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+        totalHistoricalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(
-        eq(factVentas.nokofu, salesperson),
-        sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`
       ))
-      .groupBy(factVentas.nokoen)
-      .having(sql`MAX(${factVentas.feemdo}) < CURRENT_DATE - INTERVAL '30 days'`)
-      .orderBy(sql`MAX(${factVentas.feemdo}) DESC`)
+      .groupBy(salesTransactions.nokoen)
+      .having(sql`MAX(${salesTransactions.feemdo}) < CURRENT_DATE - INTERVAL '30 days'`)
+      .orderBy(sql`MAX(${salesTransactions.feemdo}) DESC`)
       .limit(10);
 
     const inactiveClients = inactiveClientsData.map(client => {
@@ -4693,19 +4693,19 @@ export class DatabaseStorage implements IStorage {
     // 2. Clientes que compran frecuentemente en esta época del año
     const seasonalClientsData = await db
       .select({
-        clientName: factVentas.nokoen,
-        purchaseMonth: sql<number>`EXTRACT(MONTH FROM ${factVentas.feemdo}::date)`,
-        purchaseDay: sql<number>`EXTRACT(DAY FROM ${factVentas.feemdo}::date)`,
-        avgAmount: sql<number>`AVG(CAST(${factVentas.monto} AS NUMERIC))`,
+        clientName: salesTransactions.nokoen,
+        purchaseMonth: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo}::date)`,
+        purchaseDay: sql<number>`EXTRACT(DAY FROM ${salesTransactions.feemdo}::date)`,
+        avgAmount: sql<number>`AVG(CAST(${salesTransactions.monto} AS NUMERIC))`,
         transactionCount: sql<number>`COUNT(*)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(
-        eq(factVentas.nokofu, salesperson),
-        sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
-        sql`EXTRACT(MONTH FROM ${factVentas.feemdo}::date) = ${currentMonth}`
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoen} IS NOT NULL AND ${salesTransactions.nokoen} != ''`,
+        sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo}::date) = ${currentMonth}`
       ))
-      .groupBy(factVentas.nokoen, sql`EXTRACT(MONTH FROM ${factVentas.feemdo}::date)`, sql`EXTRACT(DAY FROM ${factVentas.feemdo}::date)`)
+      .groupBy(salesTransactions.nokoen, sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo}::date)`, sql`EXTRACT(DAY FROM ${salesTransactions.feemdo}::date)`)
       .having(sql`COUNT(*) >= 2`)
       .orderBy(sql`COUNT(*) DESC`)
       .limit(10);
@@ -4729,30 +4729,30 @@ export class DatabaseStorage implements IStorage {
     // 3. Productos en tendencia (crecimiento en últimos 30 días vs 30-60 días anteriores)
     const recentProductSales = await db
       .select({
-        productName: factVentas.nokoprct,
-        recentSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+        productName: salesTransactions.nokoprct,
+        recentSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(
-        eq(factVentas.nokofu, salesperson),
-        sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
-        sql`${factVentas.feemdo}::date >= CURRENT_DATE - INTERVAL '30 days'`
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`,
+        sql`${salesTransactions.feemdo}::date >= CURRENT_DATE - INTERVAL '30 days'`
       ))
-      .groupBy(factVentas.nokoprct);
+      .groupBy(salesTransactions.nokoprct);
 
     const previousProductSales = await db
       .select({
-        productName: factVentas.nokoprct,
-        previousSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+        productName: salesTransactions.nokoprct,
+        previousSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(and(
-        eq(factVentas.nokofu, salesperson),
-        sql`${factVentas.nokoprct} IS NOT NULL AND ${factVentas.nokoprct} != ''`,
-        sql`${factVentas.feemdo}::date >= CURRENT_DATE - INTERVAL '60 days'`,
-        sql`${factVentas.feemdo}::date < CURRENT_DATE - INTERVAL '30 days'`
+        eq(salesTransactions.nokofu, salesperson),
+        sql`${salesTransactions.nokoprct} IS NOT NULL AND ${salesTransactions.nokoprct} != ''`,
+        sql`${salesTransactions.feemdo}::date >= CURRENT_DATE - INTERVAL '60 days'`,
+        sql`${salesTransactions.feemdo}::date < CURRENT_DATE - INTERVAL '30 days'`
       ))
-      .groupBy(factVentas.nokoprct);
+      .groupBy(salesTransactions.nokoprct);
 
     const productTrends = recentProductSales.map(recent => {
       const previous = previousProductSales.find(p => p.productName === recent.productName);
@@ -4838,12 +4838,12 @@ export class DatabaseStorage implements IStorage {
       // Obtener estadísticas de ventas para cada vendedor
       const [salesStats] = await db
         .select({
-          totalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`,
+          totalSales: sql<number>`COALESCE(SUM(CAST(${salesTransactions.monto} AS NUMERIC)), 0)`,
           transactionCount: sql<number>`COUNT(*)`,
-          lastSale: sql<string>`MAX(${factVentas.feemdo})`
+          lastSale: sql<string>`MAX(${salesTransactions.feemdo})`
         })
-        .from(factVentas)
-        .where(eq(factVentas.nokofu, salesperson.salespersonName));
+        .from(salesTransactions)
+        .where(eq(salesTransactions.nokofu, salesperson.salespersonName));
 
       // Obtener metas del vendedor
       console.log(`[DEBUG] Looking for goals for salesperson: ${salesperson.salespersonName}`);
@@ -6522,13 +6522,13 @@ export class DatabaseStorage implements IStorage {
     // Get sales data for this product
     const salesData = await db
       .select({
-        monto: factVentas.monto,
-        caprad2: factVentas.caprco2,
-        nokoen: factVentas.nokoen,
-        feemdo: factVentas.feemdo
+        monto: salesTransactions.monto,
+        caprad2: salesTransactions.caprco2,
+        nokoen: salesTransactions.nokoen,
+        feemdo: salesTransactions.feemdo
       })
-      .from(factVentas)
-      .where(eq(factVentas.koprct, sku));
+      .from(salesTransactions)
+      .where(eq(salesTransactions.koprct, sku));
 
     const totalSales = salesData.reduce((sum, sale) => sum + (Number(sale.monto) || 0), 0);
     const totalUnits = salesData.reduce((sum, sale) => sum + (Number(sale.caprad2) || 0), 0);
@@ -6811,16 +6811,16 @@ export class DatabaseStorage implements IStorage {
 
     const results = await db
       .select({
-        productId: factVentas.koprct,
-        productName: factVentas.nokoprct,
-        totalSales: sql<number>`SUM(${factVentas.monto})::numeric`,
-        totalQuantity: sql<number>`SUM(${factVentas.caprco2})::numeric`,
+        productId: salesTransactions.koprct,
+        productName: salesTransactions.nokoprct,
+        totalSales: sql<number>`SUM(${salesTransactions.monto})::numeric`,
+        totalQuantity: sql<number>`SUM(${salesTransactions.caprco2})::numeric`,
         salesCount: sql<number>`COUNT(*)`,
       })
-      .from(factVentas)
-      .where(inArray(factVentas.nokofu, salespeopleNames))
-      .groupBy(factVentas.koprct, factVentas.nokoprct)
-      .orderBy(desc(sql`SUM(${factVentas.monto})`))
+      .from(salesTransactions)
+      .where(inArray(salesTransactions.nokofu, salespeopleNames))
+      .groupBy(salesTransactions.koprct, salesTransactions.nokoprct)
+      .orderBy(desc(sql`SUM(${salesTransactions.monto})`))
       .limit(limit);
 
     return results.map(r => ({
@@ -6852,22 +6852,22 @@ export class DatabaseStorage implements IStorage {
     // Métricas totales del equipo
     const [totalMetrics] = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)::numeric`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)::numeric`,
         totalTransactions: sql<number>`COUNT(*)`,
       })
-      .from(factVentas)
-      .where(inArray(factVentas.nokofu, salespeopleNames));
+      .from(salesTransactions)
+      .where(inArray(salesTransactions.nokofu, salespeopleNames));
 
     // Mejor performer (vendedor con más ventas)
     const bestPerformerQuery = await db
       .select({
-        vendedor: factVentas.nokofu,
-        totalSales: sql<number>`SUM(${factVentas.monto})::numeric`,
+        vendedor: salesTransactions.nokofu,
+        totalSales: sql<number>`SUM(${salesTransactions.monto})::numeric`,
       })
-      .from(factVentas)
-      .where(inArray(factVentas.nokofu, salespeopleNames))
-      .groupBy(factVentas.nokofu)
-      .orderBy(desc(sql`SUM(${factVentas.monto})`))
+      .from(salesTransactions)
+      .where(inArray(salesTransactions.nokofu, salespeopleNames))
+      .groupBy(salesTransactions.nokofu)
+      .orderBy(desc(sql`SUM(${salesTransactions.monto})`))
       .limit(1);
 
     const bestPerformer = bestPerformerQuery.length > 0 
@@ -7038,23 +7038,23 @@ export class DatabaseStorage implements IStorage {
   // Segment analysis by unique clients (instead of sales volume)
   async getSegmentAnalysisByUniqueClients(startDate?: string, endDate?: string) {
     const whereConditions = [];
-    if (startDate) whereConditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
+    if (startDate) whereConditions.push(gte(salesTransactions.feemdo, startDate));
     if (endDate) {
       // Create exclusive end date by adding 1 day for proper inclusive range
       const endDateObj = new Date(endDate);
       endDateObj.setDate(endDateObj.getDate() + 1);
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
-      whereConditions.push(sql`${factVentas.feemdo} < ${endDateExclusive}::date`);
+      whereConditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
 
     const query = db
       .select({
-        segment: factVentas.noruen,
-        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+        segment: salesTransactions.noruen,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${salesTransactions.nokoen})`,
       })
-      .from(factVentas)
+      .from(salesTransactions)
       .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
-      .groupBy(factVentas.noruen);
+      .groupBy(salesTransactions.noruen);
 
     const segments = await query;
     
@@ -7084,33 +7084,33 @@ export class DatabaseStorage implements IStorage {
 
     // Add date filters
     if (filters?.startDate) {
-      conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
       // Create exclusive end date by adding 1 day for proper inclusive range
       const endDateObj = new Date(filters.endDate);
       endDateObj.setDate(endDateObj.getDate() + 1);
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
-      conditions.push(sql`${factVentas.feemdo} < ${endDateExclusive}::date`);
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
 
     // Add salesperson filter
     if (filters?.salesperson) {
-      conditions.push(eq(factVentas.nokofu, filters.salesperson));
+      conditions.push(eq(salesTransactions.nokofu, filters.salesperson));
     }
 
     // Add segment filter
     if (filters?.segment) {
-      conditions.push(eq(factVentas.noruen, filters.segment));
+      conditions.push(eq(salesTransactions.noruen, filters.segment));
     }
 
     // Get total sales for percentage calculation (includes ALL transactions)
     const [totalSalesResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
-      .from(factVentas)
-      .leftJoin(clients, eq(factVentas.nokoen, clients.nokoen))
+      .from(salesTransactions)
+      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
       .where(conditions.length > 0 ? and(...conditions) : undefined);
 
     const totalSales = Number(totalSalesResult.total);
@@ -7120,21 +7120,21 @@ export class DatabaseStorage implements IStorage {
       .select({
         rawComuna: sql<string>`COALESCE(
           NULLIF(TRIM(${clients.comuna}), ''), 
-          NULLIF(TRIM(${factVentas.zona}), ''),
+          NULLIF(TRIM(${salesTransactions.zona}), ''),
           'Sin comuna'
         )`,
-        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
-      .from(factVentas)
-      .leftJoin(clients, eq(factVentas.nokoen, clients.nokoen))
+      .from(salesTransactions)
+      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .groupBy(sql`COALESCE(
         NULLIF(TRIM(${clients.comuna}), ''), 
-        NULLIF(TRIM(${factVentas.zona}), ''),
+        NULLIF(TRIM(${salesTransactions.zona}), ''),
         'Sin comuna'
       )`)
-      .orderBy(sql`SUM(${factVentas.monto}) DESC`);
+      .orderBy(sql`SUM(${salesTransactions.monto}) DESC`);
 
     // Normalize and group by normalized comuna names
     const normalizedMap = new Map<string, { totalSales: number; transactionCount: number }>();
@@ -7178,33 +7178,33 @@ export class DatabaseStorage implements IStorage {
 
     // Add date filters
     if (filters?.startDate) {
-      conditions.push(sql`${factVentas.feemdo} >= ${filters.startDate}::date`);
+      conditions.push(gte(salesTransactions.feemdo, filters.startDate));
     }
     if (filters?.endDate) {
       // Create exclusive end date by adding 1 day for proper inclusive range
       const endDateObj = new Date(filters.endDate);
       endDateObj.setDate(endDateObj.getDate() + 1);
       const endDateExclusive = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`;
-      conditions.push(sql`${factVentas.feemdo} < ${endDateExclusive}::date`);
+      conditions.push(lt(salesTransactions.feemdo, endDateExclusive));
     }
 
     // Add salesperson filter
     if (filters?.salesperson) {
-      conditions.push(eq(factVentas.nokofu, filters.salesperson));
+      conditions.push(eq(salesTransactions.nokofu, filters.salesperson));
     }
 
     // Add segment filter
     if (filters?.segment) {
-      conditions.push(eq(factVentas.noruen, filters.segment));
+      conditions.push(eq(salesTransactions.noruen, filters.segment));
     }
 
     // Get total sales for percentage calculation (includes ALL transactions)
     const [totalSalesResult] = await db
       .select({
-        total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        total: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
       })
-      .from(factVentas)
-      .leftJoin(clients, eq(factVentas.nokoen, clients.nokoen))
+      .from(salesTransactions)
+      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
       .where(conditions.length > 0 ? and(...conditions) : undefined);
 
     const totalSales = Number(totalSalesResult.total);
@@ -7214,18 +7214,18 @@ export class DatabaseStorage implements IStorage {
       .select({
         rawComuna: sql<string>`COALESCE(
           NULLIF(TRIM(${clients.comuna}), ''), 
-          NULLIF(TRIM(${factVentas.zona}), ''),
+          NULLIF(TRIM(${salesTransactions.zona}), ''),
           'Sin comuna'
         )`,
-        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
-      .from(factVentas)
-      .leftJoin(clients, eq(factVentas.nokoen, clients.nokoen))
+      .from(salesTransactions)
+      .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .groupBy(sql`COALESCE(
         NULLIF(TRIM(${clients.comuna}), ''), 
-        NULLIF(TRIM(${factVentas.zona}), ''),
+        NULLIF(TRIM(${salesTransactions.zona}), ''),
         'Sin comuna'
       )`);
 
@@ -7352,8 +7352,8 @@ export class DatabaseStorage implements IStorage {
     // If filtering by salesperson, we need to join with sales transactions
     if (filters?.salesperson) {
       const salespersonConditions = conditions.length > 0 
-        ? [...conditions, eq(factVentas.nokofu, filters.salesperson)]
-        : [eq(factVentas.nokofu, filters.salesperson)];
+        ? [...conditions, eq(salesTransactions.nokofu, filters.salesperson)]
+        : [eq(salesTransactions.nokofu, filters.salesperson)];
 
       query = db
         .selectDistinct({
@@ -7374,7 +7374,7 @@ export class DatabaseStorage implements IStorage {
           updatedAt: clients.updatedAt
         })
         .from(clients)
-        .innerJoin(factVentas, eq(clients.nokoen, factVentas.nokoen))
+        .innerJoin(salesTransactions, eq(clients.nokoen, salesTransactions.nokoen))
         .where(and(...salespersonConditions)) as any;
     } else {
       query = conditions.length > 0 ? query.where(and(...conditions)) as any : query;
@@ -7390,16 +7390,16 @@ export class DatabaseStorage implements IStorage {
       clientsData.map(async (client) => {
         const [transactionCount] = await db
           .select({ count: sql`COUNT(*)`.as('count') })
-          .from(factVentas)
-          .where(eq(factVentas.nokoen, client.nokoen));
+          .from(salesTransactions)
+          .where(eq(salesTransactions.nokoen, client.nokoen));
 
         const [salesData] = await db
           .select({ 
-            totalSales: sql<number>`COALESCE(SUM(${factVentas.vabrdo}), 0)`,
-            lastTransactionDate: sql<string>`MAX(${factVentas.feemdo})::text`
+            totalSales: sql<number>`COALESCE(SUM(${salesTransactions.vabrdo}), 0)`,
+            lastTransactionDate: sql<string>`MAX(${salesTransactions.feemdo})::text`
           })
-          .from(factVentas)
-          .where(eq(factVentas.nokoen, client.nokoen));
+          .from(salesTransactions)
+          .where(eq(salesTransactions.nokoen, client.nokoen));
 
         return {
           ...client,
@@ -7476,13 +7476,13 @@ export class DatabaseStorage implements IStorage {
     // If filtering by salesperson, we need to join with sales transactions
     if (filters?.salesperson) {
       const salespersonConditions = conditions.length > 0 
-        ? [...conditions, eq(factVentas.nokofu, filters.salesperson)]
-        : [eq(factVentas.nokofu, filters.salesperson)];
+        ? [...conditions, eq(salesTransactions.nokofu, filters.salesperson)]
+        : [eq(salesTransactions.nokofu, filters.salesperson)];
 
       const [result] = await db
         .select({ count: sql<number>`COUNT(DISTINCT ${clients.id})` })
         .from(clients)
-        .innerJoin(factVentas, eq(clients.nokoen, factVentas.nokoen))
+        .innerJoin(salesTransactions, eq(clients.nokoen, salesTransactions.nokoen))
         .where(and(...salespersonConditions));
       
       return Number(result?.count || 0);
@@ -9818,14 +9818,14 @@ export class DatabaseStorage implements IStorage {
       // This is the same approach used by the NVV dashboard
       const salespersonCodeResult = await db
         .select({
-          kofulido: factVentas.kofulido
+          kofulido: salesTransactions.kofulido
         })
-        .from(factVentas)
+        .from(salesTransactions)
         .where(
           and(
-            isNotNull(factVentas.nokofu),
-            isNotNull(factVentas.kofulido),
-            sql`TRIM(UPPER(${factVentas.nokofu})) = TRIM(UPPER(${options.salesperson}))`
+            isNotNull(salesTransactions.nokofu),
+            isNotNull(salesTransactions.kofulido),
+            sql`TRIM(UPPER(${salesTransactions.nokofu})) = TRIM(UPPER(${options.salesperson}))`
           )
         )
         .limit(1);
@@ -9959,17 +9959,17 @@ export class DatabaseStorage implements IStorage {
       // Get salesperson name mapping from sales_transactions
       const salespersonMapping = await db
         .select({
-          kofulido: factVentas.kofulido,
-          nokofu: factVentas.nokofu
+          kofulido: salesTransactions.kofulido,
+          nokofu: salesTransactions.nokofu
         })
-        .from(factVentas)
+        .from(salesTransactions)
         .where(
           and(
-            isNotNull(factVentas.kofulido),
-            isNotNull(factVentas.nokofu)
+            isNotNull(salesTransactions.kofulido),
+            isNotNull(salesTransactions.nokofu)
           )
         )
-        .groupBy(factVentas.kofulido, factVentas.nokofu);
+        .groupBy(salesTransactions.kofulido, salesTransactions.nokofu);
 
       const kofulidoToNameMap = new Map<string, string>();
       salespersonMapping.forEach(row => {
@@ -10075,17 +10075,17 @@ export class DatabaseStorage implements IStorage {
       // First, get all KOFULIDO codes for salespeople in this segment
       const salespeopleInSegment = await db
         .select({
-          kofulido: factVentas.kofulido
+          kofulido: salesTransactions.kofulido
         })
-        .from(factVentas)
+        .from(salesTransactions)
         .where(
           and(
-            isNotNull(factVentas.kofulido),
-            isNotNull(factVentas.noruen),
-            sql`TRIM(UPPER(${factVentas.noruen})) = TRIM(UPPER(${options.segment}))`
+            isNotNull(salesTransactions.kofulido),
+            isNotNull(salesTransactions.noruen),
+            sql`TRIM(UPPER(${salesTransactions.noruen})) = TRIM(UPPER(${options.segment}))`
           )
         )
-        .groupBy(factVentas.kofulido);
+        .groupBy(salesTransactions.kofulido);
 
       // If no salespeople found in segment, return empty array
       if (!salespeopleInSegment || salespeopleInSegment.length === 0) {
@@ -10323,17 +10323,17 @@ export class DatabaseStorage implements IStorage {
         .select({
           rawComuna: sql<string>`COALESCE(
             NULLIF(TRIM(${clients.comuna}), ''), 
-            NULLIF(TRIM(${factVentas.zona}), ''),
+            NULLIF(TRIM(${salesTransactions.zona}), ''),
             'Sin comuna'
           )`,
-          totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+          totalSales: sql<number>`COALESCE(SUM(${salesTransactions.monto}), 0)`,
           transactionCount: sql<number>`COUNT(*)`,
         })
-        .from(factVentas)
-        .leftJoin(clients, eq(factVentas.nokoen, clients.nokoen))
+        .from(salesTransactions)
+        .leftJoin(clients, eq(salesTransactions.nokoen, clients.nokoen))
         .groupBy(sql`COALESCE(
           NULLIF(TRIM(${clients.comuna}), ''), 
-          NULLIF(TRIM(${factVentas.zona}), ''),
+          NULLIF(TRIM(${salesTransactions.zona}), ''),
           'Sin comuna'
         )`)
         .orderBy(sql`COUNT(*) DESC`); // Sort by transaction count
@@ -16596,47 +16596,47 @@ export class DatabaseStorage implements IStorage {
       // USE EXACTLY THE SAME FILTERING LOGIC AS DASHBOARD
       // Build conditions for sales_transactions query
       const salesConditions = [
-        isNotNull(factVentas.nokofu),
-        isNotNull(factVentas.nokoen),
-        ne(factVentas.nokofu, '.'),
-        sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+        isNotNull(salesTransactions.nokofu),
+        isNotNull(salesTransactions.nokoen),
+        ne(salesTransactions.nokofu, '.'),
+        ne(salesTransactions.tido, 'GDV')
       ];
 
       // Add year filter if provided
       if (filters?.years && filters.years.length > 0) {
         const yearConditions = filters.years.map(year => 
-          sql`EXTRACT(YEAR FROM ${factVentas.feemdo})::int = ${year}`
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
         );
         salesConditions.push(or(...yearConditions)!);
       }
 
       // SAME AS DASHBOARD: Filter by salesperson (line 2199)
       if (filters?.salespersonCode) {
-        salesConditions.push(sql`${factVentas.nokofu} = ${filters.salespersonCode}`);
+        salesConditions.push(sql`${salesTransactions.nokofu} = ${filters.salespersonCode}`);
       }
 
       // SAME AS DASHBOARD: Filter by segment (line 2202)
       if (filters?.segment && filters.segment !== 'all') {
-        salesConditions.push(sql`${factVentas.noruen} = ${filters.segment}`);
+        salesConditions.push(sql`${salesTransactions.noruen} = ${filters.segment}`);
       }
 
       // Get sales data with filters applied
       const salesData = await db
         .select({
-          year: sql<number>`EXTRACT(YEAR FROM ${factVentas.feemdo})::int`,
-          clientName: factVentas.nokoen,
-          salespersonCode: factVentas.nokofu,
-          segment: factVentas.noruen,
-          totalSales: sql<number>`SUM(${factVentas.monto})`,
-          purchaseFrequency: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
+          year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
+          clientName: salesTransactions.nokoen,
+          salespersonCode: salesTransactions.nokofu,
+          segment: salesTransactions.noruen,
+          totalSales: sql<number>`SUM(${salesTransactions.monto})`,
+          purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
         })
-        .from(factVentas)
+        .from(salesTransactions)
         .where(and(...salesConditions))
         .groupBy(
-          sql`EXTRACT(YEAR FROM ${factVentas.feemdo})`,
-          factVentas.nokoen,
-          factVentas.nokofu,
-          factVentas.noruen
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
+          salesTransactions.nokoen,
+          salesTransactions.nokofu,
+          salesTransactions.noruen
         );
 
       // Get unique clients with total sales
@@ -16701,16 +16701,16 @@ export class DatabaseStorage implements IStorage {
 
       // Get monthly sales data for paginated clients
       const monthlySalesConditions = [
-        isNotNull(factVentas.nokofu),
-        isNotNull(factVentas.nokoen),
-        ne(factVentas.nokofu, '.'),
-        sql`NOT (${factVentas.tido} = 'GDV' AND ${factVentas.esdo} = 'C')`
+        isNotNull(salesTransactions.nokofu),
+        isNotNull(salesTransactions.nokoen),
+        ne(salesTransactions.nokofu, '.'),
+        ne(salesTransactions.tido, 'GDV')
       ];
 
       // Filter by paginated clients
       if (paginatedClients.length > 0) {
         const clientConditions = paginatedClients.map(client => 
-          sql`${factVentas.nokoen} = ${client}`
+          sql`${salesTransactions.nokoen} = ${client}`
         );
         monthlySalesConditions.push(or(...clientConditions)!);
       }
@@ -16718,7 +16718,7 @@ export class DatabaseStorage implements IStorage {
       // Add year filter
       if (filters?.years && filters.years.length > 0) {
         const yearConditions = filters.years.map(year => 
-          sql`EXTRACT(YEAR FROM ${factVentas.feemdo})::int = ${year}`
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int = ${year}`
         );
         monthlySalesConditions.push(or(...yearConditions)!);
       }
@@ -16726,40 +16726,40 @@ export class DatabaseStorage implements IStorage {
       // Add month filter if provided
       if (filters?.months && filters.months.length > 0) {
         const monthConditions = filters.months.map(month => 
-          sql`EXTRACT(MONTH FROM ${factVentas.feemdo})::int = ${month}`
+          sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int = ${month}`
         );
         monthlySalesConditions.push(or(...monthConditions)!);
       }
 
       // Filter by salesperson if provided
       if (filters?.salespersonCode) {
-        monthlySalesConditions.push(sql`${factVentas.nokofu} = ${filters.salespersonCode}`);
+        monthlySalesConditions.push(sql`${salesTransactions.nokofu} = ${filters.salespersonCode}`);
       }
 
       // Filter by segment if provided
       if (filters?.segment && filters.segment !== 'all') {
-        monthlySalesConditions.push(sql`${factVentas.noruen} = ${filters.segment}`);
+        monthlySalesConditions.push(sql`${salesTransactions.noruen} = ${filters.segment}`);
       }
 
       // Query for monthly breakdown (with month filter applied)
       const monthlySalesData = paginatedClients.length > 0 ? await db
         .select({
-          year: sql<number>`EXTRACT(YEAR FROM ${factVentas.feemdo})::int`,
-          month: sql<number>`EXTRACT(MONTH FROM ${factVentas.feemdo})::int`,
-          clientName: factVentas.nokoen,
-          salespersonCode: factVentas.nokofu,
-          segment: factVentas.noruen,
-          totalSales: sql<number>`SUM(${factVentas.monto})`,
-          purchaseFrequency: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
+          year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
+          month: sql<number>`EXTRACT(MONTH FROM ${salesTransactions.feemdo})::int`,
+          clientName: salesTransactions.nokoen,
+          salespersonCode: salesTransactions.nokofu,
+          segment: salesTransactions.noruen,
+          totalSales: sql<number>`SUM(${salesTransactions.monto})`,
+          purchaseFrequency: sql<number>`COUNT(DISTINCT ${salesTransactions.nudo})`,
         })
-        .from(factVentas)
+        .from(salesTransactions)
         .where(and(...monthlySalesConditions))
         .groupBy(
-          sql`EXTRACT(YEAR FROM ${factVentas.feemdo})`,
-          sql`EXTRACT(MONTH FROM ${factVentas.feemdo})`,
-          factVentas.nokoen,
-          factVentas.nokofu,
-          factVentas.noruen
+          sql`EXTRACT(YEAR FROM ${salesTransactions.feemdo})`,
+          sql`EXTRACT(MONTH FROM ${salesTransactions.feemdo})`,
+          salesTransactions.nokoen,
+          salesTransactions.nokofu,
+          salesTransactions.noruen
         ) : [];
 
       // Generate results: ONLY monthly breakdown (frontend will calculate yearly totals)
@@ -16808,11 +16808,11 @@ export class DatabaseStorage implements IStorage {
       // Get years from historical sales
       const salesYears = await db
         .selectDistinct({
-          year: sql<number>`EXTRACT(YEAR FROM ${factVentas.feemdo})::int`,
+          year: sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`,
         })
-        .from(factVentas)
-        .where(isNotNull(factVentas.feemdo))
-        .orderBy(desc(sql<number>`EXTRACT(YEAR FROM ${factVentas.feemdo})::int`));
+        .from(salesTransactions)
+        .where(isNotNull(salesTransactions.feemdo))
+        .orderBy(desc(sql<number>`EXTRACT(YEAR FROM ${salesTransactions.feemdo})::int`));
 
       // Get years from manual projections
       const projectionYears = await db
@@ -16840,17 +16840,17 @@ export class DatabaseStorage implements IStorage {
     try {
       const results = await db
         .selectDistinct({
-          name: factVentas.nokofu,
+          name: salesTransactions.nokofu,
         })
-        .from(factVentas)
+        .from(salesTransactions)
         .where(
           and(
-            isNotNull(factVentas.nokofu),
-            sql`${factVentas.nokofu} != ''`,
-            sql`${factVentas.nokofu} != '.'`
+            isNotNull(salesTransactions.nokofu),
+            sql`${salesTransactions.nokofu} != ''`,
+            sql`${salesTransactions.nokofu} != '.'`
           )
         )
-        .orderBy(factVentas.nokofu);
+        .orderBy(salesTransactions.nokofu);
 
       return results.map(r => ({
         code: r.name!,
@@ -16866,18 +16866,18 @@ export class DatabaseStorage implements IStorage {
     try {
       const results = await db
         .selectDistinct({
-          name: factVentas.nokofu,
+          name: salesTransactions.nokofu,
         })
-        .from(factVentas)
+        .from(salesTransactions)
         .where(
           and(
-            isNotNull(factVentas.nokofu),
-            sql`${factVentas.nokofu} != ''`,
-            sql`${factVentas.nokofu} != '.'`,
-            eq(factVentas.noruen, segment)
+            isNotNull(salesTransactions.nokofu),
+            sql`${salesTransactions.nokofu} != ''`,
+            sql`${salesTransactions.nokofu} != '.'`,
+            eq(salesTransactions.noruen, segment)
           )
         )
-        .orderBy(factVentas.nokofu);
+        .orderBy(salesTransactions.nokofu);
 
       return results.map(r => ({
         code: r.name!,
@@ -16893,16 +16893,16 @@ export class DatabaseStorage implements IStorage {
     try {
       const results = await db
         .selectDistinct({
-          segment: factVentas.noruen,
+          segment: salesTransactions.noruen,
         })
-        .from(factVentas)
+        .from(salesTransactions)
         .where(
           and(
-            isNotNull(factVentas.noruen),
-            sql`TRIM(${factVentas.noruen}) != ''`
+            isNotNull(salesTransactions.noruen),
+            sql`TRIM(${salesTransactions.noruen}) != ''`
           )
         )
-        .orderBy(factVentas.noruen);
+        .orderBy(salesTransactions.noruen);
 
       return results.map(r => ({
         code: r.segment!,
