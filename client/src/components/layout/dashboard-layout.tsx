@@ -121,13 +121,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="p-6 border-b border-slate-700/50">
-            <div className="flex items-center justify-center">
-              <img 
-                src={logoPath} 
-                alt="PANORAMICA Logo" 
-                className="h-12 w-auto object-contain"
-              />
-            </div>
+            <Link href="/dashboard">
+              <div className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                <img 
+                  src={logoPath} 
+                  alt="PANORAMICA Logo" 
+                  className="h-12 w-auto object-contain"
+                  data-testid="logo-home"
+                />
+              </div>
+            </Link>
           </div>
         
           {/* Navigation */}
