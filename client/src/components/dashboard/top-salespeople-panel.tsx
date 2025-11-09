@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { UserCheck, Download } from "lucide-react";
+import { UserCheck, Download, Search } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import SalespersonDetail from "@/pages/salesperson-detail";
 
 interface TopSalesperson {
   salesperson: string;
@@ -24,6 +27,8 @@ interface TopSalespeoplePanelProps {
 
 export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson }: TopSalespeoplePanelProps) {
   const [displayedCount, setDisplayedCount] = useState(10); // Start with 10 salespeople
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSalesperson, setSelectedSalesperson] = useState<string | null>(null);
   
   const { data: topSalespeopleResponse, isLoading } = useQuery<TopSalespeopleResponse>({
     queryKey: ['/api/sales/top-salespeople', 'all', selectedPeriod, filterType, segment, salesperson],
@@ -56,6 +61,16 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
     ...salesperson,
     percentage: periodTotal > 0 ? (salesperson.totalSales / periodTotal) * 100 : 0
   }));
+  
+  // Filter by search term
+  const filteredSalespeople = salespeopleWithPercentage?.filter(sp =>
+    sp.salesperson.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  
+  // Reset displayedCount when search term changes
+  useEffect(() => {
+    setDisplayedCount(10);
+  }, [searchTerm]);
 
   const exportToCSV = () => {
     if (!salespeopleWithPercentage || salespeopleWithPercentage.length === 0) return;
@@ -144,6 +159,19 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
         </div>
       </div>
       
+      {/* Búsqueda */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          type="text"
+          placeholder="Buscar vendedor..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+          data-testid="input-search-salespeople"
+        />
+      </div>
+      
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
         {isLoading ? (
           <div className="space-y-4">
@@ -158,18 +186,25 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
               </div>
             ))}
           </div>
+        ) : filteredSalespeople && filteredSalespeople.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-sm">
+              {searchTerm ? `No se encontraron vendedores que coincidan con "${searchTerm}"` : 'No hay vendedores disponibles'}
+            </p>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {salespeopleWithPercentage?.slice(0, displayedCount).map((salesperson, index) => (
-              <Link 
-                key={salesperson.salesperson} 
-                href={`/salesperson/${encodeURIComponent(salesperson.salesperson)}`}
-                className="block hover:bg-gray-50/50 rounded-lg transition-colors"
-              >
-                <div 
-                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
+          <>
+            <div className="space-y-4">
+              {filteredSalespeople?.slice(0, displayedCount).map((salesperson, index) => (
+                <button
+                  key={salesperson.salesperson}
+                  onClick={() => setSelectedSalesperson(salesperson.salesperson)}
+                  className="w-full block hover:bg-gray-50/50 rounded-lg transition-colors text-left"
                   data-testid={`salesperson-${index}`}
                 >
+                  <div 
+                    className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
+                  >
                   {/* Nombre del vendedor y monto - Mobile */}
                   <div className="flex flex-col gap-2 sm:hidden">
                     <p className="text-sm text-gray-700 font-medium break-words line-clamp-2">
@@ -233,20 +268,21 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
                     </div>
                   </div>
                 </div>
-              </Link>
-            ))}
+                </button>
+              ))}
+            </div>
             
             {/* Ver más button */}
-            {salespeopleWithPercentage && displayedCount < salespeopleWithPercentage.length && (
+            {filteredSalespeople && displayedCount < filteredSalespeople.length && (
               <div className="text-center pt-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setDisplayedCount(prev => Math.min(prev + 10, salespeopleWithPercentage.length))}
+                  onClick={() => setDisplayedCount(prev => Math.min(prev + 10, filteredSalespeople.length))}
                   className="text-xs px-4 py-2"
                   data-testid="button-see-more-salespeople"
                 >
-                  Ver más ({displayedCount} de {salespeopleWithPercentage.length})
+                  Ver más ({displayedCount} de {filteredSalespeople.length})
                 </Button>
               </div>
             )}
@@ -304,9 +340,25 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
+      
+      {/* Modal de Vendedor */}
+      <Dialog open={!!selectedSalesperson} onOpenChange={(open) => !open && setSelectedSalesperson(null)}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Análisis de Vendedor</DialogTitle>
+          </DialogHeader>
+          {selectedSalesperson && (
+            <SalespersonDetail
+              salespersonName={selectedSalesperson}
+              embedded={true}
+              onBack={() => setSelectedSalesperson(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
