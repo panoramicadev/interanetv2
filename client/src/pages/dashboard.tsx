@@ -1178,8 +1178,8 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <main className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 space-y-3 sm:space-y-4 lg:space-y-6 relative">
-          {/* Subtle last updated message */}
-          {lastUpdated && (
+          {/* Subtle last updated message - Hide in comparative mode */}
+          {lastUpdated && !isComparativeMode && (
             <div className="absolute top-1 right-3 text-[10px] text-gray-400/60 font-mono pointer-events-none select-none">
               Actualizado {formatLastUpdated(lastUpdated)}
             </div>
@@ -1201,14 +1201,6 @@ export default function Dashboard() {
               {globalFilter.type === "all" && (
                 <ComparativeSegmentTable periods={comparativePeriods} />
               )}
-
-              {/* Resumen Comparativo Section */}
-              <div className="bg-white border rounded-lg p-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Resumen Comparativo</h2>
-                <div className="text-sm text-gray-600 mb-4">
-                  Comparando datos de {comparativePeriods.length} períodos seleccionados
-                </div>
-              </div>
 
               {/* Comparative Salespeople Chart */}
               {globalFilter.type === "all" && (
