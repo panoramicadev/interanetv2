@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { GlobalFilter } from "@/contexts/FilterContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Target, Building, Users } from "lucide-react";
 
@@ -17,10 +18,7 @@ export interface GoalProgress {
 }
 
 interface GoalsProgressProps {
-  globalFilter: {
-    type: "all" | "global" | "segment" | "salesperson";
-    value?: string;
-  };
+  globalFilter: GlobalFilter;
   selectedPeriod: string; // Required period for filtering goals
   goalsData?: GoalProgress[]; // Accept external goals data
   isLoading?: boolean; // Accept loading state

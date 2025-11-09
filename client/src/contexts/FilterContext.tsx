@@ -12,7 +12,7 @@ export interface YearMonthSelection {
 }
 
 export interface GlobalFilter {
-  type: "all" | "segment" | "salesperson" | "branch";
+  type: "all" | "segment" | "salesperson" | "branch" | "global";
   value?: string;
 }
 
