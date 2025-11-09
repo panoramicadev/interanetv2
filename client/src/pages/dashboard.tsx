@@ -1038,8 +1038,10 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
+                  {console.log("🎨 [Dashboard RENDER] Select value:", globalFilter.type, "Full filter:", globalFilter)}
                   <Select 
-                    value={globalFilter.type} 
+                    value={globalFilter.type}
+                    onOpenChange={(open) => console.log("🎨 [Dashboard] Select opened/closed:", open, "Current value:", globalFilter.type)} 
                     onValueChange={(value) => {
                       console.log("🎯 [Dashboard] Select onChange - value:", value);
                       console.log("🎯 [Dashboard] Current globalFilter BEFORE change:", globalFilter);
@@ -1076,7 +1078,7 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                      <SelectItem value="all">
+                      <SelectItem value="all" onClick={() => console.log("🖱️ [Dashboard] SelectItem 'all' CLICKED")}>
                         <div className="flex items-center space-x-2">
                           <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
                           <span>Todo el dashboard</span>
