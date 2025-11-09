@@ -69,12 +69,26 @@ Preferred communication style: Simple, everyday language.
 - **Promesas de Compra Semanales**: Weekly purchase promise tracking.
 - **Internal Notifications System**: Role-based and automatic event notifications.
 - **Sales Forecasting System**: Holt-Winters triple exponential smoothing for monthly sales projections.
-- **ETL Data Warehouse**: PostgreSQL schema with staging tables and a denormalized `fact_ventas` table. Automated incremental ETL runs every 15 minutes, with unique index on (idmaeedo, idmaeddo) for UPSERT support. Data mapper validates and preserves precision for 18-20 digit IDs and monetary values using string-based numerics. **Field Mapping (Nov 2025)**: Corrected client, vendor, and segment joins using MAEEDO.ENDO → MAEEN.KOEN (client RUT), MAEEN.KOFUEN → TABFU.KOFU (vendor), MAEEN.RUEN → TABRU.KORU (segment). Added LTRIM/RTRIM for whitespace handling and onConflictDoNothing for duplicate prevention in staging tables. Dashboard fields (nokoen, nokofu, noruen) now populate correctly with ~100%/97%/96% coverage. **Execution Metrics (Nov 2025)**: `recordsProcessed` in execution log now tracks only NET NEW records inserted into fact_ventas (count after - count before), not total staging records processed. **Real-Time Progress (Nov 2025)**: Server-Sent Events (SSE) system for live ETL progress tracking with 10-step visualization (initialization, extraction, staging, UPSERT, validation, completion). Batch insert optimization (100-500 rows per query) improves performance for large datasets. Asynchronous execution allows immediate UI feedback while ETL runs in background.
+- **ETL Data Warehouse**: PostgreSQL schema with staging tables and a denormalized `fact_ventas` table. Automated incremental ETL runs every 30 minutes, with unique index on (idmaeedo, idmaeddo) for UPSERT support. Data mapper validates and preserves precision for 18-20 digit IDs and monetary values using string-based numerics. **Field Mapping (Nov 2025)**: Corrected client, vendor, and segment joins using MAEEDO.ENDO → MAEEN.KOEN (client RUT), MAEEN.KOFUEN → TABFU.KOFU (vendor), MAEEN.RUEN → TABRU.KORU (segment). Added LTRIM/RTRIM for whitespace handling and onConflictDoNothing for duplicate prevention in staging tables. Dashboard fields (nokoen, nokofu, noruen) now populate correctly with ~100%/97%/96% coverage. **Execution Metrics (Nov 2025)**: `recordsProcessed` in execution log now tracks only NET NEW records inserted into fact_ventas (count after - count before), not total staging records processed. **Real-Time Progress (Nov 2025)**: Server-Sent Events (SSE) system for live ETL progress tracking with 10-step visualization (initialization, extraction, staging, UPSERT, validation, completion). Batch insert optimization (100-500 rows per query) improves performance for large datasets. Asynchronous execution allows immediate UI feedback while ETL runs in background.
+  - **Production Reliability (Nov 2025)**: 
+    - **Circuit Breaker Pattern**: SQL Server connection protection with automatic state management (CLOSED → OPEN → HALF_OPEN)
+    - **Retry with Exponential Backoff**: 3 retry attempts with 2s base delay for idempotent operations
+    - **Health Check Endpoint** (/api/health): Comprehensive system monitoring (PostgreSQL, ETL status, SQL Server circuit breaker, data quality metrics)
+    - **Automated Health Monitoring**: Background service polls health endpoint every 10 minutes, generates admin notifications on degradation
+    - **Data Quality Validation**: Automatic threshold validation for NULL values in critical fields (nokoen, nokofu, noruen) with 10% tolerance
+    - **Atomic Transactions**: DELETE+INSERT in fact_ventas wrapped in transaction to guarantee consistency
+    - **Timeout Controls**: 120s timeout per SQL Server request to prevent hung connections
 - **Manual Sales Projection**: Monthly to yearly calculation and "future clients" management.
 
 ### Production Deployment
 - **Platform**: Replit Autoscale Deployment
-- **Automation**: Database migrations, ETL scheduler.
+- **Automation**: Database migrations, ETL scheduler (30-minute intervals), preventive maintenance scheduler (daily), health monitoring (10-minute intervals)
+- **Reliability Features**:
+  - Circuit breaker for SQL Server connectivity
+  - Automatic retry with exponential backoff
+  - Health check endpoint for monitoring
+  - Automated alerting system for degradations
+  - Data quality validation and alerts
 
 ## External Dependencies
 
