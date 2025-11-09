@@ -1078,7 +1078,16 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                      <SelectItem value="all" onClick={() => console.log("🖱️ [Dashboard] SelectItem 'all' CLICKED")}>
+                      <SelectItem 
+                        value="all" 
+                        onSelect={() => {
+                          console.log("🖱️ [Dashboard] SelectItem 'all' SELECTED via onSelect");
+                          resetFilters();
+                          setLocation('/dashboard');
+                          queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+                          queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
+                        }}
+                      >
                         <div className="flex items-center space-x-2">
                           <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
                           <span>Todo el dashboard</span>
