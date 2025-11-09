@@ -293,9 +293,13 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log(`   Tipos documento: ${tiposDoc.join(', ')}`);
     console.log(`   Sucursales: ${sucursales.join(', ')}\n`);
 
-    // Conectar a SQL Server
+    // Conectar a SQL Server con circuit breaker y retry
     console.log('🔄 Conectando a SQL Server...');
-    pool = await mssql.connect(sqlServerConfig);
+    pool = await executeWithResilience(
+      async () => mssql.connect(sqlServerConfig),
+      sqlServerBreaker,
+      { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+    );
     console.log('✅ Conectado a SQL Server\n');
 
     // Registrar inicio de ejecución
@@ -339,16 +343,20 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log(`🔍 YEAR(FEEMDO) >= ${startYear} (dinámico según watermark)`);
     console.log('');
     
-    const maeedo = await pool.request().query(`
-      SELECT *
-      FROM dbo.MAEEDO
-      WHERE TIDO IN (${tiposDoc.map(t => `'${t}'`).join(',')})
-        AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-        AND YEAR(FEEMDO) >= ${startYear}
-        AND FEEMDO >= '${startDateSQL}'
-        AND FEEMDO <= '${endDateSQL}'
-      ORDER BY FEEMDO
-    `);
+    const maeedo = await executeWithResilience(
+      async () => pool.request().query(`
+        SELECT *
+        FROM dbo.MAEEDO
+        WHERE TIDO IN (${tiposDoc.map(t => `'${t}'`).join(',')})
+          AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
+          AND YEAR(FEEMDO) >= ${startYear}
+          AND FEEMDO >= '${startDateSQL}'
+          AND FEEMDO <= '${endDateSQL}'
+        ORDER BY FEEMDO
+      `),
+      sqlServerBreaker,
+      { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+    );
     
     if (maeedo.recordset.length === 0) {
       console.log('\n⚠️  No hay registros nuevos para procesar en el período especificado');
@@ -422,11 +430,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     emitProgress(3, TOTAL_STEPS, 'Extrayendo MAEDDO', 'Consultando SQL Server...');
     console.log('2️⃣  Extrayendo MAEDDO (Detalles)...');
     const idmaeedos = maeedo.recordset.map(r => r.IDMAEEDO);
-    const maeddo = await pool.request().query(`
-      SELECT *
-      FROM dbo.MAEDDO
-      WHERE IDMAEEDO IN (${idmaeedos.join(',')})
-    `);
+    const maeddo = await executeWithResilience(
+      async () => pool.request().query(`
+        SELECT *
+        FROM dbo.MAEDDO
+        WHERE IDMAEEDO IN (${idmaeedos.join(',')})
+      `),
+      sqlServerBreaker,
+      { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+    );
     console.log(`   ✅ ${maeddo.recordset.length} registros encontrados`);
 
     // Cargar MAEDDO (BATCH INSERT - optimizado)
@@ -458,11 +470,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     let maeen = { recordset: [] };
     
     if (endos.length > 0) {
-      maeen = await pool.request().query(`
-        SELECT KOEN, NOKOEN, RUEN, ZOEN, KOFUEN
-        FROM dbo.MAEEN
-        WHERE LTRIM(RTRIM(KOEN)) IN (${endos.map(e => `'${e}'`).join(',')})
-      `);
+      maeen = await executeWithResilience(
+        async () => pool.request().query(`
+          SELECT KOEN, NOKOEN, RUEN, ZOEN, KOFUEN
+          FROM dbo.MAEEN
+          WHERE LTRIM(RTRIM(KOEN)) IN (${endos.map(e => `'${e}'`).join(',')})
+        `),
+        sqlServerBreaker,
+        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+      );
     }
     console.log(`   ✅ ${maeen.recordset.length} registros encontrados`);
 
@@ -479,11 +495,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     // 4. EXTRAER productos únicos
     console.log('4️⃣  Extrayendo MAEPR (Productos)...');
     const koprcts = [...new Set(maeddo.recordset.map(r => r.KOPRCT))];
-    const maepr = await pool.request().query(`
-      SELECT KOPR, NOKOPR, UD01PR, UD02PR, TIPR
-      FROM dbo.MAEPR
-      WHERE KOPR IN (${koprcts.map(k => `'${k}'`).join(',')})
-    `);
+    const maepr = await executeWithResilience(
+      async () => pool.request().query(`
+        SELECT KOPR, NOKOPR, UD01PR, UD02PR, TIPR
+        FROM dbo.MAEPR
+        WHERE KOPR IN (${koprcts.map(k => `'${k}'`).join(',')})
+      `),
+      sqlServerBreaker,
+      { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+    );
     console.log(`   ✅ ${maepr.recordset.length} registros encontrados`);
 
     const maepr_records = maepr.recordset.map(row => ({
@@ -501,11 +521,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     let maeven = { recordset: [] };
     
     if (kofuens.length > 0) {
-      maeven = await pool.request().query(`
-        SELECT KOFU, NOKOFU
-        FROM dbo.TABFU
-        WHERE KOFU IN (${kofuens.map(k => `'${k}'`).join(',')})
-      `);
+      maeven = await executeWithResilience(
+        async () => pool.request().query(`
+          SELECT KOFU, NOKOFU
+          FROM dbo.TABFU
+          WHERE KOFU IN (${kofuens.map(k => `'${k}'`).join(',')})
+        `),
+        sqlServerBreaker,
+        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+      );
     }
     console.log(`   ✅ ${maeven.recordset.length} registros encontrados`);
 
@@ -521,11 +545,15 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     let tabru = { recordset: [] };
     
     if (ruens.length > 0) {
-      tabru = await pool.request().query(`
-        SELECT KORU, NOKORU
-        FROM dbo.TABRU
-        WHERE KORU IN (${ruens.map(r => `'${r}'`).join(',')})
-      `);
+      tabru = await executeWithResilience(
+        async () => pool.request().query(`
+          SELECT KORU, NOKORU
+          FROM dbo.TABRU
+          WHERE KORU IN (${ruens.map(r => `'${r}'`).join(',')})
+        `),
+        sqlServerBreaker,
+        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+      );
     }
     console.log(`   ✅ ${tabru.recordset.length} registros encontrados`);
 
@@ -540,12 +568,16 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     const sulis = [...new Set(maeedo.recordset.map(r => r.SULI))];
     const bosulis = [...new Set(maeedo.recordset.map(r => r.BOSULIDO))];
     
-    const tabbo = await pool.request().query(`
-      SELECT EMPRESA, KOBO, NOKOBO
-      FROM dbo.TABBO
-      WHERE EMPRESA IN (${sulis.map(s => `'${s}'`).join(',')})
-        AND KOBO IN (${bosulis.map(b => `'${b}'`).join(',')})
-    `);
+    const tabbo = await executeWithResilience(
+      async () => pool.request().query(`
+        SELECT EMPRESA, KOBO, NOKOBO
+        FROM dbo.TABBO
+        WHERE EMPRESA IN (${sulis.map(s => `'${s}'`).join(',')})
+          AND KOBO IN (${bosulis.map(b => `'${b}'`).join(',')})
+      `),
+      sqlServerBreaker,
+      { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+    );
     console.log(`   ✅ ${tabbo.recordset.length} registros encontrados`);
 
     const tabbo_records = tabbo.recordset.map(row => ({
@@ -559,14 +591,18 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     // 8. EXTRAER propiedades de productos desde MAEPR
     emitProgress(7, TOTAL_STEPS, 'Extrayendo TABPP', 'Propiedades de productos...');
     console.log('8️⃣  Extrayendo TABPP (Propiedades Productos desde MAEPR)...');
-    const tabpp = await pool.request().query(`
-      SELECT DISTINCT
-        pr.KOPR,
-        pr.PM as listacost,
-        pr.PM as liscosmod
-      FROM dbo.MAEPR pr
-      WHERE pr.KOPR IN (${koprcts.map(k => `'${k}'`).join(',')})
-    `);
+    const tabpp = await executeWithResilience(
+      async () => pool.request().query(`
+        SELECT DISTINCT
+          pr.KOPR,
+          pr.PM as listacost,
+          pr.PM as liscosmod
+        FROM dbo.MAEPR pr
+        WHERE pr.KOPR IN (${koprcts.map(k => `'${k}'`).join(',')})
+      `),
+      sqlServerBreaker,
+      { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+    );
     console.log(`   ✅ ${tabpp.recordset.length} registros encontrados`);
 
     const tabpp_records = tabpp.recordset.map(row => ({
@@ -584,18 +620,21 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
     const rowsBeforeUpsert = Number(countBeforeResult.rows[0].count);
     
-    // Primero eliminar registros existentes de los documentos modificados
+    // UPSERT atómico: DELETE + INSERT en una sola transacción (garantiza integridad)
     const idmaeddosToDelete = maeddo.recordset.map(r => cleanNumeric(r.IDMAEDDO));
-    if (idmaeddosToDelete.length > 0) {
-      await db.execute(sql`
-        DELETE FROM ventas.fact_ventas 
-        WHERE idmaeddo IN (${sql.raw(idmaeddosToDelete.join(','))})
-      `);
-    }
+    
+    await db.transaction(async (tx) => {
+      // Primero eliminar registros existentes de los documentos modificados
+      if (idmaeddosToDelete.length > 0) {
+        await tx.execute(sql`
+          DELETE FROM ventas.fact_ventas 
+          WHERE idmaeddo IN (${sql.raw(idmaeddosToDelete.join(','))})
+        `);
+      }
 
-    // Insertar registros actualizados
-    const factQuery = await db.execute(sql`
-      INSERT INTO ventas.fact_ventas (
+      // Insertar registros actualizados (mismo query, ahora dentro de transacción)
+      await tx.execute(sql`
+        INSERT INTO ventas.fact_ventas (
         idmaeddo, idmaeedo, tido, nudo, endo, suendo, sudo, feemdo, feulvedo,
         esdo, espgdo, kofudo, modo, timodo, tamodo, caprad, caprex, vanedo, vaivdo, vabrdo,
         lilg, nulido, sulido, luvtlido, bosulido, kofulido, prct, tict, tipr, nusepr,
@@ -698,7 +737,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       LEFT JOIN ventas.stg_tabru ru ON en.ruen = ru.koru
       LEFT JOIN ventas.stg_tabbo bo ON ed.suli = bo.suli AND ed.bosulido = bo.bosuli
       LEFT JOIN ventas.stg_tabpp pp ON dd.koprct = pp.kopr
-    `);
+      `);
+    });
 
     // Contar filas DESPUÉS del proceso para calcular registros nuevos
     const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_ventas`);
