@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Users, Award, CalendarIcon } from "lucide-react";
+import { ArrowLeft, TrendingUp, ShoppingBag, Package, DollarSign, Users, Award, CalendarIcon, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,8 +38,15 @@ interface ProductColor {
   percentage: number;
 }
 
-export default function ProductDetail() {
-  const { productName } = useParams();
+interface ProductDetailProps {
+  productNameOverride?: string;
+  embedded?: boolean;
+  onClose?: () => void;
+}
+
+export default function ProductDetail({ productNameOverride, embedded = false, onClose }: ProductDetailProps = {}) {
+  const params = useParams();
+  const productName = productNameOverride || params.productName;
   
   // Date filter states
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
@@ -148,22 +155,24 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={embedded ? "" : "min-h-screen bg-background"}>
       <div>
         {/* Header - Compact Layout */}
         <header className="bg-white border-b border-gray-200/60 px-3 sm:px-4 lg:px-6 py-4 m-3 sm:m-4 rounded-2xl shadow-sm">
           {/* Title Section */}
           <div className="flex items-start justify-between mb-4">
             <div className="min-w-0 flex-1">
-              <nav className="flex items-center space-x-1 text-xs text-gray-600 mb-1">
-                <Link href="/" className="hover:text-blue-600 transition-colors">
-                  Dashboard
-                </Link>
-                <span>›</span>
-                <span className="hidden sm:inline">Producto</span>
-                <span className="hidden sm:inline">›</span>
-                <span className="font-medium text-gray-900 truncate">{decodeURIComponent(productName)}</span>
-              </nav>
+              {!embedded && (
+                <nav className="flex items-center space-x-1 text-xs text-gray-600 mb-1">
+                  <Link href="/" className="hover:text-blue-600 transition-colors">
+                    Dashboard
+                  </Link>
+                  <span>›</span>
+                  <span className="hidden sm:inline">Producto</span>
+                  <span className="hidden sm:inline">›</span>
+                  <span className="font-medium text-gray-900 truncate">{decodeURIComponent(productName)}</span>
+                </nav>
+              )}
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">
                 Análisis de Producto
               </h1>
@@ -175,18 +184,46 @@ export default function ProductDetail() {
               </p>
             </div>
             
-            <Link href="/">
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="rounded-xl border-gray-200 shadow-sm ml-4"
-                data-testid="button-back-dashboard"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Volver al Dashboard</span>
-                <span className="sm:hidden">Volver</span>
-              </Button>
-            </Link>
+            {embedded ? (
+              <div className="flex gap-2 ml-4">
+                {onClose && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={onClose}
+                    className="rounded-xl"
+                    data-testid="button-close-modal"
+                  >
+                    ✕
+                  </Button>
+                )}
+                <Link href={`/product/${encodeURIComponent(productName)}`}>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="rounded-xl border-gray-200 shadow-sm"
+                    data-testid="button-go-to-full-product"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">Ir al tablero completo</span>
+                    <span className="sm:hidden">Abrir</span>
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <Link href="/">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="rounded-xl border-gray-200 shadow-sm ml-4"
+                  data-testid="button-back-dashboard"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  <span className="hidden sm:inline">Volver al Dashboard</span>
+                  <span className="sm:hidden">Volver</span>
+                </Button>
+              </Link>
+            )}
           </div>
 
           {/* Filter Controls - Horizontal Layout */}
