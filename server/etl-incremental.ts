@@ -9,13 +9,7 @@ import {
   stgMaepr, 
   stgMaeven, 
   stgTabbo,
-  stgTabru,
-  stgTabsu,
-  stgTabzo,
-  stgTabfu,
-  stgTabfm,
-  stgTabpf,
-  stgTabhf,
+  stgTabru, 
   stgTabpp,
   factVentas,
   etlExecutionLog,
@@ -373,13 +367,6 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     await db.execute(sql`TRUNCATE TABLE ventas.stg_maepr CASCADE`);
     await db.execute(sql`TRUNCATE TABLE ventas.stg_maeven CASCADE`);
     await db.execute(sql`TRUNCATE TABLE ventas.stg_tabbo CASCADE`);
-    await db.execute(sql`TRUNCATE TABLE ventas.stg_tabru CASCADE`);
-    await db.execute(sql`TRUNCATE TABLE ventas.stg_tabsu CASCADE`);
-    await db.execute(sql`TRUNCATE TABLE ventas.stg_tabzo CASCADE`);
-    await db.execute(sql`TRUNCATE TABLE ventas.stg_tabfu CASCADE`);
-    await db.execute(sql`TRUNCATE TABLE ventas.stg_tabfm CASCADE`);
-    await db.execute(sql`TRUNCATE TABLE ventas.stg_tabpf CASCADE`);
-    await db.execute(sql`TRUNCATE TABLE ventas.stg_tabhf CASCADE`);
     await db.execute(sql`TRUNCATE TABLE ventas.stg_tabpp CASCADE`);
     console.log('✅ Tablas staging limpias\n');
 
@@ -464,7 +451,6 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       sudo: row.SUDO?.trim() || null,
       luvtdo: row.LUVTDO?.trim() || null,
       feemdo: row.FEEMDO || null,
-      feulvedo: row.FEULVEDO || null,
       kofudo: row.KOFUDO?.trim() || null,
       esdo: row.ESDO?.trim() || null,
       espgdo: row.ESPGDO?.trim() || null,
@@ -479,7 +465,6 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       timodo: row.TIMODO?.trim() || null,
       tamodo: cleanNumeric(row.TAMODO),
       ocdo: row.OCDO?.trim() || null,
-      ruen: row.RUEN?.trim() || null,
     }));
     await batchInsert(stgMaeedo, maeedo_records, 'stg_maeedo', logger);
     emitProgress(2, TOTAL_STEPS, 'Cargando MAEEDO a staging', `${maeedo_records.length} registros insertados en batch`)
@@ -508,46 +493,12 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
       caprco1: cleanNumeric(row.CAPRCO1 !== undefined ? row.CAPRCO1 : row.CAPRCO),
       caprco2: cleanNumeric(row.CAPRCO2),
-      caprad: cleanNumeric(row.CAPRAD),
-      caprex: cleanNumeric(row.CAPREX),
-      nulido: row.NULIDO ? String(row.NULIDO).trim() : null,
-      sulido: row.SULIDO?.trim() || null,
-      luvtlido: row.LUVTLIDO?.trim() || null,
-      bosulido: row.BOSULIDO?.trim() || null,
-      kofulido: row.KOFULIDO?.trim() || null,
-      prct: row.PRCT !== undefined && row.PRCT !== null ? Number(row.PRCT) : null,
-      tict: row.TICT?.trim() || null,
-      tipr: row.TIPR?.trim() || null,
-      nusepr: row.NUSEPR?.trim() || null,
-      rludpr: cleanNumeric(row.RLUDPR),
-      caprad1: cleanNumeric(row.CAPRAD1),
-      caprex1: cleanNumeric(row.CAPREX1),
-      caprnc1: cleanNumeric(row.CAPRNC1),
-      caprad2: cleanNumeric(row.CAPRAD2),
-      caprex2: cleanNumeric(row.CAPREX2),
-      caprnc2: cleanNumeric(row.CAPRNC2),
-      ppprne: cleanNumeric(row.PPPRNE),
-      ppprbr: cleanNumeric(row.PPPRBR),
       // CORREGIDO: VANELI contiene el valor neto ya calculado (con signo correcto para NCV)
       // Calcular preuni retrocompatible usando CAPRCO1 (unidad principal)
       preuni: cleanNumeric(row.CAPRCO1 !== undefined ? row.CAPRCO1 : row.CAPRCO) !== 0 ? cleanNumeric(row.VANELI) / cleanNumeric(row.CAPRCO1 !== undefined ? row.CAPRCO1 : row.CAPRCO) : 0,
       vaneli: cleanNumeric(row.VANELI),
-      vabrli: cleanNumeric(row.VABRLI),
       feemli: row.FEEMLI || null,
       feerli: row.FEERLI || null,
-      ppprpm: cleanNumeric(row.PPPRPM),
-      ppprpmifrs: cleanNumeric(row.PPPRPMIFRS),
-      logistica: cleanNumeric(row.LOGISTICA),
-      eslido: row.ESLIDO?.trim() || null,
-      ppprnere1: cleanNumeric(row.PPPRNERE1),
-      ppprnere2: cleanNumeric(row.PPPRNERE2),
-      fmpr: row.FMPR?.trim() || null,
-      mrpr: row.MRPR?.trim() || null,
-      zona: row.ZONA?.trim() || null,
-      recaprre: row.RECAPRRE !== undefined && row.RECAPRRE !== null ? Number(row.RECAPRRE) : null,
-      pfpr: row.PFPR?.trim() || null,
-      hfpr: row.HFPR?.trim() || null,
-      monto: cleanNumeric(row.MONTO),
       devol1: cleanNumeric(row.DEVOL1),
       devol2: cleanNumeric(row.DEVOL2),
       stockfis: cleanNumeric(row.STOCKFIS),
@@ -678,142 +629,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       nobosuli: row.NOKOBO?.trim() || null,
     }));
     await batchInsert(stgTabbo, tabbo_records, 'stg_tabbo', logger);
-
-    // Extraer códigos únicos para las nuevas tablas maestras
-    const sudos = [...new Set(maeedo.recordset.map(r => r.SUDO).filter(s => s))];
-    const zonas = [...new Set(maeen.recordset.map(r => r.ZOEN).filter(z => z))];
-    const kofudos = [...new Set(maeedo.recordset.map(r => r.KOFUDO).filter(k => k))];
-    const fmprs = [...new Set(maeddo.recordset.map(r => r.FMPR).filter(f => f))];
-    const pfprs = [...new Set(maeddo.recordset.map(r => r.PFPR).filter(p => p))];
-    const hfprs = [...new Set(maeddo.recordset.map(r => r.HFPR).filter(h => h))];
-
-    // 7a. EXTRAER TABSU (Sucursales)
-    console.log('7a️⃣  Extrayendo TABSU (Sucursales)...');
-    let tabsu = { recordset: [] };
-    if (sudos.length > 0) {
-      tabsu = await executeWithResilience(
-        async () => pool.request().query(`
-          SELECT KOSU, NOKOSU
-          FROM dbo.TABSU
-          WHERE KOSU IN (${sudos.map(s => `'${s}'`).join(',')})
-        `),
-        sqlServerBreaker,
-        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
-      );
-    }
-    console.log(`   ✅ ${tabsu.recordset.length} registros encontrados`);
-    const tabsu_records = tabsu.recordset.map(row => ({
-      kosu: row.KOSU?.trim() || '',
-      nokosu: row.NOKOSU?.trim() || null,
-    }));
-    await batchInsert(stgTabsu, tabsu_records, 'stg_tabsu', logger);
-
-    // 7b. EXTRAER TABZO (Zonas)
-    console.log('7b️⃣  Extrayendo TABZO (Zonas)...');
-    let tabzo = { recordset: [] };
-    if (zonas.length > 0) {
-      tabzo = await executeWithResilience(
-        async () => pool.request().query(`
-          SELECT KOZO, NOKOZO
-          FROM dbo.TABZO
-          WHERE KOZO IN (${zonas.map(z => `'${z}'`).join(',')})
-        `),
-        sqlServerBreaker,
-        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
-      );
-    }
-    console.log(`   ✅ ${tabzo.recordset.length} registros encontrados`);
-    const tabzo_records = tabzo.recordset.map(row => ({
-      kozo: row.KOZO?.trim() || '',
-      nokozo: row.NOKOZO?.trim() || null,
-    }));
-    await batchInsert(stgTabzo, tabzo_records, 'stg_tabzo', logger);
-
-    // 7c. EXTRAER TABFU (Vendedores header - nombres descriptivos)
-    console.log('7c️⃣  Extrayendo TABFU (Vendedores Header)...');
-    let tabfu = { recordset: [] };
-    if (kofudos.length > 0) {
-      tabfu = await executeWithResilience(
-        async () => pool.request().query(`
-          SELECT KOFU, NOKOFU
-          FROM dbo.TABFU
-          WHERE KOFU IN (${kofudos.map(k => `'${k}'`).join(',')})
-        `),
-        sqlServerBreaker,
-        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
-      );
-    }
-    console.log(`   ✅ ${tabfu.recordset.length} registros encontrados`);
-    const tabfu_records = tabfu.recordset.map(row => ({
-      kofu: row.KOFU?.trim() || '',
-      nokofu: row.NOKOFU?.trim() || null,
-    }));
-    await batchInsert(stgTabfu, tabfu_records, 'stg_tabfu', logger);
-
-    // 7d. EXTRAER TABFM (Familia Productos)
-    console.log('7d️⃣  Extrayendo TABFM (Familia Productos)...');
-    let tabfm = { recordset: [] };
-    if (fmprs.length > 0) {
-      tabfm = await executeWithResilience(
-        async () => pool.request().query(`
-          SELECT KOFM, NOFM AS NOKOFM
-          FROM dbo.TABFM
-          WHERE KOFM IN (${fmprs.map(f => `'${f}'`).join(',')})
-        `),
-        sqlServerBreaker,
-        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
-      );
-    }
-    console.log(`   ✅ ${tabfm.recordset.length} registros encontrados`);
-    const tabfm_records = tabfm.recordset.map(row => ({
-      kofm: row.KOFM?.trim() || '',
-      nokofm: row.NOKOFM?.trim() || null,
-    }));
-    await batchInsert(stgTabfm, tabfm_records, 'stg_tabfm', logger);
-
-    // 7e. EXTRAER TABPF (Precio Familia)
-    console.log('7e️⃣  Extrayendo TABPF (Precio Familia)...');
-    let tabpf = { recordset: [] };
-    if (pfprs.length > 0) {
-      tabpf = await executeWithResilience(
-        async () => pool.request().query(`
-          SELECT KOPF, NOPF AS NOKOPF
-          FROM dbo.TABPF
-          WHERE KOPF IN (${pfprs.map(p => `'${p}'`).join(',')})
-        `),
-        sqlServerBreaker,
-        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
-      );
-    }
-    console.log(`   ✅ ${tabpf.recordset.length} registros encontrados`);
-    const tabpf_records = tabpf.recordset.map(row => ({
-      kopf: row.KOPF?.trim() || '',
-      nokopf: row.NOKOPF?.trim() || null,
-    }));
-    await batchInsert(stgTabpf, tabpf_records, 'stg_tabpf', logger);
-
-    // 7f. EXTRAER TABHF (Jerarquía Familia)
-    console.log('7f️⃣  Extrayendo TABHF (Jerarquía Familia)...');
-    let tabhf = { recordset: [] };
-    if (hfprs.length > 0) {
-      tabhf = await executeWithResilience(
-        async () => pool.request().query(`
-          SELECT KOHF, NOHF AS NOKOHF
-          FROM dbo.TABHF
-          WHERE KOHF IN (${hfprs.map(h => `'${h}'`).join(',')})
-        `),
-        sqlServerBreaker,
-        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
-      );
-    }
-    console.log(`   ✅ ${tabhf.recordset.length} registros encontrados`);
-    const tabhf_records = tabhf.recordset.map(row => ({
-      kohf: row.KOHF?.trim() || '',
-      nokohf: row.NOKOHF?.trim() || null,
-    }));
-    await batchInsert(stgTabhf, tabhf_records, 'stg_tabhf', logger);
-
-    emitProgress(6, TOTAL_STEPS, 'Tablas maestras cargadas', 'MAEEN, MAEPR, MAEVEN, TABRU, TABBO, TABSU, TABZO, TABFU, TABFM, TABPF, TABHF')
+    emitProgress(6, TOTAL_STEPS, 'Tablas maestras cargadas', 'MAEEN, MAEPR, MAEVEN, TABRU, TABBO')
 
     // 8. EXTRAER propiedades de productos desde MAEPR
     emitProgress(7, TOTAL_STEPS, 'Extrayendo TABPP', 'Propiedades de productos...');

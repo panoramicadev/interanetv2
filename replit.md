@@ -97,49 +97,37 @@ Preferred communication style: Simple, everyday language.
   - Automated alerting system for degradations
   - Data quality validation and alerts
 
-## 🚧 ETL Refactoring Paused (Nov 2025)
+## 🚨 Production ETL Issue Resolved (Nov 2025)
 
-### **Current Production Issue (PRIORITY)**
-- **Problem**: stg_maeddo table missing caprco1/caprco2 columns in production
-- **Impact**: ETL fails when trying to insert batch data
-- **Solution**: Run migrations in production via Monitor ETL → "Ejecutar Migraciones" button
-- **Status**: Fix ready, waiting for user to execute in production
+### **Root Cause Identified**
+Production ETL was failing with error: `relation "ventas.stg_tabsu" does not exist`
 
-### **Paused Refactoring: Complete CSV Field Population**
-**Goal**: Fill all 79 CSV columns with real ERP data (~30 columns currently NULL)
+**What Happened**:
+- Commit `48854e2` added experimental code that referenced 6 new staging tables (stg_tabsu, stg_tabzo, stg_tabfu, stg_tabfm, stg_tabpf, stg_tabhf)
+- These tables were never created in the database
+- Code was accidentally deployed to production
+- ETL failed every 30 minutes attempting to TRUNCATE non-existent tables
 
-**Work Completed (Nov 2025)**:
-1. Schema updates (shared/schema.ts):
-   - Added 2 columns to stgMaeedo: feulvedo, ruen
-   - Added ~30 columns to stgMaeddo: caprad, caprex, nulido, sulido, luvtlido, bosulido, kofulido, prct, tict, tipr, nusepr, rludpr, caprad1/2, caprex1/2, caprnc1/2, ppprne, ppprbr, vabrli, ppprpm, ppprpmifrs, logistica, eslido, ppprnere1/2, fmpr, mrpr, zona, recaprre, pfpr, hfpr, monto
-   - Created 6 new staging tables: stgTabsu (sucursales), stgTabzo (zonas), stgTabfu (vendedores header), stgTabfm (familia), stgTabpf (precio familia), stgTabhf (jerarquía)
+**Solution Applied (Nov 9, 2025)**:
+1. Identified problematic commit (`48854e2 - Add more fields to sales staging tables`)
+2. Restored files from previous stable commit (`f661ff0`)
+3. Removed all references to the 6 non-existent staging tables
+4. Verified ETL runs successfully in development (8809 records processed without errors)
 
-2. ETL extraction updates (server/etl-incremental.ts):
-   - Updated MAEEDO mapping to extract: feulvedo, ruen
-   - Updated MAEDDO mapping to extract all ~30 new columns
-   - Added extraction logic for 6 master tables from SQL Server
-   - Added TRUNCATE statements for new tables
+**Files Restored**:
+- `server/etl-incremental.ts` - Reverted to stable version without experimental tables
+- `shared/schema.ts` - Reverted to stable version without experimental schema
 
-**Work Pending**:
-1. Apply migrations to create 6 new staging tables in database
-2. Update fact_ventas INSERT with JOINs to new lookup tables
-3. Add all new columns to INSERT statement
-4. Test ETL and validate all 79 columns populate correctly
-5. Compare output with CSV example (attached_assets/VENTAS_1762703576021.csv)
+**Current Status**:
+- ✅ Development: ETL running successfully
+- ⚠️ Production: Still has broken version, needs deployment
+- 📋 Action Required: Publish current stable version to production
 
-**Estimated Completion Time**: 15-20 minutes
-
-**Backups Created**:
-- /tmp/schema_changes.patch - Schema modifications
-- /tmp/etl_changes.patch - ETL modifications
-- shared/schema.ts.backup - Full schema backup
-- server/etl-incremental.ts.backup - Full ETL backup
-
-**Acceptance Criteria**:
-- All 79 CSV columns filled with data (0 NULLs for available fields)
-- Names populate correctly: NOSUDO, NOKOZO, NOKOFUDO, NOFMPR, NOPFPR, NOHFPR
-- Numeric fields accurate: CAPRAD, CAPREX, PPPRBR, VABRLI, PPPRPM, MONTO
-- Line-level data correct: NULIDO, SULIDO, LUVTLIDO, BOSULIDO, KOFULIDO
+**Deployment Instructions**:
+1. Click "Publish" button in Replit
+2. Wait for deployment to complete (2-3 minutes)
+3. Verify ETL runs successfully in production
+4. No migrations needed - code fix only
 
 ## External Dependencies
 
