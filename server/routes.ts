@@ -2077,9 +2077,15 @@ export function registerRoutes(app: Express): Server {
 
   // CSV template download endpoint removed - using native platform format
 
-  // CSV import endpoint
+  // ⚠️ DEPRECATED - CSV import endpoint (legacy backup system)
+  // This endpoint is DEPRECATED and maintained only as emergency backup.
+  // Primary data source is fact_ventas populated by automated ETL sync from SQL Server.
+  // Data imported via this endpoint will NOT appear in dashboards (writes to legacy salesTransactions table).
+  // Use only in emergency situations when ETL system is unavailable.
   app.post('/api/sales/import', requireAuth, async (req, res) => {
     try {
+      console.warn('⚠️  DEPRECATED ENDPOINT USED: /api/sales/import - Este sistema está obsoleto. Usar ETL automático (fact_ventas) como fuente principal.');
+      
       const { transactions } = req.body;
       
       if (!Array.isArray(transactions)) {
@@ -2133,11 +2139,16 @@ export function registerRoutes(app: Express): Server {
         // Don't fail the main import for this
       }
       
+      // Add deprecation warning to response
+      res.set('X-Deprecated-API', 'true');
+      res.set('X-Deprecation-Warning', 'Este endpoint está obsoleto. Los datos NO aparecerán en dashboards. Usar ETL automático como fuente principal.');
+      
       res.json({ 
         message: "Data imported successfully",
         imported: validatedTransactions.length,
         total: transactions.length,
-        errors: errors.length > 0 ? errors.slice(0, 5) : undefined
+        errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
+        warning: "⚠️  SISTEMA OBSOLETO: Datos importados a tabla legacy. NO aparecerán en dashboards que usan fact_ventas (ETL)."
       });
     } catch (error) {
       console.error("Error importing sales data:", error);
@@ -3861,9 +3872,13 @@ export function registerRoutes(app: Express): Server {
 
   // ===================== End eCommerce Admin API Routes =====================
 
-  // Preview CSV endpoint - Analyze sales CSV without importing
+  // ⚠️ DEPRECATED - Preview CSV endpoint (legacy backup system)
+  // This endpoint is DEPRECATED and maintained only as emergency backup.
+  // Analyzes legacy salesTransactions table, NOT fact_ventas (ETL).
   app.post('/api/sales/preview', requireAuth, upload.single('file'), async (req, res) => {
     try {
+      console.warn('⚠️  DEPRECATED ENDPOINT USED: /api/sales/preview - Este sistema está obsoleto.');
+      
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
@@ -3903,6 +3918,7 @@ export function registerRoutes(app: Express): Server {
 
       console.log(`📊 Preview analysis: ${transactions.length} transactions, period ${startDate} to ${endDate}`);
 
+      res.set('X-Deprecated-API', 'true');
       res.json({
         preview: {
           totalTransactions: transactions.length,
@@ -3914,7 +3930,8 @@ export function registerRoutes(app: Express): Server {
           existingTransactions: existingTransactions.length,
           wouldDelete: existingTransactions.length,
           wouldInsert: transactions.length
-        }
+        },
+        warning: "⚠️  SISTEMA OBSOLETO: Verifica tabla legacy, NO fact_ventas (ETL)."
       });
     } catch (error) {
       console.error("Error previewing CSV:", error);
@@ -3922,9 +3939,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Atomic Replace Import endpoint - Delete existing period + import new data
+  // ⚠️ DEPRECATED - Atomic Replace Import endpoint (legacy backup system)
+  // This endpoint is DEPRECATED and maintained only as emergency backup.
+  // Writes to legacy salesTransactions table. Data will NOT appear in dashboards.
+  // Primary data source is fact_ventas populated by automated ETL sync from SQL Server.
   app.post('/api/sales/import-replace', requireAuth, upload.single('file'), async (req, res) => {
     try {
+      console.warn('⚠️  DEPRECATED ENDPOINT USED: /api/sales/import-replace - Este sistema está obsoleto. Usar ETL automático.');
+      
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
@@ -3981,12 +4003,16 @@ export function registerRoutes(app: Express): Server {
         endDate
       );
       
+      res.set('X-Deprecated-API', 'true');
+      res.set('X-Deprecation-Warning', 'Este endpoint está obsoleto. Los datos NO aparecerán en dashboards. Usar ETL automático.');
+      
       res.json({ 
         message: "Data replaced successfully",
         deleted: result.deleted,
         inserted: result.inserted,
         dateRange: { start: startDate, end: endDate },
-        errors: errors.length > 0 ? errors.slice(0, 5) : undefined
+        errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
+        warning: "⚠️  SISTEMA OBSOLETO: Datos importados a tabla legacy. NO aparecerán en dashboards que usan fact_ventas (ETL)."
       });
     } catch (error) {
       console.error("Error in atomic replace import:", error);
