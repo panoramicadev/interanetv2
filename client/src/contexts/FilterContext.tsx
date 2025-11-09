@@ -138,6 +138,11 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     console.log("🔄 [FilterContext] Setting selection to:", defaultSelection);
     console.log("🔄 [FilterContext] Setting globalFilter to:", defaultFilter);
     
+    // Clear localStorage FIRST to prevent re-hydration
+    localStorage.removeItem(STORAGE_KEY_GLOBAL_FILTER);
+    localStorage.removeItem(STORAGE_KEY_SELECTION);
+    console.log("🗑️ [FilterContext] Cleared localStorage");
+    
     setSelectionState(defaultSelection);
     setGlobalFilterState(defaultFilter);
     
