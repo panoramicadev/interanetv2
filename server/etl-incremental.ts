@@ -15,6 +15,7 @@ import {
   etlExecutionLog,
   etlConfig
 } from '../shared/schema';
+import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 
 const sqlServerConfig: mssql.config = {
   server: process.env.SQL_SERVER_HOST || '',
@@ -30,6 +31,14 @@ const sqlServerConfig: mssql.config = {
   connectionTimeout: 90000,
   requestTimeout: 180000,
 };
+
+// Circuit Breaker para SQL Server - protege contra fallas en cascada
+const sqlServerBreaker = new CircuitBreaker({
+  failureThreshold: 12,      // 12 fallos antes de abrir circuito (apropiado para ETL)
+  successThreshold: 3,        // 3 éxitos para cerrar desde half-open
+  timeout: 120000,            // 2 minutos antes de intentar half-open
+  name: 'SQLServer-ETL'
+});
 
 interface ETLResult {
   success: boolean;
