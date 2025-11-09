@@ -40,6 +40,9 @@ const sqlServerBreaker = new CircuitBreaker({
   name: 'SQLServer-ETL'
 });
 
+// Exportar circuit breaker para health checks
+export { sqlServerBreaker };
+
 interface ETLResult {
   success: boolean;
   recordsProcessed: number;
