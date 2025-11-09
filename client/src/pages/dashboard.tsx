@@ -259,6 +259,8 @@ export default function Dashboard() {
   const handleApplyFilters = () => {
     // Special case: if switching to "all", navigate to reset everything
     if (localGlobalFilter.type === "all") {
+      // Clear localStorage filters before navigating
+      localStorage.removeItem('dashboard_global_filter');
       window.location.href = '/dashboard';
       return;
     }
@@ -1034,6 +1036,8 @@ export default function Dashboard() {
                     value={selectedFilter} 
                     onValueChange={(value) => {
                       if (value === "all") {
+                        // Clear localStorage filters before navigating to reset everything
+                        localStorage.removeItem('dashboard_global_filter');
                         // Navigate to /dashboard to reset everything (same as clicking the logo)
                         window.location.href = '/dashboard';
                       } else {
