@@ -110,6 +110,18 @@ export default function Dashboard() {
   // Filter selector state
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   
+  // Sync selectedFilter with globalFilter.type
+  useEffect(() => {
+    console.log("🔄 [Dashboard] Syncing selectedFilter with globalFilter.type");
+    console.log("🔄 [Dashboard] globalFilter.type:", globalFilter.type);
+    console.log("🔄 [Dashboard] selectedFilter BEFORE sync:", selectedFilter);
+    
+    if (globalFilter.type !== selectedFilter) {
+      console.log("⚠️ [Dashboard] Mismatch detected! Updating selectedFilter to:", globalFilter.type);
+      setSelectedFilter(globalFilter.type);
+    }
+  }, [globalFilter.type]);
+  
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
   
