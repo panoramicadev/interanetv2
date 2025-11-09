@@ -37,9 +37,16 @@ Preferred communication style: Simple, everyday language.
 
 ### UI/UX
 - **Branding**: Panoramica 30th-anniversary logo on login and PDFs.
+- **Navigation**: Clickable logo in sidebar for quick return to dashboard home.
 - **Responsiveness**: Mobile-responsive design.
 - **Theming**: Custom design tokens and CSS variables.
 - **Professional Documents**: Enhanced PDF layouts with multi-column design and branding.
+- **Calendar Selector (Nov 2025)**: Enhanced year-month-day selector with range selection capabilities:
+  - Two-click day range selection (click start → click end → auto-fills intermediate days)
+  - Visual highlighting: start/end days with border emphasis, intermediate days fully highlighted in orange
+  - "Limpiar todo" button to reset all selections (years, months, days)
+  - Display format: "3-9 Noviembre 2025 (7 días)" for ranges
+  - Preserves selection state when reopening calendar
 
 ### Key Features
 - **Client & User Management**: Role-based access and client linking.
