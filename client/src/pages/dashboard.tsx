@@ -257,15 +257,19 @@ export default function Dashboard() {
   
   // Apply drawer filters to main state
   const handleApplyFilters = () => {
+    // Special case: if switching to "all", navigate to reset everything
+    if (localGlobalFilter.type === "all") {
+      window.location.href = '/dashboard';
+      return;
+    }
+    
     setSelection(localSelection);
     setSelectedFilter(localSelectedFilter);
     setGlobalFilter(localGlobalFilter);
     setComparePeriod(localComparePeriod);
     
-    // CRITICAL FIX: Update URL to match the selected filter type
-    if (localGlobalFilter.type === "all") {
-      window.history.replaceState({}, '', '/dashboard');
-    } else if (localGlobalFilter.type === "segment") {
+    // Update URL to match the selected filter type
+    if (localGlobalFilter.type === "segment") {
       window.history.replaceState({}, '', '/dashboard?filter=segment');
     } else if (localGlobalFilter.type === "branch") {
       window.history.replaceState({}, '', '/dashboard?filter=branch');
@@ -1029,24 +1033,23 @@ export default function Dashboard() {
                   <Select 
                     value={selectedFilter} 
                     onValueChange={(value) => {
-                      setSelectedFilter(value);
-                      // Clear the global filter value but preserve the period selection
-                      // Only change the filter type, never touch the period (selection)
                       if (value === "all") {
-                        setGlobalFilter({ type: "all", value: "" });
-                        // CRITICAL FIX: Remove filter param from URL to prevent useEffect from re-applying it
-                        window.history.replaceState({}, '', '/dashboard');
-                      } else if (value === "segment") {
-                        setGlobalFilter({ type: "segment", value: "" });
-                        window.history.replaceState({}, '', '/dashboard?filter=segment');
-                      } else if (value === "branch") {
-                        setGlobalFilter({ type: "branch", value: "" });
-                        window.history.replaceState({}, '', '/dashboard?filter=branch');
-                      } else if (value === "salesperson") {
-                        setGlobalFilter({ type: "salesperson", value: "" });
-                        window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+                        // Navigate to /dashboard to reset everything (same as clicking the logo)
+                        window.location.href = '/dashboard';
+                      } else {
+                        setSelectedFilter(value);
+                        // Clear the global filter value but preserve the period selection
+                        if (value === "segment") {
+                          setGlobalFilter({ type: "segment", value: "" });
+                          window.history.replaceState({}, '', '/dashboard?filter=segment');
+                        } else if (value === "branch") {
+                          setGlobalFilter({ type: "branch", value: "" });
+                          window.history.replaceState({}, '', '/dashboard?filter=branch');
+                        } else if (value === "salesperson") {
+                          setGlobalFilter({ type: "salesperson", value: "" });
+                          window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+                        }
                       }
-                      // Period (selection) is NOT modified here - it stays as is
                     }}
                   >
                     <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm">
