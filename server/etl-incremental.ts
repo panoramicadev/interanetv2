@@ -16,6 +16,7 @@ import {
   etlConfig
 } from '../shared/schema';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
+import { createETLLogger } from './production-logger';
 
 const sqlServerConfig: mssql.config = {
   server: process.env.SQL_SERVER_HOST || '',
@@ -80,22 +81,43 @@ function emitProgress(step: number, totalSteps: number, message: string, details
   }
 }
 
-// Función helper para batch insert con manejo de errores robusto
-async function batchInsert<T>(table: any, records: T[], batchSize: number = 1000) {
+// Función helper para batch insert con manejo de errores robusto y logging
+async function batchInsert<T>(
+  table: any, 
+  records: T[], 
+  tableName: string,
+  logger: ReturnType<typeof createETLLogger>,
+  batchSize: number = 1000
+) {
   if (records.length === 0) return 0;
   
   let inserted = 0;
   let failedCount = 0;
   const errors: string[] = [];
   
+  logger.info(`Iniciando batch insert en ${tableName}`, { 
+    totalRecords: records.length, 
+    batchSize 
+  });
+  
   for (let i = 0; i < records.length; i += batchSize) {
     const batch = records.slice(i, i + batchSize);
     try {
       await db.insert(table).values(batch).onConflictDoNothing();
       inserted += batch.length;
+      logger.info(`Batch insertado exitosamente en ${tableName}`, { 
+        batchNumber: Math.floor(i / batchSize) + 1,
+        recordsInserted: batch.length,
+        totalInserted: inserted
+      });
     } catch (error: any) {
       // Si falla un batch grande, intentar con batches más pequeños
-      console.warn(`⚠️  Error en batch de ${batch.length} registros. Intentando con batches más pequeños...`);
+      logger.warn(`Error en batch grande de ${tableName}, intentando batches más pequeños`, { 
+        batchSize: batch.length,
+        error: error.message,
+        sampleRecord: batch[0]
+      }, error);
+      
       const smallerBatchSize = Math.max(100, Math.floor(batchSize / 10));
       
       for (let j = 0; j < batch.length; j += smallerBatchSize) {
@@ -105,9 +127,19 @@ async function batchInsert<T>(table: any, records: T[], batchSize: number = 1000
           inserted += smallBatch.length;
         } catch (smallError: any) {
           const errorMsg = `Error insertando batch pequeño (${smallBatch.length} registros): ${smallError.message}`;
-          console.error(`❌ ${errorMsg}`);
           errors.push(errorMsg);
           failedCount += smallBatch.length;
+          
+          logger.critical(`Batch insert fallido en ${tableName}`, { 
+            tableName,
+            batchSize: smallBatch.length,
+            failedCount,
+            totalErrors: errors.length,
+            errorMessage: smallError.message,
+            sampleRecord: JSON.stringify(smallBatch[0]),
+            allRecordKeys: Object.keys(smallBatch[0] as any)
+          }, smallError);
+          
           // Propagar el error para que el ETL falle en lugar de perder datos silenciosamente
           throw new Error(`Batch insert failed: ${failedCount} registros fallaron. Errores: ${errors.join('; ')}`);
         }
@@ -117,8 +149,13 @@ async function batchInsert<T>(table: any, records: T[], batchSize: number = 1000
   
   // Si hubo errores en el fallback, reportarlos
   if (errors.length > 0) {
-    console.warn(`⚠️  Fallback activado: ${errors.length} errores de batch pequeño detectados`);
+    logger.warn(`Fallback activado en ${tableName}`, { errorsCount: errors.length });
   }
+  
+  logger.info(`Batch insert completado en ${tableName}`, { 
+    totalInserted: inserted,
+    totalFailed: failedCount 
+  });
   
   return inserted;
 }
@@ -190,6 +227,9 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
   console.log(`⏰ Start Time: ${new Date().toISOString()}`);
   
   const startTime = Date.now();
+  const logger = createETLLogger(etlName);
+  logger.info('ETL iniciado', { etlName, startTime: new Date().toISOString() });
+  
   let pool: mssql.ConnectionPool | null = null;
   const tiposDoc = ['FCV', 'GDV', 'FVL', 'NCV', 'BLV', 'FDV'];
   const sucursales = ['004', '006', '007'];
@@ -426,7 +466,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       tamodo: cleanNumeric(row.TAMODO),
       ocdo: row.OCDO?.trim() || null,
     }));
-    await batchInsert(stgMaeedo, maeedo_records);
+    await batchInsert(stgMaeedo, maeedo_records, 'stg_maeedo', logger);
     emitProgress(2, TOTAL_STEPS, 'Cargando MAEEDO a staging', `${maeedo_records.length} registros insertados en batch`)
 
     // 2. EXTRAER MAEDDO (detalles de los documentos modificados)
@@ -463,7 +503,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       devol2: cleanNumeric(row.DEVOL2),
       stockfis: cleanNumeric(row.STOCKFIS),
     }));
-    await batchInsert(stgMaeddo, maeddo_records);
+    await batchInsert(stgMaeddo, maeddo_records, 'stg_maeddo', logger);
     emitProgress(4, TOTAL_STEPS, 'Cargando MAEDDO a staging', `${maeddo_records.length} registros insertados`)
 
     // 3. EXTRAER entidades (clientes únicos) - ENDO en MAEEDO corresponde a KOEN en MAEEN
@@ -493,7 +533,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       zona: row.ZOEN?.trim() || null,
       kofuen: row.KOFUEN?.trim() || null,
     }));
-    await batchInsert(stgMaeen, maeen_records);
+    await batchInsert(stgMaeen, maeen_records, 'stg_maeen', logger);
 
     // 4. EXTRAER productos únicos
     console.log('4️⃣  Extrayendo MAEPR (Productos)...');
@@ -516,7 +556,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       ud02pr: row.UD02PR?.trim() || null,
       tipr: row.TIPR?.trim() || null,
     }));
-    await batchInsert(stgMaepr, maepr_records);
+    await batchInsert(stgMaepr, maepr_records, 'stg_maepr', logger);
 
     // 5. EXTRAER vendedores (usando KOFUEN de MAEEN)
     console.log('5️⃣  Extrayendo MAEVEN (Vendedores)...');
@@ -540,7 +580,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       kofu: row.KOFU?.trim() || '',
       nokofu: row.NOKOFU?.trim() || null,
     }));
-    await batchInsert(stgMaeven, maeven_records);
+    await batchInsert(stgMaeven, maeven_records, 'stg_maeven', logger);
 
     // 6. EXTRAER segmentos/rutas (usando RUEN de MAEEN)
     console.log('6️⃣  Extrayendo TABRU (Segmentos)...');
@@ -564,7 +604,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       koru: row.KORU?.trim() || '',
       nokoru: row.NOKORU?.trim() || null,
     }));
-    await batchInsert(stgTabru, tabru_records);
+    await batchInsert(stgTabru, tabru_records, 'stg_tabru', logger);
 
     // 7. EXTRAER bodegas únicas
     console.log('7️⃣  Extrayendo TABBO (Bodegas)...');
@@ -588,7 +628,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       bosuli: row.KOBO?.trim() || '',
       nobosuli: row.NOKOBO?.trim() || null,
     }));
-    await batchInsert(stgTabbo, tabbo_records);
+    await batchInsert(stgTabbo, tabbo_records, 'stg_tabbo', logger);
     emitProgress(6, TOTAL_STEPS, 'Tablas maestras cargadas', 'MAEEN, MAEPR, MAEVEN, TABRU, TABBO')
 
     // 8. EXTRAER propiedades de productos desde MAEPR
@@ -613,7 +653,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
       listacost: cleanNumeric(row.listacost),
       liscosmod: cleanNumeric(row.liscosmod),
     }));
-    await batchInsert(stgTabpp, tabpp_records);
+    await batchInsert(stgTabpp, tabpp_records, 'stg_tabpp', logger);
 
     // 9. PROCESAR A FACT_VENTAS (UPSERT - eliminar registros antiguos e insertar nuevos)
     emitProgress(8, TOTAL_STEPS, 'Procesando FACT_VENTAS', 'Aplicando UPSERT...');
@@ -851,6 +891,13 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
 
   } catch (error: any) {
     console.error('\n❌ ERROR EN ETL INCREMENTAL:', error.message);
+    logger.critical('ETL falló con error crítico', {
+      etlName,
+      executionTimeMs: Date.now() - startTime,
+      timedOut,
+      errorMessage: error.message,
+      errorStack: error.stack
+    }, error);
     
     const executionTimeMs = Date.now() - startTime;
     
@@ -871,6 +918,11 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
               errorMessage: error.message,
             })
             .where(sql`id = ${executionLogId}`);
+          
+          logger.info('Registro de ejecución actualizado con error', {
+            executionLogId,
+            errorMessage: error.message
+          });
         } else {
           // Si no tenemos el ID (error antes de insertar el log), crear uno nuevo
           await db.insert(etlExecutionLog).values({
@@ -882,9 +934,17 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
             executionTimeMs,
             errorMessage: error.message,
           });
+          
+          logger.warn('Registro de ejecución creado después del error', {
+            etlName,
+            errorMessage: error.message
+          });
         }
       } catch (logError) {
         console.error('Error registrando fallo:', logError);
+        logger.error('Error al registrar fallo en base de datos', {
+          originalError: error.message
+        }, logError as Error);
       }
     }
 

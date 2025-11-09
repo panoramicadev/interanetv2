@@ -310,11 +310,15 @@ import { insertSalesTransactionSchema, insertGoalSchema, insertSalespersonUserSc
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
+import { registerLogRoutes } from './routes-logs';
 import { nanoid } from 'nanoid';
 
 export function registerRoutes(app: Express): Server {
   // Setup email/password auth system (primary)
   setupAuth(app);
+
+  // Register log routes (admin only)
+  registerLogRoutes(app, requireRoles);
 
   // Note: Replit OIDC auth disabled to avoid conflicts - using email/password auth only
   
@@ -12357,16 +12361,18 @@ export function registerRoutes(app: Express): Server {
         console.error(`   ❌ Error stg_maeedo:`, err.message);
       }
 
-      // stg_maeddo
+      // stg_maeddo - Crear o actualizar estructura
       try {
+        // Intentar crear la tabla
         await db.execute(sql`
-          CREATE TABLE ventas.stg_maeddo (
+          CREATE TABLE IF NOT EXISTS ventas.stg_maeddo (
             idmaeddo NUMERIC(20,0) PRIMARY KEY,
             idmaeedo NUMERIC(20,0) NOT NULL,
             koprct TEXT,
             nokopr TEXT,
             udtrpr TEXT,
-            caprco NUMERIC(18,4),
+            caprco1 NUMERIC(18,4),
+            caprco2 NUMERIC(18,4),
             preuni NUMERIC(18,6),
             vaneli NUMERIC(18,4),
             feemli TIMESTAMP,
@@ -12376,9 +12382,22 @@ export function registerRoutes(app: Express): Server {
             stockfis NUMERIC(18,4)
           )
         `);
-        console.log(`   ✅ stg_maeddo creada`);
+        
+        // Si la tabla ya existía, asegurar que tiene las columnas correctas
+        // Esto corrige tablas creadas con 'caprco' en lugar de 'caprco1' y 'caprco2'
+        try {
+          await db.execute(sql`ALTER TABLE ventas.stg_maeddo ADD COLUMN IF NOT EXISTS caprco1 NUMERIC(18,4)`);
+          await db.execute(sql`ALTER TABLE ventas.stg_maeddo ADD COLUMN IF NOT EXISTS caprco2 NUMERIC(18,4)`);
+          // Eliminar columna incorrecta 'caprco' si existe
+          await db.execute(sql`ALTER TABLE ventas.stg_maeddo DROP COLUMN IF EXISTS caprco CASCADE`);
+        } catch (alterErr: any) {
+          console.warn(`   ⚠️  Error actualizando estructura de stg_maeddo:`, alterErr.message);
+        }
+        
+        console.log(`   ✅ stg_maeddo verificada con caprco1 y caprco2`);
+        migrationsExecuted.push('Tabla stg_maeddo verificada/actualizada con estructura correcta (caprco1, caprco2)');
       } catch (err: any) {
-        errors.push(`Error creando stg_maeddo: ${err.message}`);
+        errors.push(`Error creando/actualizando stg_maeddo: ${err.message}`);
         console.error(`   ❌ Error stg_maeddo:`, err.message);
       }
 
