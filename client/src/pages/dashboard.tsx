@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -261,6 +261,18 @@ export default function Dashboard() {
     setSelectedFilter(localSelectedFilter);
     setGlobalFilter(localGlobalFilter);
     setComparePeriod(localComparePeriod);
+    
+    // CRITICAL FIX: Update URL to match the selected filter type
+    if (localGlobalFilter.type === "all") {
+      window.history.replaceState({}, '', '/dashboard');
+    } else if (localGlobalFilter.type === "segment") {
+      window.history.replaceState({}, '', '/dashboard?filter=segment');
+    } else if (localGlobalFilter.type === "branch") {
+      window.history.replaceState({}, '', '/dashboard?filter=branch');
+    } else if (localGlobalFilter.type === "salesperson") {
+      window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+    }
+    
     setIsDrawerOpen(false);
   };
   
@@ -845,6 +857,7 @@ export default function Dashboard() {
                                   setLocalGlobalFilter({ type: "salesperson", value: undefined });
                                 }
                                 // Period (localSelection) is NOT modified here - it stays as is
+                                // Note: URL is updated when filters are applied via handleApplyFilters
                               }}
                             >
                               <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
@@ -1021,12 +1034,17 @@ export default function Dashboard() {
                       // Only change the filter type, never touch the period (selection)
                       if (value === "all") {
                         setGlobalFilter({ type: "all", value: "" });
+                        // CRITICAL FIX: Remove filter param from URL to prevent useEffect from re-applying it
+                        window.history.replaceState({}, '', '/dashboard');
                       } else if (value === "segment") {
                         setGlobalFilter({ type: "segment", value: "" });
+                        window.history.replaceState({}, '', '/dashboard?filter=segment');
                       } else if (value === "branch") {
                         setGlobalFilter({ type: "branch", value: "" });
+                        window.history.replaceState({}, '', '/dashboard?filter=branch');
                       } else if (value === "salesperson") {
                         setGlobalFilter({ type: "salesperson", value: "" });
+                        window.history.replaceState({}, '', '/dashboard?filter=salesperson');
                       }
                       // Period (selection) is NOT modified here - it stays as is
                     }}
