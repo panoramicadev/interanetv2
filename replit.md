@@ -97,6 +97,50 @@ Preferred communication style: Simple, everyday language.
   - Automated alerting system for degradations
   - Data quality validation and alerts
 
+## 🚧 ETL Refactoring Paused (Nov 2025)
+
+### **Current Production Issue (PRIORITY)**
+- **Problem**: stg_maeddo table missing caprco1/caprco2 columns in production
+- **Impact**: ETL fails when trying to insert batch data
+- **Solution**: Run migrations in production via Monitor ETL → "Ejecutar Migraciones" button
+- **Status**: Fix ready, waiting for user to execute in production
+
+### **Paused Refactoring: Complete CSV Field Population**
+**Goal**: Fill all 79 CSV columns with real ERP data (~30 columns currently NULL)
+
+**Work Completed (Nov 2025)**:
+1. Schema updates (shared/schema.ts):
+   - Added 2 columns to stgMaeedo: feulvedo, ruen
+   - Added ~30 columns to stgMaeddo: caprad, caprex, nulido, sulido, luvtlido, bosulido, kofulido, prct, tict, tipr, nusepr, rludpr, caprad1/2, caprex1/2, caprnc1/2, ppprne, ppprbr, vabrli, ppprpm, ppprpmifrs, logistica, eslido, ppprnere1/2, fmpr, mrpr, zona, recaprre, pfpr, hfpr, monto
+   - Created 6 new staging tables: stgTabsu (sucursales), stgTabzo (zonas), stgTabfu (vendedores header), stgTabfm (familia), stgTabpf (precio familia), stgTabhf (jerarquía)
+
+2. ETL extraction updates (server/etl-incremental.ts):
+   - Updated MAEEDO mapping to extract: feulvedo, ruen
+   - Updated MAEDDO mapping to extract all ~30 new columns
+   - Added extraction logic for 6 master tables from SQL Server
+   - Added TRUNCATE statements for new tables
+
+**Work Pending**:
+1. Apply migrations to create 6 new staging tables in database
+2. Update fact_ventas INSERT with JOINs to new lookup tables
+3. Add all new columns to INSERT statement
+4. Test ETL and validate all 79 columns populate correctly
+5. Compare output with CSV example (attached_assets/VENTAS_1762703576021.csv)
+
+**Estimated Completion Time**: 15-20 minutes
+
+**Backups Created**:
+- /tmp/schema_changes.patch - Schema modifications
+- /tmp/etl_changes.patch - ETL modifications
+- shared/schema.ts.backup - Full schema backup
+- server/etl-incremental.ts.backup - Full ETL backup
+
+**Acceptance Criteria**:
+- All 79 CSV columns filled with data (0 NULLs for available fields)
+- Names populate correctly: NOSUDO, NOKOZO, NOKOFUDO, NOFMPR, NOPFPR, NOHFPR
+- Numeric fields accurate: CAPRAD, CAPREX, PPPRBR, VABRLI, PPPRPM, MONTO
+- Line-level data correct: NULIDO, SULIDO, LUVTLIDO, BOSULIDO, KOFULIDO
+
 ## External Dependencies
 
 ### Core Infrastructure
