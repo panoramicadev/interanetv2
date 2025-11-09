@@ -221,6 +221,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   const [keepCustomWatermark, setKeepCustomWatermark] = useState(false);
   const [etlProgress, setEtlProgress] = useState<ETLProgress | null>(null);
   const [isETLExecuting, setIsETLExecuting] = useState(false);
+  const [buttonState, setButtonState] = useState<'idle' | 'clicked' | 'starting' | 'running'>('idle');
 
   // Fetch ETL status
   const { data: status, isLoading } = useQuery<ETLStatus>({
@@ -229,6 +230,13 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     retry: 2, // Max 2 retries on failure
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff
   });
+
+  // Reset button state when ETL completes
+  useEffect(() => {
+    if (!isETLExecuting && !status?.isRunning && buttonState !== 'idle') {
+      setButtonState('idle');
+    }
+  }, [isETLExecuting, status?.isRunning, buttonState]);
 
   // Connect to ETL Progress Stream (SSE)
   useEffect(() => {
@@ -278,6 +286,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     mutationFn: async () => {
       // Set executing flag immediately to trigger SSE connection
       setIsETLExecuting(true);
+      setButtonState('running');
       return await apiRequest(`/api/etl/execute?etlName=${etlName}`, {
         method: 'POST',
       });
@@ -285,26 +294,29 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
     onSuccess: (data: any) => {
       if (data.isRunning) {
         toast({
-          title: "ETL Iniciado",
+          title: "✅ ETL Iniciado Correctamente",
           description: data.message || "El proceso ETL se está ejecutando en segundo plano",
         });
+        setButtonState('running');
       } else {
         toast({
-          title: "ETL Ejecutado",
+          title: "✅ ETL Ejecutado",
           description: `Se procesaron ${data.recordsProcessed || 0} registros en ${Math.round((data.executionTimeMs || 0) / 1000)}s`,
         });
         setIsETLExecuting(false);
+        setButtonState('idle');
       }
       // Invalidate to refetch status
       queryClient.invalidateQueries({ queryKey: [`/api/etl/status?etlName=${etlName}`] });
     },
     onError: (error: any) => {
       toast({
-        title: "Error al ejecutar ETL",
+        title: "❌ Error al ejecutar ETL",
         description: error.message,
         variant: "destructive",
       });
       setIsETLExecuting(false);
+      setButtonState('idle');
     },
   });
 
@@ -420,15 +432,29 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   }, [showConfigDialog, status?.config]);
 
   const handleExecute = () => {
-    if (status?.isRunning) {
+    if (status?.isRunning || buttonState !== 'idle') {
       toast({
-        title: "ETL en ejecución",
+        title: "⏳ ETL en ejecución",
         description: "Ya hay un proceso ETL en ejecución. Por favor espera a que termine.",
         variant: "destructive",
       });
       return;
     }
-    executeMutation.mutate();
+    
+    // Immediate visual feedback
+    setButtonState('clicked');
+    
+    // Show immediate toast
+    toast({
+      title: "🚀 Iniciando ETL...",
+      description: "Conectando con SQL Server y preparando extracción de datos",
+    });
+    
+    // Short delay for visual feedback, then execute
+    setTimeout(() => {
+      setButtonState('starting');
+      executeMutation.mutate();
+    }, 300);
   };
 
   const handleCancel = () => {
@@ -592,18 +618,31 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
               {!isRunning && (
                 <Button
                   onClick={handleExecute}
-                  disabled={executeMutation.isPending}
+                  disabled={buttonState !== 'idle'}
                   size="lg"
                   data-testid="button-execute-etl"
+                  className={`
+                    transition-all duration-200 
+                    ${buttonState === 'clicked' ? 'scale-95 bg-primary/90' : 'scale-100'}
+                    ${buttonState === 'starting' ? 'animate-pulse' : ''}
+                    ${buttonState === 'idle' ? 'hover:scale-105' : ''}
+                  `}
                 >
-                  {executeMutation.isPending ? (
+                  {buttonState === 'clicked' && (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Ejecutando...
+                      <PlayCircle className="h-5 w-5 mr-2 animate-ping" />
+                      ¡Clic Registrado!
                     </>
-                  ) : (
+                  )}
+                  {buttonState === 'starting' && (
                     <>
-                      <PlayCircle className="h-4 w-4 mr-2" />
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Conectando a SQL Server...
+                    </>
+                  )}
+                  {buttonState === 'idle' && (
+                    <>
+                      <PlayCircle className="h-5 w-5 mr-2" />
                       Ejecutar ETL
                     </>
                   )}
