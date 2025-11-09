@@ -659,7 +659,7 @@ export default function Dashboard() {
   // Si hay un segmento seleccionado, mostrar el dashboard del segmento embedido
   if (globalFilter.type === "segment" && globalFilter.value) {
     const handleBack = () => {
-      setGlobalFilter({ type: "all" });
+      setGlobalFilter({ type: "all", value: "" });
       setSelectedFilter("all");
     };
     
@@ -699,7 +699,7 @@ export default function Dashboard() {
   // Si hay una sucursal seleccionada, mostrar el dashboard de la sucursal embedido
   if (globalFilter.type === "branch" && globalFilter.value) {
     const handleBack = () => {
-      setGlobalFilter({ type: "all" });
+      setGlobalFilter({ type: "all", value: "" });
       setSelectedFilter("all");
     };
     
@@ -743,7 +743,7 @@ export default function Dashboard() {
     
     const handleBack = () => {
       if (canNavigateBack) {
-        setGlobalFilter({ type: "all" });
+        setGlobalFilter({ type: "all", value: "" });
         setSelectedFilter("all");
       }
     };
@@ -1017,13 +1017,13 @@ export default function Dashboard() {
                       setSelectedFilter(value);
                       // Clear the value when changing filter type to avoid showing wrong data
                       if (value === "all") {
-                        setGlobalFilter({ type: "all" });
+                        setGlobalFilter({ type: "all", value: "" });
                       } else if (value === "segment") {
-                        setGlobalFilter({ type: "segment", value: undefined });
+                        setGlobalFilter({ type: "segment", value: "" });
                       } else if (value === "branch") {
-                        setGlobalFilter({ type: "branch", value: undefined });
+                        setGlobalFilter({ type: "branch", value: "" });
                       } else if (value === "salesperson") {
-                        setGlobalFilter({ type: "salesperson", value: undefined });
+                        setGlobalFilter({ type: "salesperson", value: "" });
                       }
                     }}
                   >
