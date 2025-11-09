@@ -235,12 +235,21 @@ export default function Dashboard() {
   
   // Read URL parameters and update filter (only when target is specified)
   useEffect(() => {
+    console.log("🔍 [Dashboard] URL params effect triggered");
+    console.log("🔍 [Dashboard] currentLocation:", currentLocation);
+    console.log("🔍 [Dashboard] window.location.search:", window.location.search);
+    
     const params = new URLSearchParams(window.location.search);
     const filterParam = params.get('filter');
     const targetParam = params.get('target');
     
+    console.log("🔍 [Dashboard] filterParam:", filterParam);
+    console.log("🔍 [Dashboard] targetParam:", targetParam);
+    console.log("🔍 [Dashboard] Current globalFilter:", globalFilter);
+    
     // Only apply filter if there's a target value, not just the filter type
     if (filterParam && targetParam) {
+      console.log("⚠️ [Dashboard] Applying filter from URL params");
       if (filterParam === 'segment') {
         setSelectedFilter('segment');
         setGlobalFilter({ type: 'segment', value: targetParam });
@@ -251,6 +260,8 @@ export default function Dashboard() {
         setSelectedFilter('branch');
         setGlobalFilter({ type: 'branch', value: targetParam });
       }
+    } else {
+      console.log("✅ [Dashboard] No filter to apply from URL (no target param)");
     }
   }, [currentLocation, setGlobalFilter]);
   
@@ -1046,14 +1057,23 @@ export default function Dashboard() {
                   <Select 
                     value={selectedFilter} 
                     onValueChange={(value) => {
+                      console.log("🎯 [Dashboard] Select onChange - value:", value);
+                      console.log("🎯 [Dashboard] Current globalFilter BEFORE change:", globalFilter);
+                      console.log("🎯 [Dashboard] Current URL:", window.location.href);
+                      
                       if (value === "all") {
+                        console.log("🔄 [Dashboard] User selected 'all' - resetting filters");
                         // Reset filters via context and navigate to clean dashboard
                         resetFilters();
+                        console.log("✅ [Dashboard] Called resetFilters()");
                         setLocation('/dashboard');
+                        console.log("✅ [Dashboard] Called setLocation('/dashboard')");
                         // Invalidate queries to refetch with clean filters
                         queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
                         queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
+                        console.log("✅ [Dashboard] Invalidated queries");
                       } else {
+                        console.log("🔧 [Dashboard] User selected filter type:", value);
                         setSelectedFilter(value);
                         // Clear the global filter value but preserve the period selection
                         if (value === "segment") {
