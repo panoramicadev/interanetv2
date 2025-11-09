@@ -107,20 +107,7 @@ export default function Dashboard() {
     return undefined;
   })();
   
-  // Filter selector state
-  const [selectedFilter, setSelectedFilter] = useState<string>("all");
-  
-  // Sync selectedFilter with globalFilter.type
-  useEffect(() => {
-    console.log("🔄 [Dashboard] Syncing selectedFilter with globalFilter.type");
-    console.log("🔄 [Dashboard] globalFilter.type:", globalFilter.type);
-    console.log("🔄 [Dashboard] selectedFilter BEFORE sync:", selectedFilter);
-    
-    if (globalFilter.type !== selectedFilter) {
-      console.log("⚠️ [Dashboard] Mismatch detected! Updating selectedFilter to:", globalFilter.type);
-      setSelectedFilter(globalFilter.type);
-    }
-  }, [globalFilter.type]);
+  // No separate selectedFilter state - use globalFilter.type directly
   
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
@@ -238,7 +225,6 @@ export default function Dashboard() {
   
   // Local state for drawer filters (before applying)
   const [localSelection, setLocalSelection] = useState(selection);
-  const [localSelectedFilter, setLocalSelectedFilter] = useState(selectedFilter);
   const [localGlobalFilter, setLocalGlobalFilter] = useState(globalFilter);
   const [localComparePeriod, setLocalComparePeriod] = useState(comparePeriod);
   
@@ -263,13 +249,10 @@ export default function Dashboard() {
     if (filterParam && targetParam) {
       console.log("⚠️ [Dashboard] Applying filter from URL params");
       if (filterParam === 'segment') {
-        setSelectedFilter('segment');
         setGlobalFilter({ type: 'segment', value: targetParam });
       } else if (filterParam === 'salesperson') {
-        setSelectedFilter('salesperson');
         setGlobalFilter({ type: 'salesperson', value: targetParam });
       } else if (filterParam === 'branch') {
-        setSelectedFilter('branch');
         setGlobalFilter({ type: 'branch', value: targetParam });
       }
     } else {
@@ -280,7 +263,6 @@ export default function Dashboard() {
   // Update local state when drawer opens
   const handleDrawerOpen = () => {
     setLocalSelection(selection);
-    setLocalSelectedFilter(selectedFilter);
     setLocalGlobalFilter(globalFilter);
     setLocalComparePeriod(comparePeriod);
     setIsDrawerOpen(true);
@@ -300,7 +282,6 @@ export default function Dashboard() {
     }
     
     setSelection(localSelection);
-    setSelectedFilter(localSelectedFilter);
     setGlobalFilter(localGlobalFilter);
     setComparePeriod(localComparePeriod);
     
@@ -325,7 +306,6 @@ export default function Dashboard() {
       months: [now.getMonth() + 1], // Convert to 1-12 format array
       display: format(now, "MMMM yyyy")
     });
-    setLocalSelectedFilter("all");
     setLocalGlobalFilter({ type: "all" });
     setLocalComparePeriod("none");
   };
@@ -451,10 +431,7 @@ export default function Dashboard() {
     queryKey: ["/api/goals/data/salespeople"],
   });
 
-  // Sync local filter state with globalFilter changes
-  useEffect(() => {
-    setSelectedFilter(globalFilter.type);
-  }, [globalFilter.type]);
+  // No need to sync - using globalFilter.type directly
   
   // Helper function to convert old filter format to new YearMonthSelection format
   const convertToSelection = (
@@ -673,7 +650,6 @@ export default function Dashboard() {
       const salespersonName = user.fullName || user.salespersonName;
       if (salespersonName) {
         setGlobalFilter({ type: 'salesperson', value: salespersonName });
-        setSelectedFilter('salesperson');
       }
     }
   }, [user, globalFilter.type]);
@@ -712,7 +688,6 @@ export default function Dashboard() {
   if (globalFilter.type === "segment" && globalFilter.value) {
     const handleBack = () => {
       setGlobalFilter({ type: "all", value: "" });
-      setSelectedFilter("all");
     };
     
     const handleSegmentChange = (newSegment: string) => {
@@ -752,7 +727,6 @@ export default function Dashboard() {
   if (globalFilter.type === "branch" && globalFilter.value) {
     const handleBack = () => {
       setGlobalFilter({ type: "all", value: "" });
-      setSelectedFilter("all");
     };
     
     const handleBranchChange = (newBranch: string) => {
@@ -796,7 +770,6 @@ export default function Dashboard() {
     const handleBack = () => {
       if (canNavigateBack) {
         setGlobalFilter({ type: "all", value: "" });
-        setSelectedFilter("all");
       }
     };
     
@@ -882,9 +855,8 @@ export default function Dashboard() {
                           <div>
                             <label className="text-sm font-medium text-gray-700 block mb-2">Tipo de vista</label>
                             <Select 
-                              value={localSelectedFilter} 
+                              value={localGlobalFilter.type} 
                               onValueChange={(value) => {
-                                setLocalSelectedFilter(value);
                                 // Clear the global filter value but preserve the period selection
                                 // Only change the filter type, never touch the period (localSelection)
                                 if (value === "all") {
@@ -932,37 +904,37 @@ export default function Dashboard() {
                             </Select>
                           </div>
                           
-                          {(localSelectedFilter === "segment" || localSelectedFilter === "branch" || localSelectedFilter === "salesperson") && (
+                          {(localGlobalFilter.type === "segment" || localGlobalFilter.type === "branch" || localGlobalFilter.type === "salesperson") && (
                             <div>
                               <label className="text-sm font-medium text-gray-700 block mb-2">
-                                {localSelectedFilter === "segment" ? "Segmento específico" : localSelectedFilter === "branch" ? "Sucursal específica" : "Vendedor específico"}
+                                {localGlobalFilter.type === "segment" ? "Segmento específico" : localGlobalFilter.type === "branch" ? "Sucursal específica" : "Vendedor específico"}
                               </label>
                               <Select 
-                                key={localSelectedFilter}
-                                value={(localGlobalFilter.type === localSelectedFilter && localGlobalFilter.value) ? localGlobalFilter.value : ""} 
+                                key={localGlobalFilter.type}
+                                value={localGlobalFilter.value || ""} 
                                 onValueChange={(value) => {
-                                  if (localSelectedFilter === "segment") {
+                                  if (localGlobalFilter.type === "segment") {
                                     setLocalGlobalFilter({ type: "segment", value });
-                                  } else if (localSelectedFilter === "branch") {
+                                  } else if (localGlobalFilter.type === "branch") {
                                     setLocalGlobalFilter({ type: "branch", value });
-                                  } else if (localSelectedFilter === "salesperson") {
+                                  } else if (localGlobalFilter.type === "salesperson") {
                                     setLocalGlobalFilter({ type: "salesperson", value });
                                   }
                                 }}
                               >
                                 <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
                                   <SelectValue placeholder={
-                                    localSelectedFilter === "segment" ? "Selecciona segmento" : localSelectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
+                                    localGlobalFilter.type === "segment" ? "Selecciona segmento" : localGlobalFilter.type === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
                                   } />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
-                                  {localSelectedFilter === "segment" ? (
+                                  {localGlobalFilter.type === "segment" ? (
                                     segments?.map((segment) => (
                                       <SelectItem key={segment} value={segment}>
                                         {segment}
                                       </SelectItem>
                                     ))
-                                  ) : localSelectedFilter === "branch" ? (
+                                  ) : localGlobalFilter.type === "branch" ? (
                                     ["CONCEPCION", "SANTIAGO"].map((branch) => (
                                       <SelectItem key={branch} value={branch}>
                                         {branch}
@@ -1067,7 +1039,7 @@ export default function Dashboard() {
                   <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
                   <Select 
-                    value={selectedFilter} 
+                    value={globalFilter.type} 
                     onValueChange={(value) => {
                       console.log("🎯 [Dashboard] Select onChange - value:", value);
                       console.log("🎯 [Dashboard] Current globalFilter BEFORE change:", globalFilter);
@@ -1086,7 +1058,6 @@ export default function Dashboard() {
                         console.log("✅ [Dashboard] Invalidated queries");
                       } else {
                         console.log("🔧 [Dashboard] User selected filter type:", value);
-                        setSelectedFilter(value);
                         // Clear the global filter value but preserve the period selection
                         if (value === "segment") {
                           setGlobalFilter({ type: "segment", value: "" });
@@ -1134,35 +1105,35 @@ export default function Dashboard() {
                 </div>
 
                 {/* Segment/Branch/Salesperson selector - shown conditionally */}
-                {(selectedFilter === "segment" || selectedFilter === "branch" || selectedFilter === "salesperson") && (
-                  <div className="flex items-center gap-2" key={`specific-selector-${selectedFilter}`}>
+                {(globalFilter.type === "segment" || globalFilter.type === "branch" || globalFilter.type === "salesperson") && (
+                  <div className="flex items-center gap-2" key={`specific-selector-${globalFilter.type}`}>
                     <span className="text-sm font-medium text-gray-700">
-                      {selectedFilter === "segment" ? "Segmento:" : selectedFilter === "branch" ? "Sucursal:" : "Vendedor:"}
+                      {globalFilter.type === "segment" ? "Segmento:" : globalFilter.type === "branch" ? "Sucursal:" : "Vendedor:"}
                     </span>
                     <Select 
-                      key={selectedFilter}
-                      value={(globalFilter.type === selectedFilter && globalFilter.value) ? globalFilter.value : ""} 
+                      key={globalFilter.type}
+                      value={globalFilter.value || ""} 
                       onValueChange={(value) => {
-                        if (selectedFilter === "segment") {
+                        if (globalFilter.type === "segment") {
                           setGlobalFilter({ type: "segment", value });
-                        } else if (selectedFilter === "branch") {
+                        } else if (globalFilter.type === "branch") {
                           setGlobalFilter({ type: "branch", value });
-                        } else if (selectedFilter === "salesperson") {
+                        } else if (globalFilter.type === "salesperson") {
                           setGlobalFilter({ type: "salesperson", value });
                         }
                       }}
                     >
                       <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
-                        <SelectValue placeholder={selectedFilter === "segment" ? "Selecciona segmento" : selectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"} />
+                        <SelectValue placeholder={globalFilter.type === "segment" ? "Selecciona segmento" : globalFilter.type === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"} />
                       </SelectTrigger>
                       <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                        {selectedFilter === "segment" ? (
+                        {globalFilter.type === "segment" ? (
                           segments?.map((segment) => (
                             <SelectItem key={segment} value={segment}>
                               {segment}
                             </SelectItem>
                           ))
-                        ) : selectedFilter === "branch" ? (
+                        ) : globalFilter.type === "branch" ? (
                           ["CONCEPCION", "SANTIAGO"].map((branch) => (
                             <SelectItem key={branch} value={branch}>
                               {branch}
@@ -1199,9 +1170,9 @@ export default function Dashboard() {
                   <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
                   <div className="flex-1">
                     <div className="text-xs font-medium text-purple-900">
-                      Vista: {selectedFilter === "all" ? "Todo el dashboard" : 
-                             selectedFilter === "segment" ? "Por segmento" :
-                             selectedFilter === "branch" ? "Por sucursal" : "Por vendedor"}
+                      Vista: {globalFilter.type === "all" ? "Todo el dashboard" : 
+                             globalFilter.type === "segment" ? "Por segmento" :
+                             globalFilter.type === "branch" ? "Por sucursal" : "Por vendedor"}
                     </div>
                   </div>
                 </div>
@@ -1227,9 +1198,9 @@ export default function Dashboard() {
                     <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
                     <div className="flex-1">
                       <div className="text-xs font-medium text-green-900">
-                        {selectedFilter === "segment" && `Segmento: ${globalFilter.value}`}
-                        {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
-                        {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
+                        {globalFilter.type === "segment" && `Segmento: ${globalFilter.value}`}
+                        {globalFilter.type === "branch" && `Sucursal: ${globalFilter.value}`}
+                        {globalFilter.type === "salesperson" && `Vendedor: ${globalFilter.value}`}
                       </div>
                     </div>
                   </div>
@@ -1413,7 +1384,6 @@ export default function Dashboard() {
                     filterType={filterType}
                     onSegmentClick={(segmentName) => {
                       setGlobalFilter({ type: "segment", value: segmentName });
-                      setSelectedFilter("segment");
                     }}
                   />
                 </div>
