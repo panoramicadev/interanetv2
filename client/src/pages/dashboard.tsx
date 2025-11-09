@@ -1222,13 +1222,6 @@ export default function Dashboard() {
               {/* Standard Dashboard Layout */}
               {/* KPI Cards with Modern Styling */}
               <div>
-                {console.log("🔍 [Dashboard] Rendering KPICards with props:", {
-                  globalFilter,
-                  segmentProp: globalFilter.type === "segment" ? globalFilter.value : undefined,
-                  salespersonProp: globalFilter.type === "salesperson" ? globalFilter.value : undefined,
-                  selectedPeriod,
-                  filterType
-                })}
                 <KPICards 
                   selectedPeriod={selectedPeriod} 
                   filterType={filterType}

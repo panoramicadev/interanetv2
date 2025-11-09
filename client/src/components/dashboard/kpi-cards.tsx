@@ -41,14 +41,6 @@ interface KPICardsProps {
 }
 
 export default function KPICards({ selectedPeriod, filterType, segment, salesperson, comparePeriod }: KPICardsProps) {
-  console.log("📊 [KPICards] Component rendered with props:", {
-    selectedPeriod,
-    filterType,
-    segment,
-    salesperson,
-    comparePeriod
-  });
-  
   // Helper function to resolve comparison periods to actual period strings
   const resolveComparisonPeriod = (comparePeriod: string, currentPeriod: string, filterType: string): string => {
     if (!comparePeriod || comparePeriod === "none") return "";
@@ -235,22 +227,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
       params.append('filterType', filterType);
       if (segment) params.append('segment', segment);
       if (salesperson) params.append('salesperson', salesperson);
-      
-      const url = `/api/sales/metrics?${params.toString()}`;
-      console.log("🌐 [KPICards] Fetching metrics from:", url);
-      console.log("🔑 [KPICards] Query key:", ['/api/sales/metrics', selectedPeriod, filterType, segment, salesperson]);
-      
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      const data = await res.json();
-      
-      console.log("📥 [KPICards] Received data:", {
-        totalSales: data.totalSales,
-        totalTransactions: data.totalTransactions,
-        activeCustomers: data.activeCustomers
-      });
-      
-      return data;
+      return await res.json();
     },
   });
 
