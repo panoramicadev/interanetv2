@@ -57,7 +57,7 @@ export default function Dashboard() {
   const { isAuthenticated, isLoading, user } = useAuth();
   
   // Use global filter context
-  const { selection, setSelection, globalFilter, setGlobalFilter } = useFilter();
+  const { selection, setSelection, globalFilter, setGlobalFilter, resetFilters } = useFilter();
   
   // Derived values from selection for backward compatibility
   const selectedPeriod = (() => {
@@ -233,16 +233,24 @@ export default function Dashboard() {
   // Get current location from wouter
   const [currentLocation] = useLocation();
   
-  // Read URL parameters and update filter
+  // Read URL parameters and update filter (only when target is specified)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const filterParam = params.get('filter');
-    if (filterParam === 'segment') {
-      setSelectedFilter('segment');
-      setGlobalFilter({ type: 'segment', value: undefined });
-    } else if (filterParam === 'salesperson') {
-      setSelectedFilter('salesperson');
-      setGlobalFilter({ type: 'salesperson', value: undefined });
+    const targetParam = params.get('target');
+    
+    // Only apply filter if there's a target value, not just the filter type
+    if (filterParam && targetParam) {
+      if (filterParam === 'segment') {
+        setSelectedFilter('segment');
+        setGlobalFilter({ type: 'segment', value: targetParam });
+      } else if (filterParam === 'salesperson') {
+        setSelectedFilter('salesperson');
+        setGlobalFilter({ type: 'salesperson', value: targetParam });
+      } else if (filterParam === 'branch') {
+        setSelectedFilter('branch');
+        setGlobalFilter({ type: 'branch', value: targetParam });
+      }
     }
   }, [currentLocation, setGlobalFilter]);
   
@@ -257,11 +265,14 @@ export default function Dashboard() {
   
   // Apply drawer filters to main state
   const handleApplyFilters = () => {
-    // Special case: if switching to "all", navigate to reset everything
+    // Special case: if switching to "all", reset everything
     if (localGlobalFilter.type === "all") {
-      // Clear localStorage filters before navigating
-      localStorage.removeItem('dashboard_global_filter');
-      window.location.href = '/dashboard';
+      resetFilters();
+      setLocation('/dashboard');
+      // Invalidate queries to refetch with clean filters
+      queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
+      setIsDrawerOpen(false);
       return;
     }
     
@@ -270,7 +281,7 @@ export default function Dashboard() {
     setGlobalFilter(localGlobalFilter);
     setComparePeriod(localComparePeriod);
     
-    // Update URL to match the selected filter type
+    // Update URL to match the selected filter type (without target)
     if (localGlobalFilter.type === "segment") {
       window.history.replaceState({}, '', '/dashboard?filter=segment');
     } else if (localGlobalFilter.type === "branch") {
@@ -1036,10 +1047,12 @@ export default function Dashboard() {
                     value={selectedFilter} 
                     onValueChange={(value) => {
                       if (value === "all") {
-                        // Clear localStorage filters before navigating to reset everything
-                        localStorage.removeItem('dashboard_global_filter');
-                        // Navigate to /dashboard to reset everything (same as clicking the logo)
-                        window.location.href = '/dashboard';
+                        // Reset filters via context and navigate to clean dashboard
+                        resetFilters();
+                        setLocation('/dashboard');
+                        // Invalidate queries to refetch with clean filters
+                        queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+                        queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
                       } else {
                         setSelectedFilter(value);
                         // Clear the global filter value but preserve the period selection
