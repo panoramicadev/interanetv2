@@ -78,6 +78,13 @@ Preferred communication style: Simple, everyday language.
     - **Data Quality Validation**: Automatic threshold validation for NULL values in critical fields (nokoen, nokofu, noruen) with 10% tolerance
     - **Atomic Transactions**: DELETE+INSERT in fact_ventas wrapped in transaction to guarantee consistency
     - **Timeout Controls**: 120s timeout per SQL Server request to prevent hung connections
+    - **Production Logging System** (Nov 2025): Structured logging with ProductionLogger class for comprehensive error tracking:
+      - **Log Levels**: DEBUG, INFO, WARN, ERROR, CRITICAL with context metadata
+      - **Automatic Sanitization**: Sensitive data (passwords, tokens, API keys) automatically redacted
+      - **ETL Integration**: All batch inserts log sample records, error stacks, and field lists for debugging
+      - **Admin Endpoints**: GET /api/logs (with filters), GET /api/logs/stats, DELETE /api/logs (admin-only)
+      - **Buffer**: 2000 logs in-memory with queryable history by level, category, and date range
+      - **Schema Fix (Nov 2025)**: Corrected stg_maeddo migration with ALTER TABLE to add caprco1/caprco2 columns, resolving production batch insert errors
 - **Manual Sales Projection**: Monthly to yearly calculation and "future clients" management.
 
 ### Production Deployment
