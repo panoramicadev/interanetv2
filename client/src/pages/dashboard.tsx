@@ -833,7 +833,8 @@ export default function Dashboard() {
                               value={localSelectedFilter} 
                               onValueChange={(value) => {
                                 setLocalSelectedFilter(value);
-                                // Clear the value when changing filter type to avoid showing wrong data
+                                // Clear the global filter value but preserve the period selection
+                                // Only change the filter type, never touch the period (localSelection)
                                 if (value === "all") {
                                   setLocalGlobalFilter({ type: "all" });
                                 } else if (value === "segment") {
@@ -843,6 +844,7 @@ export default function Dashboard() {
                                 } else if (value === "salesperson") {
                                   setLocalGlobalFilter({ type: "salesperson", value: undefined });
                                 }
+                                // Period (localSelection) is NOT modified here - it stays as is
                               }}
                             >
                               <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
@@ -1015,7 +1017,8 @@ export default function Dashboard() {
                     value={selectedFilter} 
                     onValueChange={(value) => {
                       setSelectedFilter(value);
-                      // Clear the value when changing filter type to avoid showing wrong data
+                      // Clear the global filter value but preserve the period selection
+                      // Only change the filter type, never touch the period (selection)
                       if (value === "all") {
                         setGlobalFilter({ type: "all", value: "" });
                       } else if (value === "segment") {
@@ -1025,6 +1028,7 @@ export default function Dashboard() {
                       } else if (value === "salesperson") {
                         setGlobalFilter({ type: "salesperson", value: "" });
                       }
+                      // Period (selection) is NOT modified here - it stays as is
                     }}
                   >
                     <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm">

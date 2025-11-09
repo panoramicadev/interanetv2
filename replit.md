@@ -47,6 +47,7 @@ Preferred communication style: Simple, everyday language.
   - "Limpiar todo" button to reset all selections (years, months, days)
   - Display format: "3-9 Noviembre 2025 (7 días)" for ranges
   - Preserves selection state when reopening calendar
+  - Period selection preserved when switching between filter views (all/segment/salesperson/branch)
 
 ### Key Features
 - **Client & User Management**: Role-based access and client linking.
