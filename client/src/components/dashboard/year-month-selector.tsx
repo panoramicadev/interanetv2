@@ -365,25 +365,25 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                       
                       let className = 'h-7 text-[10px] px-1 ';
                       if (isStart && !rangeEnd) {
-                        // Primer click: destacar con ring
-                        className += 'bg-primary text-white font-bold ring-2 ring-primary ring-offset-1';
+                        // Primer click: destacar con ring naranja
+                        className += 'bg-primary text-white font-bold border-2 border-primary shadow-md';
                       } else if (isStart || isEnd) {
-                        // Inicio o fin de rango completo
-                        className += 'bg-primary text-white font-bold ring-2 ring-primary ring-offset-1';
+                        // Inicio o fin de rango completo - naranja sólido con borde
+                        className += 'bg-primary text-white font-bold border-2 border-primary shadow-md';
                       } else if (isInRange) {
-                        // Días intermedios del rango
-                        className += 'bg-primary/70 text-white';
+                        // Días intermedios del rango - naranja completo
+                        className += 'bg-primary text-white';
                       } else if (isSelected) {
-                        // Otros días seleccionados (caso edge)
-                        className += 'bg-primary/50 text-white';
+                        // Otros días seleccionados - naranja completo
+                        className += 'bg-primary text-white';
                       } else {
-                        className += 'hover:bg-primary hover:text-white';
+                        className += 'hover:bg-primary/20 hover:text-primary border border-gray-200';
                       }
                       
                       calendarDays.push(
                         <Button
                           key={day}
-                          variant={isSelected ? "default" : "outline"}
+                          variant="ghost"
                           className={className}
                           onClick={() => handleDayClick(day)}
                           data-testid={`day-${day}`}
