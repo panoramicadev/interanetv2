@@ -9,7 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
-import { useFilter } from "@/contexts/FilterContext";
+import { useFilter, type GlobalFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
@@ -45,10 +45,7 @@ interface SucursalDetailProps {
     range?: { from?: Date; to?: Date }
   ) => void;
   // Dashboard filter props (when embedded)
-  dashboardGlobalFilter?: {
-    type: "all" | "global" | "branch" | "salesperson";
-    value?: string;
-  };
+  dashboardGlobalFilter?: GlobalFilter;
   dashboardFilterType?: "day" | "month" | "year" | "range";
   dashboardSelectedPeriod?: string;
   dashboardSelectedDate?: Date;

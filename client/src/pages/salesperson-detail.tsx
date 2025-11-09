@@ -11,7 +11,7 @@ import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useFilter } from "@/contexts/FilterContext";
+import { useFilter, type GlobalFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSalespersonTable from "@/components/dashboard/comparative-salesperson-table";
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
@@ -78,10 +78,7 @@ interface SalespersonDetailProps {
     range?: { from?: Date; to?: Date }
   ) => void; // Callback to change date filters when embedded
   // Dashboard filter props (when embedded)
-  dashboardGlobalFilter?: {
-    type: "all" | "global" | "segment" | "salesperson";
-    value?: string;
-  };
+  dashboardGlobalFilter?: GlobalFilter;
   dashboardFilterType?: "day" | "month" | "year" | "range";
   dashboardSelectedPeriod?: string;
   dashboardSelectedDate?: Date;
