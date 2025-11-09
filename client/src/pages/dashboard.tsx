@@ -1040,6 +1040,7 @@ export default function Dashboard() {
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
                   {console.log("🎨 [Dashboard RENDER] Select value:", globalFilter.type, "Full filter:", globalFilter)}
                   <Select 
+                    key={`filter-select-${globalFilter.type}-${globalFilter.value}`}
                     value={globalFilter.type}
                     onOpenChange={(open) => console.log("🎨 [Dashboard] Select opened/closed:", open, "Current value:", globalFilter.type)} 
                     onValueChange={(value) => {
