@@ -432,7 +432,7 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
   }, [showConfigDialog, status?.config]);
 
   const handleExecute = () => {
-    if (status?.isRunning || buttonState !== 'idle') {
+    if (status?.isRunning || isETLExecuting) {
       toast({
         title: "⏳ ETL en ejecución",
         description: "Ya hay un proceso ETL en ejecución. Por favor espera a que termine.",
@@ -441,8 +441,9 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
       return;
     }
     
-    // Immediate visual feedback
-    setButtonState('clicked');
+    // Immediate visual feedback and execution
+    setButtonState('starting');
+    setIsETLExecuting(true);
     
     // Show immediate toast
     toast({
@@ -450,11 +451,8 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
       description: "Conectando con SQL Server y preparando extracción de datos",
     });
     
-    // Short delay for visual feedback, then execute
-    setTimeout(() => {
-      setButtonState('starting');
-      executeMutation.mutate();
-    }, 300);
+    // Execute immediately
+    executeMutation.mutate();
   };
 
   const handleCancel = () => {
@@ -618,32 +616,24 @@ function ETLStatusSection({ etlName, autoRefresh }: { etlName: string; autoRefre
               {!isRunning && (
                 <Button
                   onClick={handleExecute}
-                  disabled={buttonState !== 'idle'}
+                  disabled={executeMutation.isPending || isETLExecuting}
                   size="lg"
                   data-testid="button-execute-etl"
                   className={`
-                    transition-all duration-200 
-                    ${buttonState === 'clicked' ? 'scale-95 bg-primary/90' : 'scale-100'}
-                    ${buttonState === 'starting' ? 'animate-pulse' : ''}
-                    ${buttonState === 'idle' ? 'hover:scale-105' : ''}
+                    transition-all duration-300 
+                    ${buttonState === 'starting' || buttonState === 'running' ? 'animate-pulse' : ''}
+                    ${buttonState === 'idle' ? 'hover:scale-105 active:scale-95' : ''}
                   `}
                 >
-                  {buttonState === 'clicked' && (
-                    <>
-                      <PlayCircle className="h-5 w-5 mr-2 animate-ping" />
-                      ¡Clic Registrado!
-                    </>
-                  )}
-                  {buttonState === 'starting' && (
+                  {(buttonState === 'starting' || buttonState === 'running' || executeMutation.isPending) ? (
                     <>
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                      Conectando a SQL Server...
+                      <span className="animate-pulse">Iniciando ETL...</span>
                     </>
-                  )}
-                  {buttonState === 'idle' && (
+                  ) : (
                     <>
                       <PlayCircle className="h-5 w-5 mr-2" />
-                      Ejecutar ETL
+                      <span className="font-semibold">Ejecutar ETL</span>
                     </>
                   )}
                 </Button>
