@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -547,20 +547,8 @@ export default function SegmentDetail({
           <div className="space-y-4 w-full">
             {/* All filters in one line */}
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Home button and Vista */}
+              {/* Vista selector */}
               <div className="flex items-center gap-2">
-                {onBack && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onBack}
-                    className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
-                    data-testid="button-back-dashboard"
-                    title="Volver al Dashboard"
-                  >
-                    <Home className="h-4 w-4 text-gray-600" />
-                  </Button>
-                )}
                 <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
                 <Select 
