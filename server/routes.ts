@@ -35,7 +35,7 @@ import {
 } from "../shared/schema";
 import { eq, and, isNotNull, ne, sql, desc, or } from "drizzle-orm";
 import { emailService } from "./services/email";
-import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter } from "./etl-incremental";
+import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
 import * as NotifyHelper from "./notifications-helper";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
@@ -327,21 +327,136 @@ export function registerRoutes(app: Express): Server {
     limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
   });
 
-  // Health check endpoint
+  // Health check endpoint - Production monitoring
   app.get('/api/health', asyncHandler(async (req: any, res: any) => {
     const dbHealth = await checkDbHealth();
+    
+    // Get last ETL execution
+    let lastETL: any = null;
+    let etlHealthy = true;
+    let etlWarnings: string[] = [];
+    
+    try {
+      const lastExecutions = await db
+        .select()
+        .from(sql`ventas.etl_execution_log`)
+        .orderBy(desc(sql`execution_date`))
+        .limit(1);
+      
+      if (lastExecutions.length > 0) {
+        const last = lastExecutions[0] as any;
+        lastETL = {
+          status: last.status,
+          executionDate: last.execution_date,
+          recordsProcessed: last.records_processed,
+          executionTimeMs: last.execution_time_ms,
+          period: last.period
+        };
+        
+        // Check if last ETL failed
+        if (last.status === 'failed') {
+          etlHealthy = false;
+          etlWarnings.push('Última ejecución ETL falló');
+        }
+        
+        // Check if last execution was too long ago (>45 min = problema con scheduler)
+        const timeSinceLastETL = Date.now() - new Date(last.execution_date).getTime();
+        const minutesSince = timeSinceLastETL / (1000 * 60);
+        if (minutesSince > 45) {
+          etlHealthy = false;
+          etlWarnings.push(`Última ejecución hace ${Math.round(minutesSince)} minutos (esperado: cada 30 min)`);
+        }
+      } else {
+        etlWarnings.push('No hay historial de ejecuciones ETL');
+      }
+    } catch (error: any) {
+      console.error('[HEALTH] Error checking ETL status:', error.message);
+      etlWarnings.push('Error verificando estado ETL');
+      etlHealthy = false;
+    }
+    
+    // Get circuit breaker stats
+    const breakerStats = sqlServerBreaker.getStats();
+    const breakerHealthy = breakerStats.state !== 'OPEN';
+    
+    // Data quality check - critical fields
+    let dataQualityHealthy = true;
+    let dataQualityWarnings: string[] = [];
+    
+    try {
+      const qualityCheck = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_records,
+          SUM(CASE WHEN nokoen IS NULL THEN 1 ELSE 0 END) as null_clients,
+          SUM(CASE WHEN nokofu IS NULL THEN 1 ELSE 0 END) as null_salespeople,
+          SUM(CASE WHEN noruen IS NULL THEN 1 ELSE 0 END) as null_segments
+        FROM ventas.fact_ventas
+        WHERE last_etl_sync >= NOW() - INTERVAL '24 hours'
+      `);
+      
+      const quality = qualityCheck.rows[0] as any;
+      const totalRecent = Number(quality.total_records);
+      
+      if (totalRecent > 0) {
+        const nullClientsPercent = (Number(quality.null_clients) / totalRecent) * 100;
+        const nullSalesPercent = (Number(quality.null_salespeople) / totalRecent) * 100;
+        const nullSegmentsPercent = (Number(quality.null_segments) / totalRecent) * 100;
+        
+        if (nullClientsPercent > 10) {
+          dataQualityWarnings.push(`${nullClientsPercent.toFixed(1)}% clientes NULL`);
+          dataQualityHealthy = false;
+        }
+        if (nullSalesPercent > 10) {
+          dataQualityWarnings.push(`${nullSalesPercent.toFixed(1)}% vendedores NULL`);
+          dataQualityHealthy = false;
+        }
+        if (nullSegmentsPercent > 10) {
+          dataQualityWarnings.push(`${nullSegmentsPercent.toFixed(1)}% segmentos NULL`);
+          dataQualityHealthy = false;
+        }
+      }
+    } catch (error: any) {
+      console.error('[HEALTH] Error checking data quality:', error.message);
+      dataQualityWarnings.push('Error verificando calidad de datos');
+    }
+    
+    // Overall system health
+    const systemHealthy = dbHealth.connected && etlHealthy && breakerHealthy && dataQualityHealthy;
+    const systemStatus = systemHealthy ? 'healthy' : 'degraded';
+    
     const health = {
-      status: dbHealth.connected ? 'healthy' : 'degraded',
+      status: systemStatus,
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
       database: {
         connected: dbHealth.connected,
         connectionAttempts: dbHealth.attempts,
         lastError: dbHealth.lastError
       },
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime()
+      etl: {
+        healthy: etlHealthy,
+        lastExecution: lastETL,
+        warnings: etlWarnings
+      },
+      sqlServer: {
+        circuitBreaker: {
+          state: breakerStats.state,
+          healthy: breakerHealthy,
+          failures: breakerStats.failures,
+          successes: breakerStats.successes,
+          nextAttemptTime: breakerStats.nextAttemptTime > 0 
+            ? new Date(breakerStats.nextAttemptTime).toISOString() 
+            : null
+        }
+      },
+      dataQuality: {
+        healthy: dataQualityHealthy,
+        warnings: dataQualityWarnings
+      }
     };
     
-    res.status(dbHealth.connected ? 200 : 503).json(health);
+    // Return 503 if system is degraded, 200 if healthy
+    res.status(systemHealthy ? 200 : 503).json(health);
   }));
 
   // Sales metrics endpoint

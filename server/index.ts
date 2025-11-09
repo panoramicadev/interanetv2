@@ -4,6 +4,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import path from "path";
 import { executeIncrementalETL, getETLConfig } from "./etl-incremental";
 import { storage } from "./storage";
+import { startHealthMonitor } from "./etl-health-monitor";
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -222,6 +223,13 @@ app.use((req, res, next) => {
       }, PREVENTIVE_MAINTENANCE_INTERVAL);
     } catch (error: any) {
       console.error('Failed to initialize preventive maintenance scheduler:', error.message);
+    }
+
+    // Start ETL health monitor (runs every 10 minutes)
+    try {
+      startHealthMonitor(10); // Check system health every 10 minutes
+    } catch (error: any) {
+      console.error('Failed to initialize ETL health monitor:', error.message);
     }
   });
 })();
