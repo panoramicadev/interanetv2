@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -9,13 +9,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { format, parse } from "date-fns";
 import { es } from "date-fns/locale";
-import { useFilter, type GlobalFilter } from "@/contexts/FilterContext";
+import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparative-segment-salespeople-table";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import BranchPendingNVV from "@/components/dashboard/branch-pending-nvv";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
-import { VIEW_OPTIONS, type ViewKey } from "@/constants/views";
 
 interface BranchClient {
   clientName: string;
@@ -46,7 +45,10 @@ interface SucursalDetailProps {
     range?: { from?: Date; to?: Date }
   ) => void;
   // Dashboard filter props (when embedded)
-  dashboardGlobalFilter?: GlobalFilter;
+  dashboardGlobalFilter?: {
+    type: "all" | "global" | "branch" | "salesperson";
+    value?: string;
+  };
   dashboardFilterType?: "day" | "month" | "year" | "range";
   dashboardSelectedPeriod?: string;
   dashboardSelectedDate?: Date;
@@ -78,10 +80,10 @@ export default function SucursalDetail({
   const [, setLocation] = useLocation();
   
   // Use global filter context
-  const { selection, setSelection, setGlobalFilter } = useFilter();
+  const { selection, setSelection } = useFilter();
   
   // Local state for view type
-  const [selectedView, setSelectedView] = useState<ViewKey>("branch");
+  const [selectedView, setSelectedView] = useState<"all" | "sucursal" | "vendedor">("sucursal");
   
   // Ref to store scroll position
   const scrollPositionRef = useRef<number>(0);
@@ -294,13 +296,6 @@ export default function SucursalDetail({
     queryKey: ["/api/goals/data/salespeople"],
   });
 
-  // Fetch all segments for dropdown when switching views
-  const { data: allSegments } = useQuery<string[]>({
-    queryKey: ["/api/goals/data/segments"],
-  });
-
-  console.log("🔍 [sucursal-detail] allSegments:", allSegments, "selectedView:", selectedView, "embedded:", embedded);
-
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<BranchClient[]>({
     queryKey: ['/api/sales/branch', branchName, 'clients', selectedPeriod, filterType],
     queryFn: async () => {
@@ -426,67 +421,59 @@ export default function SucursalDetail({
           <div className="space-y-4 w-full">
             {/* All filters in one line */}
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Vista selector */}
+              {/* Home button and Vista */}
               <div className="flex items-center gap-2">
+                {onBack && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onBack}
+                    className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
+                    data-testid="button-back-dashboard"
+                    title="Volver al Dashboard"
+                  >
+                    <Home className="h-4 w-4 text-gray-600" />
+                  </Button>
+                )}
                 <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
                 <Select 
                   value={selectedView}
-                  onValueChange={(value: ViewKey) => {
+                  onValueChange={(value: "all" | "sucursal" | "vendedor") => {
                     setSelectedView(value);
                     if (value === "all") {
-                      // Clear view filters (branch, segment, salesperson) but keep period filters
-                      setGlobalFilter({ type: "all", value: "" });
                       setLocation('/');
                     }
                   }}
                 >
-                  <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm bg-gray-50">
+                  <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                    {VIEW_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex items-center gap-2">
-                          <option.icon className={`h-3.5 w-3.5 ${option.iconColor}`} />
-                          <span>{option.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="all">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                        <span>Todo el dashboard</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="sucursal">
+                      <div className="flex items-center gap-2">
+                        <Building className="h-3.5 w-3.5 text-green-500" />
+                        <span>Por sucursal</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="vendedor">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-3.5 w-3.5 text-purple-500" />
+                        <span>Por vendedor</span>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Segment selector - shown when view is segment */}
-              {selectedView === "segment" && (
-                <div className="flex items-center gap-2" key="segment-selector">
-                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
-                  <Select 
-                    value=""
-                    onValueChange={(segment) => {
-                      setLocation(`/segment/${encodeURIComponent(segment)}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
-                      <SelectValue placeholder="Selecciona segmento" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSegments && allSegments.length > 0 ? (
-                        allSegments.map((segment) => (
-                          <SelectItem key={segment} value={segment}>
-                            {segment}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="loading" disabled>Cargando segmentos...</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Branch selector - shown when view is branch */}
-              {!embedded && selectedView === "branch" && allBranches && allBranches.length > 0 && branchName && (
+              {/* Segment selector - shown when view is sucursal */}
+              {!embedded && selectedView === "sucursal" && allBranches && allBranches.length > 0 && branchName && (
                 <div className="flex items-center gap-2" key="branch-selector">
                   <span className="text-sm font-medium text-gray-700">Sucursal:</span>
                   <Select 
@@ -509,8 +496,8 @@ export default function SucursalDetail({
                 </div>
               )}
 
-              {/* Salesperson selector - shown when view is salesperson */}
-              {!embedded && selectedView === "salesperson" && allSalespeople && allSalespeople.length > 0 && (
+              {/* Salesperson selector - shown when view is vendedor */}
+              {!embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
                 <div className="flex items-center gap-2" key="salesperson-selector">
                   <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                   <Select 
@@ -533,8 +520,8 @@ export default function SucursalDetail({
                 </div>
               )}
 
-              {/* Embedded branch selector - shown when view is branch */}
-              {embedded && selectedView === "branch" && onBranchChange && allBranches && allBranches.length > 0 && branchName && (
+              {/* Embedded branch selector - shown when view is sucursal */}
+              {embedded && selectedView === "sucursal" && onBranchChange && allBranches && allBranches.length > 0 && branchName && (
                 <div className="flex items-center gap-2" key="embedded-branch-selector">
                   <span className="text-sm font-medium text-gray-700">Sucursal:</span>
                   <Select value={branchName} onValueChange={onBranchChange}>
@@ -552,8 +539,8 @@ export default function SucursalDetail({
                 </div>
               )}
 
-              {/* Embedded salesperson selector - shown when view is salesperson */}
-              {embedded && selectedView === "salesperson" && allSalespeople && allSalespeople.length > 0 && (
+              {/* Embedded salesperson selector - shown when view is vendedor */}
+              {embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
                 <div className="flex items-center gap-2" key="embedded-salesperson-selector">
                   <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                   <Select 

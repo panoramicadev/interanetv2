@@ -12,8 +12,8 @@ export interface YearMonthSelection {
 }
 
 export interface GlobalFilter {
-  type: "all" | "segment" | "salesperson" | "branch" | "global";
-  value?: string;
+  type: "all" | "segment" | "salesperson";
+  value: string;
 }
 
 interface FilterContextType {
@@ -120,33 +120,12 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   };
 
   const setGlobalFilter = (filter: GlobalFilter) => {
-    console.log("🔧 [FilterContext] setGlobalFilter called");
-    console.log("🔧 [FilterContext] OLD globalFilter:", globalFilter);
-    console.log("🔧 [FilterContext] NEW globalFilter:", filter);
-    console.trace("📍 Stack trace de setGlobalFilter");
     setGlobalFilterState(filter);
   };
 
   const resetFilters = () => {
-    console.log("🔄 [FilterContext] resetFilters called");
-    console.log("🔄 [FilterContext] BEFORE reset - globalFilter:", globalFilter);
-    console.log("🔄 [FilterContext] BEFORE reset - selection:", selection);
-    
-    const defaultSelection = getDefaultSelection();
-    const defaultFilter = { type: "all" as const, value: "" };
-    
-    console.log("🔄 [FilterContext] Setting selection to:", defaultSelection);
-    console.log("🔄 [FilterContext] Setting globalFilter to:", defaultFilter);
-    
-    // Clear localStorage FIRST to prevent re-hydration
-    localStorage.removeItem(STORAGE_KEY_GLOBAL_FILTER);
-    localStorage.removeItem(STORAGE_KEY_SELECTION);
-    console.log("🗑️ [FilterContext] Cleared localStorage");
-    
-    setSelectionState(defaultSelection);
-    setGlobalFilterState(defaultFilter);
-    
-    console.log("✅ [FilterContext] resetFilters completed");
+    setSelectionState(getDefaultSelection());
+    setGlobalFilterState({ type: "all", value: "" });
   };
 
   return (

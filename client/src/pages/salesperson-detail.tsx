@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Eye, Building, ChevronDown, ChevronUp, Download } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, Clock, CalendarIcon, BarChart3, Filter, Settings2, Target, Package, CheckCircle, XCircle, AlertCircle, TrendingDown, FileText, Home, Eye, Building, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
@@ -11,12 +11,11 @@ import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useFilter, type GlobalFilter } from "@/contexts/FilterContext";
+import { useFilter } from "@/contexts/FilterContext";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSalespersonTable from "@/components/dashboard/comparative-salesperson-table";
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
-import { VIEW_OPTIONS, type ViewKey } from "@/constants/views";
 
 interface GoalProgress {
   id: string;
@@ -79,7 +78,10 @@ interface SalespersonDetailProps {
     range?: { from?: Date; to?: Date }
   ) => void; // Callback to change date filters when embedded
   // Dashboard filter props (when embedded)
-  dashboardGlobalFilter?: GlobalFilter;
+  dashboardGlobalFilter?: {
+    type: "all" | "global" | "segment" | "salesperson";
+    value?: string;
+  };
   dashboardFilterType?: "day" | "month" | "year" | "range";
   dashboardSelectedPeriod?: string;
   dashboardSelectedDate?: Date;
@@ -119,7 +121,7 @@ export default function SalespersonDetail({
   const { selection, setSelection } = useFilter();
   
   // Local state for view type
-  const [selectedView, setSelectedView] = useState<ViewKey>("salesperson");
+  const [selectedView, setSelectedView] = useState<"all" | "segmento" | "vendedor">("vendedor");
   
   // Handler for selection changes that notifies dashboard when embedded
   const handleSelectionChange = (newSelection: typeof selection) => {
@@ -593,37 +595,59 @@ export default function SalespersonDetail({
           <div className="space-y-4 w-full">
             {/* All filters in one line */}
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Vista selector */}
+              {/* Home button and Vista */}
               <div className="flex items-center gap-2">
+                {onBack && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onBack}
+                    className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
+                    data-testid="button-back-dashboard"
+                    title="Volver al Dashboard"
+                  >
+                    <Home className="h-4 w-4 text-gray-600" />
+                  </Button>
+                )}
                 <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
                 <Select 
                   value={selectedView}
-                  onValueChange={(value: ViewKey) => {
+                  onValueChange={(value: "all" | "segmento" | "vendedor") => {
                     setSelectedView(value);
                     if (value === "all") {
                       setLocation('/');
                     }
                   }}
                 >
-                  <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm bg-gray-50">
+                  <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                    {VIEW_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <div className="flex items-center gap-2">
-                          <option.icon className={`h-3.5 w-3.5 ${option.iconColor}`} />
-                          <span>{option.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="all">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                        <span>Todo el dashboard</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="vendedor">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-3.5 w-3.5 text-purple-500" />
+                        <span>Por vendedor</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="segmento">
+                      <div className="flex items-center gap-2">
+                        <Building className="h-3.5 w-3.5 text-green-500" />
+                        <span>Por segmento</span>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Segment selector - shown when view is segment */}
-              {!embedded && selectedView === "segment" && allSegments && allSegments.length > 0 && (
+              {/* Segment selector - shown when view is segmento */}
+              {!embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
                 <div className="flex items-center gap-2" key="segment-selector">
                   <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select 
@@ -646,29 +670,8 @@ export default function SalespersonDetail({
                 </div>
               )}
 
-              {/* Branch selector - shown when view is branch */}
-              {!embedded && selectedView === "branch" && (
-                <div className="flex items-center gap-2" key="branch-selector">
-                  <span className="text-sm font-medium text-gray-700">Sucursal:</span>
-                  <Select 
-                    value=""
-                    onValueChange={(branch) => {
-                      setLocation(`/branch/${encodeURIComponent(branch)}`);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm" data-testid="select-branch">
-                      <SelectValue placeholder="Selecciona sucursal" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200">
-                      <SelectItem value="CONCEPCION">CONCEPCION</SelectItem>
-                      <SelectItem value="SANTIAGO">SANTIAGO</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Salesperson selector - shown when view is salesperson */}
-              {!embedded && selectedView === "salesperson" && allSalespeople && allSalespeople.length > 0 && (
+              {/* Salesperson selector - shown when view is vendedor */}
+              {!embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
                 <div className="flex items-center gap-2" key="salesperson-selector">
                   <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                   <Select 

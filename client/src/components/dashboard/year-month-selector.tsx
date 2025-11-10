@@ -36,10 +36,6 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   );
   const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
   
-  // Estado para selección de rango de días
-  const [rangeStart, setRangeStart] = useState<number | null>(null);
-  const [rangeEnd, setRangeEnd] = useState<number | null>(null);
-  
   // Load current selection ONLY when opening the popover
   // Store the previous open state to detect transitions
   const prevOpenRef = useRef(open);
@@ -48,42 +44,24 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   useEffect(() => {
     if (open && !prevOpenRef.current) {
       // Abriendo el popover - cargar selección actual del prop
+      console.log("📂 [YearMonthSelector] Cargando selección al abrir:", {
+        value,
+        years: value?.years,
+        months: value?.months,
+        display: value?.display
+      });
       setSelectedYears(value?.years || []);
       setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
-      const days = value?.days || [];
-      setSelectedDays(days);
-      
-      // Inicializar rangeStart/rangeEnd si hay días seleccionados
-      if (days.length > 1) {
-        setRangeStart(Math.min(...days));
-        setRangeEnd(Math.max(...days));
-      } else if (days.length === 1) {
-        setRangeStart(days[0]);
-        setRangeEnd(null);
-      } else {
-        setRangeStart(null);
-        setRangeEnd(null);
-      }
-      
+      setSelectedDays(value?.days || []);
       appliedRef.current = false; // Reset applied flag
     } else if (!open && prevOpenRef.current && !appliedRef.current) {
       // Cerrando el popover SIN aplicar - revertir a los valores del prop
+      console.log("📂 [YearMonthSelector] Revirtiendo cambios al cerrar sin aplicar (applied flag:", appliedRef.current, ")");
       setSelectedYears(value?.years || []);
       setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
-      const days = value?.days || [];
-      setSelectedDays(days);
-      
-      // Restaurar rangeStart/rangeEnd
-      if (days.length > 1) {
-        setRangeStart(Math.min(...days));
-        setRangeEnd(Math.max(...days));
-      } else if (days.length === 1) {
-        setRangeStart(days[0]);
-        setRangeEnd(null);
-      } else {
-        setRangeStart(null);
-        setRangeEnd(null);
-      }
+      setSelectedDays(value?.days || []);
+    } else if (!open && prevOpenRef.current && appliedRef.current) {
+      console.log("✅ [YearMonthSelector] Cerrando después de aplicar - NO revertir cambios");
     }
     prevOpenRef.current = open;
   }, [open]); // Solo reaccionar a cambios de open, no de value
@@ -102,34 +80,16 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         ? prev.filter(m => m !== monthIndex)
         : [...prev, monthIndex].sort((a, b) => a - b)
     );
-    // Reset days and range when months change
+    // Reset days when months change
     setSelectedDays([]);
-    setRangeStart(null);
-    setRangeEnd(null);
   };
 
-  const handleDayClick = (day: number) => {
-    if (!rangeStart) {
-      // Primer click: establecer inicio del rango
-      setRangeStart(day);
-      setRangeEnd(null);
-      setSelectedDays([day]);
-    } else if (!rangeEnd) {
-      // Segundo click: establecer fin del rango y calcular días intermedios
-      const start = Math.min(rangeStart, day);
-      const end = Math.max(rangeStart, day);
-      const daysInRange: number[] = [];
-      for (let d = start; d <= end; d++) {
-        daysInRange.push(d);
-      }
-      setRangeEnd(day);
-      setSelectedDays(daysInRange);
-    } else {
-      // Tercer click: reiniciar nuevo rango
-      setRangeStart(day);
-      setRangeEnd(null);
-      setSelectedDays([day]);
-    }
+  const handleDayToggle = (day: number) => {
+    setSelectedDays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day)
+        : [...prev, day].sort((a, b) => a - b)
+    );
   };
 
   const handleApplyFullYear = () => {
@@ -194,20 +154,10 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     
     let display = "";
     if (selectedDays.length === 1 && selectedMonths.length === 1) {
-      // Un solo día
       display = selectedYears.length === 1
         ? `${selectedDays[0]} ${monthNames[0]} ${selectedYears[0]}`
         : `${selectedDays[0]} ${monthNames[0]} (${selectedYears.join(", ")})`;
-    } else if (rangeStart && rangeEnd && selectedDays.length > 1) {
-      // Rango de días
-      const start = Math.min(rangeStart, rangeEnd);
-      const end = Math.max(rangeStart, rangeEnd);
-      const monthsStr = selectedMonths.length === 1 ? monthNames[0] : monthNames.join(", ");
-      display = selectedYears.length === 1
-        ? `${start}-${end} ${monthsStr} ${selectedYears[0]} (${selectedDays.length} días)`
-        : `${start}-${end} ${monthsStr} (${selectedYears.join(", ")}) (${selectedDays.length} días)`;
     } else {
-      // Múltiples días individuales
       const daysStr = selectedDays.join(", ");
       const monthsStr = selectedMonths.length === 1 ? monthNames[0] : monthNames.join(", ");
       display = selectedYears.length === 1
@@ -358,34 +308,14 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                     // Agregar los días del mes
                     for (let day = 1; day <= daysInMonth; day++) {
                       const isSelected = selectedDays.includes(day);
-                      const isStart = rangeStart === day;
-                      const isEnd = rangeEnd === day;
-                      // Solo mostrar días intermedios cuando rangeEnd existe
-                      const isInRange = rangeStart && rangeEnd && day > Math.min(rangeStart, rangeEnd) && day < Math.max(rangeStart, rangeEnd);
-                      
-                      let className = 'h-7 text-[10px] px-1 ';
-                      if (isStart && !rangeEnd) {
-                        // Primer click: destacar con ring naranja
-                        className += 'bg-primary text-white font-bold border-2 border-primary shadow-md';
-                      } else if (isStart || isEnd) {
-                        // Inicio o fin de rango completo - naranja sólido con borde
-                        className += 'bg-primary text-white font-bold border-2 border-primary shadow-md';
-                      } else if (isInRange) {
-                        // Días intermedios del rango - naranja completo
-                        className += 'bg-primary text-white';
-                      } else if (isSelected) {
-                        // Otros días seleccionados - naranja completo
-                        className += 'bg-primary text-white';
-                      } else {
-                        className += 'hover:bg-primary/20 hover:text-primary border border-gray-200';
-                      }
-                      
                       calendarDays.push(
                         <Button
                           key={day}
-                          variant="ghost"
-                          className={className}
-                          onClick={() => handleDayClick(day)}
+                          variant={isSelected ? "default" : "outline"}
+                          className={`h-7 text-[10px] px-1 ${
+                            isSelected ? 'bg-primary text-white' : 'hover:bg-primary hover:text-white'
+                          }`}
+                          onClick={() => handleDayToggle(day)}
                           data-testid={`day-${day}`}
                         >
                           {day}
@@ -399,8 +329,8 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
               </div>
             )}
 
-            {/* Botones de acción */}
-            <div className="p-2 bg-gray-50 space-y-1.5">
+            {/* Botón de acción único */}
+            <div className="p-2 bg-gray-50">
               <Button
                 className="w-full h-7 text-xs font-medium"
                 onClick={() => {
@@ -417,20 +347,6 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                 data-testid="button-apply"
               >
                 Aplicar
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full h-7 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200"
-                onClick={() => {
-                  setSelectedYears([]);
-                  setSelectedMonths([]);
-                  setSelectedDays([]);
-                  setRangeStart(null);
-                  setRangeEnd(null);
-                }}
-                data-testid="button-clear-all"
-              >
-                Limpiar todo
               </Button>
             </div>
           </>

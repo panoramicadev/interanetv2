@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v2.8.0';
+const CACHE_VERSION = 'v2.0.0';
 const CACHE_NAME = `panoramica-cache-${CACHE_VERSION}`;
 const ASSETS_CACHE = `panoramica-assets-${CACHE_VERSION}`;
 
@@ -8,13 +8,12 @@ const OFFLINE_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker v2.8.0 - Unified VIEW_OPTIONS across all pages, 4 view options everywhere');
+  console.log('[SW] Installing service worker v2.0.0 - lighter caching strategy');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching minimal offline assets');
       return cache.addAll(OFFLINE_ASSETS);
     }).then(() => {
-      console.log('[SW] Skipping waiting to activate immediately');
       return self.skipWaiting();
     })
   );
