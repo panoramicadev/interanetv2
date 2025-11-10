@@ -15,6 +15,7 @@ import ComparativeSegmentSalespeopleTable from "@/components/dashboard/comparati
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import BranchPendingNVV from "@/components/dashboard/branch-pending-nvv";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
+import { VIEW_OPTIONS, type ViewKey } from "@/constants/views";
 
 interface BranchClient {
   clientName: string;
@@ -80,7 +81,7 @@ export default function SucursalDetail({
   const { selection, setSelection, setGlobalFilter } = useFilter();
   
   // Local state for view type
-  const [selectedView, setSelectedView] = useState<"all" | "segmento" | "sucursal" | "vendedor">("sucursal");
+  const [selectedView, setSelectedView] = useState<ViewKey>("branch");
   
   // Ref to store scroll position
   const scrollPositionRef = useRef<number>(0);
@@ -431,50 +432,33 @@ export default function SucursalDetail({
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
                 <Select 
                   value={selectedView}
-                  onValueChange={(value: "all" | "segmento" | "sucursal" | "vendedor") => {
+                  onValueChange={(value: ViewKey) => {
                     setSelectedView(value);
                     if (value === "all") {
                       // Clear view filters (branch, segment, salesperson) but keep period filters
                       setGlobalFilter({ type: "all", value: "" });
                       setLocation('/');
                     }
-                    // Note: segmento option will show a selector below for choosing specific segment
                   }}
                 >
-                  <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
+                  <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm bg-gray-50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                    <SelectItem value="all">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
-                        <span>Todo el dashboard</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="segmento">
-                      <div className="flex items-center gap-2">
-                        <Building className="h-3.5 w-3.5 text-green-500" />
-                        <span>Por segmento</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="sucursal">
-                      <div className="flex items-center gap-2">
-                        <Building className="h-3.5 w-3.5 text-blue-500" />
-                        <span>Por sucursal</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="vendedor">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5 text-purple-500" />
-                        <span>Por vendedor</span>
-                      </div>
-                    </SelectItem>
+                    {VIEW_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center gap-2">
+                          <option.icon className={`h-3.5 w-3.5 ${option.iconColor}`} />
+                          <span>{option.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Segment selector - shown when view is segmento */}
-              {selectedView === "segmento" && (
+              {/* Segment selector - shown when view is segment */}
+              {selectedView === "segment" && (
                 <div className="flex items-center gap-2" key="segment-selector">
                   <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select 
@@ -501,8 +485,8 @@ export default function SucursalDetail({
                 </div>
               )}
 
-              {/* Branch selector - shown when view is sucursal */}
-              {!embedded && selectedView === "sucursal" && allBranches && allBranches.length > 0 && branchName && (
+              {/* Branch selector - shown when view is branch */}
+              {!embedded && selectedView === "branch" && allBranches && allBranches.length > 0 && branchName && (
                 <div className="flex items-center gap-2" key="branch-selector">
                   <span className="text-sm font-medium text-gray-700">Sucursal:</span>
                   <Select 
@@ -525,8 +509,8 @@ export default function SucursalDetail({
                 </div>
               )}
 
-              {/* Salesperson selector - shown when view is vendedor */}
-              {!embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+              {/* Salesperson selector - shown when view is salesperson */}
+              {!embedded && selectedView === "salesperson" && allSalespeople && allSalespeople.length > 0 && (
                 <div className="flex items-center gap-2" key="salesperson-selector">
                   <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                   <Select 
@@ -549,8 +533,8 @@ export default function SucursalDetail({
                 </div>
               )}
 
-              {/* Embedded branch selector - shown when view is sucursal */}
-              {embedded && selectedView === "sucursal" && onBranchChange && allBranches && allBranches.length > 0 && branchName && (
+              {/* Embedded branch selector - shown when view is branch */}
+              {embedded && selectedView === "branch" && onBranchChange && allBranches && allBranches.length > 0 && branchName && (
                 <div className="flex items-center gap-2" key="embedded-branch-selector">
                   <span className="text-sm font-medium text-gray-700">Sucursal:</span>
                   <Select value={branchName} onValueChange={onBranchChange}>
@@ -568,8 +552,8 @@ export default function SucursalDetail({
                 </div>
               )}
 
-              {/* Embedded salesperson selector - shown when view is vendedor */}
-              {embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+              {/* Embedded salesperson selector - shown when view is salesperson */}
+              {embedded && selectedView === "salesperson" && allSalespeople && allSalespeople.length > 0 && (
                 <div className="flex items-center gap-2" key="embedded-salesperson-selector">
                   <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                   <Select 
