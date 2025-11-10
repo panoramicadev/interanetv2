@@ -35,6 +35,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     value?.months ? value.months.map(m => m - 1) : []
   );
   const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
+  const [firstDayClick, setFirstDayClick] = useState<number | null>(null);
   
   // Load current selection ONLY when opening the popover
   // Store the previous open state to detect transitions
@@ -53,6 +54,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       setSelectedYears(value?.years || []);
       setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
       setSelectedDays(value?.days || []);
+      setFirstDayClick(null); // Reset first day click
       appliedRef.current = false; // Reset applied flag
     } else if (!open && prevOpenRef.current && !appliedRef.current) {
       // Cerrando el popover SIN aplicar - revertir a los valores del prop
@@ -60,6 +62,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       setSelectedYears(value?.years || []);
       setSelectedMonths(value?.months ? value.months.map(m => m - 1) : []);
       setSelectedDays(value?.days || []);
+      setFirstDayClick(null); // Reset first day click
     } else if (!open && prevOpenRef.current && appliedRef.current) {
       console.log("✅ [YearMonthSelector] Cerrando después de aplicar - NO revertir cambios");
     }
@@ -80,16 +83,29 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         ? prev.filter(m => m !== monthIndex)
         : [...prev, monthIndex].sort((a, b) => a - b)
     );
-    // Reset days when months change
+    // Reset days and first day click when months change
     setSelectedDays([]);
+    setFirstDayClick(null);
   };
 
   const handleDayToggle = (day: number) => {
-    setSelectedDays(prev => 
-      prev.includes(day) 
-        ? prev.filter(d => d !== day)
-        : [...prev, day].sort((a, b) => a - b)
-    );
+    if (firstDayClick === null) {
+      // First click - mark as start of range
+      setFirstDayClick(day);
+      setSelectedDays([day]);
+    } else {
+      // Second click - complete the range
+      const start = Math.min(firstDayClick, day);
+      const end = Math.max(firstDayClick, day);
+      const range = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+      setSelectedDays(range);
+      setFirstDayClick(null); // Reset for next selection
+    }
+  };
+
+  const handleClearDays = () => {
+    setSelectedDays([]);
+    setFirstDayClick(null);
   };
 
   const handleApplyFullYear = () => {
@@ -269,7 +285,20 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
             {/* Selección de días - solo cuando hay exactamente 1 mes seleccionado */}
             {selectedMonths.length === 1 && (
               <div className="px-2.5 py-2 border-b">
-                <label className="text-[10px] font-medium text-gray-700 mb-1.5 block">Días:</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[10px] font-medium text-gray-700">Días:</label>
+                  {selectedDays.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 text-[10px] px-2 text-gray-600 hover:text-gray-900"
+                      onClick={handleClearDays}
+                      data-testid="button-clear-days"
+                    >
+                      Limpiar seleccionados
+                    </Button>
+                  )}
+                </div>
                 
                 {/* Encabezados de días de la semana */}
                 <div className="grid grid-cols-7 gap-1 mb-1">
@@ -313,7 +342,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
                           key={day}
                           variant={isSelected ? "default" : "outline"}
                           className={`h-7 text-[10px] px-1 ${
-                            isSelected ? 'bg-primary text-white' : 'hover:bg-primary hover:text-white'
+                            isSelected ? 'bg-orange-500 text-white border-orange-500 hover:bg-orange-600' : 'hover:bg-orange-50 hover:text-orange-600 hover:border-orange-300'
                           }`}
                           onClick={() => handleDayToggle(day)}
                           data-testid={`day-${day}`}
