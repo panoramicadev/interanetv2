@@ -5100,6 +5100,58 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get lead-specific recommendations
+  app.get('/api/crm/leads/:id/recommendations', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      const lead = await storage.getLeadById(id);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      
+      // Check authorization - same rules as viewing comments
+      const canView = user.role === 'admin' || 
+                     user.role === 'supervisor' || 
+                     lead.salespersonId === user.id;
+      
+      if (!canView) {
+        return res.status(403).json({ message: "Not authorized to view recommendations" });
+      }
+      
+      // Get salesperson name from lead
+      const salespersonUser = await storage.getSalespersonUser(lead.salespersonId);
+      if (!salespersonUser) {
+        // Lead has no linked salesperson - return empty recommendations
+        return res.json({
+          clientActivity: {
+            isInactive: false,
+            daysSinceLastPurchase: null,
+            lastPurchaseAmount: null,
+            totalHistoricalSales: null,
+          },
+          isSeasonal: false,
+          expectedPurchaseDate: null,
+          averagePurchaseAmount: null,
+          purchasePattern: null,
+          trendingProducts: []
+        });
+      }
+      
+      const recommendations = await storage.fetchLeadRecommendations(
+        id,
+        salespersonUser.salespersonName,
+        lead.clientName
+      );
+      
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Error fetching lead recommendations:", error);
+      res.status(500).json({ message: "Failed to fetch recommendations" });
+    }
+  });
+
   // Get CRM statistics
   app.get('/api/crm/stats', requireAuth, async (req: any, res) => {
     try {
