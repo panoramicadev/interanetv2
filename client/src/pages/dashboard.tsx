@@ -956,11 +956,17 @@ export default function Dashboard() {
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
                                   {localGlobalFilter.type === "segment" ? (
-                                    segments?.map((segment) => (
-                                      <SelectItem key={segment} value={segment}>
-                                        {segment}
+                                    segments && segments.length > 0 ? (
+                                      segments.map((segment) => (
+                                        <SelectItem key={segment} value={segment}>
+                                          {segment}
+                                        </SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem value="_loading" disabled>
+                                        Cargando...
                                       </SelectItem>
-                                    ))
+                                    )
                                   ) : localGlobalFilter.type === "branch" ? (
                                     ["CONCEPCION", "SANTIAGO"].map((branch) => (
                                       <SelectItem key={branch} value={branch}>
@@ -968,11 +974,17 @@ export default function Dashboard() {
                                       </SelectItem>
                                     ))
                                   ) : (
-                                    salespeople?.map((salesperson) => (
-                                      <SelectItem key={salesperson} value={salesperson}>
-                                        {salesperson}
+                                    salespeople && salespeople.length > 0 ? (
+                                      salespeople.map((salesperson) => (
+                                        <SelectItem key={salesperson} value={salesperson}>
+                                          {salesperson}
+                                        </SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem value="_loading" disabled>
+                                        Cargando...
                                       </SelectItem>
-                                    ))
+                                    )
                                   )}
                                 </SelectContent>
                               </Select>
@@ -1097,7 +1109,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Segment, Branch, or Salesperson selector - shown when not "all" */}
-                {globalFilter.type === "segment" && segments && segments.length > 0 && (
+                {globalFilter.type === "segment" && (
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-700">Segmento:</span>
                     <Select 
@@ -1111,11 +1123,17 @@ export default function Dashboard() {
                         <SelectValue placeholder="Selecciona segmento" />
                       </SelectTrigger>
                       <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
-                        {segments.map((segment) => (
-                          <SelectItem key={segment} value={segment}>
-                            {segment}
+                        {segments && segments.length > 0 ? (
+                          segments.map((segment) => (
+                            <SelectItem key={segment} value={segment}>
+                              {segment}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="_loading" disabled>
+                            Cargando...
                           </SelectItem>
-                        ))}
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1142,7 +1160,7 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {globalFilter.type === "salesperson" && salespeople && salespeople.length > 0 && (
+                {globalFilter.type === "salesperson" && (
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                     <Select 
@@ -1156,11 +1174,17 @@ export default function Dashboard() {
                         <SelectValue placeholder="Selecciona vendedor" />
                       </SelectTrigger>
                       <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
-                        {salespeople.map((salesperson) => (
-                          <SelectItem key={salesperson} value={salesperson}>
-                            {salesperson}
+                        {salespeople && salespeople.length > 0 ? (
+                          salespeople.map((salesperson) => (
+                            <SelectItem key={salesperson} value={salesperson}>
+                              {salesperson}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="_loading" disabled>
+                            Cargando...
                           </SelectItem>
-                        ))}
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1279,11 +1303,17 @@ export default function Dashboard() {
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
                                   {localGlobalFilter.type === "segment" ? (
-                                    segments?.map((segment) => (
-                                      <SelectItem key={segment} value={segment}>
-                                        {segment}
+                                    segments && segments.length > 0 ? (
+                                      segments.map((segment) => (
+                                        <SelectItem key={segment} value={segment}>
+                                          {segment}
+                                        </SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem value="_loading" disabled>
+                                        Cargando...
                                       </SelectItem>
-                                    ))
+                                    )
                                   ) : localGlobalFilter.type === "branch" ? (
                                     ["CONCEPCION", "SANTIAGO"].map((branch) => (
                                       <SelectItem key={branch} value={branch}>
@@ -1291,11 +1321,17 @@ export default function Dashboard() {
                                       </SelectItem>
                                     ))
                                   ) : (
-                                    salespeople?.map((salesperson) => (
-                                      <SelectItem key={salesperson} value={salesperson}>
-                                        {salesperson}
+                                    salespeople && salespeople.length > 0 ? (
+                                      salespeople.map((salesperson) => (
+                                        <SelectItem key={salesperson} value={salesperson}>
+                                          {salesperson}
+                                        </SelectItem>
+                                      ))
+                                    ) : (
+                                      <SelectItem value="_loading" disabled>
+                                        Cargando...
                                       </SelectItem>
-                                    ))
+                                    )
                                   )}
                                 </SelectContent>
                               </Select>
