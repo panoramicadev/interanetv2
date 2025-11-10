@@ -684,6 +684,7 @@ export interface IStorage {
     totalSales: number;
     totalUnits: number;
     topClient: { name: string; amount: number } | null;
+    clients: Array<{ name: string; amount: number }>;
     transactionCount: number;
   }>;
   getSalespersonRecentTransactions(salespersonName: string, limit?: number): Promise<Array<{
@@ -2861,6 +2862,7 @@ export class DatabaseStorage implements IStorage {
     totalSales: number;
     totalUnits: number;
     topClient: { name: string; amount: number } | null;
+    clients: Array<{ name: string; amount: number }>;
     transactionCount: number;
   }> {
     const conditions = [
@@ -2931,8 +2933,8 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(whereClause);
 
-    // Get top client for this product
-    const topClientData = await db
+    // Get all clients for this product, ordered by total amount descending
+    const clientsData = await db
       .select({
         clientName: factVentas.nokoen,
         totalAmount: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
@@ -2940,17 +2942,22 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(whereClause)
       .groupBy(factVentas.nokoen)
-      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
-      .limit(1);
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`);
 
-    const topClient = topClientData.length > 0
-      ? { name: topClientData[0].clientName || '', amount: Number(topClientData[0].totalAmount) }
+    const clients = clientsData.map(client => ({
+      name: client.clientName || '',
+      amount: Number(client.totalAmount)
+    }));
+
+    const topClient = clients.length > 0
+      ? clients[0]
       : null;
 
     return {
       totalSales: Number(summary.totalSales),
       totalUnits: Number(summary.totalUnits),
       topClient,
+      clients,
       transactionCount: Number(summary.transactionCount),
     };
   }
