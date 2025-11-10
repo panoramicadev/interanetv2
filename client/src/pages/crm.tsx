@@ -1423,12 +1423,17 @@ function LeadComments({ leadId }: { leadId: string }) {
         variant: "destructive",
       });
     },
-    onSuccess: () => {
-      // Refetch para sincronizar con el servidor
-      queryClient.invalidateQueries({ queryKey: ['/api/crm/leads', leadId, 'comments'] });
-      toast({
-        title: "Comentario agregado",
-      });
+    onSuccess: (data) => {
+      // Actualizar con los datos reales del servidor sin invalidar
+      // Esto evita un re-render que cierra el modal
+      queryClient.setQueryData(
+        ['/api/crm/leads', leadId, 'comments'],
+        (old: any[] = []) => {
+          // Reemplazar el comentario temporal con el real del servidor
+          const withoutTemp = old.filter(c => !c.id.toString().startsWith('temp-'));
+          return [...withoutTemp, data];
+        }
+      );
     },
   });
 
