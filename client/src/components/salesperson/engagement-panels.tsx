@@ -128,7 +128,7 @@ export function SalespersonClientsPanel({
       params.append('filterType', filterType);
       params.append('limit', limit.toString());
       if (selectedSegment) params.append('segment', selectedSegment);
-      const res = await fetch(`/api/sales/salesperson/${salespersonName}/clients?${params}`, { credentials: 'include' });
+      const res = await fetch(`/api/sales/salesperson/${encodeURIComponent(salespersonName)}/clients?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
@@ -144,7 +144,7 @@ export function SalespersonClientsPanel({
       params.append('period', selectedPeriod);
       params.append('filterType', filterType);
       if (selectedSegment) params.append('segment', selectedSegment);
-      const res = await fetch(`/api/salespeople/${salespersonName}/clients/search?${params}`, { credentials: 'include' });
+      const res = await fetch(`/api/salespeople/${encodeURIComponent(salespersonName)}/clients/search?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
@@ -532,7 +532,7 @@ export function SalespersonProductsPanel({
       params.append('filterType', filterType);
       params.append('limit', productLimit.toString());
       if (selectedSegment) params.append('segment', selectedSegment);
-      const res = await fetch(`/api/sales/salesperson/${salespersonName}/products?${params}`, { credentials: 'include' });
+      const res = await fetch(`/api/sales/salesperson/${encodeURIComponent(salespersonName)}/products?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
@@ -548,7 +548,7 @@ export function SalespersonProductsPanel({
       params.append('period', selectedPeriod);
       params.append('filterType', filterType);
       if (selectedSegment) params.append('segment', selectedSegment);
-      const res = await fetch(`/api/salespeople/${salespersonName}/products/search?${params}`, { credentials: 'include' });
+      const res = await fetch(`/api/salespeople/${encodeURIComponent(salespersonName)}/products/search?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
