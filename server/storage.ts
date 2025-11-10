@@ -2405,7 +2405,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async searchSalespersonClients(salespersonName: string, searchTerm: string, period?: string, filterType?: string, segment?: string): Promise<Array<{
-    name: string;
+    clientName: string;
     totalSales: number;
     transactionCount: number;
   }>> {
@@ -2476,7 +2476,7 @@ export class DatabaseStorage implements IStorage {
     
     const results = await db
       .select({
-        name: factVentas.nokoen,
+        clientName: factVentas.nokoen,
         totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
         transactionCount: sql<number>`COUNT(*)`,
       })
@@ -2487,7 +2487,7 @@ export class DatabaseStorage implements IStorage {
       .limit(20);
 
     return results.map(r => ({
-      name: r.name || '',
+      clientName: r.clientName || '',
       totalSales: Number(r.totalSales),
       transactionCount: Number(r.transactionCount),
     }));
