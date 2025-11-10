@@ -65,19 +65,19 @@ export function ProductSearch({ selectedPeriod, filterType, segment, salesperson
   };
 
   return (
-    <div ref={wrapperRef} className="relative w-full sm:w-64">
+    <div ref={wrapperRef} className="relative w-full">
       <div className="relative">
-        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
         <Input
           type="text"
-          placeholder="Buscar producto..."
+          placeholder="Buscar producto por nombre..."
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          className="pl-8 pr-8 h-8 text-xs"
+          className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-blue-500 rounded-lg shadow-sm"
           data-testid="input-search-product"
         />
         {search && (
@@ -86,40 +86,40 @@ export function ProductSearch({ selectedPeriod, filterType, segment, salesperson
               setSearch("");
               setIsOpen(false);
             }}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
             data-testid="button-clear-search"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-5 w-5" />
           </button>
         )}
       </div>
 
       {/* Results Dropdown */}
       {isOpen && search.length >= 2 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
           {isLoading ? (
-            <div className="p-3 text-center text-xs text-gray-500">
-              Buscando...
+            <div className="p-4 text-center text-sm text-gray-500">
+              Buscando productos...
             </div>
           ) : results && results.length > 0 ? (
-            <div className="py-1">
+            <div className="py-2">
               {results.map((product) => (
                 <button
                   key={product.name}
                   onClick={() => handleProductClick(product.name)}
-                  className="w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                  className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
                   data-testid={`search-result-${product.name}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0 pr-2">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
                         {product.name}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        {formatNumber(product.totalUnits)} unidades
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatNumber(product.totalUnits)} unidades vendidas
                       </p>
                     </div>
-                    <div className="text-sm font-semibold text-green-600">
+                    <div className="text-sm font-bold text-blue-600">
                       {formatCurrency(product.totalSales)}
                     </div>
                   </div>
@@ -127,8 +127,8 @@ export function ProductSearch({ selectedPeriod, filterType, segment, salesperson
               ))}
             </div>
           ) : (
-            <div className="p-3 text-center text-xs text-gray-500">
-              No se encontraron productos
+            <div className="p-4 text-center text-sm text-gray-500">
+              No se encontraron productos con ese nombre
             </div>
           )}
         </div>
@@ -136,9 +136,9 @@ export function ProductSearch({ selectedPeriod, filterType, segment, salesperson
 
       {/* Helper text */}
       {isOpen && search.length > 0 && search.length < 2 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2">
-          <p className="text-xs text-gray-500 text-center">
-            Ingresa al menos 2 caracteres
+        <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-lg shadow-lg p-3">
+          <p className="text-sm text-gray-500 text-center">
+            Ingresa al menos 2 caracteres para buscar
           </p>
         </div>
       )}
