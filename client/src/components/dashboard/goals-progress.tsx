@@ -182,20 +182,6 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex items-center space-x-2 sm:space-x-3 mb-4 sm:mb-6">
-        <Target className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-        <div>
-          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-foreground">Progreso de Metas</h2>
-          {globalFilter.type !== "all" && globalFilter.value && (
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Filtrando por {globalFilter.type === "segment" ? "segmento" : "vendedor"}: 
-              <span className="font-medium ml-1">{globalFilter.value}</span>
-            </p>
-          )}
-        </div>
-      </div>
-
       {/* No results message */}
       {filteredGoals.length === 0 && (
         <Card>
