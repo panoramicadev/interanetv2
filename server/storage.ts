@@ -11040,30 +11040,42 @@ export class DatabaseStorage implements IStorage {
         .where(whereClause)
         .orderBy(desc(nvvPendingSales.FEEMDO));
 
-      // Get salesperson name mapping from sales_transactions
-      const salespersonMapping = await db
-        .select({
-          kofulido: factVentas.kofulido,
+      // Get all salesperson names from fact_ventas
+      const allSalespeopleNames = await db
+        .selectDistinct({
           nokofu: factVentas.nokofu
         })
         .from(factVentas)
         .where(
           and(
-            isNotNull(factVentas.kofulido),
-            isNotNull(factVentas.nokofu)
+            isNotNull(factVentas.nokofu),
+            sql`${factVentas.nokofu} != ''`,
+            sql`${factVentas.nokofu} NOT IN ('.', 'CLIENTE FABRICA', 'MCT SANTIAGO', 'BODEGA SANTIAGO', 'MCT CONCEPCION', 'MCT TEMUCO', 'SHOPIFY', 'FALABELLA MARKETPLACE', 'WHATSAPP VENTA')`
           )
-        )
-        .groupBy(factVentas.kofulido, factVentas.nokofu);
+        );
 
+      // Helper function to generate code from name (e.g., "PABLO SOTO VERA" -> "PSV")
+      const generateCodeFromName = (name: string): string => {
+        const parts = name.trim().split(/\s+/);
+        // Take first letter of each part
+        return parts.map(p => p.charAt(0)).join('').toUpperCase();
+      };
+
+      // Create mapping: code -> full name
       const kofulidoToNameMap = new Map<string, string>();
-      salespersonMapping.forEach(row => {
-        if (row.kofulido && row.nokofu) {
-          const key = row.kofulido.trim().toUpperCase();
-          if (!kofulidoToNameMap.has(key)) {
-            kofulidoToNameMap.set(key, row.nokofu.trim());
+      allSalespeopleNames.forEach(row => {
+        if (row.nokofu) {
+          const fullName = row.nokofu.trim();
+          const generatedCode = generateCodeFromName(fullName);
+          
+          // Map the generated code to the full name
+          if (!kofulidoToNameMap.has(generatedCode)) {
+            kofulidoToNameMap.set(generatedCode, fullName);
           }
         }
       });
+      
+      console.log(`[NVV MAPPING] Created ${kofulidoToNameMap.size} salesperson mappings from fact_ventas names`);
 
       // Group by salesperson (KOFULIDO)
       const groupedBySalesperson = new Map<string, {
@@ -11077,7 +11089,13 @@ export class DatabaseStorage implements IStorage {
 
       results.forEach(row => {
         const kofulido = row.KOFULIDO?.trim().toUpperCase() || 'SIN_VENDEDOR';
-        const salespersonName = kofulidoToNameMap.get(kofulido) || row.KOFULIDO?.trim() || 'Sin vendedor';
+        const mappedName = kofulidoToNameMap.get(kofulido);
+        const salespersonName = mappedName || row.KOFULIDO?.trim() || 'Sin vendedor';
+        
+        // Log unmapped codes for debugging
+        if (!mappedName && kofulido !== 'SIN_VENDEDOR') {
+          console.log(`[NVV MAPPING] No name found for code: "${kofulido}"`);
+        }
 
         if (!groupedBySalesperson.has(kofulido)) {
           groupedBySalesperson.set(kofulido, {
