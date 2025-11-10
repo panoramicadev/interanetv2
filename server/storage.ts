@@ -11201,10 +11201,92 @@ export class DatabaseStorage implements IStorage {
         .where(whereClause)
         .orderBy(desc(nvvPendingSales.FEEMDO));
 
-      // Return null if no records found
+      // If no records found with code from TABFU, try to get actual code from fact_ventas
       if (results.length === 0) {
-        console.log(`[NVV SALESPERSON] No pending NVV found for salesperson: "${salespersonName}"`);
-        return null;
+        console.log(`[NVV SALESPERSON] No pending NVV found with code "${salespersonCode}" from TABFU`);
+        console.log(`[NVV SALESPERSON] Trying to find actual code from fact_ventas for: "${salespersonName}"`);
+        
+        // Get the actual KOFULIDO used by this salesperson in fact_ventas
+        const actualCodeResult = await db
+          .select({ kofulido: sql`DISTINCT "KOFULIDO"` })
+          .from(sql`ventas.fact_ventas`)
+          .where(sql`UPPER(TRIM("NOKOFULI")) = ${salespersonName.toUpperCase().trim()}`)
+          .limit(1);
+        
+        if (actualCodeResult.length === 0) {
+          console.log(`[NVV SALESPERSON] No code found in fact_ventas for: "${salespersonName}"`);
+          return null;
+        }
+        
+        const actualCode = String(actualCodeResult[0].kofulido).trim();
+        console.log(`[NVV SALESPERSON] Found actual code "${actualCode}" in fact_ventas, retrying search...`);
+        
+        // Retry with the actual code from fact_ventas
+        const retryConditions = [sql`UPPER(TRIM(${nvvPendingSales.KOFULIDO})) = ${actualCode.toUpperCase()}`];
+        
+        if (options?.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
+          retryConditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
+        }
+        if (options?.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
+          retryConditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
+        }
+        
+        const retryResults = await db
+          .select({
+            id: nvvPendingSales.id,
+            NUDO: nvvPendingSales.NUDO,
+            TIDO: nvvPendingSales.TIDO,
+            FEEMDO: nvvPendingSales.FEEMDO,
+            ENDO: nvvPendingSales.ENDO,
+            NOKOEN: nvvPendingSales.NOKOEN,
+            NOKOPR: nvvPendingSales.NOKOPR,
+            KOPRCT: nvvPendingSales.KOPRCT,
+            KOFULIDO: nvvPendingSales.KOFULIDO,
+            CAPREX2: nvvPendingSales.CAPREX2,
+            CAPRCO2: nvvPendingSales.CAPRCO2,
+            PPPRNE: nvvPendingSales.PPPRNE,
+            cantidadPendiente: nvvPendingSales.cantidadPendiente,
+            totalPendiente: nvvPendingSales.totalPendiente
+          })
+          .from(nvvPendingSales)
+          .where(and(...retryConditions))
+          .orderBy(desc(nvvPendingSales.FEEMDO));
+        
+        if (retryResults.length === 0) {
+          console.log(`[NVV SALESPERSON] No pending NVV found even with actual code "${actualCode}"`);
+          return null;
+        }
+        
+        // Use the retry results
+        salespersonCode = actualCode;
+        const totalAmount = retryResults.reduce((sum, row) => sum + (Number(row.totalPendiente) || 0), 0);
+        const totalUnits = retryResults.reduce((sum, row) => sum + (Number(row.cantidadPendiente) || 0), 0);
+        const records = retryResults.map(row => ({
+          id: row.id,
+          NUDO: row.NUDO || '',
+          TIDO: row.TIDO || '',
+          FEEMDO: row.FEEMDO?.toString() || '',
+          ENDO: row.ENDO || '',
+          NOKOEN: row.NOKOEN || '',
+          NOKOPR: row.NOKOPR || '',
+          KOPRCT: row.KOPRCT || '',
+          CAPREX2: Number(row.CAPREX2) || 0,
+          CAPRCO2: Number(row.CAPRCO2) || 0,
+          PPPRNE: Number(row.PPPRNE) || 0,
+          cantidadPendiente: Number(row.cantidadPendiente) || 0,
+          totalPendiente: Number(row.totalPendiente) || 0
+        }));
+        
+        console.log(`[NVV SALESPERSON] Found ${retryResults.length} NVV with actual code "${actualCode}"`);
+        
+        return {
+          salespersonCode,
+          salespersonName,
+          totalAmount,
+          totalUnits,
+          totalOrders: retryResults.length,
+          records
+        };
       }
 
       // Aggregate totals
