@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Save, X, Calendar, TrendingUp, Users, ChevronDown, ChevronRight } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -81,6 +82,8 @@ const SEGMENT_NAMES: Record<string, string> = {
 
 export default function ProyeccionManualPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isReadOnly = user?.role === 'salesperson';
   const currentYear = new Date().getFullYear();
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
@@ -892,7 +895,7 @@ export default function ProyeccionManualPage() {
                     <div>
                       <Button 
                         onClick={() => setShowAddClientDialog(true)}
-                        disabled={selectedSalesperson === 'all'}
+                        disabled={isReadOnly || selectedSalesperson === 'all'}
                         data-testid="button-add-future-client"
                       >
                         <Plus className="w-4 h-4 mr-2" />
@@ -1064,6 +1067,14 @@ export default function ProyeccionManualPage() {
                                       ) : (
                                         <button
                                           onClick={() => {
+                                            if (isReadOnly) {
+                                              toast({
+                                                title: 'Solo lectura',
+                                                description: 'No tienes permisos para editar proyecciones',
+                                                variant: 'destructive'
+                                              });
+                                              return;
+                                            }
                                             if (selectedSalesperson === 'all' || !selectedSalesperson) {
                                               toast({
                                                 title: 'Error',
@@ -1074,7 +1085,7 @@ export default function ProyeccionManualPage() {
                                             }
                                             setEditingCells({ ...editingCells, [cellKey]: projectedValue });
                                           }}
-                                          className="w-full text-right hover:bg-accent rounded p-1 cursor-pointer"
+                                          className={`w-full text-right rounded p-1 ${!isReadOnly ? 'hover:bg-accent cursor-pointer' : 'cursor-not-allowed'}`}
                                         >
                                           {projectedValue > 0 ? (
                                             <div className="flex flex-col items-end">
