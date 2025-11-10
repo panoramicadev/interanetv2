@@ -11040,42 +11040,8 @@ export class DatabaseStorage implements IStorage {
         .where(whereClause)
         .orderBy(desc(nvvPendingSales.FEEMDO));
 
-      // Get all salesperson names from fact_ventas
-      const allSalespeopleNames = await db
-        .selectDistinct({
-          nokofu: factVentas.nokofu
-        })
-        .from(factVentas)
-        .where(
-          and(
-            isNotNull(factVentas.nokofu),
-            sql`${factVentas.nokofu} != ''`,
-            sql`${factVentas.nokofu} NOT IN ('.', 'CLIENTE FABRICA', 'MCT SANTIAGO', 'BODEGA SANTIAGO', 'MCT CONCEPCION', 'MCT TEMUCO', 'SHOPIFY', 'FALABELLA MARKETPLACE', 'WHATSAPP VENTA')`
-          )
-        );
-
-      // Helper function to generate code from name (e.g., "PABLO SOTO VERA" -> "PSV")
-      const generateCodeFromName = (name: string): string => {
-        const parts = name.trim().split(/\s+/);
-        // Take first letter of each part
-        return parts.map(p => p.charAt(0)).join('').toUpperCase();
-      };
-
-      // Create mapping: code -> full name
-      const kofulidoToNameMap = new Map<string, string>();
-      allSalespeopleNames.forEach(row => {
-        if (row.nokofu) {
-          const fullName = row.nokofu.trim();
-          const generatedCode = generateCodeFromName(fullName);
-          
-          // Map the generated code to the full name
-          if (!kofulidoToNameMap.has(generatedCode)) {
-            kofulidoToNameMap.set(generatedCode, fullName);
-          }
-        }
-      });
-      
-      console.log(`[NVV MAPPING] Created ${kofulidoToNameMap.size} salesperson mappings from fact_ventas names`);
+      // Get salesperson names from SQL Server TABFU table with caching
+      const kofulidoToNameMap = await this.getVendorNamesMap();
 
       // Group by salesperson (KOFULIDO)
       const groupedBySalesperson = new Map<string, {
@@ -18282,6 +18248,80 @@ export class DatabaseStorage implements IStorage {
     } catch (error: any) {
       console.error('[NOTIF] Error notifying new sale:', error.message);
     }
+  }
+
+  // Cache for vendor names mapping (TABFU SQL Server)
+  private vendorNamesCache: Map<string, string> | null = null;
+  private vendorNamesCacheTime: number = 0;
+  private readonly VENDOR_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+  async getVendorNamesMap(): Promise<Map<string, string>> {
+    const now = Date.now();
+    
+    // Return cached data if still valid
+    if (this.vendorNamesCache && (now - this.vendorNamesCacheTime < this.VENDOR_CACHE_TTL)) {
+      console.log(`[NVV MAPPING] Using cached TABFU mappings (${this.vendorNamesCache.size} entries)`);
+      return this.vendorNamesCache;
+    }
+
+    // Fetch fresh data from SQL Server
+    const kofulidoToNameMap = new Map<string, string>();
+    let pool: mssql.ConnectionPool | undefined;
+    
+    try {
+      pool = await mssql.connect({
+        server: process.env.SQL_SERVER_HOST || '',
+        port: parseInt(process.env.SQL_SERVER_PORT || '1433'),
+        user: process.env.SQL_SERVER_USER || '',
+        password: process.env.SQL_SERVER_PASSWORD || '',
+        database: process.env.SQL_SERVER_DATABASE || '',
+        options: {
+          encrypt: true,
+          trustServerCertificate: true,
+          enableArithAbort: true,
+        },
+      });
+
+      const result = await pool.request().query(`
+        SELECT KOFU, NOKOFU 
+        FROM dbo.TABFU 
+        WHERE NOKOFU IS NOT NULL AND NOKOFU != ''
+      `);
+      
+      result.recordset.forEach(row => {
+        if (row.KOFU && row.NOKOFU) {
+          kofulidoToNameMap.set(row.KOFU.trim(), row.NOKOFU.trim());
+        }
+      });
+      
+      // Update cache
+      this.vendorNamesCache = kofulidoToNameMap;
+      this.vendorNamesCacheTime = now;
+      
+      console.log(`[NVV MAPPING] Fetched and cached ${kofulidoToNameMap.size} salesperson mappings from SQL Server TABFU`);
+    } catch (error) {
+      console.error('[NVV MAPPING] Error fetching from SQL Server TABFU:', error);
+      
+      // If cache exists, use it as fallback
+      if (this.vendorNamesCache) {
+        const cacheAge = Math.round((now - this.vendorNamesCacheTime) / 1000 / 60);
+        console.log(`[NVV MAPPING] Using stale cache as fallback (${this.vendorNamesCache.size} entries, ${cacheAge} minutes old)`);
+        return this.vendorNamesCache;
+      }
+      
+      console.warn('[NVV MAPPING] No cache available - using empty mapping (vendor codes will be displayed as-is)');
+    } finally {
+      // Always close the pool to prevent connection leaks
+      if (pool) {
+        try {
+          await pool.close();
+        } catch (closeError) {
+          console.error('[NVV MAPPING] Error closing SQL Server pool:', closeError);
+        }
+      }
+    }
+    
+    return kofulidoToNameMap;
   }
 
 }
