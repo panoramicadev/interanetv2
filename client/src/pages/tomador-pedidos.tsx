@@ -956,7 +956,7 @@ export default function TomadorPedidos() {
       : 'Sin stock disponible';
 
     return (
-      <div className="flex flex-col gap-1">
+      <div className="space-y-0.5">
         <Badge
           variant={isInStock ? "secondary" : "outline"}
           className={`text-xs flex items-center gap-1 ${isInStock ? 'text-emerald-600' : 'text-destructive'}`}
@@ -967,10 +967,10 @@ export default function TomadorPedidos() {
           {isInStock ? `Stock: ${totalStock}` : 'Sin stock'}
         </Badge>
         {isInStock && stockInfo.warehouses.length > 0 && (
-          <div className="text-xs text-muted-foreground" data-testid={`stock-warehouses-${sku}`}>
+          <div className="text-[10px] text-muted-foreground leading-tight" data-testid={`stock-warehouses-${sku}`}>
             {stockInfo.warehouses.map((w: { name: string; quantity: number }, idx: number) => (
-              <span key={idx} className="block">
-                {w.name}: {w.quantity} unidades
+              <span key={idx}>
+                {w.name}: {w.quantity}{idx < stockInfo.warehouses.length - 1 ? ' | ' : ''}
               </span>
             ))}
           </div>
