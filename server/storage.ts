@@ -11135,15 +11135,33 @@ export class DatabaseStorage implements IStorage {
       
       // Find the KOFULIDO code for this salesperson name
       let salespersonCode: string | null = null;
+      const searchName = salespersonName.toUpperCase().trim();
+      
+      // Try exact match first
       for (const [code, name] of kofulidoToNameMap.entries()) {
-        if (name.toUpperCase().trim() === salespersonName.toUpperCase().trim()) {
+        if (name.toUpperCase().trim() === searchName) {
           salespersonCode = code;
+          console.log(`[NVV SALESPERSON] Found exact match: "${searchName}" -> ${code}`);
           break;
+        }
+      }
+      
+      // If no exact match, try partial match (contains)
+      if (!salespersonCode) {
+        for (const [code, name] of kofulidoToNameMap.entries()) {
+          const normalizedName = name.toUpperCase().trim();
+          if (normalizedName.includes(searchName) || searchName.includes(normalizedName)) {
+            salespersonCode = code;
+            console.log(`[NVV SALESPERSON] Found partial match: "${searchName}" matched "${name}" -> ${code}`);
+            break;
+          }
         }
       }
 
       if (!salespersonCode) {
         console.log(`[NVV SALESPERSON] No code found for salesperson: "${salespersonName}"`);
+        // Log available names for debugging
+        console.log(`[NVV SALESPERSON] Available names in cache:`, Array.from(kofulidoToNameMap.values()).slice(0, 10));
         return null;
       }
 
