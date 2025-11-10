@@ -181,6 +181,7 @@ export default function Inventario() {
         selectedBranch={selectedBranch}
         hideNoStock={hideNoStock}
         hideZZProducts={hideZZProducts}
+        userRole={user.role}
       />
 
       {/* Inventory Table */}
@@ -190,6 +191,7 @@ export default function Inventario() {
         selectedBranch={selectedBranch}
         hideNoStock={hideNoStock}
         hideZZProducts={hideZZProducts}
+        userRole={user.role}
       />
     </div>
   );
@@ -285,12 +287,14 @@ function StockSummary({
   selectedBranch,
   hideNoStock,
   hideZZProducts,
+  userRole,
 }: {
   searchTerm: string;
   selectedWarehouse: string;
   selectedBranch: string;
   hideNoStock: boolean;
   hideZZProducts: boolean;
+  userRole: string;
 }) {
   const { data: summary } = useQuery<{
     totalProducts: number;
@@ -372,20 +376,22 @@ function StockSummary({
         </CardContent>
       </Card>
 
-      <Card data-testid="card-total-value" className="rounded-3xl border-0 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950/40 dark:to-indigo-900/40 shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Valor Total Inventario</CardTitle>
-          <div className="w-10 h-10 rounded-full bg-indigo-500/20 dark:bg-indigo-500/30 flex items-center justify-center">
-            <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">
-            ${(summary?.totalValue ?? 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
-          </div>
-          <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">Valorización total a precio medio</p>
-        </CardContent>
-      </Card>
+      {userRole !== 'salesperson' && (
+        <Card data-testid="card-total-value" className="rounded-3xl border-0 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950/40 dark:to-indigo-900/40 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Valor Total Inventario</CardTitle>
+            <div className="w-10 h-10 rounded-full bg-indigo-500/20 dark:bg-indigo-500/30 flex items-center justify-center">
+              <Package className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-indigo-900 dark:text-indigo-100">
+              ${(summary?.totalValue ?? 0).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+            </div>
+            <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-1">Valorización total a precio medio</p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card data-testid="card-low-stock" className="rounded-3xl border-0 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/40 dark:to-orange-900/40 shadow-sm hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -412,12 +418,14 @@ function InventoryTable({
   selectedBranch,
   hideNoStock,
   hideZZProducts,
+  userRole,
 }: {
   searchTerm: string;
   selectedWarehouse: string;
   selectedBranch: string;
   hideNoStock: boolean;
   hideZZProducts: boolean;
+  userRole: string;
 }) {
   const { data: inventory, isLoading, refetch } = useQuery<ProductStock[]>({
     queryKey: ['/api/inventory-with-prices', searchTerm, selectedWarehouse, selectedBranch],
@@ -492,8 +500,12 @@ function InventoryTable({
                     <TableHead className="text-xs font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">Bod</TableHead>
                     <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD1</TableHead>
                     <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-20 px-2">UD2</TableHead>
-                    <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Precio</TableHead>
-                    <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Valor</TableHead>
+                    {userRole !== 'salesperson' && (
+                      <>
+                        <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Precio</TableHead>
+                        <TableHead className="text-xs text-right font-semibold text-gray-700 dark:text-gray-300 w-24 px-2">Valor</TableHead>
+                      </>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -541,12 +553,16 @@ function InventoryTable({
                         <TableCell className="text-xs text-right font-semibold text-blue-700 dark:text-blue-400 py-1 px-2 whitespace-nowrap">
                           {item.stock2?.toLocaleString('es-CL', { maximumFractionDigits: 2 }) || '0'} <span className="text-[10px] text-gray-500">{item.unit2 || ''}</span>
                         </TableCell>
-                        <TableCell className="text-xs text-right font-medium text-gray-800 dark:text-gray-200 py-1 px-2 whitespace-nowrap">
-                          {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
-                        </TableCell>
-                        <TableCell className="text-xs text-right font-bold text-indigo-700 dark:text-indigo-400 py-1 px-2 whitespace-nowrap">
-                          {item.totalValue ? `$${item.totalValue.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
-                        </TableCell>
+                        {userRole !== 'salesperson' && (
+                          <>
+                            <TableCell className="text-xs text-right font-medium text-gray-800 dark:text-gray-200 py-1 px-2 whitespace-nowrap">
+                              {item.averagePrice ? `$${item.averagePrice.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-bold text-indigo-700 dark:text-indigo-400 py-1 px-2 whitespace-nowrap">
+                              {item.totalValue ? `$${item.totalValue.toLocaleString('es-CL', { maximumFractionDigits: 0 })}` : '-'}
+                            </TableCell>
+                          </>
+                        )}
                       </TableRow>
                     );
                   })}
