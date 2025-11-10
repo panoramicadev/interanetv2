@@ -1223,51 +1223,6 @@ export default function Dashboard() {
                     </DrawerFooter>
                   </DrawerContent>
                 </Drawer>
-
-              {/* Display Selected Filters as chips */}
-              <div className="pt-2 border-t space-y-2">
-                <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
-                
-                <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
-                  <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
-                  <div className="flex-1">
-                    <div className="text-xs font-medium text-purple-900">
-                      Vista: {globalFilter.type === "all" ? "Todo el dashboard" : 
-                             globalFilter.type === "segment" ? "Por segmento" :
-                             globalFilter.type === "branch" ? "Por sucursal" : "Por vendedor"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
-                  <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
-                  <div className="flex-1">
-                    <div className="text-xs font-medium text-blue-900">
-                      Período: {selection.display}
-                    </div>
-                    <div className="text-[10px] text-blue-700 mt-0.5">
-                      {selection.period === "full-year" && `${selection.years.length} año(s) completo(s)`}
-                      {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
-                      {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
-                      {selection.period === "day" && `Día específico en ${selection.years.length} año(s)`}
-                      {selection.period === "days" && `${selection.days?.length} días en ${selection.years.length} año(s)`}
-                    </div>
-                  </div>
-                </div>
-
-                {globalFilter.value && (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
-                    <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
-                    <div className="flex-1">
-                      <div className="text-xs font-medium text-green-900">
-                        {globalFilter.type === "segment" && `Segmento: ${globalFilter.value}`}
-                        {globalFilter.type === "branch" && `Sucursal: ${globalFilter.value}`}
-                        {globalFilter.type === "salesperson" && `Vendedor: ${globalFilter.value}`}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
               </div>
             </div>
           )}
