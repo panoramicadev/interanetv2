@@ -881,26 +881,47 @@ export default function TomadorPedidos() {
     }
   }, [isInventoryError, toast]);
 
-  // Memoized SKU -> stock map for O(1) lookups
+  // Memoized SKU -> stock info map for O(1) lookups
+  // Groups by SKU and sums stock across all warehouses
   const stockMap = useMemo(() => {
     if (!inventoryData || !Array.isArray(inventoryData)) return new Map();
     
-    const map = new Map<string, number>();
+    const map = new Map<string, { total: number; warehouses: Array<{ name: string; quantity: number }> }>();
+    
     inventoryData.forEach((item: any) => {
       const sku = item.productSku;
-      const stock = Number(item.availableStock1) || 0;
-      map.set(sku, (map.get(sku) || 0) + stock);
+      const quantity = Number(item.availableQuantity || item.stock2 || 0);
+      const warehouseName = item.warehouseName || item.warehouseCode || 'Sin bodega';
+      
+      if (sku) {
+        const existing = map.get(sku);
+        
+        if (existing) {
+          // Add to existing total
+          existing.total += quantity;
+          // Add warehouse if it has stock
+          if (quantity > 0) {
+            existing.warehouses.push({ name: warehouseName, quantity: Math.floor(quantity) });
+          }
+        } else {
+          // Create new entry
+          map.set(sku, {
+            total: quantity,
+            warehouses: quantity > 0 ? [{ name: warehouseName, quantity: Math.floor(quantity) }] : []
+          });
+        }
+      }
     });
     
     return map;
   }, [inventoryData]);
 
-  // Helper function to get stock for a product by SKU
-  const getProductStock = (sku: string): number => {
-    return Math.floor(stockMap.get(sku) || 0);
+  // Helper function to get stock info for a product by SKU
+  const getProductStockInfo = (sku: string) => {
+    return stockMap.get(sku) || { total: 0, warehouses: [] };
   };
 
-  // Helper function to render stock badge
+  // Helper function to render stock badge with warehouse info
   const renderStockBadge = (sku: string) => {
     if (isLoadingInventory) {
       return <Skeleton className="h-5 w-24 rounded-full" data-testid={`stock-skeleton-${sku}`} />;
@@ -921,20 +942,40 @@ export default function TomadorPedidos() {
       );
     }
 
-    const stock = getProductStock(sku);
-    const isInStock = stock > 0;
-    const ariaLabel = isInStock ? `Stock disponible: ${stock} unidades` : 'Sin stock disponible';
+    const stockInfo = getProductStockInfo(sku);
+    const totalStock = Math.floor(stockInfo.total);
+    const isInStock = totalStock > 0;
+    
+    // Build warehouse summary for tooltip
+    const warehouseSummary = stockInfo.warehouses
+      .map((w: { name: string; quantity: number }) => `${w.name}: ${w.quantity}`)
+      .join(', ');
+    
+    const ariaLabel = isInStock 
+      ? `Stock total: ${totalStock} unidades (${warehouseSummary})` 
+      : 'Sin stock disponible';
 
     return (
-      <Badge
-        variant={isInStock ? "secondary" : "outline"}
-        className={`text-xs flex items-center gap-1 ${isInStock ? 'text-emerald-600' : 'text-destructive'}`}
-        aria-label={ariaLabel}
-        data-testid={`stock-badge-${sku}`}
-      >
-        <Package className="w-3 h-3" />
-        {isInStock ? `Stock: ${stock}` : 'Sin stock'}
-      </Badge>
+      <div className="flex flex-col gap-1">
+        <Badge
+          variant={isInStock ? "secondary" : "outline"}
+          className={`text-xs flex items-center gap-1 ${isInStock ? 'text-emerald-600' : 'text-destructive'}`}
+          aria-label={ariaLabel}
+          data-testid={`stock-badge-${sku}`}
+        >
+          <Package className="w-3 h-3" />
+          {isInStock ? `Stock: ${totalStock}` : 'Sin stock'}
+        </Badge>
+        {isInStock && stockInfo.warehouses.length > 0 && (
+          <div className="text-xs text-muted-foreground" data-testid={`stock-warehouses-${sku}`}>
+            {stockInfo.warehouses.map((w: { name: string; quantity: number }, idx: number) => (
+              <span key={idx} className="block">
+                {w.name}: {w.quantity} unidades
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     );
   };
 
