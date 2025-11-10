@@ -17,7 +17,7 @@ import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
 import logoPath from "@assets/logo_1757532115858.png";
-import { useFilterContext } from "@/contexts/FilterContext";
+import { useFilter } from "@/contexts/FilterContext";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -30,7 +30,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showChangelogDialog, setShowChangelogDialog] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const { resetFilters } = useFilterContext();
+  const { resetFilters } = useFilter();
 
   const handleLogout = () => {
     logoutMutation.mutate();
