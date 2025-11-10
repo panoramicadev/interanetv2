@@ -75,6 +75,22 @@ interface ClientDetails {
   }>;
 }
 
+interface ProductDetails {
+  totalSales: number;
+  totalUnits: number;
+  topClient: { name: string; amount: number } | null;
+  transactionCount: number;
+}
+
+interface RecentTransaction {
+  date: string;
+  client: string;
+  product: string;
+  quantity: number;
+  amount: number;
+  docType: string;
+}
+
 interface SalespersonSegment {
   segment: string;
   totalSales: number;
@@ -358,6 +374,9 @@ export default function SalespersonDetail({
   // Client accordion expansion state
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
 
+  // Product accordion expansion state
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -489,9 +508,36 @@ export default function SalespersonDetail({
     enabled: !!salespersonName && !!expandedClient,
   });
 
-  // Close accordion when period or filter changes
+  // Query for product details (when a product is expanded)
+  const { data: productDetails, isLoading: isLoadingProductDetails, error: productDetailsError } = useQuery<ProductDetails>({
+    queryKey: ['/api/salespeople', salespersonName, 'products', expandedProduct, 'details', selectedPeriod, filterType],
+    queryFn: async () => {
+      if (!expandedProduct) throw new Error('No product selected');
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/salespeople/${encodeURIComponent(salespersonName!)}/products/${encodeURIComponent(expandedProduct)}/details?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && !!expandedProduct,
+  });
+
+  // Query for recent transactions
+  const { data: recentTransactions = [], isLoading: isLoadingRecentTransactions } = useQuery<RecentTransaction[]>({
+    queryKey: ['/api/salespeople', salespersonName, 'transactions', 'recent'],
+    queryFn: async () => {
+      const res = await fetch(`/api/salespeople/${encodeURIComponent(salespersonName!)}/transactions/recent?limit=10`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName,
+  });
+
+  // Close accordions when period or filter changes
   useEffect(() => {
     setExpandedClient(null);
+    setExpandedProduct(null);
   }, [selectedPeriod, filterType, selectedSegment]);
 
   // Fetch goals for the salesperson
@@ -780,6 +826,7 @@ export default function SalespersonDetail({
       setExpandedClient(null);
     } else {
       setExpandedClient(clientName);
+      setExpandedProduct(null); // Close product accordion when opening client
     }
   };
 
@@ -1850,44 +1897,113 @@ export default function SalespersonDetail({
               ) : (
                 <>
                   <div className="space-y-4 transition-all duration-300 ease-in-out">
-                    {productsWithPercentage.map((product, index) => (
-                      <div
-                        key={product.productName}
-                        className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3"
-                      >
-                        <div 
-                          className="flex items-center gap-3 w-full"
-                          data-testid={`product-${index}`}
+                    {productsWithPercentage.map((product, index) => {
+                      const isExpanded = expandedProduct === product.productName;
+                      
+                      return (
+                        <div
+                          key={product.productName}
+                          className="rounded-lg transition-colors"
                         >
-                          {/* Nombre del producto completo */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-700 font-medium">
-                              {product.productName}
-                            </p>
-                          </div>
-                          
-                          {/* Porcentaje */}
-                          <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
-                            {product.percentage.toFixed(1)}%
-                          </span>
-                          
-                          {/* Barra de progreso delgada y corta */}
-                          <div className="w-20 sm:w-32 flex-shrink-0">
-                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-green-500 rounded-full transition-all duration-500 ease-out"
-                                style={{ width: `${product.percentage}%` }}
-                              ></div>
+                          <div 
+                            className="flex items-center gap-3 w-full cursor-pointer hover:bg-gray-50/50 py-3 px-2 rounded-lg"
+                            data-testid={`product-${index}`}
+                            onClick={() => {
+                              if (expandedProduct === product.productName) {
+                                setExpandedProduct(null);
+                              } else {
+                                setExpandedProduct(product.productName);
+                                setExpandedClient(null); // Close client accordion when opening product
+                              }
+                            }}
+                          >
+                            {/* Chevron icon */}
+                            <div className="flex-shrink-0 w-5 h-5 text-gray-400">
+                              {isExpanded ? (
+                                <ChevronUp className="h-5 w-5" />
+                              ) : (
+                                <ChevronDown className="h-5 w-5" />
+                              )}
                             </div>
+                            
+                            {/* Nombre del producto completo */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-gray-700 font-medium">
+                                {product.productName}
+                              </p>
+                            </div>
+                            
+                            {/* Porcentaje */}
+                            <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
+                              {product.percentage.toFixed(1)}%
+                            </span>
+                            
+                            {/* Barra de progreso delgada y corta */}
+                            <div className="w-20 sm:w-32 flex-shrink-0">
+                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-green-500 rounded-full transition-all duration-500 ease-out"
+                                  style={{ width: `${product.percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            
+                            {/* Monto */}
+                            <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
+                              {formatCurrency(product.totalSales)}
+                            </span>
                           </div>
                           
-                          {/* Monto */}
-                          <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
-                            {formatCurrency(product.totalSales)}
-                          </span>
+                          {/* Expanded Product Details Section */}
+                          {isExpanded && (
+                            <div className="mt-2 bg-green-50 rounded-lg p-4 border border-green-200 animate-in slide-in-from-top-2 duration-300">
+                              {isLoadingProductDetails ? (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                  {[...Array(4)].map((_, i) => (
+                                    <div key={i} className="animate-pulse">
+                                      <div className="h-4 bg-green-200 rounded w-20 mb-2"></div>
+                                      <div className="h-6 bg-green-200 rounded w-full"></div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : productDetailsError ? (
+                                <div className="text-center py-4">
+                                  <p className="text-sm text-red-600">Error al cargar detalles del producto</p>
+                                </div>
+                              ) : productDetails ? (
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div>
+                                      <p className="text-xs text-green-700 font-medium mb-1">Total Vendido</p>
+                                      <p className="text-lg font-bold text-green-900">{formatCurrency(productDetails.totalSales)}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-green-700 font-medium mb-1">Unidades</p>
+                                      <p className="text-lg font-bold text-green-900">{productDetails.totalUnits.toFixed(0)}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-green-700 font-medium mb-1">Transacciones</p>
+                                      <p className="text-lg font-bold text-green-900">{productDetails.transactionCount}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-green-700 font-medium mb-1">Cliente Principal</p>
+                                      {productDetails.topClient ? (
+                                        <div>
+                                          <p className="text-sm font-semibold text-green-900 truncate">{productDetails.topClient.name}</p>
+                                          <p className="text-xs text-green-700">{formatCurrency(productDetails.topClient.amount)}</p>
+                                        </div>
+                                      ) : (
+                                        <p className="text-sm text-green-700">Sin datos</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   
                   {/* Botón Ver más - solo si no hay búsqueda activa y hay más productos */}
@@ -1951,6 +2067,89 @@ export default function SalespersonDetail({
                 filterType={filterType}
                 salesperson={salespersonName}
               />
+            </div>
+          )}
+
+          {/* Recent Transactions - Últimas Órdenes */}
+          {salespersonName && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Últimas Órdenes</h2>
+              </div>
+              
+              <div className="bg-white rounded-xl border border-gray-200/60 shadow-sm overflow-hidden">
+                {isLoadingRecentTransactions ? (
+                  <div className="p-6">
+                    <div className="space-y-3">
+                      {[...Array(5)].map((_, i) => (
+                        <div key={i} className="flex items-center gap-4 animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-24"></div>
+                          <div className="h-4 bg-gray-200 rounded flex-1"></div>
+                          <div className="h-4 bg-gray-200 rounded w-32"></div>
+                          <div className="h-4 bg-gray-200 rounded w-20"></div>
+                          <div className="h-4 bg-gray-200 rounded w-28"></div>
+                          <div className="h-4 bg-gray-200 rounded w-16"></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : recentTransactions.length === 0 ? (
+                  <div className="p-6 text-center">
+                    <p className="text-gray-500 text-sm">No hay transacciones recientes para mostrar</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50/50">
+                          <TableHead className="font-semibold text-gray-700">Fecha</TableHead>
+                          <TableHead className="font-semibold text-gray-700">Cliente</TableHead>
+                          <TableHead className="font-semibold text-gray-700">Producto</TableHead>
+                          <TableHead className="font-semibold text-gray-700 text-right">Cantidad</TableHead>
+                          <TableHead className="font-semibold text-gray-700 text-right">Monto</TableHead>
+                          <TableHead className="font-semibold text-gray-700 text-center">Tipo Doc</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recentTransactions.map((transaction, index) => (
+                          <TableRow 
+                            key={index}
+                            className="hover:bg-gray-50/50 transition-colors"
+                            data-testid={`recent-transaction-${index}`}
+                          >
+                            <TableCell className="font-medium text-sm text-gray-900">
+                              {transaction.date ? format(new Date(transaction.date), "dd/MM/yyyy", { locale: es }) : '-'}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-700 max-w-xs truncate">
+                              {transaction.client || '-'}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-700 max-w-md truncate">
+                              {transaction.product || '-'}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-900 text-right font-medium">
+                              {transaction.quantity.toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-sm text-gray-900 text-right font-semibold">
+                              {formatCurrency(transaction.amount)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge 
+                                variant={transaction.docType === 'FCV' ? 'default' : 'secondary'}
+                                className="text-xs"
+                              >
+                                {transaction.docType}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
             </>
