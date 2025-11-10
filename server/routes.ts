@@ -1758,6 +1758,57 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Product details endpoint
+  app.get('/api/sales/top-products/:productName/details', requireAuth, async (req, res) => {
+    try {
+      const { productName } = req.params;
+      const { period, filterType, salesperson, segment } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
+      const result = await storage.getProductDetails(
+        decodeURIComponent(productName),
+        dateRange.startDate,
+        dateRange.endDate,
+        salesperson as string,
+        segment as string
+      );
+      
+      if (!result) {
+        return res.status(404).json({ message: "Product not found or has no sales data" });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching product details:", error);
+      res.status(500).json({ message: "Failed to fetch product details" });
+    }
+  });
+
+  // Salesperson details endpoint
+  app.get('/api/sales/top-salespeople/:salesperson/details', requireAuth, async (req, res) => {
+    try {
+      const { salesperson } = req.params;
+      const { period, filterType, segment } = req.query;
+      const dateRange = getDateRange(period as string, filterType as string);
+      
+      const result = await storage.getSalespersonDetails(
+        decodeURIComponent(salesperson),
+        dateRange.startDate,
+        dateRange.endDate,
+        segment as string
+      );
+      
+      if (!result) {
+        return res.status(404).json({ message: "Salesperson not found or has no sales data" });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching salesperson details:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson details" });
+    }
+  });
+
   // Top clients endpoint
   app.get('/api/sales/top-clients', requireAuth, async (req, res) => {
     try {

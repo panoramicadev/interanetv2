@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { ShoppingBag, Search, X } from "lucide-react";
+import { ShoppingBag, Search, X, ChevronDown, Package, Users, TrendingUp, DollarSign } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useState, useEffect } from "react";
 
 interface TopProduct {
@@ -35,6 +36,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [limit, setLimit] = useState(10);
+  const [expandedProduct, setExpandedProduct] = useState<string>("");
   
   // Debounce search term
   useEffect(() => {
@@ -186,47 +188,65 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
           </div>
         ) : (
           <>
-            <div className="space-y-4 transition-all duration-300 ease-in-out">
+            <Accordion
+              type="single"
+              collapsible
+              value={expandedProduct}
+              onValueChange={setExpandedProduct}
+              className="space-y-2"
+            >
               {productsWithPercentage.map((product, index) => (
-              <Link 
-                key={product.productName} 
-                href={`/product/${encodeURIComponent(product.productName)}`}
-                className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3"
-              >
-                <div 
-                  className="flex items-center gap-3 w-full"
-                  data-testid={`product-${index}`}
+                <AccordionItem 
+                  key={product.productName} 
+                  value={product.productName}
+                  className="border rounded-lg overflow-hidden bg-green-50/30 dark:bg-green-900/10"
                 >
-                  {/* Nombre del producto completo */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700 font-medium">
-                      {product.productName}
-                    </p>
-                  </div>
-                  
-                  {/* Porcentaje */}
-                  <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
-                    {product.percentage.toFixed(1)}%
-                  </span>
-                  
-                  {/* Barra de progreso delgada y corta */}
-                  <div className="w-20 sm:w-32 flex-shrink-0">
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${product.percentage}%` }}
-                      ></div>
+                  <AccordionTrigger 
+                    className="px-4 py-3 hover:bg-green-50/50 dark:hover:bg-green-900/20 hover:no-underline"
+                    data-testid={`accordion-trigger-product-${index}`}
+                  >
+                    <div className="flex items-center gap-3 w-full pr-4">
+                      {/* Nombre del producto completo */}
+                      <div className="flex-1 min-w-0 text-left">
+                        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium truncate">
+                          {product.productName}
+                        </p>
+                      </div>
+                      
+                      {/* Porcentaje */}
+                      <span className="text-xs text-gray-600 dark:text-gray-400 w-10 text-right flex-shrink-0">
+                        {product.percentage.toFixed(1)}%
+                      </span>
+                      
+                      {/* Barra de progreso delgada y corta */}
+                      <div className="w-20 sm:w-32 flex-shrink-0">
+                        <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-green-500 dark:bg-green-600 rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${product.percentage}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      {/* Monto */}
+                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 w-28 text-right flex-shrink-0">
+                        {formatCurrency(product.totalSales)}
+                      </span>
                     </div>
-                  </div>
-                  
-                  {/* Monto */}
-                  <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
-                    {formatCurrency(product.totalSales)}
-                  </span>
-                </div>
-              </Link>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4 pt-2 bg-white dark:bg-gray-800">
+                    <ProductDetails 
+                      productName={product.productName}
+                      selectedPeriod={selectedPeriod}
+                      filterType={filterType}
+                      segment={segment}
+                      salesperson={salesperson}
+                      isExpanded={expandedProduct === product.productName}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
               ))}
-            </div>
+            </Accordion>
             
             {/* Botón Ver más - solo si no hay búsqueda activa y hay más productos */}
             {!debouncedSearchTerm && topProductsResponse && displayProducts.length < topProductsResponse.totalCount && (
@@ -245,6 +265,117 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// Product Details Component (shown when accordion expands)
+interface ProductDetailsProps {
+  productName: string;
+  selectedPeriod: string;
+  filterType: "day" | "month" | "year" | "range";
+  segment?: string;
+  salesperson?: string;
+  isExpanded: boolean;
+}
+
+function ProductDetails({ productName, selectedPeriod, filterType, segment, salesperson, isExpanded }: ProductDetailsProps) {
+  const { data: details, isLoading } = useQuery({
+    queryKey: [`/api/sales/top-products/${encodeURIComponent(productName)}/details?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    enabled: isExpanded, // Only fetch when accordion is expanded
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg animate-pulse">
+            <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded mb-2 w-20"></div>
+            <div className="h-5 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!details) {
+    return (
+      <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+        No hay detalles disponibles
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Total Ventas */}
+        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Total Ventas</p>
+          </div>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {formatCurrency(details.totalSales || 0)}
+          </p>
+        </div>
+
+        {/* Unidades Vendidas */}
+        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <Package className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Unidades</p>
+          </div>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {(details.totalUnits || 0).toLocaleString('es-CL')}
+          </p>
+        </div>
+
+        {/* Clientes Únicos */}
+        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Clientes</p>
+          </div>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {details.uniqueClients || 0}
+          </p>
+        </div>
+
+        {/* Ticket Promedio */}
+        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Ticket Prom.</p>
+          </div>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {formatCurrency(details.averageTicket || 0)}
+          </p>
+        </div>
+      </div>
+
+      {/* Top Clientes del Producto */}
+      {details.topClients && details.topClients.length > 0 && (
+        <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Top Clientes</p>
+          <div className="space-y-1">
+            {details.topClients.slice(0, 3).map((client: any, idx: number) => (
+              <div key={idx} className="flex items-center justify-between text-xs">
+                <span className="text-gray-700 dark:text-gray-300 truncate flex-1">{client.clientName}</span>
+                <span className="text-gray-900 dark:text-gray-100 font-semibold ml-2">{formatCurrency(client.sales)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

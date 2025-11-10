@@ -329,6 +329,16 @@ export interface IStorage {
     totalSales: number;
     transactionCount: number;
   }>>;
+  getSalespersonDetails(salespersonName: string, startDate?: string, endDate?: string, segment?: string): Promise<{
+    totalSales: number;
+    transactionCount: number;
+    uniqueClients: number;
+    averageTicket: number;
+    topProducts: Array<{
+      productName: string;
+      sales: number;
+    }>;
+  } | null>;
   getTopProducts(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
     items: Array<{
       productName: string;
@@ -341,6 +351,16 @@ export interface IStorage {
     periodTotalSales: number;
     totalCount: number;
   }>;
+  getProductDetails(productName: string, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+    totalSales: number;
+    totalUnits: number;
+    uniqueClients: number;
+    averageTicket: number;
+    topClients: Array<{
+      clientName: string;
+      sales: number;
+    }>;
+  } | null>;
   getTopClients(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
     items: Array<{
       clientName: string;
@@ -2355,6 +2375,146 @@ export class DatabaseStorage implements IStorage {
       })),
       periodTotalSales: Number(totalResult.total),
       totalCount: Number(countResult.count),
+    };
+  }
+
+  async getProductDetails(productName: string, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
+    totalSales: number;
+    totalUnits: number;
+    uniqueClients: number;
+    averageTicket: number;
+    topClients: Array<{
+      clientName: string;
+      sales: number;
+    }>;
+  } | null> {
+    const conditions = [
+      eq(factVentas.nokoprct, productName),
+      sql`${factVentas.tido} != 'GDV'`,
+    ];
+
+    if (startDate) {
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
+    }
+    if (endDate) {
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
+    }
+    if (salesperson) {
+      conditions.push(eq(factVentas.nokofu, salesperson));
+    }
+    if (segment) {
+      conditions.push(eq(factVentas.noruen, segment));
+    }
+
+    const whereClause = and(...conditions);
+
+    // Get aggregated metrics
+    const [metrics] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(factVentas)
+      .where(whereClause);
+
+    if (!metrics || Number(metrics.totalSales) === 0) {
+      return null;
+    }
+
+    // Get top clients for this product
+    const topClients = await db
+      .select({
+        clientName: factVentas.nokoen,
+        sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokoen)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+      .limit(5);
+
+    const totalSales = Number(metrics.totalSales);
+    const transactionCount = Number(metrics.transactionCount) || 1;
+
+    return {
+      totalSales,
+      totalUnits: Number(metrics.totalUnits),
+      uniqueClients: Number(metrics.uniqueClients),
+      averageTicket: totalSales / transactionCount,
+      topClients: topClients.map(c => ({
+        clientName: c.clientName || '',
+        sales: Number(c.sales),
+      })),
+    };
+  }
+
+  async getSalespersonDetails(salespersonName: string, startDate?: string, endDate?: string, segment?: string): Promise<{
+    totalSales: number;
+    transactionCount: number;
+    uniqueClients: number;
+    averageTicket: number;
+    topProducts: Array<{
+      productName: string;
+      sales: number;
+    }>;
+  } | null> {
+    const conditions = [
+      eq(factVentas.nokofu, salespersonName),
+      sql`${factVentas.tido} != 'GDV'`,
+    ];
+
+    if (startDate) {
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
+    }
+    if (endDate) {
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
+    }
+    if (segment) {
+      conditions.push(eq(factVentas.noruen, segment));
+    }
+
+    const whereClause = and(...conditions);
+
+    // Get aggregated metrics
+    const [metrics] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        uniqueClients: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(factVentas)
+      .where(whereClause);
+
+    if (!metrics || Number(metrics.totalSales) === 0) {
+      return null;
+    }
+
+    // Get top products for this salesperson
+    const topProducts = await db
+      .select({
+        productName: factVentas.nokoprct,
+        sales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokoprct)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+      .limit(5);
+
+    const totalSales = Number(metrics.totalSales);
+    const transactionCount = Number(metrics.transactionCount) || 1;
+
+    return {
+      totalSales,
+      transactionCount,
+      uniqueClients: Number(metrics.uniqueClients),
+      averageTicket: totalSales / transactionCount,
+      topProducts: topProducts.map(p => ({
+        productName: p.productName || '',
+        sales: Number(p.sales),
+      })),
     };
   }
 
