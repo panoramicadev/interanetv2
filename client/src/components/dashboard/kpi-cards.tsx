@@ -249,12 +249,26 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     enabled: !!resolvedComparePeriod, // Only run if resolved period is set
   });
 
-  // Query for NVV total (NO filters - always show ALL pending sales)
+  // Query for NVV metrics with filters
   const { data: nvvMetrics } = useQuery<{
     totalAmount: number;
-    totalRecords: number;
+    totalQuantity: number;
+    pendingCount: number;
+    confirmedCount: number;
+    deliveredCount: number;
+    cancelledCount: number;
   }>({
-    queryKey: ['/api/nvv/total'],
+    queryKey: ['/api/nvv/metrics', selectedPeriod, filterType, segment, salesperson],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
   });
 
   // Query for yearly totals
@@ -485,31 +499,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const renderSalesCard = (kpi: any) => {
     const salesTotal = Number(metrics?.totalSales || 0);
     
-    // Verificar si el mes seleccionado ya terminó
-    const isMonthClosed = () => {
-      if (filterType !== "month") return false;
-      
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      const currentMonth = currentDate.getMonth() + 1;
-      
-      // Parsear el período seleccionado
-      if (selectedPeriod.match(/^\d{4}-\d{2}$/)) {
-        const [year, month] = selectedPeriod.split('-').map(Number);
-        
-        // Si el año es anterior al actual, el mes está cerrado
-        if (year < currentYear) return true;
-        
-        // Si es el mismo año pero el mes es anterior al actual, está cerrado
-        if (year === currentYear && month < currentMonth) return true;
-      }
-      
-      return false;
-    };
-    
-    const monthClosed = isMonthClosed();
-    const nvvTotal = monthClosed ? 0 : Number(nvvMetrics?.totalAmount || 0);
-    const gdvSales = monthClosed ? 0 : Number(metrics?.gdvSales || 0);
+    // Siempre mostrar los valores reales de NVV y GDV
+    const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
+    const gdvSales = Number(metrics?.gdvSales || 0);
     const combinedTotal = salesTotal + nvvTotal + gdvSales;
 
     return (
