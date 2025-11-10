@@ -798,14 +798,14 @@ export default function SalespersonDashboard() {
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-0">
               <Accordion type="multiple" className="space-y-2">
-                {/* Clientes Inactivos */}
+                {/* Clientes que requieren seguimiento */}
                 {smartNotifications.inactiveClients?.length > 0 && (
                   <AccordionItem value="inactive-clients" className="border rounded-lg bg-white/40">
                     <AccordionTrigger className="px-4 py-3 hover:no-underline">
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-orange-500" />
                         <span className="text-sm font-semibold text-gray-900">
-                          Clientes Inactivos ({smartNotifications.inactiveClients.length})
+                          Clientes que requieren seguimiento ({smartNotifications.inactiveClients.length})
                         </span>
                       </div>
                     </AccordionTrigger>
@@ -837,87 +837,12 @@ export default function SalespersonDashboard() {
                     </AccordionContent>
                   </AccordionItem>
                 )}
-
-                {/* Clientes Estacionales */}
-                {smartNotifications.seasonalClients?.length > 0 && (
-                  <AccordionItem value="seasonal-clients" className="border rounded-lg bg-white/40">
-                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                      <div className="flex items-center gap-2">
-                        <CalendarIcon className="h-4 w-4 text-blue-500" />
-                        <span className="text-sm font-semibold text-gray-900">
-                          Clientes Estacionales ({smartNotifications.seasonalClients.length})
-                        </span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-3">
-                      <div className="space-y-2">
-                        {smartNotifications.seasonalClients.slice(0, 10).map((client: any, idx: number) => (
-                          <div 
-                            key={idx}
-                            className="bg-white/60 rounded-lg p-3 border border-blue-200"
-                            data-testid={`seasonal-client-${idx}`}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-gray-900 text-sm truncate">{client.clientName}</p>
-                                <p className="text-xs text-gray-600">{client.purchasePattern}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-xs text-gray-600">Promedio</p>
-                                <p className="font-semibold text-sm text-blue-700">
-                                  {formatCurrency(client.averagePurchaseAmount)}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
-
-                {/* Productos en Tendencia */}
-                {smartNotifications.trendingProducts?.length > 0 && (
-                  <AccordionItem value="trending-products" className="border rounded-lg bg-white/40">
-                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-emerald-500" />
-                        <span className="text-sm font-semibold text-gray-900">
-                          Productos en Tendencia ({smartNotifications.trendingProducts.length})
-                        </span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-3">
-                      <div className="space-y-2">
-                        {smartNotifications.trendingProducts.slice(0, 10).map((product: any, idx: number) => (
-                          <div 
-                            key={idx}
-                            className="bg-white/60 rounded-lg p-3 border border-emerald-200"
-                            data-testid={`trending-product-${idx}`}
-                          >
-                            <div className="flex items-start justify-between mb-1">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-gray-900 text-sm truncate">{product.productName}</p>
-                                <p className="text-xs text-gray-600">{product.recommendation}</p>
-                              </div>
-                              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
-                                +{product.growthRate}%
-                              </Badge>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                )}
               </Accordion>
 
-              {!smartNotifications.inactiveClients?.length && 
-               !smartNotifications.seasonalClients?.length && 
-               !smartNotifications.trendingProducts?.length && (
+              {!smartNotifications.inactiveClients?.length && (
                 <div className="text-center py-6 text-gray-500">
                   <Info className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                  <p className="text-sm">No hay notificaciones inteligentes disponibles en este momento</p>
+                  <p className="text-sm">No hay clientes que requieran seguimiento en este momento</p>
                 </div>
               )}
             </CardContent>

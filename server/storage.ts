@@ -5578,7 +5578,8 @@ export class DatabaseStorage implements IStorage {
     
     const conditions = [
       eq(factVentas.nokofu, salesperson),
-      sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`
+      sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
+      sql`${factVentas.tido} != 'GDV'`
     ];
     
     // If specific client requested, filter by name
@@ -5586,6 +5587,8 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokoen, clientName));
     }
     
+    // Clientes que requieren seguimiento: al menos 4 compras en los últimos 12 meses
+    // y más de 30 días sin comprar
     const inactiveClientsData = await db
       .select({
         clientName: factVentas.nokoen,
@@ -5595,6 +5598,7 @@ export class DatabaseStorage implements IStorage {
           FROM ventas.fact_ventas st2
           WHERE st2.nokoen = ${factVentas.nokoen}
             AND st2.nokofu = ${salesperson}
+            AND st2.tido != 'GDV'
           ORDER BY st2.feemdo DESC
           LIMIT 1
         ), 0)`,
@@ -5603,7 +5607,13 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(and(...conditions))
       .groupBy(factVentas.nokoen)
-      .having(sql`MAX(${factVentas.feemdo}) < CURRENT_DATE - INTERVAL '30 days'`)
+      .having(sql`
+        MAX(${factVentas.feemdo})::date < CURRENT_DATE - INTERVAL '30 days'
+        AND COUNT(CASE 
+          WHEN ${factVentas.feemdo}::date >= CURRENT_DATE - INTERVAL '12 months' 
+          THEN 1 
+          END) >= 4
+      `)
       .orderBy(sql`MAX(${factVentas.feemdo}) DESC`)
       .limit(clientName ? 1 : 10); // If specific client, return 1; otherwise top 10
 
