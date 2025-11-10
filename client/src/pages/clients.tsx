@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Loader2, Search, Users, CreditCard, TrendingUp, MapPin, Phone, Mail, Upload, FileDown, Eye, X, User, Building2, Calendar, Filter, RotateCcw, Plus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -49,6 +50,7 @@ const formatDate = (date: string | null) => {
 };
 
 export default function Clients() {
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -97,6 +99,12 @@ export default function Clients() {
 
     return () => clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    if (user && user.role === 'salesperson' && 'salespersonName' in user) {
+      setSelectedSalesperson(user.salespersonName as string);
+    }
+  }, [user]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
