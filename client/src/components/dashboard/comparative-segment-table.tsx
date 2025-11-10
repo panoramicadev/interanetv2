@@ -122,26 +122,6 @@ export default function ComparativeSegmentTable({ periods, segment }: Comparativ
 
   return (
     <>
-      {/* Summary Card for Multiple Periods Comparison */}
-      {isMultiplePeriods && (
-        <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-lg p-6 mb-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-emerald-700 mb-1">Total Acumulado de Períodos Comparados</p>
-              <p className="text-3xl font-bold text-emerald-900" data-testid="text-total-period-sales">
-                {formatCurrency(totalSalesAllPeriods)}
-              </p>
-              <p className="text-sm text-emerald-600 mt-1">
-                {getPeriodLabel()} comparados
-              </p>
-            </div>
-            <div className="bg-emerald-100 rounded-full p-4">
-              <TrendingUp className="h-8 w-8 text-emerald-600" />
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="bg-white border rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
