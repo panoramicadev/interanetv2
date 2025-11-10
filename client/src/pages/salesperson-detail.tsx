@@ -64,6 +64,17 @@ interface SearchClient {
   transactionCount: number;
 }
 
+interface ClientDetails {
+  totalSales: number;
+  lastSaleDate: string | null;
+  transactionCount: number;
+  products: Array<{
+    productName: string;
+    totalSales: number;
+    units: number;
+  }>;
+}
+
 interface SalespersonSegment {
   segment: string;
   totalSales: number;
@@ -344,6 +355,9 @@ export default function SalespersonDetail({
   const [debouncedProductSearchTerm, setDebouncedProductSearchTerm] = useState("");
   const [productLimit, setProductLimit] = useState(10);
 
+  // Client accordion expansion state
+  const [expandedClient, setExpandedClient] = useState<string | null>(null);
+
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -459,6 +473,26 @@ export default function SalespersonDetail({
     },
     enabled: !!salespersonName,
   });
+
+  // Query for client details (when a client is expanded)
+  const { data: clientDetails, isLoading: isLoadingClientDetails, error: clientDetailsError } = useQuery<ClientDetails>({
+    queryKey: ['/api/salespeople', salespersonName, 'clients', expandedClient, 'details', selectedPeriod, filterType],
+    queryFn: async () => {
+      if (!expandedClient) throw new Error('No client selected');
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/salespeople/${encodeURIComponent(salespersonName!)}/clients/${encodeURIComponent(expandedClient)}/details?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && !!expandedClient,
+  });
+
+  // Close accordion when period or filter changes
+  useEffect(() => {
+    setExpandedClient(null);
+  }, [selectedPeriod, filterType, selectedSegment]);
 
   // Fetch goals for the salesperson
   const { data: goalsData, isLoading: isLoadingGoals } = useQuery<GoalProgress[]>({
@@ -739,6 +773,14 @@ export default function SalespersonDetail({
     setProductSearchTerm("");
     setDebouncedProductSearchTerm("");
     setIsProductSearchExpanded(false);
+  };
+
+  const handleClientClick = (clientName: string) => {
+    if (expandedClient === clientName) {
+      setExpandedClient(null);
+    } else {
+      setExpandedClient(clientName);
+    }
   };
 
   return (
@@ -1509,45 +1551,163 @@ export default function SalespersonDetail({
               ) : (
                 <>
                   <div className="space-y-4 transition-all duration-300 ease-in-out">
-                    {clientsWithPercentage.map((client, index) => (
-                      <Link
-                        key={client.clientName}
-                        href={`/client/${encodeURIComponent(client.clientName)}`}
-                        className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3"
-                      >
+                    {clientsWithPercentage.map((client, index) => {
+                      const isExpanded = expandedClient === client.clientName;
+                      return (
                         <div 
-                          className="flex items-center gap-3 w-full"
-                          data-testid={`client-${index}`}
+                          key={client.clientName}
+                          className={`rounded-lg transition-all duration-300 ease-in-out ${
+                            isExpanded ? 'bg-blue-50 shadow-md' : 'hover:bg-gray-50/50'
+                          }`}
                         >
-                          {/* Nombre del cliente completo */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-gray-700 font-medium">
-                              {client.clientName}
-                            </p>
-                          </div>
-                          
-                          {/* Porcentaje */}
-                          <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
-                            {client.percentage.toFixed(1)}%
-                          </span>
-                          
-                          {/* Barra de progreso delgada y corta */}
-                          <div className="w-20 sm:w-32 flex-shrink-0">
-                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
-                                style={{ width: `${client.percentage}%` }}
-                              ></div>
+                          <div
+                            onClick={() => handleClientClick(client.clientName)}
+                            className="cursor-pointer py-3 px-2"
+                            data-testid={`client-${index}`}
+                          >
+                            <div className="flex items-center gap-3 w-full">
+                              {/* Nombre del cliente completo */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-700 font-medium">
+                                  {client.clientName}
+                                </p>
+                              </div>
+                              
+                              {/* Porcentaje */}
+                              <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
+                                {client.percentage.toFixed(1)}%
+                              </span>
+                              
+                              {/* Barra de progreso delgada y corta */}
+                              <div className="w-20 sm:w-32 flex-shrink-0">
+                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
+                                    style={{ width: `${client.percentage}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                              
+                              {/* Monto */}
+                              <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
+                                {formatCurrency(client.totalSales)}
+                              </span>
+                              
+                              {/* Chevron icon */}
+                              <div className="flex-shrink-0 ml-2">
+                                {isExpanded ? (
+                                  <ChevronUp className="h-5 w-5 text-blue-600" />
+                                ) : (
+                                  <ChevronDown className="h-5 w-5 text-gray-400" />
+                                )}
+                              </div>
                             </div>
                           </div>
                           
-                          {/* Monto */}
-                          <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
-                            {formatCurrency(client.totalSales)}
-                          </span>
+                          {/* Expandable section with client details */}
+                          {isExpanded && (
+                            <div className="px-4 pb-4 pt-2 border-t border-blue-100">
+                              {isLoadingClientDetails ? (
+                                <div className="space-y-4 py-4">
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {[...Array(4)].map((_, i) => (
+                                      <div key={i} className="animate-pulse">
+                                        <div className="h-16 bg-gray-200 rounded-lg"></div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="h-32 bg-gray-200 rounded-lg animate-pulse"></div>
+                                </div>
+                              ) : clientDetailsError ? (
+                                <div className="py-4 text-center text-red-600 text-sm">
+                                  Error al cargar detalles del cliente
+                                </div>
+                              ) : clientDetails ? (
+                                <div className="space-y-4 py-4">
+                                  {/* KPIs Grid */}
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
+                                      <p className="text-xs text-gray-600 mb-1">Total Vendido</p>
+                                      <p className="text-lg font-bold text-blue-900">
+                                        {formatCurrency(clientDetails.totalSales)}
+                                      </p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
+                                      <p className="text-xs text-gray-600 mb-1">Última Venta</p>
+                                      <p className="text-sm font-semibold text-gray-900">
+                                        {clientDetails.lastSaleDate 
+                                          ? format(new Date(clientDetails.lastSaleDate), "d 'de' MMM yyyy", { locale: es })
+                                          : 'N/A'
+                                        }
+                                      </p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
+                                      <p className="text-xs text-gray-600 mb-1">Transacciones</p>
+                                      <p className="text-lg font-bold text-gray-900">
+                                        {clientDetails.transactionCount}
+                                      </p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
+                                      <p className="text-xs text-gray-600 mb-1">Ticket Promedio</p>
+                                      <p className="text-lg font-bold text-gray-900">
+                                        {formatCurrency(clientDetails.transactionCount > 0 
+                                          ? clientDetails.totalSales / clientDetails.transactionCount 
+                                          : 0
+                                        )}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Products List */}
+                                  {clientDetails.products && clientDetails.products.length > 0 && (
+                                    <div className="bg-white rounded-lg border border-blue-100 shadow-sm p-4">
+                                      <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                                        Productos Vendidos ({clientDetails.products.length})
+                                      </h3>
+                                      <div className="space-y-3">
+                                        {clientDetails.products.slice(0, 5).map((product, idx) => {
+                                          const productPercentage = clientDetails.totalSales > 0 
+                                            ? (product.totalSales / clientDetails.totalSales) * 100 
+                                            : 0;
+                                          return (
+                                            <div key={idx} className="flex items-center gap-3">
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-xs text-gray-700 font-medium truncate">
+                                                  {product.productName}
+                                                </p>
+                                              </div>
+                                              <span className="text-xs text-gray-600 w-16 text-right flex-shrink-0">
+                                                {product.units} unid
+                                              </span>
+                                              <div className="w-24 flex-shrink-0">
+                                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                  <div 
+                                                    className="h-full bg-blue-400 rounded-full"
+                                                    style={{ width: `${productPercentage}%` }}
+                                                  ></div>
+                                                </div>
+                                              </div>
+                                              <span className="text-xs font-semibold text-gray-900 w-20 text-right flex-shrink-0">
+                                                {formatCurrency(product.totalSales)}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                        {clientDetails.products.length > 5 && (
+                                          <p className="text-xs text-gray-500 text-center pt-2">
+                                            +{clientDetails.products.length - 5} productos más
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
                         </div>
-                      </Link>
-                    ))}
+                      );
+                    })}
                   </div>
                   
                   {/* Botón Ver más - solo si no hay búsqueda activa y hay más clientes */}
