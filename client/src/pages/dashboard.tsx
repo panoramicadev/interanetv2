@@ -1072,25 +1072,59 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                      <SelectItem value="all">
+                      <SelectItem 
+                        value="all"
+                        onClick={(e) => {
+                          console.log("🖱️ [Dashboard] SelectItem 'all' CLICKED directly");
+                          e.stopPropagation();
+                          resetFilters();
+                          setLocation('/dashboard');
+                          queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+                          queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
+                        }}
+                      >
                         <div className="flex items-center space-x-2">
                           <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
                           <span>Todo el dashboard</span>
                         </div>
                       </SelectItem>
-                      <SelectItem value="segment">
+                      <SelectItem 
+                        value="segment"
+                        onClick={(e) => {
+                          console.log("🖱️ [Dashboard] SelectItem 'segment' CLICKED directly");
+                          e.stopPropagation();
+                          setGlobalFilter({ type: "segment", value: "" });
+                          window.history.replaceState({}, '', '/dashboard?filter=segment');
+                        }}
+                      >
                         <div className="flex items-center space-x-2">
                           <Building className="h-3.5 w-3.5 text-green-500" />
                           <span>Por segmento</span>
                         </div>
                       </SelectItem>
-                      <SelectItem value="branch">
+                      <SelectItem 
+                        value="branch"
+                        onClick={(e) => {
+                          console.log("🖱️ [Dashboard] SelectItem 'branch' CLICKED directly");
+                          e.stopPropagation();
+                          setGlobalFilter({ type: "branch", value: "" });
+                          window.history.replaceState({}, '', '/dashboard?filter=branch');
+                        }}
+                      >
                         <div className="flex items-center space-x-2">
                           <Building className="h-3.5 w-3.5 text-blue-500" />
                           <span>Por sucursal</span>
                         </div>
                       </SelectItem>
-                      <SelectItem value="salesperson">
+                      <SelectItem 
+                        value="salesperson"
+                        onClick={(e) => {
+                          console.log("🖱️ [Dashboard] SelectItem 'salesperson' CLICKED directly");
+                          e.stopPropagation();
+                          setGlobalFilter({ type: "salesperson", value: "" });
+                          window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+                        }}
+                      >
                         <div className="flex items-center space-x-2">
                           <Users className="h-3.5 w-3.5 text-purple-500" />
                           <span>Por vendedor</span>
