@@ -299,7 +299,7 @@ export default function Dashboard() {
     // Special case: if switching to "all", reset everything
     if (localGlobalFilter.type === "all") {
       resetFilters();
-      setLocation('/dashboard');
+      setLocation('/');
       // Invalidate queries to refetch with clean filters
       queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
       queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
@@ -313,11 +313,11 @@ export default function Dashboard() {
     
     // Update URL to match the selected filter type (without target)
     if (localGlobalFilter.type === "segment") {
-      window.history.replaceState({}, '', '/dashboard?filter=segment');
+      window.history.replaceState({}, '', '/?filter=segment');
     } else if (localGlobalFilter.type === "branch") {
-      window.history.replaceState({}, '', '/dashboard?filter=branch');
+      window.history.replaceState({}, '', '/?filter=branch');
     } else if (localGlobalFilter.type === "salesperson") {
-      window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+      window.history.replaceState({}, '', '/?filter=salesperson');
     }
     
     setIsDrawerOpen(false);
@@ -1060,6 +1060,136 @@ export default function Dashboard() {
               {/* Desktop Layout - Unified with Drawer */}
               {/* Botón para abrir filtros + chips de filtros activos */}
               <div className="flex items-center gap-3 flex-wrap">
+                {/* Vista selector */}
+                <div className="flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-700">Vista:</span>
+                  <Select 
+                    value={globalFilter.type}
+                    onValueChange={(value: "all" | "segment" | "branch" | "salesperson") => {
+                      if (value === "all") {
+                        setGlobalFilter({ type: "all" });
+                        setLocation('/');
+                      } else if (value === "segment") {
+                        setGlobalFilter({ type: "segment", value: undefined });
+                      } else if (value === "branch") {
+                        setGlobalFilter({ type: "branch", value: undefined });
+                      } else if (value === "salesperson") {
+                        setGlobalFilter({ type: "salesperson", value: undefined });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm bg-gray-50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
+                      <SelectItem value="all">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                          <span>Todo el dashboard</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="segment">
+                        <div className="flex items-center gap-2">
+                          <Building className="h-3.5 w-3.5 text-green-500" />
+                          <span>Por segmento</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="branch">
+                        <div className="flex items-center gap-2">
+                          <Building className="h-3.5 w-3.5 text-blue-500" />
+                          <span>Por sucursal</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="salesperson">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-3.5 w-3.5 text-purple-500" />
+                          <span>Por vendedor</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Segment, Branch, or Salesperson selector - shown when not "all" */}
+                {globalFilter.type === "segment" && segments && segments.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Segmento:</span>
+                    <Select 
+                      value={globalFilter.value || ""}
+                      onValueChange={(segment) => {
+                        setGlobalFilter({ type: "segment", value: segment });
+                        setLocation(`/segment/${encodeURIComponent(segment)}`);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
+                        <SelectValue placeholder="Selecciona segmento" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                        {segments.map((segment) => (
+                          <SelectItem key={segment} value={segment}>
+                            {segment}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {globalFilter.type === "branch" && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Sucursal:</span>
+                    <Select 
+                      value={globalFilter.value || ""}
+                      onValueChange={(branch) => {
+                        setGlobalFilter({ type: "branch", value: branch });
+                        setLocation(`/branch/${encodeURIComponent(branch)}`);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm">
+                        <SelectValue placeholder="Selecciona sucursal" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200">
+                        <SelectItem value="CONCEPCION">CONCEPCION</SelectItem>
+                        <SelectItem value="SANTIAGO">SANTIAGO</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {globalFilter.type === "salesperson" && salespeople && salespeople.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">Vendedor:</span>
+                    <Select 
+                      value={globalFilter.value || ""}
+                      onValueChange={(salesperson) => {
+                        setGlobalFilter({ type: "salesperson", value: salesperson });
+                        setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
+                        <SelectValue placeholder="Selecciona vendedor" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
+                        {salespeople.map((salesperson) => (
+                          <SelectItem key={salesperson} value={salesperson}>
+                            {salesperson}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Period display */}
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-700">Período:</span>
+                  <Badge variant="secondary" className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg">
+                    {selection.display}
+                  </Badge>
+                </div>
+
                 <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
                   <DrawerTrigger asChild>
                     <Button 

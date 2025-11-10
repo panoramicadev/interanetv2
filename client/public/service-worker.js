@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v2.6.0';
+const CACHE_VERSION = 'v2.7.0';
 const CACHE_NAME = `panoramica-cache-${CACHE_VERSION}`;
 const ASSETS_CACHE = `panoramica-assets-${CACHE_VERSION}`;
 
@@ -8,7 +8,7 @@ const OFFLINE_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker v2.6.0 - Remove filter chips, use inline header design');
+  console.log('[SW] Installing service worker v2.7.0 - Add inline view selector for desktop, fix navigation to /');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching minimal offline assets');
