@@ -17417,16 +17417,18 @@ export class DatabaseStorage implements IStorage {
 
   async updateInactiveClients(): Promise<number> {
     try {
-      // Detectar clientes con última compra >45 días pero <365 días
+      // Detectar clientes con última compra >45 días pero <354 días
       const fortyFiveDaysAgo = new Date();
       fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
       
-      const oneYearAgo = new Date();
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      // Cambiar de 365 a 354 días según requerimiento
+      const threeHundredFiftyFourDaysAgo = new Date();
+      threeHundredFiftyFourDaysAgo.setDate(threeHundredFiftyFourDaysAgo.getDate() - 354);
 
       // Consulta SQL para detectar clientes inactivos desde fact_ventas
       // Incluye nokoen (cliente), noruen (segmento) y nokofu (vendedor)
-      const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+      // NUEVO: Solo incluir clientes con más de 4 ventas en los últimos 354 días
+      const threeHundredFiftyFourDaysAgoStr = threeHundredFiftyFourDaysAgo.toISOString().split('T')[0];
       const fortyFiveDaysAgoStr = fortyFiveDaysAgo.toISOString().split('T')[0];
       
       const inactiveClientsQuery = await db.execute(sql`
@@ -17438,13 +17440,15 @@ export class DatabaseStorage implements IStorage {
             MAX(fv.vabrdo) as last_purchase_amount,
             CURRENT_DATE - MAX(fv.feemdo)::date as days_since_last_purchase,
             SUM(fv.vabrdo) as total_purchases_last_year,
+            COUNT(*) as transaction_count,
             fv.noruen as segment,
             fv.nokofu as salesperson_name
           FROM ventas.fact_ventas fv
-          WHERE fv.feemdo >= ${sql.raw(`'${oneYearAgoStr}'::date`)}
+          WHERE fv.feemdo >= ${sql.raw(`'${threeHundredFiftyFourDaysAgoStr}'::date`)}
           GROUP BY fv.nokoen, fv.noruen, fv.nokofu
           HAVING MAX(fv.feemdo) < ${sql.raw(`'${fortyFiveDaysAgoStr}'::date`)}
-            AND MAX(fv.feemdo) >= ${sql.raw(`'${oneYearAgoStr}'::date`)}
+            AND MAX(fv.feemdo) >= ${sql.raw(`'${threeHundredFiftyFourDaysAgoStr}'::date`)}
+            AND COUNT(*) > 4
         )
         SELECT * FROM client_stats
         ORDER BY days_since_last_purchase DESC
