@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
   BarChart3, 
   X, 
@@ -74,6 +76,7 @@ export default function PeriodComparisonChart({ salespersonName }: Props) {
   const [showMonthSelector, setShowMonthSelector] = useState(false);
   const [selectedMonthYear, setSelectedMonthYear] = useState<number | null>(null);
   const [showDaySelector, setShowDaySelector] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<Date | undefined>(undefined);
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
 
   // Fetch comparison data for all selected periods
@@ -252,6 +255,15 @@ export default function PeriodComparisonChart({ salespersonName }: Props) {
             <Plus className="h-4 w-4 mr-1" />
             Mes
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDaySelector(!showDaySelector)}
+            data-testid="button-add-day"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Día
+          </Button>
         </div>
 
         {/* Year selector */}
@@ -316,6 +328,43 @@ export default function PeriodComparisonChart({ salespersonName }: Props) {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* Day selector */}
+        {showDaySelector && (
+          <div className="p-3 bg-gray-50 rounded-lg border">
+            <p className="text-sm font-medium mb-2">Seleccionar día:</p>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                  data-testid="button-open-day-picker"
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {selectedDay ? format(selectedDay, "PPP", { locale: es }) : <span>Elige un día</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={selectedDay}
+                  onSelect={(date) => {
+                    if (date) {
+                      setSelectedDay(date);
+                      const period = format(date, "yyyy-MM-dd");
+                      const label = format(date, "d 'de' MMMM yyyy", { locale: es });
+                      addPeriod(period, 'day', label);
+                      setShowDaySelector(false);
+                      setSelectedDay(undefined);
+                    }
+                  }}
+                  initialFocus
+                  locale={es}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         )}
 
