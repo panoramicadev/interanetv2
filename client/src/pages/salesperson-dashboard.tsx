@@ -120,7 +120,7 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: isExpanded,
+    enabled: isExpanded && !!salespersonName && salespersonName.trim().length > 0,
   });
 
   const formatCurrency = (value: number) => {
@@ -152,7 +152,11 @@ function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, on
         </div>
       </AccordionTrigger>
       <AccordionContent className="px-3 pb-3">
-        {isLoading ? (
+        {!salespersonName || salespersonName.trim().length === 0 ? (
+          <div className="text-center py-4">
+            <p className="text-xs text-gray-500">Cargando información del vendedor...</p>
+          </div>
+        ) : isLoading ? (
           <div className="text-center py-4">
             <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
             <p className="text-xs text-gray-500 mt-2">Cargando detalles...</p>
@@ -947,7 +951,7 @@ export default function SalespersonDashboard() {
                             key={idx}
                             client={client}
                             idx={idx}
-                            salespersonName={user.fullName}
+                            salespersonName={salespersonName}
                             expandedValue={expandedClients}
                             onExpandChange={setExpandedClients}
                           />
