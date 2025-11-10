@@ -1039,15 +1039,12 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
-                  <DropdownMenu 
-                    onOpenChange={(open) => console.log("🔍 [Dashboard] DropdownMenu opened:", open)}
-                  >
-                    <DropdownMenuTrigger asChild>
+                  <Popover>
+                    <PopoverTrigger asChild>
                       <Button 
                         variant="outline" 
                         className="h-9 w-48 rounded-lg border-gray-200 text-sm justify-between"
                         data-testid="filter-view-selector"
-                        onClick={() => console.log("🔍 [Dashboard] Dropdown trigger clicked")}
                       >
                         <div className="flex items-center space-x-2">
                           {globalFilter.type === "all" && (
@@ -1077,60 +1074,66 @@ export default function Dashboard() {
                         </div>
                         <Settings2 className="h-3.5 w-3.5 text-gray-400 ml-2" />
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-48 rounded-lg border-gray-200" align="start">
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          console.log("✅✅✅ [Dashboard] AAAA - Selected 'Todo el dashboard' - EVENT:", e);
-                          console.log("✅✅✅ [Dashboard] BBBB - About to call resetFilters()");
-                          resetFilters();
-                          console.log("✅✅✅ [Dashboard] CCCC - About to call setLocation()");
-                          setLocation('/dashboard');
-                          console.log("✅✅✅ [Dashboard] DDDD - About to invalidate queries");
-                          queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-                          queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
-                          console.log("✅✅✅ [Dashboard] EEEE - Completed all actions");
-                        }}
-                        data-testid="filter-view-all"
-                      >
-                        <TrendingUp className="h-3.5 w-3.5 text-gray-500 mr-2" />
-                        <span>Todo el dashboard</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          console.log("✅ [Dashboard] Selected 'Por segmento'");
-                          setGlobalFilter({ type: "segment", value: "" });
-                          window.history.replaceState({}, '', '/dashboard?filter=segment');
-                        }}
-                        data-testid="filter-view-segment"
-                      >
-                        <Building className="h-3.5 w-3.5 text-green-500 mr-2" />
-                        <span>Por segmento</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          console.log("✅ [Dashboard] Selected 'Por sucursal'");
-                          setGlobalFilter({ type: "branch", value: "" });
-                          window.history.replaceState({}, '', '/dashboard?filter=branch');
-                        }}
-                        data-testid="filter-view-branch"
-                      >
-                        <Building className="h-3.5 w-3.5 text-blue-500 mr-2" />
-                        <span>Por sucursal</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          console.log("✅ [Dashboard] Selected 'Por vendedor'");
-                          setGlobalFilter({ type: "salesperson", value: "" });
-                          window.history.replaceState({}, '', '/dashboard?filter=salesperson');
-                        }}
-                        data-testid="filter-view-salesperson"
-                      >
-                        <Users className="h-3.5 w-3.5 text-purple-500 mr-2" />
-                        <span>Por vendedor</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-48 p-1" align="start">
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          variant="ghost"
+                          className="justify-start h-9 px-2 text-sm"
+                          onClick={() => {
+                            console.log("✅ [Dashboard] CLICKED 'Todo el dashboard'");
+                            resetFilters();
+                            setLocation('/dashboard');
+                            queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+                            queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
+                          }}
+                          data-testid="filter-view-all"
+                        >
+                          <TrendingUp className="h-3.5 w-3.5 text-gray-500 mr-2" />
+                          <span>Todo el dashboard</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="justify-start h-9 px-2 text-sm"
+                          onClick={() => {
+                            console.log("✅ [Dashboard] CLICKED 'Por segmento'");
+                            setGlobalFilter({ type: "segment", value: "" });
+                            window.history.replaceState({}, '', '/dashboard?filter=segment');
+                          }}
+                          data-testid="filter-view-segment"
+                        >
+                          <Building className="h-3.5 w-3.5 text-green-500 mr-2" />
+                          <span>Por segmento</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="justify-start h-9 px-2 text-sm"
+                          onClick={() => {
+                            console.log("✅ [Dashboard] CLICKED 'Por sucursal'");
+                            setGlobalFilter({ type: "branch", value: "" });
+                            window.history.replaceState({}, '', '/dashboard?filter=branch');
+                          }}
+                          data-testid="filter-view-branch"
+                        >
+                          <Building className="h-3.5 w-3.5 text-blue-500 mr-2" />
+                          <span>Por sucursal</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="justify-start h-9 px-2 text-sm"
+                          onClick={() => {
+                            console.log("✅ [Dashboard] CLICKED 'Por vendedor'");
+                            setGlobalFilter({ type: "salesperson", value: "" });
+                            window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+                          }}
+                          data-testid="filter-view-salesperson"
+                        >
+                          <Users className="h-3.5 w-3.5 text-purple-500 mr-2" />
+                          <span>Por vendedor</span>
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 {/* Segment/Branch/Salesperson selector - shown conditionally */}
