@@ -3742,6 +3742,7 @@ export class DatabaseStorage implements IStorage {
     totalClients: number;
     transactionCount: number;
     averageTicket: number;
+    newClients: number;
     salesFrequency: number;
     daysSinceLastSale: number;
     lastSaleDate: string | null;
@@ -3839,15 +3840,88 @@ export class DatabaseStorage implements IStorage {
       ? Math.floor((now.getTime() - realLastSale.getTime()) / (1000 * 60 * 60 * 24))
       : 0;
 
+    // Calculate new clients: clients who bought from this salesperson for the first time in this period
+    let newClients = 0;
+    if (period) {
+      // Get all clients who bought in this period
+      const clientsInPeriod = await db
+        .select({
+          nokoen: factVentas.nokoen
+        })
+        .from(factVentas)
+        .where(and(...conditions))
+        .groupBy(factVentas.nokoen);
+
+      // For each client, check if they had previous purchases from this salesperson before this period
+      const periodStart = this.getPeriodStart(period, filterType);
+      
+      for (const client of clientsInPeriod) {
+        const [previousSale] = await db
+          .select({
+            count: sql<number>`COUNT(*)`
+          })
+          .from(factVentas)
+          .where(and(
+            eq(factVentas.nokofu, salespersonName),
+            eq(factVentas.nokoen, client.nokoen),
+            sql`${factVentas.tido} != 'GDV'`,
+            sql`${factVentas.feemdo} < ${periodStart}`
+          ));
+        
+        // If no previous sales, this is a new client
+        if (Number(previousSale.count) === 0) {
+          newClients++;
+        }
+      }
+    }
+
     return {
       totalSales: Number(result.totalSales),
       totalClients: Number(result.totalClients),
       transactionCount: Number(result.transactionCount),
       averageTicket: Number(result.averageTicket),
+      newClients: newClients,
       salesFrequency: Number(salesFrequency.toFixed(1)),
       daysSinceLastSale: daysSinceLastSale,
       lastSaleDate: actualLastSale.lastSale || null  // Use actual last sale, not filtered
     };
+  }
+
+  // Helper method to get period start date
+  private getPeriodStart(period: string, filterType: string): string {
+    switch (filterType) {
+      case 'day':
+        return period; // YYYY-MM-DD
+      case 'month':
+        if (period === 'current-month') {
+          const now = new Date();
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        } else if (period === 'last-month') {
+          const now = new Date();
+          const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          return `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}-01`;
+        } else {
+          return `${period}-01`; // YYYY-MM-01
+        }
+      case 'year':
+        const year = period.split('-')[0];
+        return `${year}-01-01`; // YYYY-01-01
+      case 'range':
+        if (period.includes('_')) {
+          return period.split('_')[0]; // Return start date
+        } else if (period === 'last-30-days') {
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          return thirtyDaysAgo.toISOString().split('T')[0];
+        } else if (period === 'last-7-days') {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          return sevenDaysAgo.toISOString().split('T')[0];
+        }
+        return period;
+      default:
+        return period;
+    }
   }
 
   async getSalespersonClients(salespersonName: string, period?: string, filterType: string = 'month', segment?: string): Promise<Array<{
