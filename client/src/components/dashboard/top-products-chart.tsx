@@ -190,76 +190,43 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
               <Link 
                 key={product.productName} 
                 href={`/product/${encodeURIComponent(product.productName)}`}
-                className="block hover:bg-gray-50/50 rounded-lg transition-colors"
+                className="block hover:bg-gray-50/50 rounded-lg transition-colors px-2 py-3"
               >
                 <div 
-                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
+                  className="flex flex-col space-y-2"
                   data-testid={`product-${index}`}
                 >
-                {/* Nombre del producto y monto - Mobile */}
-                <div className="flex justify-between items-center sm:hidden">
-                  <p className="text-sm text-gray-700 font-medium truncate flex-1 min-w-0 pr-2">
-                    {product.productName}
-                  </p>
-                  <div className="flex items-center space-x-2 shrink-0">
-                    <span className="text-xs text-gray-600">
-                      {product.percentage.toFixed(1)}%
-                    </span>
-                    <span className="text-sm font-semibold text-gray-900">
-                      {formatCurrency(product.totalSales)}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Desktop Layout */}
-                <div className="hidden sm:flex sm:items-center w-full">
-                  {/* Nombre del producto */}
-                  <div className="w-32 lg:w-48 flex-shrink-0">
-                    <p className="text-sm text-gray-700 font-medium truncate">
+                  {/* Nombre del producto completo */}
+                  <div className="w-full">
+                    <p className="text-sm text-gray-700 font-medium">
                       {product.productName}
                     </p>
                   </div>
                   
-                  {/* Porcentaje */}
-                  <div className="w-12 flex-shrink-0 text-center">
-                    <span className="text-sm text-gray-600">
+                  {/* Porcentaje + Barra + Monto en una sola línea */}
+                  <div className="flex items-center gap-3 w-full">
+                    {/* Porcentaje */}
+                    <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
                       {product.percentage.toFixed(1)}%
                     </span>
-                  </div>
-                  
-                  {/* Barra de progreso */}
-                  <div className="flex-1 mx-2 lg:mx-4">
-                    <div className="relative">
-                      <div className="h-6 bg-gray-100 rounded-lg overflow-hidden">
+                    
+                    {/* Barra de progreso más corta */}
+                    <div className="w-32 sm:w-48 flex-shrink-0">
+                      <div className="h-5 bg-gray-100 rounded-lg overflow-hidden">
                         <div 
                           className="h-full bg-blue-500 rounded-lg transition-all duration-500 ease-out"
                           style={{ width: `${product.percentage}%` }}
                         ></div>
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* Monto */}
-                  <div className="w-20 flex-shrink-0 text-right">
-                    <span className="text-sm font-semibold text-gray-900">
+                    
+                    {/* Monto */}
+                    <span className="text-sm font-semibold text-gray-900 flex-1 text-right">
                       {formatCurrency(product.totalSales)}
                     </span>
                   </div>
                 </div>
-                
-                {/* Barra de progreso - Mobile */}
-                <div className="sm:hidden">
-                  <div className="relative">
-                    <div className="h-3 bg-gray-100 rounded-lg overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500 rounded-lg transition-all duration-500 ease-out"
-                        style={{ width: `${product.percentage}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Link>
+              </Link>
               ))}
             </div>
             
