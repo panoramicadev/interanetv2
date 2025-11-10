@@ -11201,25 +11201,35 @@ export class DatabaseStorage implements IStorage {
         .where(whereClause)
         .orderBy(desc(nvvPendingSales.FEEMDO));
 
-      // If no records found with code from TABFU, try to get actual code from fact_ventas
+      // If no records found with code from TABFU, try to get actual code from nvv_pending_sales
       if (results.length === 0) {
         console.log(`[NVV SALESPERSON] No pending NVV found with code "${salespersonCode}" from TABFU`);
-        console.log(`[NVV SALESPERSON] Trying to find actual code from fact_ventas for: "${salespersonName}"`);
+        console.log(`[NVV SALESPERSON] Searching all NVV codes to find match for: "${salespersonName}"`);
         
-        // Get the actual KOFULIDO used by this salesperson in fact_ventas
-        const actualCodeResult = await db.execute<{ KOFULIDO: string }>(sql`
-          SELECT DISTINCT "KOFULIDO" 
-          FROM ventas.fact_ventas 
-          WHERE UPPER(TRIM("NOKOFULI")) = ${salespersonName.toUpperCase().trim()}
-          LIMIT 1
-        `);
+        // Get all distinct vendor codes from nvv_pending_sales
+        const allCodesResult = await db
+          .selectDistinct({ code: nvvPendingSales.KOFULIDO })
+          .from(nvvPendingSales)
+          .where(sql`${nvvPendingSales.KOFULIDO} IS NOT NULL AND ${nvvPendingSales.KOFULIDO} != ''`);
         
-        if (actualCodeResult.rows.length === 0) {
-          console.log(`[NVV SALESPERSON] No code found in fact_ventas for: "${salespersonName}"`);
-          return null;
+        console.log(`[NVV SALESPERSON] Found ${allCodesResult.length} distinct vendor codes in NVV`);
+        
+        // Check if any code from NVV matches this salesperson in TABFU
+        let actualCode: string | null = null;
+        for (const { code } of allCodesResult) {
+          const codeStr = String(code).trim();
+          const nameForCode = kofulidoToNameMap.get(codeStr);
+          if (nameForCode && nameForCode.toUpperCase().trim() === searchName) {
+            actualCode = codeStr;
+            console.log(`[NVV SALESPERSON] Found match! Code "${actualCode}" maps to "${nameForCode}"`);
+            break;
+          }
         }
         
-        const actualCode = String(actualCodeResult.rows[0].KOFULIDO).trim();
+        if (!actualCode) {
+          console.log(`[NVV SALESPERSON] No matching code found in NVV for: "${salespersonName}"`);
+          return null;
+        }
         console.log(`[NVV SALESPERSON] Found actual code "${actualCode}" in fact_ventas, retrying search...`);
         
         // Retry with the actual code from fact_ventas
