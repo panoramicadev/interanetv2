@@ -794,11 +794,12 @@ function LeadCard({
 
   return (
     <Card 
-      className={`overflow-hidden rounded-xl hover:shadow-lg transition-all duration-200 bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 ${!isMobile ? 'cursor-move' : ''} ${isDragging ? 'opacity-50 scale-95' : 'hover:border-gray-300 dark:hover:border-gray-600'}`} 
+      className={`overflow-hidden rounded-xl hover:shadow-lg transition-all duration-200 bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 ${!isMobile ? 'cursor-move hover:cursor-pointer' : 'cursor-pointer'} ${isDragging ? 'opacity-50 scale-95' : 'hover:border-gray-300 dark:hover:border-gray-600'}`} 
       data-testid={`card-lead-${lead.id}`}
       draggable={!isMobile}
       onDragStart={!isMobile ? handleDragStart : undefined}
       onDragEnd={!isMobile ? handleDragEnd : undefined}
+      onClick={onViewDetails}
     >
       <CardContent className={isMobile ? "p-3 space-y-2.5" : "p-4 space-y-3"}>
         {/* Header con avatar y acciones */}
@@ -822,7 +823,7 @@ function LeadCard({
                 variant="ghost" 
                 size="sm" 
                 className={`rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors ${isMobile ? 'h-8 w-8' : 'h-9 w-9'}`}
-                onClick={() => setIsEditDialogOpen(true)}
+                onClick={(e) => { e.stopPropagation(); setIsEditDialogOpen(true); }}
                 title="Editar lead"
                 data-testid={`button-edit-${lead.id}`}
               >
@@ -910,7 +911,7 @@ function LeadCard({
         {/* Botones de acción modernos */}
         <div className={`grid grid-cols-3 ${isMobile ? 'gap-1.5' : 'gap-2'}`}>
           <button
-            onClick={handleCall}
+            onClick={(e) => { e.stopPropagation(); handleCall(); }}
             disabled={!lead.clientPhone}
             className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/50 hover:from-blue-100 hover:to-blue-200/50 dark:hover:from-blue-900/30 dark:hover:to-blue-800/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-blue-50 disabled:hover:to-blue-100/50 font-semibold text-blue-700 dark:text-blue-300 shadow-sm ${isMobile ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-2 py-2 text-xs'}`}
             data-testid={`button-call-${lead.id}`}
@@ -919,7 +920,7 @@ function LeadCard({
             <span className="truncate">Llamar</span>
           </button>
           <button
-            onClick={handleWhatsApp}
+            onClick={(e) => { e.stopPropagation(); handleWhatsApp(); }}
             disabled={!lead.clientPhone}
             className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-700/50 hover:from-green-100 hover:to-green-200/50 dark:hover:from-green-900/30 dark:hover:to-green-800/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-green-50 disabled:hover:to-green-100/50 font-semibold text-green-700 dark:text-green-300 shadow-sm ${isMobile ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-2 py-2 text-xs'}`}
             data-testid={`button-whatsapp-${lead.id}`}
@@ -928,7 +929,7 @@ function LeadCard({
             <span className="truncate">WhatsApp</span>
           </button>
           <button
-            onClick={handleEmail}
+            onClick={(e) => { e.stopPropagation(); handleEmail(); }}
             disabled={!lead.clientEmail}
             className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-700/50 hover:from-purple-100 hover:to-purple-200/50 dark:hover:from-purple-900/30 dark:hover:to-purple-800/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-purple-50 disabled:hover:to-purple-100/50 font-semibold text-purple-700 dark:text-purple-300 shadow-sm ${isMobile ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-2 py-2 text-xs'}`}
             data-testid={`button-email-${lead.id}`}
@@ -940,7 +941,7 @@ function LeadCard({
 
         {/* Selector de etapa y botón de bitácora */}
         <div className={`flex ${isMobile ? 'gap-1.5' : 'gap-2'} min-w-0 overflow-hidden`}>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
             <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
               <SelectTrigger 
                 className={`w-full font-semibold rounded-lg shadow-sm ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''} ${stageBadge.textColor} border-0 ${isMobile ? 'h-8 text-[11px]' : 'h-9 text-xs'}`}
@@ -970,7 +971,7 @@ function LeadCard({
             variant="outline"
             size="sm" 
             className={`flex-shrink-0 rounded-lg transition-all font-medium shadow-sm ${isMobile ? 'h-8 px-2 text-xs' : 'h-9 px-3 text-sm'} bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700`}
-            onClick={onViewDetails}
+            onClick={(e) => { e.stopPropagation(); onViewDetails(); }}
             title="Ver detalles completos del lead"
             data-testid={`button-details-${lead.id}`}
           >
