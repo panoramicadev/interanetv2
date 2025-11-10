@@ -235,6 +235,28 @@ export default function Dashboard() {
   // Get current location from wouter
   const [currentLocation] = useLocation();
   
+  // Clean up old localStorage keys on mount (one-time cleanup)
+  useEffect(() => {
+    console.log("🧹 [Dashboard] Limpiando localStorage antiguo...");
+    
+    // Remove any old filter-related keys that might conflict
+    const keysToRemove = [
+      'dashboard-filter-type',
+      'dashboard-filter-value',
+      'dashboard-selected-view',
+      'dashboard-popover-state'
+    ];
+    
+    keysToRemove.forEach(key => {
+      if (localStorage.getItem(key)) {
+        console.log(`🗑️ [Dashboard] Eliminando key antigua: ${key}`);
+        localStorage.removeItem(key);
+      }
+    });
+    
+    console.log("✅ [Dashboard] localStorage limpio");
+  }, []); // Empty deps = run once on mount
+  
   // Read URL parameters and update filter (only when target is specified)
   useEffect(() => {
     console.log("🔍 [Dashboard] URL params effect triggered");
