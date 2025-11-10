@@ -402,11 +402,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: AlertTriangle,
     },
     {
-      href: "/marketing",
-      label: "Marketing",
-      icon: TrendingUp,
-    },
-    {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
