@@ -2022,13 +2022,14 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/sales/salesperson/:salespersonName/clients", requireAuth, async (req, res) => {
     try {
       const { salespersonName } = req.params;
-      const { period, filterType = "month", segment } = req.query;
+      const { period, filterType = "month", segment, limit } = req.query;
       
       const clients = await storage.getSalespersonClients(
         salespersonName, 
         period as string, 
         filterType as string,
-        segment as string | undefined
+        segment as string | undefined,
+        limit ? parseInt(limit as string) : undefined
       );
       res.json(clients);
     } catch (error) {
@@ -2040,13 +2041,14 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/sales/salesperson/:salespersonName/products", requireAuth, async (req, res) => {
     try {
       const { salespersonName } = req.params;
-      const { period, filterType = "month", segment } = req.query;
+      const { period, filterType = "month", segment, limit } = req.query;
       
       const products = await storage.getSalespersonProducts(
         salespersonName, 
         period as string, 
         filterType as string,
-        segment as string | undefined
+        segment as string | undefined,
+        limit ? parseInt(limit as string) : undefined
       );
       res.json(products);
     } catch (error) {
