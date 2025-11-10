@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { UserCheck, Download } from "lucide-react";
+import { UserCheck, Download, Search, X } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface TopSalesperson {
   salesperson: string;
@@ -13,6 +13,13 @@ interface TopSalesperson {
 interface TopSalespeopleResponse {
   items: TopSalesperson[];
   periodTotalSales: number;
+  totalCount: number;
+}
+
+interface SearchSalesperson {
+  name: string;
+  totalSales: number;
+  transactionCount: number;
 }
 
 interface TopSalespeoplePanelProps {
@@ -23,13 +30,33 @@ interface TopSalespeoplePanelProps {
 }
 
 export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson }: TopSalespeoplePanelProps) {
-  const [displayedCount, setDisplayedCount] = useState(10); // Start with 10 salespeople
+  const [limit, setLimit] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  // Debounce search term
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+  
+  // Focus input when expanded
+  useEffect(() => {
+    if (isSearchExpanded && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchExpanded]);
   
   const { data: topSalespeopleResponse, isLoading } = useQuery<TopSalespeopleResponse>({
-    queryKey: ['/api/sales/top-salespeople', 'all', selectedPeriod, filterType, segment, salesperson],
+    queryKey: ['/api/sales/top-salespeople', limit, selectedPeriod, filterType, segment, salesperson],
     queryFn: async () => {
       const params = new URLSearchParams();
-      // No enviamos límite para obtener TODOS los vendedores
+      params.append('limit', limit.toString());
       params.append('period', selectedPeriod);
       params.append('filterType', filterType);
       if (segment) params.append('segment', segment);
@@ -38,10 +65,30 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
+    enabled: !debouncedSearchTerm, // Only fetch when not searching
+  });
+
+  const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchSalesperson[]>({
+    queryKey: ['/api/salespeople/search', debouncedSearchTerm, selectedPeriod, filterType, segment],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('q', debouncedSearchTerm);
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (segment) params.append('segment', segment);
+      const res = await fetch(`/api/salespeople/search?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: debouncedSearchTerm.length >= 2,
   });
 
   const topSalespeople = topSalespeopleResponse?.items;
   const periodTotal = topSalespeopleResponse?.periodTotalSales || 0;
+
+  const displaySalespeople = debouncedSearchTerm
+    ? searchResults?.map(sp => ({ salesperson: sp.name, totalSales: sp.totalSales, transactionCount: sp.transactionCount }))
+    : topSalespeople;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -52,10 +99,24 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
   };
 
   // Calculate percentages based on period total
-  const salespeopleWithPercentage = topSalespeople?.map(salesperson => ({
-    ...salesperson,
-    percentage: periodTotal > 0 ? (salesperson.totalSales / periodTotal) * 100 : 0
+  const salespeopleWithPercentage = displaySalespeople?.map(sp => ({
+    ...sp,
+    percentage: periodTotal > 0 ? (sp.totalSales / periodTotal) * 100 : 0
   }));
+
+  const handleLoadMore = () => {
+    setLimit(prev => prev + 10);
+  };
+
+  const handleSearchClick = () => {
+    setIsSearchExpanded(true);
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm("");
+    setDebouncedSearchTerm("");
+    setIsSearchExpanded(false);
+  };
 
   const exportToCSV = () => {
     if (!salespeopleWithPercentage || salespeopleWithPercentage.length === 0) return;
@@ -118,6 +179,11 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
             <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
           </div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Vendedores</h2>
+          {topSalespeopleResponse && (
+            <span className="text-sm text-gray-500">
+              {topSalespeopleResponse.totalCount} resultados
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -145,166 +211,157 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
       </div>
       
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
-        {isLoading ? (
+        {/* Search Bar */}
+        <div className="mb-4">
+          {!isSearchExpanded ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSearchClick}
+              className="text-gray-500 hover:text-gray-700"
+              data-testid="button-search-salespeople"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          ) : (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar vendedor..."
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                data-testid="input-search-salespeople"
+              />
+              {searchTerm && (
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  data-testid="button-clear-search-salespeople"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {(isLoading || isSearchLoading) ? (
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center justify-between animate-pulse">
+              <div key={i} className="flex items-center justify-between animate-pulse py-3">
                 <div className="h-4 bg-gray-200 rounded w-32"></div>
                 <div className="h-4 bg-gray-200 rounded w-12"></div>
                 <div className="flex-1 mx-4">
-                  <div className="h-6 bg-gray-200 rounded"></div>
+                  <div className="h-2 bg-gray-200 rounded-full"></div>
                 </div>
                 <div className="h-4 bg-gray-200 rounded w-16"></div>
               </div>
             ))}
           </div>
+        ) : salespeopleWithPercentage && salespeopleWithPercentage.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-sm">
+              {debouncedSearchTerm ? 'No se encontraron vendedores' : 'No hay datos disponibles'}
+            </p>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {salespeopleWithPercentage?.slice(0, displayedCount).map((salesperson, index) => (
+          <>
+            <div className="space-y-4 transition-all duration-300 ease-in-out">
+              {salespeopleWithPercentage?.map((sp, index) => (
               <Link 
-                key={salesperson.salesperson} 
-                href={`/salesperson/${encodeURIComponent(salesperson.salesperson)}`}
-                className="block hover:bg-gray-50/50 rounded-lg transition-colors"
+                key={sp.salesperson} 
+                href={`/salesperson/${encodeURIComponent(sp.salesperson)}`}
+                className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3"
+                data-testid={`salesperson-${index}`}
               >
-                <div 
-                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
-                  data-testid={`salesperson-${index}`}
-                >
-                  {/* Nombre del vendedor y monto - Mobile */}
-                  <div className="flex flex-col gap-2 sm:hidden">
-                    <p className="text-sm text-gray-700 font-medium break-words line-clamp-2">
-                      {salesperson.salesperson}
+                <div className="flex items-center gap-3">
+                  {/* Nombre del vendedor */}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-gray-700 font-medium truncate">
+                      {sp.salesperson}
                     </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-600">
-                        {salesperson.percentage.toFixed(1)}%
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(salesperson.totalSales)}
-                      </span>
+                  </div>
+                  
+                  {/* Porcentaje */}
+                  <div className="w-12 flex-shrink-0 text-right">
+                    <span className="text-xs text-gray-600">
+                      {sp.percentage.toFixed(1)}%
+                    </span>
+                  </div>
+                  
+                  {/* Barra de progreso */}
+                  <div className="w-24 sm:w-32 flex-shrink-0">
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${Math.min(sp.percentage, 100)}%` }}
+                      ></div>
                     </div>
                   </div>
                   
-                  {/* Desktop Layout */}
-                  <div className="hidden sm:flex sm:items-center w-full">
-                    {/* Nombre del vendedor */}
-                    <div className="w-32 lg:w-48 flex-shrink-0">
-                      <p className="text-sm text-gray-700 font-medium truncate">
-                        {salesperson.salesperson}
-                      </p>
-                    </div>
-                    
-                    {/* Porcentaje */}
-                    <div className="w-12 flex-shrink-0 text-center">
-                      <span className="text-sm text-gray-600">
-                        {salesperson.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                    
-                    {/* Barra de progreso */}
-                    <div className="flex-1 mx-2 lg:mx-4">
-                      <div className="relative">
-                        <div className="h-6 bg-gray-100 rounded-lg overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-500 rounded-lg transition-all duration-500 ease-out"
-                            style={{ width: `${salesperson.percentage}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Monto */}
-                    <div className="w-20 flex-shrink-0 text-right">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(salesperson.totalSales)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Barra de progreso - Mobile */}
-                  <div className="sm:hidden">
-                    <div className="relative">
-                      <div className="h-3 bg-gray-100 rounded-lg overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 rounded-lg transition-all duration-500 ease-out"
-                          style={{ width: `${salesperson.percentage}%` }}
-                        ></div>
-                      </div>
-                    </div>
+                  {/* Monto */}
+                  <div className="w-24 flex-shrink-0 text-right">
+                    <span className="text-sm font-semibold text-gray-900">
+                      {formatCurrency(sp.totalSales)}
+                    </span>
                   </div>
                 </div>
               </Link>
-            ))}
+              ))}
+            </div>
             
-            {/* Ver más button */}
-            {salespeopleWithPercentage && displayedCount < salespeopleWithPercentage.length && (
-              <div className="text-center pt-2">
+            {/* Botón Ver más - solo si no hay búsqueda activa y hay más vendedores */}
+            {!debouncedSearchTerm && topSalespeopleResponse && displaySalespeople && displaySalespeople.length < topSalespeopleResponse.totalCount && (
+              <div className="flex justify-center pt-4 border-t border-gray-200">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setDisplayedCount(prev => Math.min(prev + 10, salespeopleWithPercentage.length))}
-                  className="text-xs px-4 py-2"
-                  data-testid="button-see-more-salespeople"
+                  onClick={handleLoadMore}
+                  className="text-xs px-6 transition-all duration-200 ease-in-out hover:scale-105"
+                  data-testid="button-load-more-salespeople"
                 >
-                  Ver más ({displayedCount} de {salespeopleWithPercentage.length})
+                  Ver más ({displaySalespeople.length} de {topSalespeopleResponse.totalCount})
                 </Button>
               </div>
             )}
             
-            {/* Total Row */}
-            {salespeopleWithPercentage && salespeopleWithPercentage.length > 0 && (
+            {/* Total Row - solo si no hay búsqueda activa */}
+            {!debouncedSearchTerm && salespeopleWithPercentage && salespeopleWithPercentage.length > 0 && (
               <div className="border-t-2 border-gray-300 pt-3 mt-4">
                 <div 
-                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0 bg-green-50 rounded-lg px-3"
+                  className="flex items-center py-3 bg-green-50 rounded-lg px-3"
                   data-testid="salespeople-total"
                 >
-                  {/* Total Mobile */}
-                  <div className="flex flex-col gap-2 sm:hidden">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm text-green-900 font-bold">
                       TOTAL ({salespeopleWithPercentage.length} vendedores)
                     </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-green-700">
-                        100.0%
-                      </span>
-                      <span className="text-sm font-bold text-green-900">
-                        {formatCurrency(periodTotal)}
-                      </span>
+                  </div>
+                  
+                  <div className="w-12 flex-shrink-0 text-right">
+                    <span className="text-xs text-green-700 font-semibold">
+                      100.0%
+                    </span>
+                  </div>
+                  
+                  <div className="w-24 sm:w-32 flex-shrink-0">
+                    <div className="h-2 bg-green-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-green-600 rounded-full w-full"></div>
                     </div>
                   </div>
                   
-                  {/* Total Desktop */}
-                  <div className="hidden sm:flex sm:items-center w-full">
-                    <div className="w-32 lg:w-48 flex-shrink-0">
-                      <p className="text-sm text-green-900 font-bold">
-                        TOTAL ({salespeopleWithPercentage.length} vendedores)
-                      </p>
-                    </div>
-                    
-                    <div className="w-12 flex-shrink-0 text-center">
-                      <span className="text-sm text-green-700 font-semibold">
-                        100.0%
-                      </span>
-                    </div>
-                    
-                    <div className="flex-1 mx-2 lg:mx-4">
-                      <div className="relative">
-                        <div className="h-6 bg-green-200 rounded-lg overflow-hidden">
-                          <div className="h-full bg-green-600 rounded-lg w-full"></div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="w-20 flex-shrink-0 text-right">
-                      <span className="text-sm font-bold text-green-900">
-                        {formatCurrency(periodTotal)}
-                      </span>
-                    </div>
+                  <div className="w-24 flex-shrink-0 text-right">
+                    <span className="text-sm font-bold text-green-900">
+                      {formatCurrency(periodTotal)}
+                    </span>
                   </div>
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
