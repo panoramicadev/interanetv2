@@ -1080,12 +1080,16 @@ export default function Dashboard() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-48 rounded-lg border-gray-200" align="start">
                       <DropdownMenuItem
-                        onSelect={() => {
-                          console.log("✅ [Dashboard] Selected 'Todo el dashboard'");
+                        onSelect={(e) => {
+                          console.log("✅✅✅ [Dashboard] AAAA - Selected 'Todo el dashboard' - EVENT:", e);
+                          console.log("✅✅✅ [Dashboard] BBBB - About to call resetFilters()");
                           resetFilters();
+                          console.log("✅✅✅ [Dashboard] CCCC - About to call setLocation()");
                           setLocation('/dashboard');
+                          console.log("✅✅✅ [Dashboard] DDDD - About to invalidate queries");
                           queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
                           queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
+                          console.log("✅✅✅ [Dashboard] EEEE - Completed all actions");
                         }}
                         data-testid="filter-view-all"
                       >
