@@ -578,6 +578,7 @@ export interface IStorage {
     totalClients: number;
     transactionCount: number;
     averageTicket: number;
+    newClients: number; // clientes que compraron por primera vez al vendedor en el período
     salesFrequency: number; // days between sales (average)
     daysSinceLastSale: number; // actual days since last sale
     lastSaleDate: string | null; // date of last sale
