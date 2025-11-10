@@ -3380,7 +3380,7 @@ export default function TomadorPedidos() {
     {isMobile ? (
       <Sheet open={showQuoteBuilder} onOpenChange={setShowQuoteBuilder}>
         <SheetContent side="bottom" className="h-screen p-0">
-          <SheetHeader className="p-4 pb-2 border-b">
+          <SheetHeader className="p-4 pb-2 border-b" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
             <SheetTitle className="flex items-center gap-2">
               <Calculator className="w-5 h-5" />
               Constructor de Presupuesto
