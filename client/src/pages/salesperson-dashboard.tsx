@@ -478,7 +478,7 @@ export default function SalespersonDashboard() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
-                  Dashboard Vendedor - {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
+                  Hola, {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
                 </h1>
                 <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
                   Panel de control personalizado para gestión de ventas
