@@ -406,6 +406,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Rendición de Gastos",
       icon: Banknote,
     },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
+    },
     // Tintometría oculta temporalmente para vendedores
     // {
     //   href: "/tintometria",
