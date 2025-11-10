@@ -434,7 +434,7 @@ export default function SucursalDetail({
                   onValueChange={(value: "all" | "segmento" | "sucursal" | "vendedor") => {
                     setSelectedView(value);
                     if (value === "all") {
-                      setLocation('/dashboard');
+                      setLocation('/');
                     }
                     // Note: segmento option will show a selector below for choosing specific segment
                   }}
