@@ -526,6 +526,26 @@ export interface IStorage {
     }>;
   }>;
   
+  // Lead-specific recommendations for CRM
+  fetchLeadRecommendations(leadId: string, salesperson: string, clientName: string): Promise<{
+    clientActivity: {
+      isInactive: boolean;
+      daysSinceLastPurchase: number | null;
+      lastPurchaseAmount: number | null;
+      totalHistoricalSales: number | null;
+    };
+    isSeasonal: boolean;
+    expectedPurchaseDate: string | null;
+    averagePurchaseAmount: number | null;
+    purchasePattern: string | null;
+    trendingProducts: Array<{
+      productName: string;
+      recentSales: number;
+      growthRate: number;
+      recommendation: string;
+    }>;
+  }>;
+  
   // Sales data for goals comparison
   getGlobalSalesForPeriod(period: string): Promise<number>;
   getSegmentSalesForPeriod(segment: string, period: string): Promise<number>;
@@ -5305,104 +5325,17 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getSalespersonSmartNotifications(salesperson: string): Promise<{
-    inactiveClients: Array<{
-      clientName: string;
-      daysSinceLastPurchase: number;
-      lastPurchaseAmount: number;
-      totalHistoricalSales: number;
-    }>;
-    seasonalClients: Array<{
-      clientName: string;
-      expectedPurchaseDate: string;
-      averagePurchaseAmount: number;
-      purchasePattern: string;
-    }>;
-    trendingProducts: Array<{
-      productName: string;
-      recentSales: number;
-      growthRate: number;
-      recommendation: string;
-    }>;
-  }> {
-    const today = new Date();
-    const currentMonth = today.getMonth() + 1;
-    const currentDay = today.getDate();
-    
-    // 1. Clientes inactivos (30+ días sin comprar)
-    const inactiveClientsData = await db
-      .select({
-        clientName: factVentas.nokoen,
-        lastPurchaseDate: sql<string>`MAX(${factVentas.feemdo})`,
-        lastPurchaseAmount: sql<number>`COALESCE((
-          SELECT CAST(monto AS NUMERIC)
-          FROM sales_transactions st2
-          WHERE st2.nokoen = sales_transactions.nokoen
-            AND st2.nokofu = ${salesperson}
-          ORDER BY st2.feemdo DESC
-          LIMIT 1
-        ), 0)`,
-        totalHistoricalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`
-      })
-      .from(factVentas)
-      .where(and(
-        eq(factVentas.nokofu, salesperson),
-        sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`
-      ))
-      .groupBy(factVentas.nokoen)
-      .having(sql`MAX(${factVentas.feemdo}) < CURRENT_DATE - INTERVAL '30 days'`)
-      .orderBy(sql`MAX(${factVentas.feemdo}) DESC`)
-      .limit(10);
+  // ==================================================================================
+  // SHARED ANALYTICS HELPERS - Reusable helpers for smart notifications
+  // ==================================================================================
 
-    const inactiveClients = inactiveClientsData.map(client => {
-      const lastPurchaseDate = new Date(client.lastPurchaseDate);
-      const daysSinceLastPurchase = Math.floor((today.getTime() - lastPurchaseDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      return {
-        clientName: client.clientName || '',
-        daysSinceLastPurchase,
-        lastPurchaseAmount: Number(client.lastPurchaseAmount || 0),
-        totalHistoricalSales: Number(client.totalHistoricalSales)
-      };
-    });
-
-    // 2. Clientes que compran frecuentemente en esta época del año
-    const seasonalClientsData = await db
-      .select({
-        clientName: factVentas.nokoen,
-        purchaseMonth: sql<number>`EXTRACT(MONTH FROM ${factVentas.feemdo}::date)`,
-        purchaseDay: sql<number>`EXTRACT(DAY FROM ${factVentas.feemdo}::date)`,
-        avgAmount: sql<number>`AVG(CAST(${factVentas.monto} AS NUMERIC))`,
-        transactionCount: sql<number>`COUNT(*)`
-      })
-      .from(factVentas)
-      .where(and(
-        eq(factVentas.nokofu, salesperson),
-        sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
-        sql`EXTRACT(MONTH FROM ${factVentas.feemdo}::date) = ${currentMonth}`
-      ))
-      .groupBy(factVentas.nokoen, sql`EXTRACT(MONTH FROM ${factVentas.feemdo}::date)`, sql`EXTRACT(DAY FROM ${factVentas.feemdo}::date)`)
-      .having(sql`COUNT(*) >= 2`)
-      .orderBy(sql`COUNT(*) DESC`)
-      .limit(10);
-
-    const seasonalClients = seasonalClientsData.map(client => {
-      const dayDiff = Math.abs(Number(client.purchaseDay) - currentDay);
-      let purchasePattern = 'Compra mensual';
-      
-      if (dayDiff <= 5) {
-        purchasePattern = `Suele comprar a principios/mediados de ${format(new Date(2024, currentMonth - 1, 1), 'MMMM', { locale: es })}`;
-      }
-      
-      return {
-        clientName: client.clientName || '',
-        expectedPurchaseDate: `${currentDay}/${currentMonth}/${today.getFullYear()}`,
-        averagePurchaseAmount: Number(client.avgAmount),
-        purchasePattern
-      };
-    });
-
-    // 3. Productos en tendencia (crecimiento en últimos 30 días vs 30-60 días anteriores)
+  private async _getTrendingProductsForSalesperson(salesperson: string, limit: number = 10): Promise<Array<{
+    productName: string;
+    recentSales: number;
+    growthRate: number;
+    recommendation: string;
+  }>> {
+    // Get recent product sales (last 30 days)
     const recentProductSales = await db
       .select({
         productName: factVentas.nokoprct,
@@ -5416,6 +5349,7 @@ export class DatabaseStorage implements IStorage {
       ))
       .groupBy(factVentas.nokoprct);
 
+    // Get previous product sales (30-60 days ago)
     const previousProductSales = await db
       .select({
         productName: factVentas.nokoprct,
@@ -5430,6 +5364,7 @@ export class DatabaseStorage implements IStorage {
       ))
       .groupBy(factVentas.nokoprct);
 
+    // Calculate trends and growth rates
     const productTrends = recentProductSales.map(recent => {
       const previous = previousProductSales.find(p => p.productName === recent.productName);
       const previousSalesValue = Number(previous?.previousSales || 0);
@@ -5451,9 +5386,10 @@ export class DatabaseStorage implements IStorage {
     })
     .filter(p => p.growthRate > 10 && p.recentSales > 0)
     .sort((a, b) => b.growthRate - a.growthRate)
-    .slice(0, 10);
+    .slice(0, limit);
 
-    const trendingProducts = productTrends.map(product => {
+    // Map to final format with recommendations
+    return productTrends.map(product => {
       let recommendation = '';
       if (product.growthRate > 50) {
         recommendation = 'Alta demanda - Recomendar a clientes activos';
@@ -5470,10 +5406,214 @@ export class DatabaseStorage implements IStorage {
         recommendation
       };
     });
+  }
+
+  private async _getInactiveClientsForSalesperson(salesperson: string, clientName?: string): Promise<Array<{
+    clientName: string;
+    daysSinceLastPurchase: number;
+    lastPurchaseAmount: number;
+    totalHistoricalSales: number;
+  }>> {
+    const today = new Date();
+    
+    const conditions = [
+      eq(factVentas.nokofu, salesperson),
+      sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`
+    ];
+    
+    // If specific client requested, filter by name
+    if (clientName) {
+      conditions.push(eq(factVentas.nokoen, clientName));
+    }
+    
+    const inactiveClientsData = await db
+      .select({
+        clientName: factVentas.nokoen,
+        lastPurchaseDate: sql<string>`MAX(${factVentas.feemdo})`,
+        lastPurchaseAmount: sql<number>`COALESCE((
+          SELECT CAST(monto AS NUMERIC)
+          FROM sales_transactions st2
+          WHERE st2.nokoen = sales_transactions.nokoen
+            AND st2.nokofu = ${salesperson}
+          ORDER BY st2.feemdo DESC
+          LIMIT 1
+        ), 0)`,
+        totalHistoricalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`
+      })
+      .from(factVentas)
+      .where(and(...conditions))
+      .groupBy(factVentas.nokoen)
+      .having(sql`MAX(${factVentas.feemdo}) < CURRENT_DATE - INTERVAL '30 days'`)
+      .orderBy(sql`MAX(${factVentas.feemdo}) DESC`)
+      .limit(clientName ? 1 : 10); // If specific client, return 1; otherwise top 10
+
+    return inactiveClientsData.map(client => {
+      const lastPurchaseDate = new Date(client.lastPurchaseDate);
+      const daysSinceLastPurchase = Math.floor((today.getTime() - lastPurchaseDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      return {
+        clientName: client.clientName || '',
+        daysSinceLastPurchase,
+        lastPurchaseAmount: Number(client.lastPurchaseAmount || 0),
+        totalHistoricalSales: Number(client.totalHistoricalSales)
+      };
+    });
+  }
+
+  private async _getSeasonalPatternsForSalesperson(salesperson: string, clientName?: string): Promise<Array<{
+    clientName: string;
+    expectedPurchaseDate: string;
+    averagePurchaseAmount: number;
+    purchasePattern: string;
+  }>> {
+    const today = new Date();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+    
+    const conditions = [
+      eq(factVentas.nokofu, salesperson),
+      sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
+      sql`EXTRACT(MONTH FROM ${factVentas.feemdo}::date) = ${currentMonth}`
+    ];
+    
+    // If specific client requested, filter by name
+    if (clientName) {
+      conditions.push(eq(factVentas.nokoen, clientName));
+    }
+    
+    const seasonalClientsData = await db
+      .select({
+        clientName: factVentas.nokoen,
+        purchaseMonth: sql<number>`EXTRACT(MONTH FROM ${factVentas.feemdo}::date)`,
+        purchaseDay: sql<number>`EXTRACT(DAY FROM ${factVentas.feemdo}::date)`,
+        avgAmount: sql<number>`AVG(CAST(${factVentas.monto} AS NUMERIC))`,
+        transactionCount: sql<number>`COUNT(*)`
+      })
+      .from(factVentas)
+      .where(and(...conditions))
+      .groupBy(factVentas.nokoen, sql`EXTRACT(MONTH FROM ${factVentas.feemdo}::date)`, sql`EXTRACT(DAY FROM ${factVentas.feemdo}::date)`)
+      .having(sql`COUNT(*) >= 2`)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(clientName ? 1 : 10);
+
+    return seasonalClientsData.map(client => {
+      const dayDiff = Math.abs(Number(client.purchaseDay) - currentDay);
+      let purchasePattern = 'Compra mensual';
+      
+      if (dayDiff <= 5) {
+        purchasePattern = `Suele comprar a principios/mediados de ${format(new Date(2024, currentMonth - 1, 1), 'MMMM', { locale: es })}`;
+      }
+      
+      return {
+        clientName: client.clientName || '',
+        expectedPurchaseDate: `${currentDay}/${currentMonth}/${today.getFullYear()}`,
+        averagePurchaseAmount: Number(client.avgAmount),
+        purchasePattern
+      };
+    });
+  }
+
+  // ==================================================================================
+  // END OF SHARED ANALYTICS HELPERS
+  // ==================================================================================
+
+  async getSalespersonSmartNotifications(salesperson: string): Promise<{
+    inactiveClients: Array<{
+      clientName: string;
+      daysSinceLastPurchase: number;
+      lastPurchaseAmount: number;
+      totalHistoricalSales: number;
+    }>;
+    seasonalClients: Array<{
+      clientName: string;
+      expectedPurchaseDate: string;
+      averagePurchaseAmount: number;
+      purchasePattern: string;
+    }>;
+    trendingProducts: Array<{
+      productName: string;
+      recentSales: number;
+      growthRate: number;
+      recommendation: string;
+    }>;
+  }> {
+    // Use shared helpers to get all notifications
+    const [inactiveClients, seasonalClients, trendingProducts] = await Promise.all([
+      this._getInactiveClientsForSalesperson(salesperson),
+      this._getSeasonalPatternsForSalesperson(salesperson),
+      this._getTrendingProductsForSalesperson(salesperson, 10)
+    ]);
 
     return {
       inactiveClients,
       seasonalClients,
+      trendingProducts
+    };
+  }
+
+  async fetchLeadRecommendations(leadId: string, salesperson: string, clientName: string): Promise<{
+    clientActivity: {
+      isInactive: boolean;
+      daysSinceLastPurchase: number | null;
+      lastPurchaseAmount: number | null;
+      totalHistoricalSales: number | null;
+    };
+    isSeasonal: boolean;
+    expectedPurchaseDate: string | null;
+    averagePurchaseAmount: number | null;
+    purchasePattern: string | null;
+    trendingProducts: Array<{
+      productName: string;
+      recentSales: number;
+      growthRate: number;
+      recommendation: string;
+    }>;
+  }> {
+    // Use shared helpers to get data for specific client
+    const [inactiveClients, seasonalClients, trendingProducts] = await Promise.all([
+      this._getInactiveClientsForSalesperson(salesperson, clientName),
+      this._getSeasonalPatternsForSalesperson(salesperson, clientName),
+      this._getTrendingProductsForSalesperson(salesperson, 5)
+    ]);
+
+    // Map inactive client data to clientActivity format
+    let clientActivity = {
+      isInactive: false,
+      daysSinceLastPurchase: null as number | null,
+      lastPurchaseAmount: null as number | null,
+      totalHistoricalSales: null as number | null,
+    };
+
+    if (inactiveClients.length > 0) {
+      const inactive = inactiveClients[0];
+      clientActivity = {
+        isInactive: true,
+        daysSinceLastPurchase: inactive.daysSinceLastPurchase,
+        lastPurchaseAmount: inactive.lastPurchaseAmount,
+        totalHistoricalSales: inactive.totalHistoricalSales,
+      };
+    }
+
+    // Map seasonal client data to flat format
+    let isSeasonal = false;
+    let expectedPurchaseDate = null as string | null;
+    let averagePurchaseAmount = null as number | null;
+    let purchasePattern = null as string | null;
+
+    if (seasonalClients.length > 0) {
+      const seasonal = seasonalClients[0];
+      isSeasonal = true;
+      expectedPurchaseDate = seasonal.expectedPurchaseDate;
+      averagePurchaseAmount = seasonal.averagePurchaseAmount;
+      purchasePattern = seasonal.purchasePattern;
+    }
+
+    return {
+      clientActivity,
+      isSeasonal,
+      expectedPurchaseDate,
+      averagePurchaseAmount,
+      purchasePattern,
       trendingProducts
     };
   }
