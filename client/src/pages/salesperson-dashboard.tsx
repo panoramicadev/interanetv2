@@ -87,6 +87,128 @@ interface SalespersonSegment {
 
 type ClientData = any; // Can be refined later if needed
 
+// Component for expandable client details
+function ClientDetailAccordion({ client, idx, salespersonName, expandedValue, onExpandChange }: { 
+  client: any; 
+  idx: number; 
+  salespersonName: string;
+  expandedValue: string[];
+  onExpandChange: (value: string[]) => void;
+}) {
+  const clientValue = `client-${idx}`;
+  const isExpanded = expandedValue.includes(clientValue);
+  
+  const { data: purchaseDetails, isLoading } = useQuery<{
+    lastPurchaseId: string;
+    lastPurchaseDate: string;
+    lastPurchaseAmount: number;
+    products: Array<{
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      totalAmount: number;
+    }>;
+  } | null>({
+    queryKey: ['/api/sales/salesperson', salespersonName, 'client-purchase-details', client.clientName],
+    queryFn: async () => {
+      const encodedClientName = encodeURIComponent(client.clientName);
+      const encodedSalesperson = encodeURIComponent(salespersonName);
+      const res = await fetch(
+        `/api/sales/salesperson/${encodedSalesperson}/client-purchase-details/${encodedClientName}`,
+        { credentials: 'include' }
+      );
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: isExpanded,
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("es-CL", {
+      style: "currency",
+      currency: "CLP",
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  return (
+    <AccordionItem value={clientValue} className="border rounded-lg bg-white/60">
+      <AccordionTrigger className="px-3 py-2 hover:no-underline">
+        <div className="flex items-start justify-between w-full pr-2">
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900 text-sm truncate text-left">
+              {client.clientName}
+            </p>
+            <p className="text-xs text-gray-600 text-left">
+              {client.daysSinceLastPurchase} días sin comprar
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-600">Última compra</p>
+            <p className="font-semibold text-sm text-orange-700">
+              {formatCurrency(client.lastPurchaseAmount)}
+            </p>
+          </div>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent className="px-3 pb-3">
+        {isLoading ? (
+          <div className="text-center py-4">
+            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
+            <p className="text-xs text-gray-500 mt-2">Cargando detalles...</p>
+          </div>
+        ) : purchaseDetails ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <p className="text-gray-600">Fecha última compra:</p>
+                <p className="font-semibold text-gray-900">
+                  {format(new Date(purchaseDetails.lastPurchaseDate), "dd/MM/yyyy", { locale: es })}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-600">ID Pedido:</p>
+                <p className="font-semibold text-gray-900">{purchaseDetails.lastPurchaseId}</p>
+              </div>
+            </div>
+            
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-gray-700 mb-2">Productos comprados:</p>
+              {purchaseDetails.products && purchaseDetails.products.length > 0 ? (
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {purchaseDetails.products.map((product: any, pIdx: number) => (
+                    <div 
+                      key={pIdx} 
+                      className="flex justify-between items-start text-xs bg-white/80 rounded p-2"
+                    >
+                      <div className="flex-1 min-w-0 pr-2">
+                        <p className="font-medium text-gray-900 truncate">{product.productName || 'Sin nombre'}</p>
+                        <p className="text-gray-600">Cantidad: {product.quantity || 0}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900">
+                          {formatCurrency(product.totalAmount || 0)}
+                        </p>
+                        <p className="text-gray-600 text-xs">
+                          {formatCurrency(product.unitPrice || 0)}/u
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 text-center py-2">No hay productos registrados</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 text-center py-2">No se pudieron cargar los detalles</p>
+        )}
+      </AccordionContent>
+    </AccordionItem>
+  );
+}
+
 export default function SalespersonDashboard() {
   const { user, isAuthenticated, isLoading } = useAuth() as { user: (User & { salespersonName?: string }) | null; isAuthenticated: boolean; isLoading: boolean };
   const { toast } = useToast();
@@ -146,6 +268,9 @@ export default function SalespersonDashboard() {
   
   // Promesas week selector
   const [selectedPromesaWeek, setSelectedPromesaWeek] = useState<Date>(() => new Date());
+  
+  // Expanded client details accordion state
+  const [expandedClients, setExpandedClients] = useState<string[]>([]);
   
   // Reset client search when dialog closes
   useEffect(() => {
@@ -810,30 +935,23 @@ export default function SalespersonDashboard() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-3">
-                      <div className="space-y-2">
-                        {smartNotifications.inactiveClients.slice(0, 10).map((client: any, idx: number) => (
-                          <div 
+                      <Accordion 
+                        type="multiple" 
+                        className="space-y-2"
+                        value={expandedClients}
+                        onValueChange={setExpandedClients}
+                      >
+                        {smartNotifications.inactiveClients.map((client: any, idx: number) => (
+                          <ClientDetailAccordion
                             key={idx}
-                            className="bg-white/60 rounded-lg p-3 border border-orange-200"
-                            data-testid={`inactive-client-${idx}`}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-gray-900 text-sm truncate">{client.clientName}</p>
-                                <p className="text-xs text-gray-600">
-                                  {client.daysSinceLastPurchase} días sin comprar
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-xs text-gray-600">Última compra</p>
-                                <p className="font-semibold text-sm text-orange-700">
-                                  {formatCurrency(client.lastPurchaseAmount)}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
+                            client={client}
+                            idx={idx}
+                            salespersonName={user.fullName}
+                            expandedValue={expandedClients}
+                            onExpandChange={setExpandedClients}
+                          />
                         ))}
-                      </div>
+                      </Accordion>
                     </AccordionContent>
                   </AccordionItem>
                 )}
