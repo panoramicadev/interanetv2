@@ -7978,6 +7978,38 @@ export function registerRoutes(app: Express): Server {
     res.json(nvvData);
   }));
 
+  // Get NVV for a specific salesperson
+  app.get('/api/nvv/salesperson/:name', requireAuth, asyncHandler(async (req: any, res: any) => {
+    const salespersonName = decodeURIComponent(req.params.name);
+    const { period, filterType } = req.query;
+
+    // Get date range for filtering if provided
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    
+    if (period && filterType) {
+      const dateRange = getDateRange(period as string, filterType as string);
+      // Convert string dates to Date objects
+      if (dateRange.startDate) {
+        startDate = new Date(dateRange.startDate);
+      }
+      if (dateRange.endDate) {
+        endDate = new Date(dateRange.endDate);
+      }
+    }
+
+    const nvvData = await storage.getSalespersonNvv(salespersonName, {
+      startDate,
+      endDate
+    });
+
+    if (!nvvData) {
+      return res.status(404).json({ error: 'Vendedor no encontrado o sin NVV pendientes' });
+    }
+
+    res.json(nvvData);
+  }));
+
   // Get total pending NVV amount
   app.get('/api/nvv/total-pending', requireAuth, asyncHandler(async (req: any, res: any) => {
     const total = await storage.getTotalPendingNVV();

@@ -11104,6 +11104,134 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getSalespersonNvv(salespersonName: string, options?: {
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{
+    salespersonCode: string;
+    salespersonName: string;
+    totalAmount: number;
+    totalUnits: number;
+    totalOrders: number;
+    records: Array<{
+      id: string;
+      NUDO: string;
+      TIDO: string;
+      FEEMDO: string;
+      ENDO: string;
+      NOKOEN: string;
+      NOKOPR: string;
+      KOPRCT: string;
+      CAPREX2: number;
+      CAPRCO2: number;
+      PPPRNE: number;
+      cantidadPendiente: number;
+      totalPendiente: number;
+    }>;
+  } | null> {
+    try {
+      // Get salesperson names map from SQL Server
+      const kofulidoToNameMap = await this.getVendorNamesMap();
+      
+      // Find the KOFULIDO code for this salesperson name
+      let salespersonCode: string | null = null;
+      for (const [code, name] of kofulidoToNameMap.entries()) {
+        if (name.toUpperCase().trim() === salespersonName.toUpperCase().trim()) {
+          salespersonCode = code;
+          break;
+        }
+      }
+
+      if (!salespersonCode) {
+        console.log(`[NVV SALESPERSON] No code found for salesperson: "${salespersonName}"`);
+        return null;
+      }
+
+      const conditions = [];
+      
+      // Filter by salesperson code
+      conditions.push(sql`UPPER(TRIM(${nvvPendingSales.KOFULIDO})) = ${salespersonCode.toUpperCase()}`);
+
+      // Add date filters if provided
+      if (options?.startDate && options.startDate instanceof Date && !isNaN(options.startDate.getTime())) {
+        conditions.push(sql`${nvvPendingSales.FEEMDO} >= ${options.startDate.toISOString().split('T')[0]}`);
+      }
+      if (options?.endDate && options.endDate instanceof Date && !isNaN(options.endDate.getTime())) {
+        conditions.push(sql`${nvvPendingSales.FEEMDO} <= ${options.endDate.toISOString().split('T')[0]}`);
+      }
+
+      const whereClause = and(...conditions);
+      
+      const results = await db
+        .select({
+          id: nvvPendingSales.id,
+          NUDO: nvvPendingSales.NUDO,
+          TIDO: nvvPendingSales.TIDO,
+          FEEMDO: nvvPendingSales.FEEMDO,
+          ENDO: nvvPendingSales.ENDO,
+          NOKOEN: nvvPendingSales.NOKOEN,
+          NOKOPR: nvvPendingSales.NOKOPR,
+          KOPRCT: nvvPendingSales.KOPRCT,
+          KOFULIDO: nvvPendingSales.KOFULIDO,
+          CAPREX2: nvvPendingSales.CAPREX2,
+          CAPRCO2: nvvPendingSales.CAPRCO2,
+          PPPRNE: nvvPendingSales.PPPRNE,
+          cantidadPendiente: nvvPendingSales.cantidadPendiente,
+          totalPendiente: nvvPendingSales.totalPendiente
+        })
+        .from(nvvPendingSales)
+        .where(whereClause)
+        .orderBy(desc(nvvPendingSales.FEEMDO));
+
+      // Return null if no records found
+      if (results.length === 0) {
+        console.log(`[NVV SALESPERSON] No pending NVV found for salesperson: "${salespersonName}"`);
+        return null;
+      }
+
+      // Aggregate totals
+      let totalAmount = 0;
+      let totalUnits = 0;
+      let totalOrders = results.length;
+
+      const records = results.map(row => {
+        const pendiente = Number(row.totalPendiente) || 0;
+        const unidades = Number(row.cantidadPendiente) || 0;
+        
+        totalAmount += pendiente;
+        totalUnits += unidades;
+
+        return {
+          id: row.id,
+          NUDO: row.NUDO || '',
+          TIDO: row.TIDO || '',
+          FEEMDO: row.FEEMDO?.toString() || '',
+          ENDO: row.ENDO || '',
+          NOKOEN: row.NOKOEN || '',
+          NOKOPR: row.NOKOPR || '',
+          KOPRCT: row.KOPRCT || '',
+          CAPREX2: Number(row.CAPREX2) || 0,
+          CAPRCO2: Number(row.CAPRCO2) || 0,
+          PPPRNE: Number(row.PPPRNE) || 0,
+          cantidadPendiente: unidades,
+          totalPendiente: pendiente
+        };
+      });
+
+      return {
+        salespersonCode,
+        salespersonName,
+        totalAmount,
+        totalUnits,
+        totalOrders,
+        records
+      };
+    } catch (error) {
+      console.error('Error getting salesperson NVV:', error);
+      return null;
+    }
+  }
+
   async getTotalPendingNVV(): Promise<number> {
     try {
       const result = await db
