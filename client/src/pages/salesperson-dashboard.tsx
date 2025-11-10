@@ -515,7 +515,7 @@ export default function SalespersonDashboard() {
           <GoalsProgress
             globalFilter={{ type: 'salesperson', value: salespersonName }}
             selectedPeriod={selectedPeriod}
-            goalsData={goalsData?.map(goal => ({ ...goal, target: goal.target ?? null, percentage: goal.progress }))}
+            goalsData={goalsData?.map(goal => ({ ...goal, target: goal.target ?? null, percentage: goal.progress ?? 0 }))}
             isLoading={loadingGoals}
           />
 

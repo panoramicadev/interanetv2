@@ -236,10 +236,10 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                     </div>
                     <div className="text-right">
                       <div className={`text-2xl font-bold ${
-                        goal.percentage >= 100 ? 'text-emerald-600' : 
-                        goal.percentage >= 70 ? 'text-amber-600' : 'text-rose-600'
+                        (goal.percentage ?? 0) >= 100 ? 'text-emerald-600' : 
+                        (goal.percentage ?? 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
                       }`}>
-                        {goal.percentage.toFixed(1)}%
+                        {(goal.percentage ?? 0).toFixed(1)}%
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
                     </div>
@@ -265,10 +265,10 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                     <div
                       className={`h-3 rounded-full transition-all duration-500 ${
-                        goal.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
-                        goal.percentage >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                        (goal.percentage ?? 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                        (goal.percentage ?? 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
                       }`}
-                      style={{ width: `${Math.min(goal.percentage, 100)}%` }}
+                      style={{ width: `${Math.min(goal.percentage ?? 0, 100)}%` }}
                     />
                   </div>
                 </div>
@@ -302,10 +302,10 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                     </div>
                     <div className="text-right">
                       <div className={`text-2xl font-bold ${
-                        goal.percentage >= 100 ? 'text-emerald-600' : 
-                        goal.percentage >= 70 ? 'text-amber-600' : 'text-rose-600'
+                        (goal.percentage ?? 0) >= 100 ? 'text-emerald-600' : 
+                        (goal.percentage ?? 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
                       }`}>
-                        {goal.percentage.toFixed(1)}%
+                        {(goal.percentage ?? 0).toFixed(1)}%
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Logrado</p>
                     </div>
@@ -331,10 +331,10 @@ export default function GoalsProgress({ globalFilter, selectedPeriod, goalsData,
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
                     <div
                       className={`h-3 rounded-full transition-all duration-500 ${
-                        goal.percentage >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
-                        goal.percentage >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
+                        (goal.percentage ?? 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
+                        (goal.percentage ?? 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
                       }`}
-                      style={{ width: `${Math.min(goal.percentage, 100)}%` }}
+                      style={{ width: `${Math.min(goal.percentage ?? 0, 100)}%` }}
                     />
                   </div>
                 </div>
