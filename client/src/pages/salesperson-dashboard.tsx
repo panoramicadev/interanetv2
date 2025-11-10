@@ -442,12 +442,16 @@ export default function SalespersonDashboard() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CL', {
+    return new Intl.NumberFormat('de-DE', {
       style: 'currency',
       currency: 'CLP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount).replace('CLP', '$');
+  };
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('de-DE').format(num);
   };
 
   // Format selected period for display
@@ -550,7 +554,7 @@ export default function SalespersonDashboard() {
                         <div className="text-right">
                           <p className="text-xs text-gray-600">Ventas</p>
                           <p className="text-sm font-semibold text-blue-700">
-                            {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(segment.totalSales)}
+                            {formatCurrency(segment.totalSales)}
                           </p>
                         </div>
                       </div>
@@ -735,7 +739,7 @@ export default function SalespersonDashboard() {
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold text-cyan-900">
-                    ${(nvvPendingData.total || 0).toLocaleString()}
+                    {formatCurrency(nvvPendingData.total || 0)}
                   </div>
                   <p className="text-xs text-gray-600">{nvvPendingData.documentCount} docs</p>
                 </div>
@@ -761,7 +765,7 @@ export default function SalespersonDashboard() {
                       <div className="text-right">
                         <p className="text-xs text-gray-600">Pendiente</p>
                         <p className="font-semibold text-sm text-cyan-700">
-                          ${client.totalPending.toLocaleString()}
+                          {formatCurrency(client.totalPending)}
                         </p>
                       </div>
                     </div>
@@ -818,7 +822,7 @@ export default function SalespersonDashboard() {
                           <div className="text-right">
                             <p className="text-xs text-gray-600">Última compra</p>
                             <p className="font-semibold text-sm text-orange-700">
-                              ${client.lastPurchaseAmount.toLocaleString()}
+                              {formatCurrency(client.lastPurchaseAmount)}
                             </p>
                           </div>
                         </div>
@@ -850,7 +854,7 @@ export default function SalespersonDashboard() {
                           <div className="text-right">
                             <p className="text-xs text-gray-600">Promedio</p>
                             <p className="font-semibold text-sm text-blue-700">
-                              ${client.averagePurchaseAmount.toLocaleString()}
+                              {formatCurrency(client.averagePurchaseAmount)}
                             </p>
                           </div>
                         </div>
@@ -911,7 +915,7 @@ export default function SalespersonDashboard() {
                     Ventas Totales
                   </p>
                   <div className="text-3xl font-bold text-emerald-900 mb-1" data-testid="text-ventas-totales">
-                    ${salesData.totalSales.toLocaleString()}
+                    {formatCurrency(salesData.totalSales)}
                   </div>
                   <p className="text-xs text-emerald-600">
                     Este período
@@ -999,7 +1003,7 @@ export default function SalespersonDashboard() {
                     Ticket Promedio
                   </p>
                   <div className="text-3xl font-bold text-indigo-900 mb-1" data-testid="text-ticket-promedio">
-                    ${salesData.avgTicket.toLocaleString()}
+                    {formatCurrency(salesData.avgTicket)}
                   </div>
                   <p className="text-xs text-indigo-600">
                     Por transacción
@@ -1012,22 +1016,22 @@ export default function SalespersonDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-teal-50/80 to-teal-100/50" data-testid="card-productividad">
+          <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-teal-50/80 to-teal-100/50" data-testid="card-clientes-nuevos">
             <CardContent className="pt-6 pb-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <p className="text-sm font-medium text-teal-700 mb-2">
-                    Productividad
+                    Clientes Nuevos
                   </p>
-                  <div className="text-3xl font-bold text-teal-900 mb-1" data-testid="text-productividad">
-                    {(salesData.productivity || 0).toFixed(1)}
+                  <div className="text-3xl font-bold text-teal-900 mb-1" data-testid="text-clientes-nuevos">
+                    {salespersonData?.newClients || 0}
                   </div>
                   <p className="text-xs text-teal-600">
-                    trans/cliente
+                    Este período
                   </p>
                 </div>
                 <div className="bg-teal-500 rounded-2xl p-3 shadow-sm">
-                  <TrendingUp className="h-6 w-6 text-white" />
+                  <Users className="h-6 w-6 text-white" />
                 </div>
               </div>
             </CardContent>
@@ -1160,7 +1164,7 @@ export default function SalespersonDashboard() {
                           <div className="text-center">
                             <p className="text-gray-500 text-xs">Ventas Totales</p>
                             <p className="font-bold text-blue-600" data-testid={`client-sales-${index}`}>
-                              ${(client.totalSales || 0).toLocaleString()}
+                              {formatCurrency(client.totalSales || 0)}
                             </p>
                           </div>
                           
@@ -1174,7 +1178,7 @@ export default function SalespersonDashboard() {
                           <div className="text-center">
                             <p className="text-gray-500 text-xs">Ticket Prom.</p>
                             <p className="font-bold text-purple-600">
-                              ${((client.totalSales || 0) / (client.transactionCount || 1)).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              {formatCurrency((client.totalSales || 0) / (client.transactionCount || 1))}
                             </p>
                           </div>
                           
