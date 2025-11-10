@@ -5792,7 +5792,7 @@ export class DatabaseStorage implements IStorage {
     // Get products from last purchase
     const products = await db
       .select({
-        productName: factVentas.nokopr,
+        productName: factVentas.nokoprct,
         quantity: factVentas.caprco1,
         unitPrice: factVentas.ppprbr,
         totalAmount: factVentas.monto
