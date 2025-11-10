@@ -3599,21 +3599,21 @@ export default function TomadorPedidos() {
                             <div className="space-y-3">
                               <div>
                                 <div className="flex items-start justify-between mb-2">
-                                  <div className="flex-1 min-w-0 space-y-1.5">
-                                    <h4 className="font-medium text-sm leading-5 truncate">
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-medium text-sm leading-5 truncate mb-1">
                                       {product.producto}
                                     </h4>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-xs text-muted-foreground mb-1">
                                       SKU: {product.codigo}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mb-1.5">
+                                      Unidad: {product.unidad}
                                     </p>
                                     {renderStockBadge(product.codigo)}
                                   </div>
                                   <div className="text-right ml-2">
                                     <p className="font-bold text-green-600">
                                       {formatCurrency(Number(product.lista) || 0)}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {product.unidad}
                                     </p>
                                   </div>
                                 </div>
@@ -4107,13 +4107,10 @@ export default function TomadorPedidos() {
                                 data-testid={`modal-product-${product.codigo}`}
                               >
                                 <div className="flex justify-between items-start">
-                                  <div className="flex-1 space-y-1.5">
-                                    <div className="flex items-center gap-2">
-                                      <Badge variant="secondary" className="text-xs">
-                                        {product.codigo}
-                                      </Badge>
-                                      {renderStockBadge(product.codigo)}
-                                    </div>
+                                  <div className="flex-1 space-y-1">
+                                    <Badge variant="secondary" className="text-xs w-fit">
+                                      {product.codigo}
+                                    </Badge>
                                     <h4 className="font-medium text-sm">
                                       <Link
                                         href={`/product/${encodeURIComponent(product.producto || '')}`}
@@ -4127,6 +4124,7 @@ export default function TomadorPedidos() {
                                     <p className="text-xs text-muted-foreground">
                                       Unidad: {product.unidad || "N/A"}
                                     </p>
+                                    {renderStockBadge(product.codigo)}
                                   </div>
                                   <div className="text-right flex-1">
                                     <div className="space-y-2">
