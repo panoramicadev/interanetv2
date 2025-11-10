@@ -16,6 +16,7 @@ import SalesChart from "@/components/dashboard/sales-chart";
 import TransactionsTable from "@/components/dashboard/transactions-table";
 import TopProductsChart from "@/components/dashboard/top-products-chart";
 import NotificationsPanel from "@/components/dashboard/notifications-panel";
+import GoalsProgress from "@/components/dashboard/goals-progress";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { useFilter } from "@/contexts/FilterContext";
 import { SalespersonClientsPanel, SalespersonProductsPanel } from "@/components/salesperson/engagement-panels";
@@ -75,6 +76,12 @@ interface SalespersonDashboardData {
   clientCount?: number;
   daysSinceLastSale?: number;
   productivity?: number;
+}
+
+interface SalespersonSegment {
+  segment: string;
+  totalSales: number;
+  percentage: number;
 }
 
 type ClientData = any; // Can be refined later if needed
@@ -272,6 +279,19 @@ export default function SalespersonDashboard() {
       params.append('type', 'salesperson');
       params.append('target', salespersonName || '');
       const res = await fetch(`/api/goals/progress?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && !isLoadingSalespeopleFallback,
+  });
+
+  const { data: segments = [], isLoading: loadingSegments } = useQuery<SalespersonSegment[]>({
+    queryKey: ['/api/sales/salesperson', salespersonName, 'segments', selectedPeriod, filterType],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      const res = await fetch(`/api/sales/salesperson/${encodeURIComponent(salespersonName)}/segments?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
@@ -487,56 +507,60 @@ export default function SalespersonDashboard() {
         {/* Contenido Principal */}
         <main className="px-4 lg:px-6 pb-6 space-y-6">
         
-        {/* Progreso de Meta Principal - Solo si hay metas */}
-        {primaryGoal && (
-          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
-            <CardContent className="pt-6 pb-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-emerald-500 rounded-full p-3">
-                      <Target className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">Meta de Ventas</h3>
-                      <p className="text-sm text-gray-600">{primaryGoal.description || getCurrentMonthLabel()}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`text-3xl font-bold ${
-                      (primaryGoal.progress || 0) >= 100 ? 'text-emerald-600' : 
-                      (primaryGoal.progress || 0) >= 70 ? 'text-amber-600' : 'text-rose-600'
-                    }`}>
-                      {(primaryGoal.progress || 0).toFixed(1)}%
-                    </div>
-                    <p className="text-xs text-gray-600 mt-1">Logrado</p>
-                  </div>
+        <section className="space-y-6" data-testid="section-goals-and-segments">
+          <GoalsProgress
+            globalFilter={{ type: 'salesperson', value: salespersonName }}
+            selectedPeriod={selectedPeriod}
+            goalsData={goalsData?.map(goal => ({ ...goal, target: goal.target ?? null, percentage: goal.progress }))}
+            isLoading={loadingGoals}
+          />
+
+          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-50" data-testid="card-segment-sales">
+            <CardHeader className="p-4 sm:p-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-500 rounded-full p-2 sm:p-3">
+                  <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
-                
-                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                  <div
-                    className={`h-4 rounded-full transition-all duration-500 ${
-                      (primaryGoal.progress || 0) >= 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 
-                      (primaryGoal.progress || 0) >= 70 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
-                    }`}
-                    style={{ width: `${Math.min(primaryGoal.progress || 0, 100)}%` }}
-                  ></div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div className="bg-white/60 rounded-xl p-3">
-                    <p className="text-xs text-gray-600 mb-1">Ventas Actuales</p>
-                    <p className="text-xl font-bold text-gray-900">${(primaryGoal.currentSales || 0).toLocaleString()}</p>
-                  </div>
-                  <div className="bg-white/60 rounded-xl p-3">
-                    <p className="text-xs text-gray-600 mb-1">Meta</p>
-                    <p className="text-xl font-bold text-gray-900">${(primaryGoal.targetAmount || 0).toLocaleString()}</p>
-                  </div>
+                <div>
+                  <CardTitle className="text-base sm:text-lg font-bold text-gray-900">Ventas por Segmento</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm text-gray-600">
+                    Distribución de ventas del período seleccionado
+                  </CardDescription>
                 </div>
               </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 pt-0">
+              {loadingSegments ? (
+                <p className="text-sm text-gray-500" data-testid="text-segments-loading">Cargando segmentos...</p>
+              ) : segments.length === 0 ? (
+                <p className="text-sm text-gray-500" data-testid="text-segments-empty">Sin datos de segmentos para este período.</p>
+              ) : (
+                <div className="space-y-3">
+                  {segments.map((segment) => (
+                    <div
+                      key={segment.segment}
+                      className="border border-blue-200 bg-blue-50/60 rounded-xl p-3 sm:p-4"
+                      data-testid={`row-segment-${segment.segment}`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{segment.segment}</p>
+                          <p className="text-xs text-gray-600">{segment.percentage.toFixed(1)}% del total</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-600">Ventas</p>
+                          <p className="text-sm font-semibold text-blue-700">
+                            {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(segment.totalSales)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
-        )}
+        </section>
 
         {/* Promesas de Compra Semanales */}
         <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50/80 via-violet-50/60 to-purple-100/40" data-testid="card-promesas-compra">
