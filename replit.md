@@ -27,6 +27,10 @@ Preferred communication style: Simple, everyday language.
 - **File Storage**: Replit Object Storage
 - **Authentication**: Passport.js Local Strategy with bcrypt, HTTP-only cookies, and CSRF protection
 - **Authorization**: Role-based access control (Admin, Supervisor, Salesperson, Técnico de Obra, Client, departmental roles)
+  - **3-Layer Security for Salesperson Data** (Nov 2025):
+    1. **Frontend Guard**: Redirects salespeople from salesperson-detail view to salesperson-dashboard (prevents UI navigation to other salespeople)
+    2. **Frontend UI**: Hides Vista and Vendedor dropdowns for salesperson role (prevents manual route changes)
+    3. **Backend Middleware**: `requireOwnDataOrAdmin` enforces allowlist (admin, supervisor, or matching salesperson only) with normalized string comparison (decodeURIComponent, trim, lowercase) on all 18 endpoints accepting `:salespersonName` parameter. Other roles (marketing, client, técnico) are explicitly denied.
 
 ### Database
 - **Database**: PostgreSQL (Neon serverless)
