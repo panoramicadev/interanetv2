@@ -2376,6 +2376,19 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get client last purchase details for salesperson
+  app.get("/api/sales/salesperson/:salespersonName/client-purchase-details/:clientName", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
+    try {
+      const { salespersonName, clientName } = req.params;
+      
+      const details = await storage.getClientLastPurchaseDetails(salespersonName, clientName);
+      res.json(details);
+    } catch (error) {
+      console.error("Error fetching client purchase details:", error);
+      res.status(500).json({ message: "Failed to fetch client purchase details" });
+    }
+  });
+
   // Get available vendors for supervisor to claim
   app.get("/api/supervisor/:supervisorId/available-vendors", requireAuth, async (req, res) => {
     try {

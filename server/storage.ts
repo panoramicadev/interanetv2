@@ -531,6 +531,7 @@ export interface IStorage {
       daysSinceLastPurchase: number;
       lastPurchaseAmount: number;
       totalHistoricalSales: number;
+      lastPurchaseId: string;
     }>;
     seasonalClients: Array<{
       clientName: string;
@@ -545,6 +546,18 @@ export interface IStorage {
       recommendation: string;
     }>;
   }>;
+
+  getClientLastPurchaseDetails(salesperson: string, clientName: string): Promise<{
+    lastPurchaseId: string;
+    lastPurchaseDate: string;
+    lastPurchaseAmount: number;
+    products: Array<{
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      totalAmount: number;
+    }>;
+  } | null>;
   
   // Lead-specific recommendations for CRM
   fetchLeadRecommendations(leadId: string, salesperson: string, clientName: string): Promise<{
@@ -5573,6 +5586,7 @@ export class DatabaseStorage implements IStorage {
     daysSinceLastPurchase: number;
     lastPurchaseAmount: number;
     totalHistoricalSales: number;
+    lastPurchaseId: string;
   }>> {
     const today = new Date();
     
@@ -5593,15 +5607,24 @@ export class DatabaseStorage implements IStorage {
       .select({
         clientName: factVentas.nokoen,
         lastPurchaseDate: sql<string>`MAX(${factVentas.feemdo})`,
-        lastPurchaseAmount: sql<number>`COALESCE((
-          SELECT CAST(st2.monto AS NUMERIC)
+        lastPurchaseId: sql<string>`(
+          SELECT st2.idmaeedo
           FROM ventas.fact_ventas st2
-          WHERE st2.nokoen = ${factVentas.nokoen}
+          WHERE st2.nokoen = fact_ventas.nokoen
             AND st2.nokofu = ${salesperson}
             AND st2.tido != 'GDV'
           ORDER BY st2.feemdo DESC
           LIMIT 1
-        ), 0)`,
+        )`,
+        lastPurchaseAmount: sql<number>`(
+          SELECT CAST(st2.monto AS NUMERIC)
+          FROM ventas.fact_ventas st2
+          WHERE st2.nokoen = fact_ventas.nokoen
+            AND st2.nokofu = ${salesperson}
+            AND st2.tido != 'GDV'
+          ORDER BY st2.feemdo DESC
+          LIMIT 1
+        )`,
         totalHistoricalSales: sql<number>`COALESCE(SUM(CAST(${factVentas.monto} AS NUMERIC)), 0)`
       })
       .from(factVentas)
@@ -5614,8 +5637,7 @@ export class DatabaseStorage implements IStorage {
           THEN 1 
           END) >= 4
       `)
-      .orderBy(sql`MAX(${factVentas.feemdo}) DESC`)
-      .limit(clientName ? 1 : 10); // If specific client, return 1; otherwise top 10
+      .orderBy(sql`MAX(${factVentas.feemdo}) DESC`);
 
     return inactiveClientsData.map(client => {
       const lastPurchaseDate = new Date(client.lastPurchaseDate);
@@ -5625,7 +5647,8 @@ export class DatabaseStorage implements IStorage {
         clientName: client.clientName || '',
         daysSinceLastPurchase,
         lastPurchaseAmount: Number(client.lastPurchaseAmount || 0),
-        totalHistoricalSales: Number(client.totalHistoricalSales)
+        totalHistoricalSales: Number(client.totalHistoricalSales),
+        lastPurchaseId: client.lastPurchaseId || ''
       };
     });
   }
@@ -5697,6 +5720,7 @@ export class DatabaseStorage implements IStorage {
       daysSinceLastPurchase: number;
       lastPurchaseAmount: number;
       totalHistoricalSales: number;
+      lastPurchaseId: string;
     }>;
     seasonalClients: Array<{
       clientName: string;
@@ -5722,6 +5746,64 @@ export class DatabaseStorage implements IStorage {
       inactiveClients,
       seasonalClients,
       trendingProducts
+    };
+  }
+
+  async getClientLastPurchaseDetails(salesperson: string, clientName: string): Promise<{
+    lastPurchaseId: string;
+    lastPurchaseDate: string;
+    lastPurchaseAmount: number;
+    products: Array<{
+      productName: string;
+      quantity: number;
+      unitPrice: number;
+      totalAmount: number;
+    }>;
+  } | null> {
+    // Get last purchase info
+    const lastPurchaseInfo = await db
+      .select({
+        idmaeedo: factVentas.idmaeedo,
+        feemdo: factVentas.feemdo,
+        monto: factVentas.monto
+      })
+      .from(factVentas)
+      .where(and(
+        eq(factVentas.nokofu, salesperson),
+        eq(factVentas.nokoen, clientName),
+        sql`${factVentas.tido} != 'GDV'`
+      ))
+      .orderBy(sql`${factVentas.feemdo} DESC`)
+      .limit(1);
+
+    if (lastPurchaseInfo.length === 0) {
+      return null;
+    }
+
+    const lastPurchase = lastPurchaseInfo[0];
+
+    // Get products from last purchase
+    const products = await db
+      .select({
+        productName: factVentas.nokopr,
+        quantity: factVentas.caprco1,
+        unitPrice: factVentas.ppprbr,
+        totalAmount: factVentas.monto
+      })
+      .from(factVentas)
+      .where(eq(factVentas.idmaeedo, lastPurchase.idmaeedo))
+      .orderBy(sql`CAST(${factVentas.monto} AS NUMERIC) DESC`);
+
+    return {
+      lastPurchaseId: lastPurchase.idmaeedo,
+      lastPurchaseDate: lastPurchase.feemdo,
+      lastPurchaseAmount: Number(lastPurchase.monto),
+      products: products.map(p => ({
+        productName: p.productName || '',
+        quantity: Number(p.quantity || 0),
+        unitPrice: Number(p.unitPrice || 0),
+        totalAmount: Number(p.totalAmount || 0)
+      }))
     };
   }
 
