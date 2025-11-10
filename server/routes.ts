@@ -1529,6 +1529,39 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Salespeople search endpoint (AJAX autocomplete)
+  app.get('/api/salespeople/search', requireAuth, async (req, res) => {
+    try {
+      const { q, period, filterType, segment } = req.query;
+      
+      if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        return res.json([]);
+      }
+      
+      const searchTerm = q.trim().toLowerCase();
+      
+      // Get date range if period is provided
+      let startDate, endDate;
+      if (period && filterType) {
+        const dateRange = getDateRange(period as string, filterType as string);
+        startDate = dateRange.startDate;
+        endDate = dateRange.endDate;
+      }
+      
+      const results = await storage.searchSalespeople(
+        searchTerm,
+        startDate,
+        endDate,
+        segment as string
+      );
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching salespeople:", error);
+      res.status(500).json({ message: "Failed to search salespeople" });
+    }
+  });
+
   // Top products endpoint
   app.get('/api/sales/top-products', requireAuth, async (req, res) => {
     try {

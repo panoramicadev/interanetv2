@@ -322,7 +322,13 @@ export interface IStorage {
       transactionCount: number;
     }>;
     periodTotalSales: number;
+    totalCount: number;
   }>;
+  searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string): Promise<Array<{
+    name: string;
+    totalSales: number;
+    transactionCount: number;
+  }>>;
   getTopProducts(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
     items: Array<{
       productName: string;
@@ -2023,6 +2029,7 @@ export class DatabaseStorage implements IStorage {
       transactionCount: number;
     }>;
     periodTotalSales: number;
+    totalCount: number;
   }> {
     const conditions = [
       sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`,
@@ -2041,10 +2048,18 @@ export class DatabaseStorage implements IStorage {
     
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     
-    // Get period total sales (exclude GDV with status 'C')
+    // Get period total sales
     const [totalResult] = await db
       .select({
         total: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+      })
+      .from(factVentas)
+      .where(whereClause);
+    
+    // Get total count of unique salespeople
+    const [countResult] = await db
+      .select({
+        count: sql<number>`COUNT(DISTINCT ${factVentas.nokofu})`,
       })
       .from(factVentas)
       .where(whereClause);
@@ -2068,7 +2083,50 @@ export class DatabaseStorage implements IStorage {
         transactionCount: Number(r.transactionCount),
       })),
       periodTotalSales: Number(totalResult.total),
+      totalCount: Number(countResult.count),
     };
+  }
+
+  async searchSalespeople(searchTerm: string, startDate?: string, endDate?: string, segment?: string): Promise<Array<{
+    name: string;
+    totalSales: number;
+    transactionCount: number;
+  }>> {
+    const conditions = [
+      sql`LOWER(${factVentas.nokofu}) LIKE ${`%${searchTerm.toLowerCase()}%`}`,
+      sql`${factVentas.nokofu} IS NOT NULL AND ${factVentas.nokofu} != ''`,
+      sql`${factVentas.tido} != 'GDV'`
+    ];
+    
+    if (startDate) {
+      conditions.push(sql`${factVentas.feemdo} >= ${startDate}::date`);
+    }
+    if (endDate) {
+      conditions.push(sql`${factVentas.feemdo} <= ${endDate}::date`);
+    }
+    if (segment) {
+      conditions.push(eq(factVentas.noruen, segment));
+    }
+    
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    const results = await db
+      .select({
+        name: factVentas.nokofu,
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokofu)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+      .limit(50);
+
+    return results.map(r => ({
+      name: r.name || '',
+      totalSales: Number(r.totalSales),
+      transactionCount: Number(r.transactionCount),
+    }));
   }
 
   async getTopProducts(limit = 10, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
