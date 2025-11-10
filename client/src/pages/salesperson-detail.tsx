@@ -396,6 +396,9 @@ export default function SalespersonDetail({
   // Product accordion expansion state
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
+  // Client products list expansion state
+  const [expandedClientProducts, setExpandedClientProducts] = useState<string | null>(null);
+
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1733,7 +1736,10 @@ export default function SalespersonDetail({
                                         Productos Vendidos ({clientDetails.products.length})
                                       </h3>
                                       <div className="space-y-3">
-                                        {clientDetails.products.slice(0, 5).map((product, idx) => {
+                                        {(expandedClientProducts === expandedClient 
+                                          ? clientDetails.products 
+                                          : clientDetails.products.slice(0, 5)
+                                        ).map((product, idx) => {
                                           const productPercentage = clientDetails.totalSales > 0 
                                             ? (product.totalSales / clientDetails.totalSales) * 100 
                                             : 0;
@@ -1762,9 +1768,18 @@ export default function SalespersonDetail({
                                           );
                                         })}
                                         {clientDetails.products.length > 5 && (
-                                          <p className="text-xs text-gray-500 text-center pt-2">
-                                            +{clientDetails.products.length - 5} productos más
-                                          </p>
+                                          <button
+                                            onClick={() => setExpandedClientProducts(
+                                              expandedClientProducts === expandedClient ? null : expandedClient
+                                            )}
+                                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline text-center pt-2 w-full transition-colors"
+                                            data-testid="button-toggle-client-products"
+                                          >
+                                            {expandedClientProducts === expandedClient 
+                                              ? 'Ver menos' 
+                                              : `+${clientDetails.products.length - 5} productos más`
+                                            }
+                                          </button>
                                         )}
                                       </div>
                                     </div>
