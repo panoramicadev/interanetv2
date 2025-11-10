@@ -40,6 +40,7 @@ import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
 import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp";
+import { VIEW_OPTIONS, type ViewKey } from "@/constants/views";
 
 interface YearMonthSelection {
   years: number[];
@@ -1066,7 +1067,7 @@ export default function Dashboard() {
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
                   <Select 
                     value={globalFilter.type}
-                    onValueChange={(value: "all" | "segment" | "branch" | "salesperson") => {
+                    onValueChange={(value: ViewKey) => {
                       if (value === "all") {
                         setGlobalFilter({ type: "all" });
                         setLocation('/');
@@ -1083,30 +1084,14 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                      <SelectItem value="all">
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
-                          <span>Todo el dashboard</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="segment">
-                        <div className="flex items-center gap-2">
-                          <Building className="h-3.5 w-3.5 text-green-500" />
-                          <span>Por segmento</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="branch">
-                        <div className="flex items-center gap-2">
-                          <Building className="h-3.5 w-3.5 text-blue-500" />
-                          <span>Por sucursal</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="salesperson">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-3.5 w-3.5 text-purple-500" />
-                          <span>Por vendedor</span>
-                        </div>
-                      </SelectItem>
+                      {VIEW_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="flex items-center gap-2">
+                            <option.icon className={`h-3.5 w-3.5 ${option.iconColor}`} />
+                            <span>{option.label}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
