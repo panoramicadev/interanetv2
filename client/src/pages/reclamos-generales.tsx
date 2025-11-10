@@ -1253,39 +1253,33 @@ export default function ReclamosGeneralesPage() {
             </CardContent>
           </Card>
 
-          {/* Filter Tabs */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Vista</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs value={filterTab} onValueChange={setFilterTab} className="w-full">
-                <TabsList className="w-full flex-wrap h-auto gap-2 bg-muted/50 p-2">
-                  {getAvailableTabs().map((tab) => {
-                    const Icon = tab.icon;
-                    const count = getTabCount(tab.value);
-                    return (
-                      <TabsTrigger
-                        key={tab.value}
-                        value={tab.value}
-                        data-testid={`tab-filter-${tab.value}`}
-                        className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+          {/* Filter Tabs - Modernized */}
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+            <Tabs value={filterTab} onValueChange={setFilterTab} className="w-full">
+              <TabsList className="w-full justify-start h-auto gap-0 bg-transparent p-0 border-b border-gray-200 dark:border-gray-800 rounded-none">
+                {getAvailableTabs().map((tab) => {
+                  const Icon = tab.icon;
+                  const count = getTabCount(tab.value);
+                  return (
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      data-testid={`tab-filter-${tab.value}`}
+                      className="relative flex items-center gap-2 px-6 py-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-primary/5 data-[state=active]:text-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200"
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="font-medium">{tab.label}</span>
+                      <span 
+                        className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
                       >
-                        <Icon className="h-4 w-4" />
-                        <span>{tab.label}</span>
-                        <Badge 
-                          variant="secondary" 
-                          className="ml-1 bg-background/80 text-foreground data-[state=active]:bg-primary-foreground/20"
-                        >
-                          {count}
-                        </Badge>
-                      </TabsTrigger>
-                    );
-                  })}
-                </TabsList>
-              </Tabs>
-            </CardContent>
-          </Card>
+                        {count}
+                      </span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </Tabs>
+          </div>
 
           {/* Reclamos list */}
           <Card>
