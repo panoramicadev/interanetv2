@@ -21,6 +21,7 @@ import SegmentDetail from "@/pages/segment-detail";
 import SucursalDetail from "@/pages/sucursal-detail";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeKPICards from "@/components/dashboard/comparative-kpi-cards";
+import ComparativeAccumulatedTotal from "@/components/dashboard/comparative-accumulated-total";
 import ComparativeSegmentTable from "@/components/dashboard/comparative-segment-table";
 import ComparativeSalespeopleTable from "@/components/dashboard/comparative-salespeople-table";
 import ComparativeProductsTable from "@/components/dashboard/comparative-products-table";
@@ -1191,13 +1192,12 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* Resumen Comparativo Section */}
-              <div className="bg-white border rounded-lg p-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Modo Comparativo</h2>
-                <div className="text-sm text-gray-600 mb-4">
-                  Comparando datos de {comparativePeriods.length} períodos seleccionados
-                </div>
-              </div>
+              {/* Total Acumulado */}
+              <ComparativeAccumulatedTotal 
+                periods={comparativePeriods}
+                segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
+                salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
+              />
 
               {/* Evolución de Ventas por Segmento */}
               {globalFilter.type === "all" && (
