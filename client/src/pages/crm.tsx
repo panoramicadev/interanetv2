@@ -1195,13 +1195,27 @@ function LeadDetailModal({
               </div>
               {lead.clientPhone && (
                 <div className="space-y-1">
-                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Teléfono</Label>
-                  <p className="text-base text-gray-900 dark:text-gray-100">{lead.clientPhone}</p>
+                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                    <Phone className="w-4 h-4" />
+                    Teléfono
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <p className="text-base text-gray-900 dark:text-gray-100">{lead.clientPhone}</p>
+                    {lead.hasWhatsapp && (
+                      <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 flex items-center gap-1">
+                        <MessageSquare className="w-3 h-3" />
+                        WhatsApp
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               )}
               {lead.clientEmail && (
                 <div className="space-y-1">
-                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</Label>
+                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    Email
+                  </Label>
                   <p className="text-base text-gray-900 dark:text-gray-100">{lead.clientEmail}</p>
                 </div>
               )}
