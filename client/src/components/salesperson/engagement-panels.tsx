@@ -67,6 +67,7 @@ interface ProductDetails {
   totalSales: number;
   totalUnits: number;
   topClient: { name: string; amount: number } | null;
+  clients: Array<{ name: string; amount: number }>;
   transactionCount: number;
 }
 
@@ -763,7 +764,7 @@ export function SalespersonProductsPanel({
                           </div>
                         ) : productDetails ? (
                           <div className="space-y-4">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                               <div>
                                 <p className="text-xs text-green-700 font-medium mb-1">Total Vendido</p>
                                 <p className="text-lg font-bold text-green-900">{formatCurrency(productDetails.totalSales)}</p>
@@ -776,17 +777,30 @@ export function SalespersonProductsPanel({
                                 <p className="text-xs text-green-700 font-medium mb-1">Transacciones</p>
                                 <p className="text-lg font-bold text-green-900">{productDetails.transactionCount}</p>
                               </div>
-                              <div>
-                                <p className="text-xs text-green-700 font-medium mb-1">Cliente Principal</p>
-                                {productDetails.topClient ? (
-                                  <div>
-                                    <p className="text-sm font-semibold text-green-900 truncate">{productDetails.topClient.name}</p>
-                                    <p className="text-xs text-green-700">{formatCurrency(productDetails.topClient.amount)}</p>
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-green-700">Sin datos</p>
-                                )}
-                              </div>
+                            </div>
+
+                            {/* Lista de clientes */}
+                            <div className="mt-4">
+                              <p className="text-xs text-green-700 font-semibold mb-3">Clientes que han comprado este producto:</p>
+                              {productDetails.clients && productDetails.clients.length > 0 ? (
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                  {productDetails.clients.map((client, idx) => (
+                                    <div 
+                                      key={idx} 
+                                      className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 hover:border-green-300 transition-colors"
+                                    >
+                                      <div className="flex-1 min-w-0 mr-3">
+                                        <p className="text-sm font-semibold text-green-900 truncate">{client.name}</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-sm font-bold text-green-900">{formatCurrency(client.amount)}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-green-700 text-center py-3">No hay clientes registrados</p>
+                              )}
                             </div>
                           </div>
                         ) : null}
