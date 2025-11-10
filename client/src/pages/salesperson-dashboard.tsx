@@ -132,8 +132,6 @@ export default function SalespersonDashboard() {
   
   // Client search state
   const [clientSearch, setClientSearch] = useState("");
-  const [clientCardSearch, setClientCardSearch] = useState("");
-  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   
   // Dialog state
   const [showClientsDialog, setShowClientsDialog] = useState(false);
@@ -363,19 +361,6 @@ export default function SalespersonDashboard() {
 
   const clients = groupedClients;
 
-  // Filter clients for card search suggestions
-  const filteredCardClients = useMemo(() => {
-    if (!clientCardSearch.trim()) return [];
-    
-    const searchTerm = clientCardSearch.toLowerCase();
-    return clients
-      .filter((client: any) => {
-        const clientName = (client.clientName || client.name || '').toLowerCase();
-        const clientRut = (client.rut || '').toLowerCase();
-        return clientName.includes(searchTerm) || clientRut.includes(searchTerm);
-      })
-      .slice(0, 8); // Mostrar máximo 8 sugerencias
-  }, [clients, clientCardSearch]);
   const goals = Array.isArray(goalsData) ? goalsData : [];
   const primaryGoal = goals.length > 0 ? goals[0] : null;
 
@@ -501,84 +486,6 @@ export default function SalespersonDashboard() {
 
         {/* Contenido Principal */}
         <main className="px-4 lg:px-6 pb-6 space-y-6">
-        
-        {/* Búsqueda Rápida de Clientes - Visible y destacada */}
-        <Card className="rounded-2xl shadow-md border-2 border-blue-200 bg-white">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-500 rounded-full p-2.5">
-                <Search className="h-5 w-5 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Búsqueda Rápida de Clientes</h3>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    type="text"
-                    placeholder="Buscar cliente por nombre o RUT..."
-                    value={clientCardSearch}
-                    onChange={(e) => {
-                      setClientCardSearch(e.target.value);
-                      setShowClientSuggestions(e.target.value.trim().length > 0);
-                    }}
-                    onFocus={() => setShowClientSuggestions(clientCardSearch.trim().length > 0)}
-                    onBlur={() => setTimeout(() => setShowClientSuggestions(false), 200)}
-                    className="w-full pl-10 pr-3 py-2.5 text-sm border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-lg"
-                    data-testid="input-client-quick-search"
-                  />
-                  
-                  {/* Dropdown de sugerencias */}
-                  {showClientSuggestions && filteredCardClients.length > 0 && (
-                    <div className="absolute z-50 w-full mt-2 bg-white border-2 border-blue-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
-                      {filteredCardClients.map((client: any, index: number) => (
-                        <div
-                          key={index}
-                          className="p-4 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 transition-colors"
-                          onClick={() => {
-                            setClientCardSearch('');
-                            setShowClientSuggestions(false);
-                            setShowClientsDialog(true);
-                          }}
-                          data-testid={`suggestion-${index}`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-base text-gray-900 truncate">
-                                {client.clientName || client.name || 'Sin nombre'}
-                              </p>
-                              {client.rut && (
-                                <p className="text-sm text-gray-500 mt-1">
-                                  RUT: {client.rut}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <p className="text-sm font-bold text-blue-600">
-                                ${(client.totalSales || 0).toLocaleString()}
-                              </p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {client.transactionCount || 0} transacciones
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* No hay resultados */}
-                  {showClientSuggestions && clientCardSearch.trim() && filteredCardClients.length === 0 && (
-                    <div className="absolute z-50 w-full mt-2 bg-white border-2 border-blue-200 rounded-lg shadow-xl p-4">
-                      <p className="text-sm text-gray-500 text-center">
-                        No se encontraron clientes con "{clientCardSearch}"
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
         
         {/* Progreso de Meta Principal - Solo si hay metas */}
         {primaryGoal && (
