@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v2.3.0';
+const CACHE_VERSION = 'v2.4.0';
 const CACHE_NAME = `panoramica-cache-${CACHE_VERSION}`;
 const ASSETS_CACHE = `panoramica-assets-${CACHE_VERSION}`;
 
@@ -8,7 +8,7 @@ const OFFLINE_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker v2.3.0 - Fixed segment selector rendering');
+  console.log('[SW] Installing service worker v2.4.0 - Fixed dashboard navigation');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching minimal offline assets');
