@@ -12543,10 +12543,16 @@ export class DatabaseStorage implements IStorage {
       throw new Error('Reclamo not found');
     }
     
-    // Determinar nuevo estado según si procede o no
-    // Si procede: pasa a en_area_responsable
+    // Determinar nuevo estado según si procede o no y el área responsable
+    // Si procede y es laboratorio: pasa a en_laboratorio
+    // Si procede y es otra área: pasa a en_area_responsable
     // Si no procede: se mantiene en en_revision_tecnica para revisión posterior
-    const nuevoEstado = procede ? 'en_area_responsable' : 'en_revision_tecnica';
+    let nuevoEstado: string;
+    if (procede) {
+      nuevoEstado = areaResponsable === 'laboratorio' ? 'en_laboratorio' : 'en_area_responsable';
+    } else {
+      nuevoEstado = 'en_revision_tecnica';
+    }
     
     // Si procede, buscar un usuario activo del área responsable para asignación automática
     let responsableArea = null;

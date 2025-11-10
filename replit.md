@@ -63,6 +63,7 @@ Preferred communication style: Simple, everyday language.
 - **Task Management**: For admin/supervisor roles.
 - **Goals Progress**: Sales goals tracking.
 - **Complaints Management (Reclamos Generales)**: Multi-area resolution with workflow automation, photo uploads, role-based filtering, and state machine.
+  - **Technical Validation Flow** (Nov 2025): When a technician validates a complaint and assigns it to "laboratorio", the estado automatically changes to 'en_laboratorio' (not 'en_area_responsable'), ensuring laboratory users can see their assigned complaints in the "Asignados a Mi Área" tab.
 - **Maintenance Management (Mantención)**: Equipment request system with workflow, technician assignment, and history logging.
 - **CMMS (Computerized Maintenance Management System)**: Comprehensive preventive and corrective maintenance management with:
     - **Dashboard**: KPIs (MTTR, backlog, etc.), charts, filters.
