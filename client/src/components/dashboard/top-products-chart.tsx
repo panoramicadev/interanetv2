@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { ShoppingBag, Search } from "lucide-react";
+import { ShoppingBag, Search, X } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ProductSearch } from "./product-search";
+import { Input } from "@/components/ui/input";
 import { useState } from "react";
 
 interface TopProduct {
@@ -25,11 +25,14 @@ interface TopProductsChartProps {
 
 export default function TopProductsChart({ selectedPeriod, filterType, segment, salesperson }: TopProductsChartProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [limit, setLimit] = useState(10);
+  
   const { data: topProductsResponse, isLoading } = useQuery<TopProductsResponse>({
-    queryKey: [`/api/sales/top-products?limit=5&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/top-products?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
-  const topProducts = topProductsResponse?.items;
+  const topProducts = topProductsResponse?.items || [];
   const periodTotal = topProductsResponse?.periodTotalSales || 0;
 
   const formatCurrency = (value: number) => {
@@ -40,11 +43,25 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
     }).format(value);
   };
 
+  // Filter products based on search term
+  const filteredProducts = topProducts.filter(product =>
+    product.productName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   // Calculate percentages based on period total
-  const productsWithPercentage = topProducts?.map(product => ({
+  const productsWithPercentage = filteredProducts.map(product => ({
     ...product,
     percentage: periodTotal > 0 ? (product.totalSales / periodTotal) * 100 : 0
   }));
+
+  const handleLoadMore = () => {
+    setLimit(prev => prev + 10);
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm("");
+    setIsSearchExpanded(false);
+  };
 
   return (
     <div className="space-y-4">
@@ -75,7 +92,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
               className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700"
               data-testid="button-view-all-products"
             >
-              Ver más productos
+              Análisis completo
             </Button>
           </Link>
         </div>
@@ -90,24 +107,33 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
               <h2 className="text-xl font-bold text-gray-900">Top Productos</h2>
             </div>
             
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsSearchExpanded(false)}
-              className="text-xs"
-              data-testid="button-collapse-search"
-            >
-              Cerrar búsqueda
-            </Button>
+            {searchTerm && (
+              <span className="text-sm text-gray-500">
+                {filteredProducts.length} resultado{filteredProducts.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           
-          <div className="w-full">
-            <ProductSearch 
-              selectedPeriod={selectedPeriod}
-              filterType={filterType}
-              segment={segment}
-              salesperson={salesperson}
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Filtrar productos por nombre..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-blue-500 rounded-lg shadow-sm"
+              data-testid="input-filter-products"
+              autoFocus
             />
+            {searchTerm && (
+              <button
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                data-testid="button-clear-filter"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -126,9 +152,16 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
               </div>
             ))}
           </div>
+        ) : productsWithPercentage.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-sm">
+              {searchTerm ? 'No se encontraron productos con ese nombre' : 'No hay productos para mostrar'}
+            </p>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {productsWithPercentage?.map((product, index) => (
+          <>
+            <div className="space-y-4">
+              {productsWithPercentage.map((product, index) => (
               <Link 
                 key={product.productName} 
                 href={`/product/${encodeURIComponent(product.productName)}`}
@@ -200,10 +233,26 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
                     </div>
                   </div>
                 </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+              </div>
+            </Link>
+              ))}
+            </div>
+            
+            {/* Botón Ver más - solo si no hay búsqueda activa y hay más productos */}
+            {!searchTerm && topProducts.length >= limit && (
+              <div className="flex justify-center pt-4 border-t border-gray-200">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLoadMore}
+                  className="text-xs px-6"
+                  data-testid="button-load-more"
+                >
+                  Ver más productos
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
