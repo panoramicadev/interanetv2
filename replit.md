@@ -59,7 +59,15 @@ Preferred communication style: Simple, everyday language.
 - **Product Grouping System**: Parent-child product variations.
 - **Technical Visits**: Multi-step creation flow, custom product support, PDF generation.
 - **Sales Analytics**: KPIs, trend charts, transaction records, segment analysis, period-to-period comparisons, and interactive projection visualizations.
-- **Quote Management**: Role-based visibility and status updates.
+- **Quote Management (Tomador de Pedidos)**: Role-based visibility and status updates with real-time stock display (Nov 2025).
+  - **Stock Display Enhancement** (Nov 2025): 
+    - Real-time inventory badges integrated in product cards (mobile and desktop)
+    - Bulk fetch from `/api/inventory-with-prices` with 30-min staleTime aligned with ETL refresh
+    - Memoized SKU→stock map for O(1) lookups avoiding N+1 queries
+    - Three visual states: Loading (skeleton), Error (amber "Stock no disponible"), Success (green "Stock: {n}" or red "Sin stock")
+    - Error handling: Throws on HTTP failures, retries up to 2 times, shows toast on persistent errors
+    - Accessibility: aria-labels and data-testid attributes for all stock badges
+    - Badge placement: Below SKU in mobile, next to SKU badge in desktop
 - **Task Management**: For admin/supervisor roles.
 - **Goals Progress**: Sales goals tracking.
 - **Finance Module (Gestión de Facturas)** (Nov 2025): Unified financial management interface with tabbed navigation:
