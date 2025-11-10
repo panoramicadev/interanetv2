@@ -1466,7 +1466,12 @@ function LeadComments({ leadId }: { leadId: string }) {
         />
         <Button
           size="sm"
-          onClick={() => newComment.trim() && addCommentMutation.mutate(newComment)}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (newComment.trim()) {
+              addCommentMutation.mutate(newComment);
+            }
+          }}
           disabled={!newComment.trim() || addCommentMutation.isPending}
           data-testid={`button-add-comment-${leadId}`}
         >
