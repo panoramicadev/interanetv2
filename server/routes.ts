@@ -11305,7 +11305,16 @@ export function registerRoutes(app: Express): Server {
       }
       
       // Return data immediately (don't wait for sync)
-      const inventory = await storage.getInventoryWithPrices(filters);
+      let inventory = await storage.getInventoryWithPrices(filters);
+      
+      // Security: Hide price and value data from salespeople
+      if (user && user.role === 'salesperson') {
+        inventory = inventory.map((item: any) => {
+          const { averagePrice, totalValue, ...rest } = item;
+          return rest;
+        });
+      }
+      
       res.json(inventory);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener inventario con precios', error: error.message });
@@ -11347,7 +11356,14 @@ export function registerRoutes(app: Express): Server {
       }
       
       // Return data immediately (don't wait for sync)
-      const summary = await storage.getInventorySummaryWithPrices(filters);
+      let summary = await storage.getInventorySummaryWithPrices(filters);
+      
+      // Security: Hide total value from salespeople
+      if (user && user.role === 'salesperson') {
+        const { totalValue, ...rest } = summary;
+        summary = { ...rest, totalValue: 0 };
+      }
+      
       res.json(summary);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener resumen de inventario con precios', error: error.message });
