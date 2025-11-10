@@ -662,35 +662,35 @@ export default function SalespersonDashboard() {
   return (
     <>
         {/* Header */}
-        <header className="bg-white border-b border-gray-200/60 px-4 lg:px-6 py-4 lg:py-6 m-4 rounded-2xl shadow-sm">
-          <div className="flex flex-col space-y-4">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <header className="bg-white border-b border-gray-200/60 px-3 md:px-4 lg:px-6 py-3 md:py-4 lg:py-6 md:mx-4 md:mt-4 md:rounded-2xl shadow-sm">
+          <div className="flex flex-col space-y-3 md:space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 md:gap-4">
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 truncate">
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
                   Hola, {user?.salespersonName || `${user?.firstName} ${user?.lastName}`}
                 </h1>
-                <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
+                <p className="text-gray-600 text-xs sm:text-sm lg:text-base">
                   Panel de control personalizado para gestión de ventas
                 </p>
               </div>
 
             </div>
             
-            {/* Year/Month Selector and Period Display - In Line */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
-              <div className="flex-shrink-0">
+            {/* Year/Month Selector and Period Display - Stacked on Mobile */}
+            <div className="flex flex-col gap-2 sm:gap-3">
+              <div className="w-full sm:w-auto">
                 <YearMonthSelector
                   value={selection}
                   onChange={(newSelection) => newSelection && setSelection(newSelection)}
                 />
               </div>
               
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4 text-gray-500" />
-                <span className="text-sm font-medium text-gray-700">
+              <div className="flex items-center gap-2 flex-wrap">
+                <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-medium text-gray-700">
                   Período actual:
                 </span>
-                <Badge variant="secondary" className="text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200">
+                <Badge variant="secondary" className="text-xs sm:text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200">
                   {getPeriodLabel()}
                 </Badge>
               </div>
@@ -699,7 +699,7 @@ export default function SalespersonDashboard() {
         </header>
 
         {/* Contenido Principal */}
-        <main className="px-4 lg:px-6 pb-6 space-y-6">
+        <main className="px-3 md:px-4 lg:px-6 pb-6 space-y-4 md:space-y-6">
         
         <section className="space-y-6" data-testid="section-goals-and-segments">
           <GoalsProgress
@@ -715,31 +715,31 @@ export default function SalespersonDashboard() {
             filterType={filterType}
           />
 
-          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-50" data-testid="card-segment-sales">
-            <CardHeader className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-500 rounded-full p-2 sm:p-3">
-                  <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+          <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-50" data-testid="card-segment-sales">
+            <CardHeader className="p-3 sm:p-4 md:p-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="bg-blue-500 rounded-full p-1.5 sm:p-2">
+                  <BarChart3 className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <CardTitle className="text-base sm:text-lg font-bold text-gray-900">Ventas por Segmento</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm text-gray-600">
+                  <CardTitle className="text-sm sm:text-base md:text-lg font-bold text-gray-900">Ventas por Segmento</CardTitle>
+                  <CardDescription className="text-xs text-gray-600">
                     Distribución de ventas del período seleccionado
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0">
+            <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
               {loadingSegments ? (
                 <p className="text-sm text-gray-500" data-testid="text-segments-loading">Cargando segmentos...</p>
               ) : segments.length === 0 ? (
                 <p className="text-sm text-gray-500" data-testid="text-segments-empty">Sin datos de segmentos para este período.</p>
               ) : (
-                <div className="flex flex-wrap gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-3">
                   {segments.map((segment) => (
                     <div
                       key={segment.segment}
-                      className="border border-blue-200 bg-blue-50/60 rounded-xl p-3 flex items-center gap-3 min-w-[280px] flex-1"
+                      className="border border-blue-200 bg-blue-50/60 rounded-lg sm:rounded-xl p-3 flex items-center gap-3 lg:min-w-[280px] lg:flex-1"
                       data-testid={`row-segment-${segment.segment}`}
                     >
                       <div className="flex-1 min-w-0">
@@ -761,26 +761,26 @@ export default function SalespersonDashboard() {
         </section>
 
         {/* Promesas de Compra Semanales */}
-        <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50/80 via-violet-50/60 to-purple-100/40" data-testid="card-promesas-compra">
-          <CardHeader className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="bg-purple-500 rounded-full p-2 sm:p-3">
-                  <Target className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+        <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-purple-50/80 via-violet-50/60 to-purple-100/40" data-testid="card-promesas-compra">
+          <CardHeader className="p-3 sm:p-4 md:p-6">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="bg-purple-500 rounded-full p-1.5 sm:p-2">
+                  <Target className="h-5 w-5 text-white" />
                 </div>
-                <div>
-                  <CardTitle className="text-base sm:text-lg font-bold text-gray-900">Promesas de Compra</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm text-gray-600 mt-0.5">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-sm sm:text-base md:text-lg font-bold text-gray-900">Promesas de Compra</CardTitle>
+                  <CardDescription className="text-xs text-gray-600 mt-0.5 truncate">
                     {getWeekLabel(selectedPromesaWeek)}
                   </CardDescription>
                 </div>
               </div>
-              <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 w-full">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setSelectedPromesaWeek(prev => subWeeks(prev, 1))}
-                  className="rounded-lg h-7 sm:h-8 flex-1 sm:flex-none"
+                  className="rounded-lg min-h-[40px] h-10 flex-1 sm:flex-none"
                   data-testid="button-promesas-prev-week"
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -790,7 +790,7 @@ export default function SalespersonDashboard() {
                   size="sm"
                   onClick={() => setSelectedPromesaWeek(new Date())}
                   disabled={isCurrentWeek(selectedPromesaWeek)}
-                  className="rounded-lg text-xs sm:text-sm px-2 sm:px-3 h-7 sm:h-8 flex-1 sm:flex-none"
+                  className="rounded-lg text-xs sm:text-sm px-3 min-h-[40px] h-10 flex-1 sm:flex-none"
                   data-testid="button-promesas-current-week"
                 >
                   Hoy
@@ -800,7 +800,7 @@ export default function SalespersonDashboard() {
                   size="sm"
                   onClick={() => setSelectedPromesaWeek(prev => addWeeks(prev, 1))}
                   disabled={isCurrentWeek(selectedPromesaWeek)}
-                  className="rounded-lg h-7 sm:h-8 flex-1 sm:flex-none"
+                  className="rounded-lg min-h-[40px] h-10 flex-1 sm:flex-none"
                   data-testid="button-promesas-next-week"
                 >
                   <CalendarIcon className="h-4 w-4" />
@@ -808,7 +808,7 @@ export default function SalespersonDashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-3 sm:p-6 pt-0">
+          <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
             {isLoadingPromesas ? (
               <div className="text-center py-6 text-gray-500 text-sm">
                 Cargando promesas...
@@ -818,7 +818,7 @@ export default function SalespersonDashboard() {
                 No hay promesas registradas para esta semana
               </div>
             ) : (
-              <div className="space-y-2 sm:space-y-3">
+              <div className="space-y-3">
                 {promesasVendedor.map((item: any) => {
                   const montoPrometido = parseFloat(item.promesa?.montoPrometido || '0');
                   const cumplimiento = item.ventasReales > 0 && montoPrometido > 0
@@ -854,18 +854,18 @@ export default function SalespersonDashboard() {
                   return (
                     <div 
                       key={item.promesa?.id} 
-                      className={`border rounded-xl p-3 sm:p-4 ${colorClasses[estado]}`}
+                      className={`border rounded-lg sm:rounded-xl p-3 sm:p-4 ${colorClasses[estado]}`}
                       data-testid={`promesa-${item.promesa?.id}`}
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start justify-between gap-2 mb-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                             <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
                               {item.promesa?.clienteNombre || 'Cliente'}
                             </h4>
                             <Badge 
                               variant="outline" 
-                              className={`hidden sm:inline-flex text-xs ${badgeClasses[estado]}`}
+                              className={`text-xs w-fit ${badgeClasses[estado]}`}
                               data-testid={`badge-estado-${item.promesa?.id}`}
                             >
                               {estado === 'cumplida' ? 'Cumplida' : 
@@ -920,37 +920,41 @@ export default function SalespersonDashboard() {
 
         {/* NVV Pendientes */}
         {nvvPendingData && nvvPendingData.total > 0 && (
-          <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-cyan-50/80 via-sky-50/60 to-blue-100/40" data-testid="card-nvv-pending">
-            <CardHeader className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="bg-cyan-500 rounded-full p-2 sm:p-3">
-                  <Package className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <CardTitle className="text-base sm:text-lg font-bold text-gray-900">NVV Pendientes</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm text-gray-600">
-                    Ventas no facturadas - No suman a tus ventas actuales
-                  </CardDescription>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-cyan-900">
-                    {formatCurrency(nvvPendingData.total || 0)}
+          <Card className="rounded-xl md:rounded-2xl shadow-md border-0 bg-gradient-to-br from-cyan-50/80 via-sky-50/60 to-blue-100/40" data-testid="card-nvv-pending">
+            <CardHeader className="p-3 sm:p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 flex-1">
+                  <div className="bg-cyan-500 rounded-full p-1.5 sm:p-2">
+                    <Package className="h-5 w-5 text-white" />
                   </div>
-                  <p className="text-xs text-gray-600">{nvvPendingData.documentCount} docs</p>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-sm sm:text-base md:text-lg font-bold text-gray-900">NVV Pendientes</CardTitle>
+                    <CardDescription className="text-xs text-gray-600">
+                      Ventas no facturadas
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between sm:justify-end sm:text-right gap-2">
+                  <div>
+                    <div className="text-xl sm:text-2xl font-bold text-cyan-900">
+                      {formatCurrency(nvvPendingData.total || 0)}
+                    </div>
+                    <p className="text-xs text-gray-600">{nvvPendingData.documentCount} docs</p>
+                  </div>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-3 sm:p-6 pt-0">
-              <div className="space-y-2 sm:space-y-3">
+            <CardContent className="p-3 sm:p-4 md:p-6 pt-0">
+              <div className="space-y-3">
                 {nvvPendingData.clients.slice(0, 5).map((client: any, idx: number) => (
                   <div 
                     key={idx}
-                    className="border border-cyan-200 bg-cyan-50/50 rounded-xl p-3 sm:p-4"
+                    className="border border-cyan-200 bg-cyan-50/50 rounded-lg sm:rounded-xl p-3"
                     data-testid={`nvv-client-${idx}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                        <h4 className="font-semibold text-gray-900 text-sm truncate">
                           {client.clientName}
                         </h4>
                         <p className="text-xs text-gray-600 mt-1">
