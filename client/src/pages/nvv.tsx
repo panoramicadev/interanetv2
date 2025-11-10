@@ -59,10 +59,7 @@ export default function NVVPage() {
         <TabsContent value="import" className="space-y-6">
           {user.role !== 'salesperson' ? (
             <CsvImport 
-              title="Importar Notas de Venta"
-              description="Sube archivos CSV con datos de notas de venta"
-              uploadUrl="/api/nvv/upload"
-              onSuccess={() => {
+              onImportComplete={() => {
                 setActiveTab("data");
               }}
             />
