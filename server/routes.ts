@@ -33,7 +33,7 @@ import {
   insertGastoMaterialMantencionSchema,
   insertPlanPreventivoSchema
 } from "../shared/schema";
-import { eq, and, isNotNull, ne, sql, desc, or } from "drizzle-orm";
+import { eq, and, isNotNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
 import * as NotifyHelper from "./notifications-helper";
@@ -2267,16 +2267,19 @@ export function registerRoutes(app: Express): Server {
       
       conditions.push(sql`"NOKOFU" = ${salespersonName}`);
       
-      const nvvData = await db
+      // Use raw SQL for better control over aggregate functions
+      const nvvDataQuery = db
         .select({
           clientName: nvvPendingSales.NOKOEN,
-          totalPending: sql<number>`SUM(${nvvPendingSales.total_pendiente})`,
-          documentCount: sql<number>`COUNT(DISTINCT ${nvvPendingSales.NUDO})`,
+          totalPending: sql<string>`CAST(SUM(CAST(${nvvPendingSales.total_pendiente} AS NUMERIC)) AS TEXT)`,
+          documentCount: sql<string>`CAST(COUNT(DISTINCT ${nvvPendingSales.NUDO}) AS TEXT)`,
         })
         .from(nvvPendingSales)
         .where(and(...conditions))
         .groupBy(nvvPendingSales.NOKOEN)
-        .orderBy(desc(sql`SUM(${nvvPendingSales.total_pendiente})`));
+        .orderBy(desc(sql`SUM(CAST(${nvvPendingSales.total_pendiente} AS NUMERIC))`));
+      
+      const nvvData = await nvvDataQuery;
       
       const totalNVV = nvvData.reduce((sum, item) => sum + Number(item.totalPending), 0);
       const totalDocuments = nvvData.reduce((sum, item) => sum + Number(item.documentCount), 0);
