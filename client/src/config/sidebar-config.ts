@@ -384,6 +384,11 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/clientes",
       label: "Clientes",
       icon: Users,
+    },
+    {
+      href: "/inventario",
+      label: "Inventario",
+      icon: Warehouse,
       separator: true, // Separador antes de Tomador de Pedidos
     },
     {
@@ -405,11 +410,6 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       href: "/gastos-empresariales",
       label: "Rendición de Gastos",
       icon: Banknote,
-    },
-    {
-      href: "/inventario",
-      label: "Inventario",
-      icon: Warehouse,
     },
     // Tintometría oculta temporalmente para vendedores
     // {
