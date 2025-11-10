@@ -9449,11 +9449,16 @@ export class DatabaseStorage implements IStorage {
       switch (userRole) {
         case 'admin':
         case 'supervisor':
-          // Admin and supervisor can see all orders
+        case 'logistica_bodega':
+          // Admin, supervisor, and logistics can see all orders
           break;
         case 'salesperson':
           // Salesperson can only see orders they created
           conditions.push(eq(orders.createdBy, userId));
+          break;
+        case 'client':
+          // Clients can only see their own orders
+          conditions.push(eq(orders.clientId, userId));
           break;
         default:
           // Unknown role - deny access

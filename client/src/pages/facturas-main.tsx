@@ -13,7 +13,7 @@ export default function FacturasMainPage() {
   const [activeTab, setActiveTab] = useState("facturas");
 
   // Check if the user is authorized
-  if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega" && user.role !== "salesperson")) {
+  if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega" && user.role !== "salesperson" && user.role !== "client")) {
     setLocation("/dashboard");
     return null;
   }
