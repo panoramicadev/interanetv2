@@ -14,6 +14,7 @@ interface TopProduct {
 interface TopProductsResponse {
   items: TopProduct[];
   periodTotalSales: number;
+  totalCount: number;
 }
 
 interface SearchProduct {
@@ -185,7 +186,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
           </div>
         ) : (
           <>
-            <div className="space-y-4">
+            <div className="space-y-4 transition-all duration-300 ease-in-out">
               {productsWithPercentage.map((product, index) => (
               <Link 
                 key={product.productName} 
@@ -228,16 +229,16 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
             </div>
             
             {/* Botón Ver más - solo si no hay búsqueda activa y hay más productos */}
-            {!debouncedSearchTerm && displayProducts.length >= limit && (
+            {!debouncedSearchTerm && topProductsResponse && displayProducts.length < topProductsResponse.totalCount && (
               <div className="flex justify-center pt-4 border-t border-gray-200">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleLoadMore}
-                  className="text-xs px-6"
+                  className="text-xs px-6 transition-all duration-200 ease-in-out hover:scale-105"
                   data-testid="button-load-more"
                 >
-                  Ver más productos
+                  Ver más ({displayProducts.length} de {topProductsResponse.totalCount})
                 </Button>
               </div>
             )}
