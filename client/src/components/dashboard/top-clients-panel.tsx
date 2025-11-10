@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users } from "lucide-react";
+import { Users, Search, X } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ClientSearch } from "./client-search";
+import { Input } from "@/components/ui/input";
 
 interface TopClient {
   clientName: string;
@@ -16,6 +16,12 @@ interface TopClientsResponse {
   periodTotalSales: number;
 }
 
+interface SearchClient {
+  name: string;
+  totalSales: number;
+  transactionCount: number;
+}
+
 interface TopClientsPanelProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
@@ -24,15 +30,39 @@ interface TopClientsPanelProps {
 }
 
 export default function TopClientsPanel({ selectedPeriod, filterType, segment, salesperson }: TopClientsPanelProps) {
-  const [displayedCount, setDisplayedCount] = useState(10); // Start with 10 clients
-  const apiLimit = 5000; // Get all data from API
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [limit, setLimit] = useState(10);
   
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+  
+  // Query for paginated top clients (default view)
   const { data: topClientsResponse, isLoading } = useQuery<TopClientsResponse>({
-    queryKey: [`/api/sales/top-clients?limit=${apiLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/top-clients?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    enabled: !debouncedSearchTerm,
   });
 
-  const topClients = topClientsResponse?.items;
+  // Query for search results (when typing)
+  const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchClient[]>({
+    queryKey: [`/api/clients/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    enabled: debouncedSearchTerm.length >= 2,
+  });
+
+  // Use search results if searching, otherwise use paginated clients
+  const displayClients = debouncedSearchTerm.length >= 2 && searchResults
+    ? searchResults.map(c => ({ clientName: c.name, totalSales: c.totalSales, transactionCount: c.transactionCount }))
+    : topClientsResponse?.items || [];
+  
   const periodTotal = topClientsResponse?.periodTotalSales || 0;
+  const currentLoading = debouncedSearchTerm.length >= 2 ? isSearchLoading : isLoading;
 
   const formatCurrency = (amount: number | string | null) => {
     if (!amount) return "CLP $0";
@@ -45,47 +75,98 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
   };
 
   // Calculate percentages based on period total
-  const clientsWithPercentage = topClients?.map(client => ({
+  const clientsWithPercentage = displayClients.map(client => ({
     ...client,
     percentage: periodTotal > 0 ? (client.totalSales / periodTotal) * 100 : 0
   }));
 
+  const handleLoadMore = () => {
+    setLimit(prev => prev + 10);
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm("");
+    setDebouncedSearchTerm("");
+    setIsSearchExpanded(false);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-            <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+      {/* Header con búsqueda expandible */}
+      {!isSearchExpanded ? (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Users className="h-5 w-5 text-blue-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">Clientes</h2>
+            
+            {/* Botón de lupa para expandir búsqueda */}
+            <button
+              onClick={() => setIsSearchExpanded(true)}
+              className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+              data-testid="button-expand-client-search"
+              title="Buscar cliente"
+            >
+              <Search className="h-4 w-4 text-gray-600" />
+            </button>
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Clientes</h2>
-        </div>
-        
-        {/* Client Search - AJAX autocomplete */}
-        <div className="w-full sm:w-auto sm:flex-1 sm:max-w-xs">
-          <ClientSearch 
-            selectedPeriod={selectedPeriod}
-            filterType={filterType}
-            segment={segment}
-            salesperson={salesperson}
-          />
-        </div>
-        
-        <div className="flex items-center gap-2">
+          
           <Link href="/clientes">
             <Button
-              variant="ghost"
+              variant="default"
               size="sm"
-              className="text-xs px-3 py-1"
+              className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700"
               data-testid="button-view-all-clients"
             >
               Ver todos
             </Button>
           </Link>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Búsqueda expandida a ancho completo */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Users className="h-5 w-5 text-blue-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Clientes</h2>
+            </div>
+            
+            {debouncedSearchTerm && (
+              <span className="text-sm text-gray-500">
+                {clientsWithPercentage.length} resultado{clientsWithPercentage.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Filtrar clientes por nombre..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-blue-500 rounded-lg shadow-sm"
+              data-testid="input-filter-clients"
+              autoFocus
+            />
+            {searchTerm && (
+              <button
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                data-testid="button-clear-client-filter"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
-        {isLoading ? (
+        {currentLoading ? (
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="flex items-center justify-between animate-pulse">
@@ -98,153 +179,105 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
               </div>
             ))}
           </div>
+        ) : clientsWithPercentage.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 text-sm">
+              {debouncedSearchTerm ? 'No se encontraron clientes con ese nombre' : 'No hay clientes para mostrar'}
+            </p>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {clientsWithPercentage?.slice(0, displayedCount).map((client, index) => (
-              <Link
-                key={client.clientName}
-                href={`/client/${encodeURIComponent(client.clientName)}`}
-                className="block hover:bg-gray-50/50 rounded-lg transition-colors cursor-pointer"
-              >
-                <div 
-                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
-                  data-testid={`client-${index}`}
+          <>
+            <div className="space-y-4">
+              {clientsWithPercentage.map((client, index) => (
+                <Link
+                  key={client.clientName}
+                  href={`/client/${encodeURIComponent(client.clientName)}`}
+                  className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3"
                 >
-                  {/* Nombre del cliente y monto - Mobile */}
-                  <div className="flex justify-between items-center sm:hidden">
-                    <p className="text-sm text-gray-700 font-medium truncate flex-1 min-w-0 pr-2">
-                      {client.clientName}
-                    </p>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <span className="text-xs text-gray-600">
-                        {client.percentage.toFixed(1)}%
-                      </span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(client.totalSales)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Desktop Layout */}
-                  <div className="hidden sm:flex sm:items-center w-full">
-                    {/* Nombre del cliente */}
-                    <div className="w-32 lg:w-48 flex-shrink-0">
-                      <p className="text-sm text-gray-700 font-medium truncate">
+                  <div 
+                    className="flex items-center gap-3 w-full"
+                    data-testid={`client-${index}`}
+                  >
+                    {/* Nombre del cliente completo */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 font-medium">
                         {client.clientName}
                       </p>
                     </div>
                     
                     {/* Porcentaje */}
-                    <div className="w-12 flex-shrink-0 text-center">
-                      <span className="text-sm text-gray-600">
-                        {client.percentage.toFixed(1)}%
-                      </span>
-                    </div>
+                    <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
+                      {client.percentage.toFixed(1)}%
+                    </span>
                     
-                    {/* Barra de progreso */}
-                    <div className="flex-1 mx-2 lg:mx-4">
-                      <div className="relative">
-                        <div className="h-6 bg-gray-100 rounded-lg overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-500 rounded-lg transition-all duration-500 ease-out"
-                            style={{ width: `${client.percentage}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Monto */}
-                    <div className="w-20 flex-shrink-0 text-right">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(client.totalSales)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Barra de progreso - Mobile */}
-                  <div className="sm:hidden">
-                    <div className="relative">
-                      <div className="h-3 bg-gray-100 rounded-lg overflow-hidden">
+                    {/* Barra de progreso delgada y corta */}
+                    <div className="w-20 sm:w-32 flex-shrink-0">
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-blue-500 rounded-lg transition-all duration-500 ease-out"
+                          className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
                           style={{ width: `${client.percentage}%` }}
                         ></div>
                       </div>
                     </div>
+                    
+                    {/* Monto */}
+                    <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
+                      {formatCurrency(client.totalSales)}
+                    </span>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              ))}
+            </div>
             
-            {/* Ver más button */}
-            {clientsWithPercentage && displayedCount < clientsWithPercentage.length && (
-              <div className="text-center pt-2">
+            {/* Botón Ver más - solo si no hay búsqueda activa y hay más clientes */}
+            {!debouncedSearchTerm && displayClients.length >= limit && (
+              <div className="flex justify-center pt-4 border-t border-gray-200">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setDisplayedCount(prev => Math.min(prev + 10, clientsWithPercentage.length))}
-                  className="text-xs px-4 py-2"
-                  data-testid="button-see-more-clients"
+                  onClick={handleLoadMore}
+                  className="text-xs px-6"
+                  data-testid="button-load-more-clients"
                 >
-                  Ver más ({displayedCount} de {clientsWithPercentage.length})
+                  Ver más clientes
                 </Button>
               </div>
             )}
             
-            {/* Total Row */}
-            {clientsWithPercentage && clientsWithPercentage.length > 0 && (
+            {/* Total Row - solo si no hay búsqueda activa */}
+            {!debouncedSearchTerm && clientsWithPercentage.length > 0 && (
               <div className="border-t-2 border-gray-300 pt-3 mt-4">
                 <div 
-                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0 bg-blue-50 rounded-lg px-3"
+                  className="flex items-center gap-3 w-full bg-blue-50 rounded-lg py-3 px-2"
                   data-testid="clients-total"
                 >
-                  {/* Total Mobile */}
-                  <div className="flex justify-between items-center sm:hidden">
+                  {/* Nombre TOTAL */}
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm text-blue-900 font-bold">
                       TOTAL ({clientsWithPercentage.length} clientes)
                     </p>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <span className="text-xs text-blue-700">
-                        100.0%
-                      </span>
-                      <span className="text-sm font-bold text-blue-900">
-                        {formatCurrency(periodTotal)}
-                      </span>
+                  </div>
+                  
+                  {/* Porcentaje */}
+                  <span className="text-xs text-blue-700 font-semibold w-10 text-right flex-shrink-0">
+                    100.0%
+                  </span>
+                  
+                  {/* Barra completa */}
+                  <div className="w-20 sm:w-32 flex-shrink-0">
+                    <div className="h-2 bg-blue-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-600 rounded-full w-full"></div>
                     </div>
                   </div>
                   
-                  {/* Total Desktop */}
-                  <div className="hidden sm:flex sm:items-center w-full">
-                    <div className="w-32 lg:w-48 flex-shrink-0">
-                      <p className="text-sm text-blue-900 font-bold">
-                        TOTAL ({clientsWithPercentage.length} clientes)
-                      </p>
-                    </div>
-                    
-                    <div className="w-12 flex-shrink-0 text-center">
-                      <span className="text-sm text-blue-700 font-semibold">
-                        100.0%
-                      </span>
-                    </div>
-                    
-                    <div className="flex-1 mx-2 lg:mx-4">
-                      <div className="relative">
-                        <div className="h-6 bg-blue-200 rounded-lg overflow-hidden">
-                          <div className="h-full bg-blue-600 rounded-lg w-full"></div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="w-20 flex-shrink-0 text-right">
-                      <span className="text-sm font-bold text-blue-900">
-                        {formatCurrency(periodTotal)}
-                      </span>
-                    </div>
-                  </div>
+                  {/* Monto total */}
+                  <span className="text-sm font-bold text-blue-900 w-28 text-right flex-shrink-0">
+                    {formatCurrency(periodTotal)}
+                  </span>
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
