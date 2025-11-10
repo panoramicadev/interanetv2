@@ -1178,12 +1178,6 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <main className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 space-y-3 sm:space-y-4 lg:space-y-6 relative">
-          {/* Subtle last updated message */}
-          {lastUpdated && (
-            <div className="absolute top-1 right-3 text-[10px] text-gray-400/60 font-mono pointer-events-none select-none">
-              Actualizado {formatLastUpdated(lastUpdated)}
-            </div>
-          )}
           
           {/* Comparative Mode Layout */}
           {isComparativeMode ? (
