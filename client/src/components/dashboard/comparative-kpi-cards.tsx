@@ -85,7 +85,7 @@ export default function ComparativeKPICards({ periods, segment, salesperson }: C
           <DollarSign className="h-5 w-5" />
           <h3 className="font-semibold">Ventas Totales por Período</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${periods.length}, 1fr)` }}>
           {periods.map((period, index) => {
             const metrics = allData[index];
             if (!metrics) return null;
@@ -112,7 +112,7 @@ export default function ComparativeKPICards({ periods, segment, salesperson }: C
           <Package className="h-5 w-5" />
           <h3 className="font-semibold">Unidades Vendidas por Período</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${periods.length}, 1fr)` }}>
           {periods.map((period, index) => {
             const metrics = allData[index];
             if (!metrics) return null;
@@ -139,7 +139,7 @@ export default function ComparativeKPICards({ periods, segment, salesperson }: C
           <Users className="h-5 w-5" />
           <h3 className="font-semibold">Clientes Activos por Período</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${periods.length}, 1fr)` }}>
           {periods.map((period, index) => {
             const metrics = allData[index];
             if (!metrics) return null;
