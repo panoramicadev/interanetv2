@@ -749,9 +749,10 @@ export default function SalespersonDashboard() {
               </div>
             ) : (
               <div className="space-y-2 sm:space-y-3">
-                {promesasVendedor.map((promesa: any) => {
-                  const cumplimiento = promesa.ventasReales > 0 
-                    ? (promesa.ventasReales / promesa.montoPromesa) * 100 
+                {promesasVendedor.map((item: any) => {
+                  const montoPrometido = parseFloat(item.promesa?.montoPrometido || '0');
+                  const cumplimiento = item.ventasReales > 0 && montoPrometido > 0
+                    ? (item.ventasReales / montoPrometido) * 100 
                     : 0;
                   
                   const estado = 
@@ -782,20 +783,20 @@ export default function SalespersonDashboard() {
 
                   return (
                     <div 
-                      key={promesa.id} 
+                      key={item.promesa?.id} 
                       className={`border rounded-xl p-3 sm:p-4 ${colorClasses[estado]}`}
-                      data-testid={`promesa-${promesa.id}`}
+                      data-testid={`promesa-${item.promesa?.id}`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
                             <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
-                              {promesa.clienteNombre}
+                              {item.promesa?.clienteNombre || 'Cliente'}
                             </h4>
                             <Badge 
                               variant="outline" 
                               className={`hidden sm:inline-flex text-xs ${badgeClasses[estado]}`}
-                              data-testid={`badge-estado-${promesa.id}`}
+                              data-testid={`badge-estado-${item.promesa?.id}`}
                             >
                               {estado === 'cumplida' ? 'Cumplida' : 
                                estado === 'cerca' ? 'Cerca' :
@@ -810,13 +811,13 @@ export default function SalespersonDashboard() {
                             <div>
                               <span className="text-gray-600">Promesa:</span>
                               <span className="ml-1 font-semibold text-gray-900">
-                                {formatCurrency(promesa.montoPromesa)}
+                                {formatCurrency(montoPrometido)}
                               </span>
                             </div>
                             <div>
                               <span className="text-gray-600">Ventas:</span>
                               <span className="ml-1 font-semibold text-gray-900">
-                                {formatCurrency(promesa.ventasReales)}
+                                {formatCurrency(item.ventasReales || 0)}
                               </span>
                             </div>
                           </div>
