@@ -5628,7 +5628,7 @@ export class DatabaseStorage implements IStorage {
   }>> {
     const today = new Date();
     const currentMonth = today.getMonth() + 1;
-    const currentDay = today.getDate();
+    const monthName = format(new Date(2024, currentMonth - 1, 1), 'MMMM', { locale: es });
     
     const conditions = [
       eq(factVentas.nokofu, salesperson),
@@ -5641,34 +5641,38 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(factVentas.nokoen, clientName));
     }
     
+    // Find clients who have purchased in this month historically (across multiple years)
+    // but are NOT currently active (haven't purchased in last 30 days)
     const seasonalClientsData = await db
       .select({
         clientName: factVentas.nokoen,
-        purchaseMonth: sql<number>`EXTRACT(MONTH FROM ${factVentas.feemdo}::date)`,
-        purchaseDay: sql<number>`EXTRACT(DAY FROM ${factVentas.feemdo}::date)`,
         avgAmount: sql<number>`AVG(CAST(${factVentas.monto} AS NUMERIC))`,
-        transactionCount: sql<number>`COUNT(*)`
+        transactionCount: sql<number>`COUNT(*)`,
+        yearsCount: sql<number>`COUNT(DISTINCT EXTRACT(YEAR FROM ${factVentas.feemdo}::date))`,
+        lastPurchaseDate: sql<string>`MAX(${factVentas.feemdo})`
       })
       .from(factVentas)
       .where(and(...conditions))
-      .groupBy(factVentas.nokoen, sql`EXTRACT(MONTH FROM ${factVentas.feemdo}::date)`, sql`EXTRACT(DAY FROM ${factVentas.feemdo}::date)`)
-      .having(sql`COUNT(*) >= 2`)
+      .groupBy(factVentas.nokoen)
+      .having(sql`
+        COUNT(DISTINCT EXTRACT(YEAR FROM ${factVentas.feemdo}::date)) >= 2 
+        AND MAX(${factVentas.feemdo})::date < CURRENT_DATE - INTERVAL '30 days'
+      `)
       .orderBy(sql`COUNT(*) DESC`)
       .limit(clientName ? 1 : 10);
 
     return seasonalClientsData.map(client => {
-      const dayDiff = Math.abs(Number(client.purchaseDay) - currentDay);
-      let purchasePattern = 'Compra mensual';
-      
-      if (dayDiff <= 5) {
-        purchasePattern = `Suele comprar a principios/mediados de ${format(new Date(2024, currentMonth - 1, 1), 'MMMM', { locale: es })}`;
-      }
+      const purchasePattern = `Suele comprar en ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`;
+      const yearsCount = Number(client.yearsCount);
+      const transactionCount = Number(client.transactionCount);
       
       return {
         clientName: client.clientName || '',
-        expectedPurchaseDate: `${currentDay}/${currentMonth}/${today.getFullYear()}`,
+        expectedPurchaseDate: `${currentMonth}/${today.getFullYear()}`,
         averagePurchaseAmount: Number(client.avgAmount),
-        purchasePattern
+        purchasePattern: yearsCount > 2 
+          ? `${purchasePattern} (${yearsCount} años consecutivos, ${transactionCount} compras)` 
+          : `${purchasePattern} (${transactionCount} compras)`
       };
     });
   }
