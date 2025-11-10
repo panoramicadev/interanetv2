@@ -1589,6 +1589,33 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Salesperson products search endpoint (AJAX autocomplete)
+  app.get('/api/salespeople/:salespersonName/products/search', requireAuth, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { q, period, filterType, segment } = req.query;
+      
+      if (!q || typeof q !== 'string' || q.trim().length < 2) {
+        return res.json([]);
+      }
+      
+      const searchTerm = q.trim();
+      
+      const results = await storage.searchSalespersonProducts(
+        salespersonName,
+        searchTerm,
+        period as string,
+        filterType as string,
+        segment as string
+      );
+      
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching salesperson products:", error);
+      res.status(500).json({ message: "Failed to search salesperson products" });
+    }
+  });
+
   // Top products endpoint
   app.get('/api/sales/top-products', requireAuth, async (req, res) => {
     try {

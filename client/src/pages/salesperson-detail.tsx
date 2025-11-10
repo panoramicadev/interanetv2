@@ -79,6 +79,18 @@ interface SalespersonProduct {
   totalUnits: number;
 }
 
+interface SalespersonProductsResponse {
+  items: SalespersonProduct[];
+  periodTotalSales: number;
+  totalCount: number;
+}
+
+interface SearchProduct {
+  name: string;
+  totalSales: number;
+  transactionCount: number;
+}
+
 interface SalespersonDetailProps {
   salespersonName?: string;
   embedded?: boolean;
@@ -326,6 +338,12 @@ export default function SalespersonDetail({
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [limit, setLimit] = useState(10);
 
+  // Product search and pagination state
+  const [isProductSearchExpanded, setIsProductSearchExpanded] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [debouncedProductSearchTerm, setDebouncedProductSearchTerm] = useState("");
+  const [productLimit, setProductLimit] = useState(10);
+
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -334,6 +352,15 @@ export default function SalespersonDetail({
     
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  // Debounce product search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedProductSearchTerm(productSearchTerm);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [productSearchTerm]);
 
   // Fetch available periods
   const { data: availablePeriods } = useQuery<{
@@ -388,18 +415,36 @@ export default function SalespersonDetail({
     enabled: !!salespersonName && debouncedSearchTerm.length >= 2,
   });
 
-  const { data: products = [], isLoading: isLoadingProducts } = useQuery<SalespersonProduct[]>({
-    queryKey: ['/api/sales/salesperson', salespersonName, 'products', selectedPeriod, filterType, selectedSegment],
+  // Query for paginated salesperson products (default view)
+  const { data: productsResponse, isLoading: isLoadingProducts } = useQuery<SalespersonProductsResponse>({
+    queryKey: ['/api/sales/salesperson', salespersonName, 'products', selectedPeriod, filterType, selectedSegment, productLimit],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append('period', selectedPeriod);
       params.append('filterType', filterType);
+      params.append('limit', productLimit.toString());
       if (selectedSegment) params.append('segment', selectedSegment);
       const res = await fetch(`/api/sales/salesperson/${salespersonName}/products?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
-    enabled: !!salespersonName,
+    enabled: !!salespersonName && !debouncedProductSearchTerm,
+  });
+
+  // Query for product search results (when typing)
+  const { data: productSearchResults, isLoading: isProductSearchLoading } = useQuery<SearchProduct[]>({
+    queryKey: [`/api/salespeople/${salespersonName}/products/search`, debouncedProductSearchTerm, selectedPeriod, filterType, selectedSegment],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('q', debouncedProductSearchTerm);
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (selectedSegment) params.append('segment', selectedSegment);
+      const res = await fetch(`/api/salespeople/${salespersonName}/products/search?${params}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: !!salespersonName && debouncedProductSearchTerm.length >= 2,
   });
 
   const { data: segments = [], isLoading: isLoadingSegments } = useQuery<SalespersonSegment[]>({
@@ -663,6 +708,37 @@ export default function SalespersonDetail({
     setSearchTerm("");
     setDebouncedSearchTerm("");
     setIsSearchExpanded(false);
+  };
+
+  // Product search and pagination display logic
+  const displayProducts = debouncedProductSearchTerm.length >= 2 && productSearchResults
+    ? productSearchResults.map(p => ({ 
+        productName: p.name, 
+        totalSales: p.totalSales, 
+        transactionCount: p.transactionCount,
+        averagePrice: 0,
+        lastSale: '',
+        totalUnits: 0
+      }))
+    : productsResponse?.items || [];
+  
+  const productPeriodTotal = productsResponse?.periodTotalSales || 0;
+  const currentProductLoading = debouncedProductSearchTerm.length >= 2 ? isProductSearchLoading : isLoadingProducts;
+  
+  // Calculate percentages based on period total
+  const productsWithPercentage = displayProducts.map(product => ({
+    ...product,
+    percentage: productPeriodTotal > 0 ? (product.totalSales / productPeriodTotal) * 100 : 0
+  }));
+
+  const handleLoadMoreProducts = () => {
+    setProductLimit(prev => prev + 10);
+  };
+
+  const handleClearProductSearch = () => {
+    setProductSearchTerm("");
+    setDebouncedProductSearchTerm("");
+    setIsProductSearchExpanded(false);
   };
 
   return (
@@ -1539,89 +1615,178 @@ export default function SalespersonDetail({
           </div>
 
           {/* Products Table */}
-          <div className="modern-card p-5 lg:p-6 hover-lift">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                <Package className="h-5 w-5 text-green-600" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">Productos del Vendedor</h2>
-            </div>
-            
-            <div className="space-y-3">
-              {isLoadingProducts ? (
-                <div className="space-y-3">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="animate-pulse h-16 bg-gray-200 rounded-lg"></div>
-                  ))}
+          <div className="space-y-4">
+            {/* Header con búsqueda expandible */}
+            {!isProductSearchExpanded ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                    <Package className="h-5 w-5 text-green-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900">Productos del Vendedor</h2>
+                  
+                  {/* Botón de lupa para expandir búsqueda */}
+                  <button
+                    onClick={() => setIsProductSearchExpanded(true)}
+                    className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                    data-testid="button-expand-product-search"
+                    title="Buscar producto"
+                  >
+                    <Search className="h-4 w-4 text-gray-600" />
+                  </button>
                 </div>
-              ) : products.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No hay productos registrados para este vendedor</p>
-              ) : (
-                <>
-                  {(isProductsExpanded ? products : products.slice(0, 5)).map((product, index) => (
-                    <div 
-                      key={product.productName} 
-                      className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                      data-testid={`product-${index}`}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Búsqueda expandida a ancho completo */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                      <Package className="h-5 w-5 text-green-600" />
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-900">Productos del Vendedor</h2>
+                  </div>
+                  
+                  {debouncedProductSearchTerm && (
+                    <span className="text-sm text-gray-500">
+                      {productsWithPercentage.length} resultado{productsWithPercentage.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Filtrar productos por nombre..."
+                    value={productSearchTerm}
+                    onChange={(e) => setProductSearchTerm(e.target.value)}
+                    className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-green-500 rounded-lg shadow-sm"
+                    data-testid="input-filter-products"
+                    autoFocus
+                  />
+                  {productSearchTerm && (
+                    <button
+                      onClick={handleClearProductSearch}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      data-testid="button-clear-product-filter"
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-3">
-                          <div className="flex-shrink-0">
-                            <Badge variant="outline" className="text-xs">
-                              #{index + 1}
-                            </Badge>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {product.productName}
-                            </p>
-                            <div className="flex items-center space-x-4 mt-1">
-                              <p className="text-xs text-gray-500">
-                                {formatNumber(product.transactionCount)} transacciones
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                Precio prom: {formatCurrency(product.averagePrice)}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                Unidades: {formatNumber(product.totalUnits)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
+                      <X className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
+              {currentProductLoading ? (
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="flex items-center justify-between animate-pulse">
+                      <div className="h-4 bg-gray-200 rounded w-32"></div>
+                      <div className="h-4 bg-gray-200 rounded w-12"></div>
+                      <div className="flex-1 mx-4">
+                        <div className="h-6 bg-gray-200 rounded"></div>
                       </div>
-                      <div className="text-right ml-4">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {formatCurrency(product.totalSales)}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatDate(product.lastSale)}
-                        </p>
-                      </div>
+                      <div className="h-4 bg-gray-200 rounded w-16"></div>
                     </div>
                   ))}
+                </div>
+              ) : productsWithPercentage.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 text-sm">
+                    {debouncedProductSearchTerm ? 'No se encontraron productos con ese nombre' : 'No hay productos para mostrar'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-4 transition-all duration-300 ease-in-out">
+                    {productsWithPercentage.map((product, index) => (
+                      <div
+                        key={product.productName}
+                        className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3"
+                      >
+                        <div 
+                          className="flex items-center gap-3 w-full"
+                          data-testid={`product-${index}`}
+                        >
+                          {/* Nombre del producto completo */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-700 font-medium">
+                              {product.productName}
+                            </p>
+                          </div>
+                          
+                          {/* Porcentaje */}
+                          <span className="text-xs text-gray-600 w-10 text-right flex-shrink-0">
+                            {product.percentage.toFixed(1)}%
+                          </span>
+                          
+                          {/* Barra de progreso delgada y corta */}
+                          <div className="w-20 sm:w-32 flex-shrink-0">
+                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-green-500 rounded-full transition-all duration-500 ease-out"
+                                style={{ width: `${product.percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                          
+                          {/* Monto */}
+                          <span className="text-sm font-semibold text-gray-900 w-28 text-right flex-shrink-0">
+                            {formatCurrency(product.totalSales)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                   
-                  {/* Ver más button - only show if more than 5 products */}
-                  {products.length > 5 && (
-                    <div className="pt-2">
+                  {/* Botón Ver más - solo si no hay búsqueda activa y hay más productos */}
+                  {!debouncedProductSearchTerm && productsResponse && displayProducts.length < productsResponse.totalCount && (
+                    <div className="flex justify-center pt-4 border-t border-gray-200">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setIsProductsExpanded(!isProductsExpanded)}
-                        className="w-full"
-                        data-testid="button-toggle-products"
+                        onClick={handleLoadMoreProducts}
+                        className="text-xs px-6 transition-all duration-200 ease-in-out hover:scale-105"
+                        data-testid="button-load-more-products"
                       >
-                        {isProductsExpanded ? (
-                          <>
-                            Ver menos
-                            <ChevronUp className="ml-2 h-4 w-4" />
-                          </>
-                        ) : (
-                          <>
-                            Ver más ({products.length - 5} productos adicionales)
-                            <ChevronDown className="ml-2 h-4 w-4" />
-                          </>
-                        )}
+                        Ver más ({displayProducts.length} de {productsResponse.totalCount})
                       </Button>
+                    </div>
+                  )}
+                  
+                  {/* Total Row - solo si no hay búsqueda activa */}
+                  {!debouncedProductSearchTerm && productsWithPercentage.length > 0 && (
+                    <div className="border-t-2 border-gray-300 pt-3 mt-4">
+                      <div 
+                        className="flex items-center gap-3 w-full bg-green-50 rounded-lg py-3 px-2"
+                        data-testid="products-total"
+                      >
+                        {/* Nombre TOTAL */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-green-900 font-bold">
+                            TOTAL ({productsWithPercentage.length} productos)
+                          </p>
+                        </div>
+                        
+                        {/* Porcentaje */}
+                        <span className="text-xs text-green-700 font-semibold w-10 text-right flex-shrink-0">
+                          100.0%
+                        </span>
+                        
+                        {/* Barra completa */}
+                        <div className="w-20 sm:w-32 flex-shrink-0">
+                          <div className="h-2 bg-green-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-green-600 rounded-full w-full"></div>
+                          </div>
+                        </div>
+                        
+                        {/* Monto total */}
+                        <span className="text-sm font-bold text-green-900 w-28 text-right flex-shrink-0">
+                          {formatCurrency(productPeriodTotal)}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </>
