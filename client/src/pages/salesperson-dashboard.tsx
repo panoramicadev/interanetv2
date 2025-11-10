@@ -539,24 +539,22 @@ export default function SalespersonDashboard() {
               ) : segments.length === 0 ? (
                 <p className="text-sm text-gray-500" data-testid="text-segments-empty">Sin datos de segmentos para este período.</p>
               ) : (
-                <div className="space-y-3">
+                <div className="flex flex-wrap gap-3">
                   {segments.map((segment) => (
                     <div
                       key={segment.segment}
-                      className="border border-blue-200 bg-blue-50/60 rounded-xl p-3 sm:p-4"
+                      className="border border-blue-200 bg-blue-50/60 rounded-xl p-3 flex items-center gap-3 min-w-[280px] flex-1"
                       data-testid={`row-segment-${segment.segment}`}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{segment.segment}</p>
-                          <p className="text-xs text-gray-600">{segment.percentage.toFixed(1)}% del total</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-gray-600">Ventas</p>
-                          <p className="text-sm font-semibold text-blue-700">
-                            {formatCurrency(segment.totalSales)}
-                          </p>
-                        </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{segment.segment}</p>
+                        <p className="text-xs text-gray-600">{segment.percentage.toFixed(1)}% del total</p>
+                      </div>
+                      <div className="text-right whitespace-nowrap">
+                        <p className="text-xs text-gray-600">Ventas</p>
+                        <p className="text-sm font-semibold text-blue-700">
+                          {formatCurrency(segment.totalSales)}
+                        </p>
                       </div>
                     </div>
                   ))}
