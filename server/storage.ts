@@ -17426,8 +17426,8 @@ export class DatabaseStorage implements IStorage {
       threeHundredFiftyFourDaysAgo.setDate(threeHundredFiftyFourDaysAgo.getDate() - 354);
 
       // Consulta SQL para detectar clientes inactivos desde fact_ventas
-      // Incluye nokoen (cliente), noruen (segmento) y nokofu (vendedor)
       // NUEVO: Solo incluir clientes con más de 4 ventas en los últimos 354 días
+      // Agrupar solo por cliente (nokoen) para contar todas sus ventas, no por vendedor/segmento
       const threeHundredFiftyFourDaysAgoStr = threeHundredFiftyFourDaysAgo.toISOString().split('T')[0];
       const fortyFiveDaysAgoStr = fortyFiveDaysAgo.toISOString().split('T')[0];
       
@@ -17437,20 +17437,31 @@ export class DatabaseStorage implements IStorage {
             fv.nokoen as client_name,
             fv.nokoen as client_koen,
             MAX(fv.feemdo) as last_purchase_date,
-            MAX(fv.vabrdo) as last_purchase_amount,
             CURRENT_DATE - MAX(fv.feemdo)::date as days_since_last_purchase,
             SUM(fv.vabrdo) as total_purchases_last_year,
-            COUNT(*) as transaction_count,
-            fv.noruen as segment,
-            fv.nokofu as salesperson_name
+            COUNT(*) as transaction_count
           FROM ventas.fact_ventas fv
           WHERE fv.feemdo >= ${sql.raw(`'${threeHundredFiftyFourDaysAgoStr}'::date`)}
-          GROUP BY fv.nokoen, fv.noruen, fv.nokofu
+          GROUP BY fv.nokoen
           HAVING MAX(fv.feemdo) < ${sql.raw(`'${fortyFiveDaysAgoStr}'::date`)}
             AND MAX(fv.feemdo) >= ${sql.raw(`'${threeHundredFiftyFourDaysAgoStr}'::date`)}
             AND COUNT(*) > 4
+        ),
+        client_details AS (
+          SELECT DISTINCT ON (cs.client_koen)
+            cs.client_name,
+            cs.client_koen,
+            cs.last_purchase_date,
+            cs.days_since_last_purchase,
+            cs.total_purchases_last_year,
+            fv.vabrdo as last_purchase_amount,
+            fv.noruen as segment,
+            fv.nokofu as salesperson_name
+          FROM client_stats cs
+          JOIN ventas.fact_ventas fv ON fv.nokoen = cs.client_koen AND fv.feemdo = cs.last_purchase_date
+          ORDER BY cs.client_koen, fv.idmaeedo DESC
         )
-        SELECT * FROM client_stats
+        SELECT * FROM client_details
         ORDER BY days_since_last_purchase DESC
       `);
 
