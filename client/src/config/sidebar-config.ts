@@ -376,14 +376,14 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: DollarSign,
     },
     {
-      href: "/ordenes",
-      label: "Facturas",
-      icon: Receipt,
+      href: "/nvv",
+      label: "Finanzas",
+      icon: TrendingUp,
     },
     {
-      href: "/nvv",
-      label: "Notas de Venta (NVV)",
-      icon: TrendingUp,
+      href: "/clientes",
+      label: "Clientes",
+      icon: Users,
       separator: true, // Separador antes de Tomador de Pedidos
     },
     {
