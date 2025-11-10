@@ -1078,11 +1078,11 @@ export default function Dashboard() {
                         <Settings2 className="h-3.5 w-3.5 text-gray-400 ml-2" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-48 p-1" align="start">
+                    <PopoverContent className="w-52 p-2" align="start">
                       <div className="flex flex-col gap-1">
                         <Button
                           variant="ghost"
-                          className="justify-start h-9 px-2 text-sm"
+                          className="justify-start h-9 px-2 text-sm hover:bg-gray-100"
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Todo el dashboard'");
                             resetFilters();
@@ -1098,7 +1098,7 @@ export default function Dashboard() {
                         </Button>
                         <Button
                           variant="ghost"
-                          className="justify-start h-9 px-2 text-sm"
+                          className="justify-start h-9 px-2 text-sm hover:bg-green-50"
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Por segmento'");
                             setGlobalFilter({ type: "segment", value: "" });
@@ -1111,7 +1111,7 @@ export default function Dashboard() {
                         </Button>
                         <Button
                           variant="ghost"
-                          className="justify-start h-9 px-2 text-sm"
+                          className="justify-start h-9 px-2 text-sm hover:bg-blue-50"
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Por sucursal'");
                             setGlobalFilter({ type: "branch", value: "" });
@@ -1124,7 +1124,7 @@ export default function Dashboard() {
                         </Button>
                         <Button
                           variant="ghost"
-                          className="justify-start h-9 px-2 text-sm"
+                          className="justify-start h-9 px-2 text-sm hover:bg-purple-50"
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Por vendedor'");
                             setGlobalFilter({ type: "salesperson", value: "" });
