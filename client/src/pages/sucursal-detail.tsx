@@ -298,6 +298,8 @@ export default function SucursalDetail({
     queryKey: ["/api/goals/data/segments"],
   });
 
+  console.log("🔍 [sucursal-detail] allSegments:", allSegments, "selectedView:", selectedView, "embedded:", embedded);
+
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<BranchClient[]>({
     queryKey: ['/api/sales/branch', branchName, 'clients', selectedPeriod, filterType],
     queryFn: async () => {
@@ -470,7 +472,7 @@ export default function SucursalDetail({
               </div>
 
               {/* Segment selector - shown when view is segmento */}
-              {!embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
+              {selectedView === "segmento" && (
                 <div className="flex items-center gap-2" key="segment-selector">
                   <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select 
@@ -483,11 +485,15 @@ export default function SucursalDetail({
                       <SelectValue placeholder="Selecciona segmento" />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                      {allSegments.map((segment) => (
-                        <SelectItem key={segment} value={segment}>
-                          {segment}
-                        </SelectItem>
-                      ))}
+                      {allSegments && allSegments.length > 0 ? (
+                        allSegments.map((segment) => (
+                          <SelectItem key={segment} value={segment}>
+                            {segment}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="loading" disabled>Cargando segmentos...</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
