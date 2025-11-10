@@ -29,6 +29,7 @@ import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nv
 import AllSalespeopleNVV from "@/components/dashboard/all-salespeople-nvv";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
@@ -1038,110 +1039,91 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
-                  {console.log("🎨 [Dashboard RENDER] Select value:", globalFilter.type, "Full filter:", globalFilter)}
-                  <Select 
-                    value={globalFilter.type}
-                    onOpenChange={(open) => console.log("🎨 [Dashboard] Select opened/closed:", open, "Current value:", globalFilter.type)} 
-                    onValueChange={(value) => {
-                      console.log("🎯 [Dashboard] Select onChange - value:", value);
-                      console.log("🎯 [Dashboard] Current globalFilter BEFORE change:", globalFilter);
-                      
-                      if (value === "all") {
-                        console.log("🔄 [Dashboard] User selected 'all' - resetting to full dashboard");
-                        resetFilters();
-                        setLocation('/dashboard');
-                        queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-                        queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
-                        console.log("✅ [Dashboard] Reset complete");
-                      } else if (value === "segment") {
-                        console.log("🔧 [Dashboard] Switching to segment view");
-                        setGlobalFilter({ type: "segment", value: "" });
-                        window.history.replaceState({}, '', '/dashboard?filter=segment');
-                      } else if (value === "branch") {
-                        console.log("🔧 [Dashboard] Switching to branch view");
-                        setGlobalFilter({ type: "branch", value: "" });
-                        window.history.replaceState({}, '', '/dashboard?filter=branch');
-                      } else if (value === "salesperson") {
-                        console.log("🔧 [Dashboard] Switching to salesperson view");
-                        setGlobalFilter({ type: "salesperson", value: "" });
-                        window.history.replaceState({}, '', '/dashboard?filter=salesperson');
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                      <SelectItem 
-                        value="all"
-                        onPointerDown={(e) => {
-                          console.log("🖱️ [Dashboard] SelectItem 'all' POINTER DOWN");
-                          // Don't prevent default - let Radix handle the UI
-                          // But execute our logic immediately
-                          setTimeout(() => {
-                            console.log("🔄 [Dashboard] Executing reset after pointer down");
-                            resetFilters();
-                            setLocation('/dashboard');
-                            queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-                            queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
-                          }, 0);
-                        }}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="h-9 w-48 rounded-lg border-gray-200 text-sm justify-between"
+                        data-testid="filter-view-selector"
                       >
                         <div className="flex items-center space-x-2">
-                          <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
-                          <span>Todo el dashboard</span>
+                          {globalFilter.type === "all" && (
+                            <>
+                              <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                              <span>Todo el dashboard</span>
+                            </>
+                          )}
+                          {globalFilter.type === "segment" && (
+                            <>
+                              <Building className="h-3.5 w-3.5 text-green-500" />
+                              <span>Por segmento</span>
+                            </>
+                          )}
+                          {globalFilter.type === "branch" && (
+                            <>
+                              <Building className="h-3.5 w-3.5 text-blue-500" />
+                              <span>Por sucursal</span>
+                            </>
+                          )}
+                          {globalFilter.type === "salesperson" && (
+                            <>
+                              <Users className="h-3.5 w-3.5 text-purple-500" />
+                              <span>Por vendedor</span>
+                            </>
+                          )}
                         </div>
-                      </SelectItem>
-                      <SelectItem 
-                        value="segment"
-                        onPointerDown={(e) => {
-                          console.log("🖱️ [Dashboard] SelectItem 'segment' POINTER DOWN");
-                          setTimeout(() => {
-                            console.log("🔄 [Dashboard] Executing segment filter");
-                            setGlobalFilter({ type: "segment", value: "" });
-                            window.history.replaceState({}, '', '/dashboard?filter=segment');
-                          }, 0);
+                        <Settings2 className="h-3.5 w-3.5 text-gray-400 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-48 rounded-lg border-gray-200" align="start">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          console.log("✅ [Dashboard] Clicked 'Todo el dashboard'");
+                          resetFilters();
+                          setLocation('/dashboard');
+                          queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+                          queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
                         }}
+                        data-testid="filter-view-all"
                       >
-                        <div className="flex items-center space-x-2">
-                          <Building className="h-3.5 w-3.5 text-green-500" />
-                          <span>Por segmento</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem 
-                        value="branch"
-                        onPointerDown={(e) => {
-                          console.log("🖱️ [Dashboard] SelectItem 'branch' POINTER DOWN");
-                          setTimeout(() => {
-                            console.log("🔄 [Dashboard] Executing branch filter");
-                            setGlobalFilter({ type: "branch", value: "" });
-                            window.history.replaceState({}, '', '/dashboard?filter=branch');
-                          }, 0);
+                        <TrendingUp className="h-3.5 w-3.5 text-gray-500 mr-2" />
+                        <span>Todo el dashboard</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          console.log("✅ [Dashboard] Clicked 'Por segmento'");
+                          setGlobalFilter({ type: "segment", value: "" });
+                          window.history.replaceState({}, '', '/dashboard?filter=segment');
                         }}
+                        data-testid="filter-view-segment"
                       >
-                        <div className="flex items-center space-x-2">
-                          <Building className="h-3.5 w-3.5 text-blue-500" />
-                          <span>Por sucursal</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem 
-                        value="salesperson"
-                        onPointerDown={(e) => {
-                          console.log("🖱️ [Dashboard] SelectItem 'salesperson' POINTER DOWN");
-                          setTimeout(() => {
-                            console.log("🔄 [Dashboard] Executing salesperson filter");
-                            setGlobalFilter({ type: "salesperson", value: "" });
-                            window.history.replaceState({}, '', '/dashboard?filter=salesperson');
-                          }, 0);
+                        <Building className="h-3.5 w-3.5 text-green-500 mr-2" />
+                        <span>Por segmento</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          console.log("✅ [Dashboard] Clicked 'Por sucursal'");
+                          setGlobalFilter({ type: "branch", value: "" });
+                          window.history.replaceState({}, '', '/dashboard?filter=branch');
                         }}
+                        data-testid="filter-view-branch"
                       >
-                        <div className="flex items-center space-x-2">
-                          <Users className="h-3.5 w-3.5 text-purple-500" />
-                          <span>Por vendedor</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                        <Building className="h-3.5 w-3.5 text-blue-500 mr-2" />
+                        <span>Por sucursal</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          console.log("✅ [Dashboard] Clicked 'Por vendedor'");
+                          setGlobalFilter({ type: "salesperson", value: "" });
+                          window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+                        }}
+                        data-testid="filter-view-salesperson"
+                      >
+                        <Users className="h-3.5 w-3.5 text-purple-500 mr-2" />
+                        <span>Por vendedor</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {/* Segment/Branch/Salesperson selector - shown conditionally */}
