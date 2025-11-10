@@ -313,6 +313,56 @@ import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
 import { nanoid } from 'nanoid';
 
+// Middleware to ensure salespeople can only access their own data
+// Must be used after requireAuth middleware
+function requireOwnDataOrAdmin(req: any, res: any, next: any) {
+  const user = req.user;
+  
+  if (!user) {
+    return res.status(401).json({ message: "No autenticado" });
+  }
+  
+  // Allow admins and supervisors to access all data
+  if (user.role === 'admin' || user.role === 'supervisor') {
+    return next();
+  }
+  
+  // Validate salespersonName parameter exists
+  const requestedSalesperson = req.params.salespersonName;
+  if (!requestedSalesperson) {
+    return res.status(400).json({ message: "Nombre de vendedor requerido" });
+  }
+  
+  // Normalize function: decode URI, trim, lowercase
+  const normalize = (str: string): string => {
+    try {
+      return decodeURIComponent(str).trim().toLowerCase();
+    } catch {
+      return str.trim().toLowerCase();
+    }
+  };
+  
+  // For salespeople, validate they're only accessing their own data
+  if (user.role === 'salesperson') {
+    const userSalespersonName = user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const normalizedRequested = normalize(requestedSalesperson);
+    const normalizedUser = normalize(userSalespersonName);
+    
+    if (normalizedRequested !== normalizedUser) {
+      return res.status(403).json({ 
+        message: "No tienes permiso para acceder a datos de otros vendedores" 
+      });
+    }
+    
+    return next();
+  }
+  
+  // All other roles (marketing, client, tecnico_obra, etc.) are denied
+  return res.status(403).json({ 
+    message: "No tienes permiso para acceder a esta información" 
+  });
+}
+
 export function registerRoutes(app: Express): Server {
   // Setup email/password auth system (primary)
   setupAuth(app);
@@ -592,7 +642,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Vendedor-specific metrics endpoint
-  app.get('/api/sales/metrics/salesperson/:salespersonName', requireAuth, async (req, res) => {
+  app.get('/api/sales/metrics/salesperson/:salespersonName', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { startDate, endDate, period, filterType } = req.query;
@@ -611,7 +661,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Vendedor-specific clients endpoint  
-  app.get('/api/sales/clients/salesperson/:salespersonName', requireAuth, async (req, res) => {
+  app.get('/api/sales/clients/salesperson/:salespersonName', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { startDate, endDate, period, filterType } = req.query;
@@ -630,7 +680,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Vendedor-specific sales chart data
-  app.get('/api/sales/chart-data/salesperson/:salespersonName', requireAuth, async (req, res) => {
+  app.get('/api/sales/chart-data/salesperson/:salespersonName', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { period = 'monthly', selectedPeriod, filterType } = req.query;
@@ -643,7 +693,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Vendedor-specific goals
-  app.get('/api/goals/salesperson/:salespersonName', requireAuth, async (req, res) => {
+  app.get('/api/goals/salesperson/:salespersonName', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const goals = await storage.getGoalsBySalesperson(salespersonName);
@@ -655,7 +705,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Vendedor-specific alerts
-  app.get('/api/alerts/salesperson/:salespersonName', requireAuth, async (req, res) => {
+  app.get('/api/alerts/salesperson/:salespersonName', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const alerts = await storage.getSalespersonAlerts(salespersonName);
@@ -1563,7 +1613,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Salesperson clients search endpoint (AJAX autocomplete)
-  app.get('/api/salespeople/:salespersonName/clients/search', requireAuth, async (req, res) => {
+  app.get('/api/salespeople/:salespersonName/clients/search', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { q, period, filterType, segment } = req.query;
@@ -1590,7 +1640,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get salesperson client details endpoint (for accordion expansion)
-  app.get('/api/salespeople/:salespersonName/clients/:clientName/details', requireAuth, async (req, res) => {
+  app.get('/api/salespeople/:salespersonName/clients/:clientName/details', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName, clientName } = req.params;
       const { period, filterType } = req.query;
@@ -1614,7 +1664,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Salesperson products search endpoint (AJAX autocomplete)
-  app.get('/api/salespeople/:salespersonName/products/search', requireAuth, async (req, res) => {
+  app.get('/api/salespeople/:salespersonName/products/search', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { q, period, filterType, segment } = req.query;
@@ -1641,7 +1691,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get salesperson product details endpoint (for accordion expansion)
-  app.get('/api/salespeople/:salespersonName/products/:productName/details', requireAuth, async (req, res) => {
+  app.get('/api/salespeople/:salespersonName/products/:productName/details', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName, productName } = req.params;
       const { period, filterType } = req.query;
@@ -1668,7 +1718,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Get salesperson recent transactions endpoint
-  app.get('/api/salespeople/:salespersonName/transactions/recent', requireAuth, async (req, res) => {
+  app.get('/api/salespeople/:salespersonName/transactions/recent', requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { limit } = req.query;
@@ -2057,7 +2107,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Salesperson detail routes
-  app.get("/api/sales/salesperson/:salespersonName/details", requireAuth, async (req, res) => {
+  app.get("/api/sales/salesperson/:salespersonName/details", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
@@ -2071,7 +2121,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Salesperson metrics endpoint (for comparative charts)
-  app.get("/api/sales/salesperson/:salespersonName/metrics", requireAuth, async (req, res) => {
+  app.get("/api/sales/salesperson/:salespersonName/metrics", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
@@ -2091,7 +2141,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/sales/salesperson/:salespersonName/clients", requireAuth, async (req, res) => {
+  app.get("/api/sales/salesperson/:salespersonName/clients", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month", segment, limit } = req.query;
@@ -2110,7 +2160,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/sales/salesperson/:salespersonName/products", requireAuth, async (req, res) => {
+  app.get("/api/sales/salesperson/:salespersonName/products", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month", segment, limit } = req.query;
@@ -2129,7 +2179,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/sales/salesperson/:salespersonName/segments", requireAuth, async (req, res) => {
+  app.get("/api/sales/salesperson/:salespersonName/segments", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
@@ -2143,7 +2193,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Salesperson NVV pending sales
-  app.get("/api/sales/salesperson/:salespersonName/nvv-pending", requireAuth, async (req, res) => {
+  app.get("/api/sales/salesperson/:salespersonName/nvv-pending", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
@@ -2247,7 +2297,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Análisis categorizado de clientes para vendedores
-  app.get("/api/sales/salesperson/:salespersonName/clients-analysis", requireAuth, async (req, res) => {
+  app.get("/api/sales/salesperson/:salespersonName/clients-analysis", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       
@@ -2260,7 +2310,7 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Notificaciones inteligentes de ventas para vendedores
-  app.get("/api/sales/salesperson/:salespersonName/smart-notifications", requireAuth, async (req, res) => {
+  app.get("/api/sales/salesperson/:salespersonName/smart-notifications", requireAuth, requireOwnDataOrAdmin, async (req, res) => {
     try {
       const { salespersonName } = req.params;
       
