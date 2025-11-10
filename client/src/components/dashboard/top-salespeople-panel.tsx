@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { UserCheck, Download, Search, X } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect, useRef } from "react";
+import { Input } from "@/components/ui/input";
+import { useState, useEffect } from "react";
 
 interface TopSalesperson {
   salesperson: string;
@@ -30,65 +31,39 @@ interface TopSalespeoplePanelProps {
 }
 
 export default function TopSalespeoplePanel({ selectedPeriod, filterType, segment, salesperson }: TopSalespeoplePanelProps) {
-  const [limit, setLimit] = useState(10);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [limit, setLimit] = useState(10);
   
   // Debounce search term
   useEffect(() => {
-    const handler = setTimeout(() => {
+    const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
     }, 300);
     
-    return () => clearTimeout(handler);
+    return () => clearTimeout(timer);
   }, [searchTerm]);
   
-  // Focus input when expanded
-  useEffect(() => {
-    if (isSearchExpanded && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [isSearchExpanded]);
-  
+  // Query for paginated top salespeople (default view)
   const { data: topSalespeopleResponse, isLoading } = useQuery<TopSalespeopleResponse>({
-    queryKey: ['/api/sales/top-salespeople', limit, selectedPeriod, filterType, segment, salesperson],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('limit', limit.toString());
-      params.append('period', selectedPeriod);
-      params.append('filterType', filterType);
-      if (segment) params.append('segment', segment);
-      if (salesperson) params.append('salesperson', salesperson);
-      const res = await fetch(`/api/sales/top-salespeople?${params}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-    enabled: !debouncedSearchTerm, // Only fetch when not searching
+    queryKey: [`/api/sales/top-salespeople?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}`],
+    enabled: !debouncedSearchTerm, // Disable when searching
   });
 
+  // Query for search results (when typing)
   const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchSalesperson[]>({
-    queryKey: ['/api/salespeople/search', debouncedSearchTerm, selectedPeriod, filterType, segment],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      params.append('q', debouncedSearchTerm);
-      params.append('period', selectedPeriod);
-      params.append('filterType', filterType);
-      if (segment) params.append('segment', segment);
-      const res = await fetch(`/api/salespeople/search?${params}`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return await res.json();
-    },
-    enabled: debouncedSearchTerm.length >= 2,
+    queryKey: [`/api/salespeople/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}`],
+    enabled: debouncedSearchTerm.length >= 2, // Only search if 2+ characters
   });
 
-  const topSalespeople = topSalespeopleResponse?.items;
+  // Use search results if searching, otherwise use paginated salespeople
+  const displaySalespeople = debouncedSearchTerm.length >= 2 && searchResults
+    ? searchResults.map(sp => ({ salesperson: sp.name, totalSales: sp.totalSales, transactionCount: sp.transactionCount }))
+    : topSalespeopleResponse?.items || [];
+  
   const periodTotal = topSalespeopleResponse?.periodTotalSales || 0;
-
-  const displaySalespeople = debouncedSearchTerm
-    ? searchResults?.map(sp => ({ salesperson: sp.name, totalSales: sp.totalSales, transactionCount: sp.transactionCount }))
-    : topSalespeople;
+  const currentLoading = debouncedSearchTerm.length >= 2 ? isSearchLoading : isLoading;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -99,17 +74,13 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
   };
 
   // Calculate percentages based on period total
-  const salespeopleWithPercentage = displaySalespeople?.map(sp => ({
+  const salespeopleWithPercentage = displaySalespeople.map(sp => ({
     ...sp,
     percentage: periodTotal > 0 ? (sp.totalSales / periodTotal) * 100 : 0
   }));
 
   const handleLoadMore = () => {
     setLimit(prev => prev + 10);
-  };
-
-  const handleSearchClick = () => {
-    setIsSearchExpanded(true);
   };
 
   const handleClearSearch = () => {
@@ -173,81 +144,94 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-            <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-          </div>
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Vendedores</h2>
-          {topSalespeopleResponse && (
-            <span className="text-sm text-gray-500">
-              {topSalespeopleResponse.totalCount} resultados
-            </span>
-          )}
-          
-          {/* Search Bar - Next to title */}
-          {!isSearchExpanded ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSearchClick}
-              className="text-gray-500 hover:text-gray-700 ml-2"
-              data-testid="button-search-salespeople"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-          ) : (
-            <div className="relative ml-2 w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar vendedor..."
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                data-testid="input-search-salespeople"
-              />
-              {searchTerm && (
-                <button
-                  onClick={handleClearSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  data-testid="button-clear-search-salespeople"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+      {/* Header con búsqueda expandible */}
+      {!isSearchExpanded ? (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <UserCheck className="h-5 w-5 text-blue-600" />
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportToCSV}
-            disabled={isLoading || !salespeopleWithPercentage || salespeopleWithPercentage.length === 0}
-            data-testid="button-export-salespeople-csv"
-          >
-            <Download className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Exportar CSV</span>
-            <span className="sm:hidden">CSV</span>
-          </Button>
-          <Link href="/mis-vendedores">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs px-3 py-1"
-              data-testid="button-view-all-salespeople"
+            <h2 className="text-xl font-bold text-gray-900">Vendedores</h2>
+            
+            {/* Botón de lupa para expandir búsqueda */}
+            <button
+              onClick={() => setIsSearchExpanded(true)}
+              className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+              data-testid="button-expand-search-salespeople"
+              title="Buscar vendedor"
             >
-              Ver todos
+              <Search className="h-4 w-4 text-gray-600" />
+            </button>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportToCSV}
+              disabled={isLoading || !salespeopleWithPercentage || salespeopleWithPercentage.length === 0}
+              data-testid="button-export-salespeople-csv"
+            >
+              <Download className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Exportar CSV</span>
+              <span className="sm:hidden">CSV</span>
             </Button>
-          </Link>
+            <Link href="/mis-vendedores">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs px-3 py-1"
+                data-testid="button-view-all-salespeople"
+              >
+                Ver todos
+              </Button>
+            </Link>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Búsqueda expandida a ancho completo */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <UserCheck className="h-5 w-5 text-blue-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Vendedores</h2>
+            </div>
+            
+            {debouncedSearchTerm && (
+              <span className="text-sm text-gray-500">
+                {salespeopleWithPercentage.length} resultado{salespeopleWithPercentage.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Filtrar vendedores por nombre..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-11 pr-10 h-12 text-sm font-medium border-2 border-gray-200 focus:border-blue-500 rounded-lg shadow-sm"
+              data-testid="input-filter-salespeople"
+              autoFocus
+            />
+            {searchTerm && (
+              <button
+                onClick={handleClearSearch}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                data-testid="button-clear-filter-salespeople"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
-
-        {(isLoading || isSearchLoading) ? (
+        {currentLoading ? (
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="flex items-center justify-between animate-pulse py-3">
