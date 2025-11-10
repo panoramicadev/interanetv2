@@ -338,7 +338,7 @@ export default function CRMPage() {
               <AlertDescription className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-orange-800 dark:text-orange-200">
-                    Tienes <strong>{activeInactiveClients.length}</strong> {activeInactiveClients.length === 1 ? 'cliente inactivo' : 'clientes inactivos'}
+                    Clientes que requieren atención: <strong>{activeInactiveClients.length}</strong>
                   </span>
                   <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200">
                     {activeInactiveClients.length}
