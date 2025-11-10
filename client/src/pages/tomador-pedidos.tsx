@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -854,6 +854,89 @@ export default function TomadorPedidos() {
   
   // Extract the items array from the response
   const priceList = priceListResponse?.items || [];
+
+  // Fetch inventory data for stock display
+  const { data: inventoryData, isLoading: isLoadingInventory, isError: isInventoryError } = useQuery({
+    queryKey: ['/api/inventory-with-prices'],
+    queryFn: async () => {
+      const response = await fetch('/api/inventory-with-prices', { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch inventory: ${response.status}`);
+      }
+      return response.json();
+    },
+    staleTime: 30 * 60 * 1000, // 30 minutes - aligned with ETL refresh
+    gcTime: 60 * 60 * 1000, // 1 hour garbage collection time
+    retry: 2, // Retry failed requests up to 2 times
+  });
+
+  // Show toast when inventory fetch fails
+  useEffect(() => {
+    if (isInventoryError) {
+      toast({
+        title: 'Error al cargar inventario',
+        description: 'No se pudo obtener la información de stock. Los datos de inventario pueden no estar actualizados.',
+        variant: 'destructive',
+      });
+    }
+  }, [isInventoryError, toast]);
+
+  // Memoized SKU -> stock map for O(1) lookups
+  const stockMap = useMemo(() => {
+    if (!inventoryData || !Array.isArray(inventoryData)) return new Map();
+    
+    const map = new Map<string, number>();
+    inventoryData.forEach((item: any) => {
+      const sku = item.productSku;
+      const stock = Number(item.availableStock1) || 0;
+      map.set(sku, (map.get(sku) || 0) + stock);
+    });
+    
+    return map;
+  }, [inventoryData]);
+
+  // Helper function to get stock for a product by SKU
+  const getProductStock = (sku: string): number => {
+    return Math.floor(stockMap.get(sku) || 0);
+  };
+
+  // Helper function to render stock badge
+  const renderStockBadge = (sku: string) => {
+    if (isLoadingInventory) {
+      return <Skeleton className="h-5 w-24 rounded-full" data-testid={`stock-skeleton-${sku}`} />;
+    }
+
+    // Handle inventory API error
+    if (isInventoryError) {
+      return (
+        <Badge
+          variant="outline"
+          className="text-xs flex items-center gap-1 text-amber-600 border-amber-300"
+          aria-label="Error al cargar stock"
+          data-testid={`stock-error-${sku}`}
+        >
+          <Package className="w-3 h-3" />
+          Stock no disponible
+        </Badge>
+      );
+    }
+
+    const stock = getProductStock(sku);
+    const isInStock = stock > 0;
+    const ariaLabel = isInStock ? `Stock disponible: ${stock} unidades` : 'Sin stock disponible';
+
+    return (
+      <Badge
+        variant={isInStock ? "secondary" : "outline"}
+        className={`text-xs flex items-center gap-1 ${isInStock ? 'text-emerald-600' : 'text-destructive'}`}
+        aria-label={ariaLabel}
+        data-testid={`stock-badge-${sku}`}
+      >
+        <Package className="w-3 h-3" />
+        {isInStock ? `Stock: ${stock}` : 'Sin stock'}
+      </Badge>
+    );
+  };
 
   // Fetch clients with search functionality (same structure as client management)
   const { data: clientsData, isLoading: isLoadingClients } = useQuery({
@@ -3475,13 +3558,14 @@ export default function TomadorPedidos() {
                             <div className="space-y-3">
                               <div>
                                 <div className="flex items-start justify-between mb-2">
-                                  <div className="flex-1 min-w-0">
+                                  <div className="flex-1 min-w-0 space-y-1.5">
                                     <h4 className="font-medium text-sm leading-5 truncate">
                                       {product.producto}
                                     </h4>
-                                    <p className="text-xs text-muted-foreground mt-1">
+                                    <p className="text-xs text-muted-foreground">
                                       SKU: {product.codigo}
                                     </p>
+                                    {renderStockBadge(product.codigo)}
                                   </div>
                                   <div className="text-right ml-2">
                                     <p className="font-bold text-green-600">
@@ -3982,13 +4066,14 @@ export default function TomadorPedidos() {
                                 data-testid={`modal-product-${product.codigo}`}
                               >
                                 <div className="flex justify-between items-start">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
+                                  <div className="flex-1 space-y-1.5">
+                                    <div className="flex items-center gap-2">
                                       <Badge variant="secondary" className="text-xs">
                                         {product.codigo}
                                       </Badge>
+                                      {renderStockBadge(product.codigo)}
                                     </div>
-                                    <h4 className="font-medium text-sm mb-1">
+                                    <h4 className="font-medium text-sm">
                                       <Link
                                         href={`/product/${encodeURIComponent(product.producto || '')}`}
                                         className="text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
