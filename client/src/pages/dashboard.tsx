@@ -113,6 +113,9 @@ export default function Dashboard() {
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
   
+  // Popover state for view selector
+  const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
+  
   // Detect comparative mode (multiple periods selected)
   const isComparativeMode = (() => {
     // Multiple months selected
@@ -1039,7 +1042,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
-                  <Popover>
+                  <Popover open={isViewPopoverOpen} onOpenChange={setIsViewPopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button 
                         variant="outline" 
@@ -1086,6 +1089,7 @@ export default function Dashboard() {
                             setLocation('/dashboard');
                             queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
                             queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
+                            setIsViewPopoverOpen(false);
                           }}
                           data-testid="filter-view-all"
                         >
@@ -1099,6 +1103,7 @@ export default function Dashboard() {
                             console.log("✅ [Dashboard] CLICKED 'Por segmento'");
                             setGlobalFilter({ type: "segment", value: "" });
                             window.history.replaceState({}, '', '/dashboard?filter=segment');
+                            setIsViewPopoverOpen(false);
                           }}
                           data-testid="filter-view-segment"
                         >
@@ -1112,6 +1117,7 @@ export default function Dashboard() {
                             console.log("✅ [Dashboard] CLICKED 'Por sucursal'");
                             setGlobalFilter({ type: "branch", value: "" });
                             window.history.replaceState({}, '', '/dashboard?filter=branch');
+                            setIsViewPopoverOpen(false);
                           }}
                           data-testid="filter-view-branch"
                         >
@@ -1125,6 +1131,7 @@ export default function Dashboard() {
                             console.log("✅ [Dashboard] CLICKED 'Por vendedor'");
                             setGlobalFilter({ type: "salesperson", value: "" });
                             window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+                            setIsViewPopoverOpen(false);
                           }}
                           data-testid="filter-view-salesperson"
                         >
