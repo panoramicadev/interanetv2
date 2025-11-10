@@ -15,10 +15,13 @@ export default function NVVPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // Check if the user is authorized
-  if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega")) {
+  if (!user || (user.role !== "admin" && user.role !== "supervisor" && user.role !== "logistica_bodega" && user.role !== "salesperson")) {
     setLocation("/dashboard");
     return null;
   }
+
+  // Get salesperson name for filtering (only for salesperson role)
+  const salespersonFilter = user.role === 'salesperson' ? (user as any).salespersonName : undefined;
 
   return (
     <div className="space-y-6">
@@ -49,24 +52,31 @@ export default function NVVPage() {
 
         {/* Dashboard Tab */}
         <TabsContent value="dashboard" className="space-y-6">
-          <NvvDashboard />
+          <NvvDashboard salespersonFilter={salespersonFilter} />
         </TabsContent>
 
         {/* Import Tab */}
         <TabsContent value="import" className="space-y-6">
-          <CsvImport 
-            title="Importar Notas de Venta"
-            description="Sube archivos CSV con datos de notas de venta"
-            uploadUrl="/api/nvv/upload"
-            onSuccess={() => {
-              setActiveTab("data");
-            }}
-          />
+          {user.role !== 'salesperson' ? (
+            <CsvImport 
+              title="Importar Notas de Venta"
+              description="Sube archivos CSV con datos de notas de venta"
+              uploadUrl="/api/nvv/upload"
+              onSuccess={() => {
+                setActiveTab("data");
+              }}
+            />
+          ) : (
+            <div className="p-8 text-center">
+              <p className="text-gray-500">Los vendedores no pueden importar datos CSV.</p>
+              <p className="text-sm text-gray-400 mt-2">Contacta con un administrador para importar datos.</p>
+            </div>
+          )}
         </TabsContent>
 
         {/* Data Tab */}
         <TabsContent value="data" className="space-y-6">
-          <PendingSalesTable />
+          <PendingSalesTable salespersonFilter={salespersonFilter} />
         </TabsContent>
 
       </Tabs>

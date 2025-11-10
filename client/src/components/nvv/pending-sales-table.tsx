@@ -30,18 +30,27 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-red-100 text-red-800"
 };
 
-export function PendingSalesTable() {
+interface PendingSalesTableProps {
+  salespersonFilter?: string;
+}
+
+export function PendingSalesTable({ salespersonFilter }: PendingSalesTableProps) {
   const { toast } = useToast();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
 
   const { data: pendingSales, isLoading, error } = useQuery<NvvPendingSales[]>({
-    queryKey: ['/api/nvv/pending', pageSize, currentPage],
+    queryKey: ['/api/nvv/pending', pageSize, currentPage, salespersonFilter],
     queryFn: async () => {
       const params = new URLSearchParams({
         limit: pageSize.toString(),
         offset: ((currentPage - 1) * pageSize).toString(),
       });
+      
+      // Add salesperson filter if provided
+      if (salespersonFilter) {
+        params.set('salesperson', salespersonFilter);
+      }
       
       const response = await fetch(`/api/nvv/pending?${params}`, {
         credentials: 'include',
