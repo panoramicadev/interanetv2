@@ -216,7 +216,7 @@ export default function SalespersonDashboard() {
   });
 
   // Fetch products data (for topProducts) - matching salesperson-detail
-  const { data: productsData = [] } = useQuery({
+  const { data: productsResponse } = useQuery({
     queryKey: ['/api/sales/salesperson', salespersonName, 'products', selectedPeriod, filterType],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -228,6 +228,9 @@ export default function SalespersonDashboard() {
     },
     enabled: !!salespersonName && !isLoadingSalespeopleFallback,
   });
+
+  // Extract products array from response
+  const productsData = Array.isArray(productsResponse) ? productsResponse : (productsResponse?.items || []);
 
   // Fetch recent transactions for the salesperson - extract items array
   const { data: transactionsResponse } = useQuery({
