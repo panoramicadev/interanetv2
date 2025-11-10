@@ -1078,11 +1078,11 @@ export default function Dashboard() {
                         <Settings2 className="h-3.5 w-3.5 text-gray-400 ml-2" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-52 p-2" align="start">
-                      <div className="flex flex-col gap-1">
+                    <PopoverContent className="w-56 p-2 shadow-lg border-2 border-orange-200" align="start">
+                      <div className="flex flex-col gap-1.5">
                         <Button
                           variant="ghost"
-                          className="justify-start h-9 px-2 text-sm hover:bg-gray-100"
+                          className="justify-start h-10 px-3 text-sm hover:bg-gray-100 rounded-lg"
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Todo el dashboard'");
                             resetFilters();
@@ -1093,12 +1093,12 @@ export default function Dashboard() {
                           }}
                           data-testid="filter-view-all"
                         >
-                          <TrendingUp className="h-3.5 w-3.5 text-gray-500 mr-2" />
+                          <TrendingUp className="h-4 w-4 text-gray-500 mr-2.5" />
                           <span>Todo el dashboard</span>
                         </Button>
                         <Button
                           variant="ghost"
-                          className="justify-start h-9 px-2 text-sm hover:bg-green-50"
+                          className="justify-start h-10 px-3 text-sm hover:bg-green-50 rounded-lg border border-transparent hover:border-green-200"
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Por segmento'");
                             setGlobalFilter({ type: "segment", value: "" });
@@ -1106,12 +1106,12 @@ export default function Dashboard() {
                           }}
                           data-testid="filter-view-segment"
                         >
-                          <Building className="h-3.5 w-3.5 text-green-500 mr-2" />
-                          <span>Por segmento</span>
+                          <Building className="h-4 w-4 text-green-600 mr-2.5 font-bold" />
+                          <span className="font-medium">Por segmento</span>
                         </Button>
                         <Button
                           variant="ghost"
-                          className="justify-start h-9 px-2 text-sm hover:bg-blue-50"
+                          className="justify-start h-10 px-3 text-sm hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200"
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Por sucursal'");
                             setGlobalFilter({ type: "branch", value: "" });
@@ -1119,12 +1119,12 @@ export default function Dashboard() {
                           }}
                           data-testid="filter-view-branch"
                         >
-                          <Building className="h-3.5 w-3.5 text-blue-500 mr-2" />
+                          <Building className="h-4 w-4 text-blue-600 mr-2.5" />
                           <span>Por sucursal</span>
                         </Button>
                         <Button
                           variant="ghost"
-                          className="justify-start h-9 px-2 text-sm hover:bg-purple-50"
+                          className="justify-start h-10 px-3 text-sm hover:bg-purple-50 rounded-lg border border-transparent hover:border-purple-200"
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Por vendedor'");
                             setGlobalFilter({ type: "salesperson", value: "" });
@@ -1132,7 +1132,7 @@ export default function Dashboard() {
                           }}
                           data-testid="filter-view-salesperson"
                         >
-                          <Users className="h-3.5 w-3.5 text-purple-500 mr-2" />
+                          <Users className="h-4 w-4 text-purple-600 mr-2.5" />
                           <span>Por vendedor</span>
                         </Button>
                       </div>
