@@ -1074,13 +1074,17 @@ export default function Dashboard() {
                     <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
                       <SelectItem 
                         value="all"
-                        onClick={(e) => {
-                          console.log("🖱️ [Dashboard] SelectItem 'all' CLICKED directly");
-                          e.stopPropagation();
-                          resetFilters();
-                          setLocation('/dashboard');
-                          queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-                          queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
+                        onPointerDown={(e) => {
+                          console.log("🖱️ [Dashboard] SelectItem 'all' POINTER DOWN");
+                          // Don't prevent default - let Radix handle the UI
+                          // But execute our logic immediately
+                          setTimeout(() => {
+                            console.log("🔄 [Dashboard] Executing reset after pointer down");
+                            resetFilters();
+                            setLocation('/dashboard');
+                            queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
+                            queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
+                          }, 0);
                         }}
                       >
                         <div className="flex items-center space-x-2">
@@ -1090,11 +1094,13 @@ export default function Dashboard() {
                       </SelectItem>
                       <SelectItem 
                         value="segment"
-                        onClick={(e) => {
-                          console.log("🖱️ [Dashboard] SelectItem 'segment' CLICKED directly");
-                          e.stopPropagation();
-                          setGlobalFilter({ type: "segment", value: "" });
-                          window.history.replaceState({}, '', '/dashboard?filter=segment');
+                        onPointerDown={(e) => {
+                          console.log("🖱️ [Dashboard] SelectItem 'segment' POINTER DOWN");
+                          setTimeout(() => {
+                            console.log("🔄 [Dashboard] Executing segment filter");
+                            setGlobalFilter({ type: "segment", value: "" });
+                            window.history.replaceState({}, '', '/dashboard?filter=segment');
+                          }, 0);
                         }}
                       >
                         <div className="flex items-center space-x-2">
@@ -1104,11 +1110,13 @@ export default function Dashboard() {
                       </SelectItem>
                       <SelectItem 
                         value="branch"
-                        onClick={(e) => {
-                          console.log("🖱️ [Dashboard] SelectItem 'branch' CLICKED directly");
-                          e.stopPropagation();
-                          setGlobalFilter({ type: "branch", value: "" });
-                          window.history.replaceState({}, '', '/dashboard?filter=branch');
+                        onPointerDown={(e) => {
+                          console.log("🖱️ [Dashboard] SelectItem 'branch' POINTER DOWN");
+                          setTimeout(() => {
+                            console.log("🔄 [Dashboard] Executing branch filter");
+                            setGlobalFilter({ type: "branch", value: "" });
+                            window.history.replaceState({}, '', '/dashboard?filter=branch');
+                          }, 0);
                         }}
                       >
                         <div className="flex items-center space-x-2">
@@ -1118,11 +1126,13 @@ export default function Dashboard() {
                       </SelectItem>
                       <SelectItem 
                         value="salesperson"
-                        onClick={(e) => {
-                          console.log("🖱️ [Dashboard] SelectItem 'salesperson' CLICKED directly");
-                          e.stopPropagation();
-                          setGlobalFilter({ type: "salesperson", value: "" });
-                          window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+                        onPointerDown={(e) => {
+                          console.log("🖱️ [Dashboard] SelectItem 'salesperson' POINTER DOWN");
+                          setTimeout(() => {
+                            console.log("🔄 [Dashboard] Executing salesperson filter");
+                            setGlobalFilter({ type: "salesperson", value: "" });
+                            window.history.replaceState({}, '', '/dashboard?filter=salesperson');
+                          }, 0);
                         }}
                       >
                         <div className="flex items-center space-x-2">
