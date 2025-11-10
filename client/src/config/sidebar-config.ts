@@ -406,28 +406,29 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       label: "Rendición de Gastos",
       icon: Banknote,
     },
-    {
-      href: "/tintometria",
-      label: "Tintometría",
-      icon: Palette,
-      children: [
-        {
-          href: "/tintometria/admin",
-          label: "Administrar Datos",
-          icon: Settings,
-        },
-        {
-          href: "/tintometria/calculadora",
-          label: "Calcular Costos",
-          icon: DollarSign,
-        },
-        {
-          href: "/tintometria/selector",
-          label: "Selector Visual",
-          icon: PaintBucket,
-        },
-      ],
-    },
+    // Tintometría oculta temporalmente para vendedores
+    // {
+    //   href: "/tintometria",
+    //   label: "Tintometría",
+    //   icon: Palette,
+    //   children: [
+    //     {
+    //       href: "/tintometria/admin",
+    //       label: "Administrar Datos",
+    //       icon: Settings,
+    //     },
+    //     {
+    //       href: "/tintometria/calculadora",
+    //       label: "Calcular Costos",
+    //       icon: DollarSign,
+    //     },
+    //     {
+    //       href: "/tintometria/selector",
+    //       label: "Selector Visual",
+    //       icon: PaintBucket,
+    //     },
+    //   ],
+    // },
 
   ],
   
