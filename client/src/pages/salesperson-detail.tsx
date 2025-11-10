@@ -60,7 +60,7 @@ interface SalespersonClientsResponse {
 }
 
 interface SearchClient {
-  name: string;
+  clientName: string;
   totalSales: number;
   transactionCount: number;
 }
@@ -114,7 +114,7 @@ interface SalespersonProductsResponse {
 }
 
 interface SearchProduct {
-  name: string;
+  productName: string;
   totalSales: number;
   transactionCount: number;
 }
@@ -721,10 +721,10 @@ export default function SalespersonDetail({
     }
     
     // Clients data
-    if (clients && clients.length > 0) {
+    if (displayClients && displayClients.length > 0) {
       csvData.push(['CLIENTES DEL VENDEDOR']);
       csvData.push(['Cliente', 'Total Ventas', 'Transacciones', 'Ticket Promedio', 'Última Venta', 'Días desde última venta']);
-      clients.forEach(client => {
+      displayClients.forEach(client => {
         csvData.push([
           client.clientName,
           client.totalSales,
@@ -738,10 +738,10 @@ export default function SalespersonDetail({
     }
     
     // Products data
-    if (products && products.length > 0) {
+    if (displayProducts && displayProducts.length > 0) {
       csvData.push(['PRODUCTOS VENDIDOS']);
       csvData.push(['Producto', 'Total Ventas', 'Unidades', 'Transacciones', 'Precio Promedio', 'Última Venta']);
-      products.forEach(product => {
+      displayProducts.forEach(product => {
         csvData.push([
           product.productName,
           product.totalSales,
@@ -781,7 +781,7 @@ export default function SalespersonDetail({
   // Client search and pagination display logic
   const displayClients = debouncedSearchTerm.length >= 2 && searchResults
     ? searchResults.map(c => ({ 
-        clientName: c.name, 
+        clientName: c.clientName, 
         totalSales: c.totalSales, 
         transactionCount: c.transactionCount,
         averageTicket: 0,
@@ -812,7 +812,7 @@ export default function SalespersonDetail({
   // Product search and pagination display logic
   const displayProducts = debouncedProductSearchTerm.length >= 2 && productSearchResults
     ? productSearchResults.map(p => ({ 
-        productName: p.name, 
+        productName: p.productName, 
         totalSales: p.totalSales, 
         transactionCount: p.transactionCount,
         averagePrice: 0,
