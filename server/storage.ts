@@ -5431,9 +5431,9 @@ export class DatabaseStorage implements IStorage {
         clientName: factVentas.nokoen,
         lastPurchaseDate: sql<string>`MAX(${factVentas.feemdo})`,
         lastPurchaseAmount: sql<number>`COALESCE((
-          SELECT CAST(monto AS NUMERIC)
-          FROM sales_transactions st2
-          WHERE st2.nokoen = sales_transactions.nokoen
+          SELECT CAST(st2.monto AS NUMERIC)
+          FROM ventas.fact_ventas st2
+          WHERE st2.nokoen = ${factVentas.nokoen}
             AND st2.nokofu = ${salesperson}
           ORDER BY st2.feemdo DESC
           LIMIT 1
