@@ -1382,10 +1382,11 @@ function LeadComments({ leadId }: { leadId: string }) {
 
   const addCommentMutation = useMutation({
     mutationFn: async (comment: string) => {
-      return apiRequest(`/api/crm/leads/${leadId}/comments`, {
+      const response = await apiRequest(`/api/crm/leads/${leadId}/comments`, {
         method: 'POST',
         data: { comment }
       });
+      return response.json();
     },
     onMutate: async (newCommentText) => {
       // Cancelar queries en progreso
@@ -1423,17 +1424,9 @@ function LeadComments({ leadId }: { leadId: string }) {
         variant: "destructive",
       });
     },
-    onSuccess: (data) => {
-      // Actualizar con los datos reales del servidor sin invalidar
-      // Esto evita un re-render que cierra el modal
-      queryClient.setQueryData(
-        ['/api/crm/leads', leadId, 'comments'],
-        (old: any[] = []) => {
-          // Reemplazar el comentario temporal con el real del servidor
-          const withoutTemp = old.filter(c => !c.id.toString().startsWith('temp-'));
-          return [...withoutTemp, data];
-        }
-      );
+    onSettled: () => {
+      // Refetch después de que todo esté listo para sincronizar con el servidor
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/leads', leadId, 'comments'] });
     },
   });
 
