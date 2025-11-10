@@ -1422,17 +1422,6 @@ export default function SalespersonDetail({
             </Card>
           )}
 
-          {/* Packaging Sales Metrics - Total Facturado x Unidades for this salesperson */}
-          {salespersonName && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <PackagingSalesMetrics
-                selectedPeriod={selectedPeriod}
-                filterType={filterType}
-                salesperson={salespersonName}
-              />
-            </div>
-          )}
-
           {/* Clients Table */}
           <div className="space-y-4">
             {/* Header con búsqueda expandible */}
@@ -1793,6 +1782,17 @@ export default function SalespersonDetail({
               )}
             </div>
           </div>
+
+          {/* Packaging Sales Metrics - Total Facturado x Unidades for this salesperson */}
+          {salespersonName && (
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <PackagingSalesMetrics
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                salesperson={salespersonName}
+              />
+            </div>
+          )}
             </>
           )}
         </main>
