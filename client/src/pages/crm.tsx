@@ -1374,6 +1374,7 @@ function LeadDetailModal({
 function LeadComments({ leadId }: { leadId: string }) {
   const [newComment, setNewComment] = useState('');
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const { data: comments = [] } = useQuery<any[]>({
     queryKey: ['/api/crm/leads', leadId, 'comments'],
@@ -1386,9 +1387,45 @@ function LeadComments({ leadId }: { leadId: string }) {
         data: { comment }
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/crm/leads', leadId, 'comments'] });
+    onMutate: async (newCommentText) => {
+      // Cancelar queries en progreso
+      await queryClient.cancelQueries({ queryKey: ['/api/crm/leads', leadId, 'comments'] });
+      
+      // Guardar el estado anterior
+      const previousComments = queryClient.getQueryData(['/api/crm/leads', leadId, 'comments']);
+      
+      // Optimistically update con el nuevo comentario
+      const optimisticComment = {
+        id: `temp-${Date.now()}`,
+        comment: newCommentText,
+        userName: user?.salespersonName || `${user?.firstName} ${user?.lastName}`,
+        createdAt: new Date().toISOString(),
+      };
+      
+      queryClient.setQueryData(
+        ['/api/crm/leads', leadId, 'comments'],
+        (old: any[] = []) => [...old, optimisticComment]
+      );
+      
+      // Limpiar input inmediatamente
       setNewComment('');
+      
+      return { previousComments };
+    },
+    onError: (err, newComment, context) => {
+      // Revertir en caso de error
+      if (context?.previousComments) {
+        queryClient.setQueryData(['/api/crm/leads', leadId, 'comments'], context.previousComments);
+      }
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el comentario",
+        variant: "destructive",
+      });
+    },
+    onSuccess: () => {
+      // Refetch para sincronizar con el servidor
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/leads', leadId, 'comments'] });
       toast({
         title: "Comentario agregado",
       });
@@ -1418,6 +1455,12 @@ function LeadComments({ leadId }: { leadId: string }) {
           placeholder="Escribe un comentario..."
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && newComment.trim()) {
+              e.preventDefault();
+              addCommentMutation.mutate(newComment);
+            }
+          }}
           className="text-xs"
           data-testid={`input-comment-${leadId}`}
         />
