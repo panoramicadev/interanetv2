@@ -2249,25 +2249,22 @@ export function registerRoutes(app: Express): Server {
       const { salespersonName } = req.params;
       const { period, filterType = "month" } = req.query;
       
-      // Build date conditions based on period
-      const conditions = [];
+      // Build conditions based on period
+      const conditions = [eq(nvvPendingSales.KOFULIDO, salespersonName)];
+      
       if (period) {
         switch (filterType) {
           case 'month':
             const [year, month] = (period as string).split('-');
-            conditions.push(
-              sql`EXTRACT(YEAR FROM "FEEMLI") = ${year} AND EXTRACT(MONTH FROM "FEEMLI") = ${month}`
-            );
+            conditions.push(sql`EXTRACT(YEAR FROM ${nvvPendingSales.FEEMLI}) = ${year}`);
+            conditions.push(sql`EXTRACT(MONTH FROM ${nvvPendingSales.FEEMLI}) = ${month}`);
             break;
           case 'year':
-            conditions.push(sql`EXTRACT(YEAR FROM "FEEMLI") = ${period}`);
+            conditions.push(sql`EXTRACT(YEAR FROM ${nvvPendingSales.FEEMLI}) = ${period}`);
             break;
         }
       }
       
-      conditions.push(sql`"NOKOFU" = ${salespersonName}`);
-      
-      // Use raw SQL for better control over aggregate functions
       const nvvDataQuery = db
         .select({
           clientName: nvvPendingSales.NOKOEN,
