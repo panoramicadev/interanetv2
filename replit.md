@@ -48,7 +48,7 @@ Preferred communication style: Simple, everyday language.
 - **E-commerce**: Order management and notifications.
 - **Product Grouping System**: Parent-child product variations.
 - **Technical Visits**: Multi-step creation flow, custom product support, PDF generation.
-- **Sales Analytics**: KPIs, trend charts, transaction records, segment analysis, period-to-period comparisons, and interactive projection visualizations.
+- **Sales Analytics**: KPIs, trend charts, transaction records, segment analysis, period-to-period comparisons, and interactive projection visualizations. **Period Comparison Chart**: Interactive visualization tool in salesperson dashboard for comparing sales performance across multiple time periods simultaneously (years, months, days) with flexible selection, bar/line chart views, percentage change calculations, and detailed comparison tables.
 - **Quote Management (Tomador de Pedidos)**: Role-based visibility and status updates with real-time stock display.
 - **Task Management**: For admin/supervisor roles.
 - **Goals Progress**: Sales goals tracking.
