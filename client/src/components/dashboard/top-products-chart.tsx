@@ -3,7 +3,7 @@ import { ShoppingBag, Search, X } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface TopProduct {
   productName: string;
@@ -16,6 +16,12 @@ interface TopProductsResponse {
   periodTotalSales: number;
 }
 
+interface SearchProduct {
+  name: string;
+  totalSales: number;
+  totalUnits: number;
+}
+
 interface TopProductsChartProps {
   selectedPeriod: string;
   filterType: "day" | "month" | "year" | "range";
@@ -26,14 +32,37 @@ interface TopProductsChartProps {
 export default function TopProductsChart({ selectedPeriod, filterType, segment, salesperson }: TopProductsChartProps) {
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [limit, setLimit] = useState(10);
   
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+  
+  // Query for paginated top products (default view)
   const { data: topProductsResponse, isLoading } = useQuery<TopProductsResponse>({
     queryKey: [`/api/sales/top-products?limit=${limit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    enabled: !debouncedSearchTerm, // Disable when searching
   });
 
-  const topProducts = topProductsResponse?.items || [];
+  // Query for search results (when typing)
+  const { data: searchResults, isLoading: isSearchLoading } = useQuery<SearchProduct[]>({
+    queryKey: [`/api/products/search?q=${encodeURIComponent(debouncedSearchTerm)}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    enabled: debouncedSearchTerm.length >= 2, // Only search if 2+ characters
+  });
+
+  // Use search results if searching, otherwise use paginated products
+  const displayProducts = debouncedSearchTerm.length >= 2 && searchResults
+    ? searchResults.map(p => ({ productName: p.name, totalSales: p.totalSales, totalUnits: p.totalUnits }))
+    : topProductsResponse?.items || [];
+  
   const periodTotal = topProductsResponse?.periodTotalSales || 0;
+  const currentLoading = debouncedSearchTerm.length >= 2 ? isSearchLoading : isLoading;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -43,13 +72,8 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
     }).format(value);
   };
 
-  // Filter products based on search term
-  const filteredProducts = topProducts.filter(product =>
-    product.productName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   // Calculate percentages based on period total
-  const productsWithPercentage = filteredProducts.map(product => ({
+  const productsWithPercentage = displayProducts.map(product => ({
     ...product,
     percentage: periodTotal > 0 ? (product.totalSales / periodTotal) * 100 : 0
   }));
@@ -60,6 +84,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
 
   const handleClearSearch = () => {
     setSearchTerm("");
+    setDebouncedSearchTerm("");
     setIsSearchExpanded(false);
   };
 
@@ -107,9 +132,9 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
               <h2 className="text-xl font-bold text-gray-900">Top Productos</h2>
             </div>
             
-            {searchTerm && (
+            {debouncedSearchTerm && (
               <span className="text-sm text-gray-500">
-                {filteredProducts.length} resultado{filteredProducts.length !== 1 ? 's' : ''}
+                {productsWithPercentage.length} resultado{productsWithPercentage.length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
@@ -139,7 +164,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
       )}
       
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
-        {isLoading ? (
+        {currentLoading ? (
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="flex items-center justify-between animate-pulse">
@@ -155,7 +180,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
         ) : productsWithPercentage.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-500 text-sm">
-              {searchTerm ? 'No se encontraron productos con ese nombre' : 'No hay productos para mostrar'}
+              {debouncedSearchTerm ? 'No se encontraron productos con ese nombre' : 'No hay productos para mostrar'}
             </p>
           </div>
         ) : (
@@ -239,7 +264,7 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
             </div>
             
             {/* Botón Ver más - solo si no hay búsqueda activa y hay más productos */}
-            {!searchTerm && topProducts.length >= limit && (
+            {!debouncedSearchTerm && displayProducts.length >= limit && (
               <div className="flex justify-center pt-4 border-t border-gray-200">
                 <Button
                   variant="outline"
