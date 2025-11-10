@@ -333,6 +333,7 @@ export interface IStorage {
       percentage: number;
     }>;
     periodTotalSales: number;
+    totalCount: number;
   }>;
   getTopClients(limit?: number, startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<{
     items: Array<{
@@ -341,6 +342,7 @@ export interface IStorage {
       transactionCount: number;
     }>;
     periodTotalSales: number;
+    totalCount: number;
   }>;
   getSegmentAnalysis(startDate?: string, endDate?: string, salesperson?: string, segment?: string): Promise<Array<{
     segment: string;
@@ -2079,6 +2081,7 @@ export class DatabaseStorage implements IStorage {
       percentage: number;
     }>;
     periodTotalSales: number;
+    totalCount: number;
   }> {
     const conditions = [
       sql`${factVentas.tido} != 'GDV'`
@@ -2117,6 +2120,14 @@ export class DatabaseStorage implements IStorage {
     
     const productWhereClause = productConditions.length > 0 ? and(...productConditions) : undefined;
     
+    // Get total count of unique products
+    const [countResult] = await db
+      .select({
+        count: sql<number>`COUNT(DISTINCT ${factVentas.nokoprct})`,
+      })
+      .from(factVentas)
+      .where(productWhereClause);
+    
     // Sum by individual product lines using MONTO
     const results = await db
       .select({
@@ -2146,6 +2157,7 @@ export class DatabaseStorage implements IStorage {
         };
       }),
       periodTotalSales: periodTotal,
+      totalCount: Number(countResult.count),
     };
   }
 
@@ -2156,6 +2168,7 @@ export class DatabaseStorage implements IStorage {
       transactionCount: number;
     }>;
     periodTotalSales: number;
+    totalCount: number;
   }> {
     const conditions = [
       sql`${factVentas.nokoen} IS NOT NULL AND ${factVentas.nokoen} != ''`,
@@ -2185,6 +2198,14 @@ export class DatabaseStorage implements IStorage {
       .from(factVentas)
       .where(whereClause);
     
+    // Get total count of unique clients
+    const [countResult] = await db
+      .select({
+        count: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
+      })
+      .from(factVentas)
+      .where(whereClause);
+    
     const results = await db
       .select({
         clientName: factVentas.nokoen,
@@ -2204,6 +2225,7 @@ export class DatabaseStorage implements IStorage {
         transactionCount: Number(r.transactionCount),
       })),
       periodTotalSales: Number(totalResult.total),
+      totalCount: Number(countResult.count),
     };
   }
 

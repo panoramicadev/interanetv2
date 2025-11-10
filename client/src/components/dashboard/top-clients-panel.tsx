@@ -14,6 +14,7 @@ interface TopClient {
 interface TopClientsResponse {
   items: TopClient[];
   periodTotalSales: number;
+  totalCount: number;
 }
 
 interface SearchClient {
@@ -187,7 +188,7 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
           </div>
         ) : (
           <>
-            <div className="space-y-4">
+            <div className="space-y-4 transition-all duration-300 ease-in-out">
               {clientsWithPercentage.map((client, index) => (
                 <Link
                   key={client.clientName}
@@ -230,16 +231,16 @@ export default function TopClientsPanel({ selectedPeriod, filterType, segment, s
             </div>
             
             {/* Botón Ver más - solo si no hay búsqueda activa y hay más clientes */}
-            {!debouncedSearchTerm && displayClients.length >= limit && (
+            {!debouncedSearchTerm && topClientsResponse && displayClients.length < topClientsResponse.totalCount && (
               <div className="flex justify-center pt-4 border-t border-gray-200">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleLoadMore}
-                  className="text-xs px-6"
+                  className="text-xs px-6 transition-all duration-200 ease-in-out hover:scale-105"
                   data-testid="button-load-more-clients"
                 >
-                  Ver más clientes
+                  Ver más ({displayClients.length} de {topClientsResponse.totalCount})
                 </Button>
               </div>
             )}
