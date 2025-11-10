@@ -1182,22 +1182,21 @@ export default function Dashboard() {
           {/* Comparative Mode Layout */}
           {isComparativeMode ? (
             <>
-              {/* Título Modo Comparativo */}
-              <div className="bg-white border rounded-lg p-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">Modo Comparativo</h2>
-                <div className="text-sm text-gray-600">
-                  Comparando datos de {comparativePeriods.length} períodos seleccionados
-                </div>
-              </div>
-
-              {/* Total Acumulado de Períodos Comparados */}
+              {/* Comparative KPI Cards */}
               <div>
                 <ComparativeKPICards 
                   periods={comparativePeriods}
                   segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
                   salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                  showAccumulated={true}
                 />
+              </div>
+
+              {/* Resumen Comparativo Section */}
+              <div className="bg-white border rounded-lg p-4">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Modo Comparativo</h2>
+                <div className="text-sm text-gray-600 mb-4">
+                  Comparando datos de {comparativePeriods.length} períodos seleccionados
+                </div>
               </div>
 
               {/* Evolución de Ventas por Segmento */}
@@ -1207,18 +1206,8 @@ export default function Dashboard() {
 
               {/* Evolución de Ventas por Vendedor */}
               {globalFilter.type === "all" && (
-                <ComparativeSegmentTable periods={comparativePeriods} />
+                <ComparativeSalespeopleTable periods={comparativePeriods} />
               )}
-
-              {/* KPIs por Período Individual */}
-              <div>
-                <ComparativeKPICards 
-                  periods={comparativePeriods}
-                  segment={globalFilter.type === "segment" ? globalFilter.value : undefined}
-                  salesperson={globalFilter.type === "salesperson" ? globalFilter.value : undefined}
-                  showAccumulated={false}
-                />
-              </div>
 
               {/* Comparative Products Table */}
               {globalFilter.type === "all" && (
