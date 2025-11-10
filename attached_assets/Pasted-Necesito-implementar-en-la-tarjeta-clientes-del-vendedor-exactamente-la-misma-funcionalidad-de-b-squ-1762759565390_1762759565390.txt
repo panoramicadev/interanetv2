@@ -1,0 +1,34 @@
+Necesito implementar en la tarjeta clientes del vendedor exactamente la misma funcionalidad de búsqueda expandible y paginación que tienen las tarjetas de Top Productos, Top Clientes y Vendedores del dashboard general.
+
+Características que debe tener:
+
+DISEÑO VISUAL:
+- Botón cuadrado de búsqueda (8x8 píxeles, bg-gray-100, hover:bg-gray-200) al lado del título
+- Al hacer clic, la búsqueda se expande a todo el ancho de la sección
+- Input de búsqueda: altura 48px (h-12), bordes gruesos (border-2), con ícono de lupa a la izquierda y botón X a la derecha
+- Contador de resultados aparece cuando hay búsqueda activa: "X resultados"
+- Auto-focus en el input al expandirse
+
+FUNCIONALIDAD BACKEND:
+- Agregar campo `totalCount: number` al response de getTop[Entidad] usando COUNT(DISTINCT campo)
+- Crear método searchTop[Entidad](searchTerm, startDate, endDate, ...filtros) que retorne Array<{name, totalSales, transactionCount}>
+- Crear endpoint GET /api/[entidad]/search con debounce de 300ms
+- Query optimizada que reutilice el mismo escaneo para el count
+
+FUNCIONALIDAD FRONTEND:
+- Usar dos queries separadas: una para top-items paginados, otra para búsqueda
+- Debounce de 300ms para el término de búsqueda
+- Estado isSearchExpanded para alternar entre vista normal y expandida
+- Botón "Ver más (X de Y)" solo visible cuando no hay búsqueda activa
+- Layout de una línea: nombre + porcentaje + barra delgada (h-2 rounded-full) + monto
+- Transiciones CSS suaves (duration-300)
+- Barra total en verde (bg-green-50) solo cuando no hay búsqueda
+
+ARCHIVOS DE REFERENCIA:
+- Frontend: client/src/components/dashboard/top-products-chart.tsx
+- Frontend: client/src/components/dashboard/top-clients-panel.tsx  
+- Frontend: client/src/components/dashboard/top-salespeople-panel.tsx
+- Backend: server/storage.ts (métodos getTopProducts, getTopClients, getTopSalespeople, searchClients, searchSalespeople)
+- Backend: server/routes.ts (endpoints /api/sales/top-*, /api/clients/search, /api/salespeople/search)
+
+Por favor replica EXACTAMENTE el mismo diseño, estructura y funcionalidad para mantener consistencia visual en toda la aplicación.
