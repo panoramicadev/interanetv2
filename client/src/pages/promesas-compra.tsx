@@ -119,6 +119,15 @@ export default function PromesasCompraPage() {
   // Query para obtener promesas con cumplimiento
   const { data: promesasCumplimiento = [], isLoading } = useQuery<PromesaCumplimiento[]>({
     queryKey: ['/api/promesas-compra/cumplimiento/reporte', currentYear, currentWeek],
+    queryFn: async () => {
+      const response = await fetch(`/api/promesas-compra/cumplimiento/reporte?anio=${currentYear}&semana=${currentWeek}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch promesas');
+      }
+      return response.json();
+    },
     enabled: !!user,
   });
 
