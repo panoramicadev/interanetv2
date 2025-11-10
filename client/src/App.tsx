@@ -22,6 +22,7 @@ import Metas from "@/pages/metas";
 import TareasPage from "@/pages/tareas";
 import CRMPage from "@/pages/crm";
 import NVVPage from "@/pages/nvv";
+import PromesasCompraPage from "@/pages/promesas-compra";
 import Users from "@/pages/users";
 import Products from "@/pages/products";
 import Clients from "@/pages/clients";
@@ -162,6 +163,14 @@ function Router() {
               return null;
             }} />
             <Route path="/metas" component={Metas} />
+            <Route path="/promesas-compra" component={() => {
+              // Solo admin, supervisor y salesperson pueden acceder a promesas de compra
+              if (!user?.role || !['admin', 'supervisor', 'salesperson'].includes(user.role)) {
+                window.location.replace('/');
+                return null;
+              }
+              return <PromesasCompraPage />;
+            }} />
             <Route path="/tomador-pedidos" component={TomadorPedidos} />
             <Route path="/tareas" component={TareasPage} />
             <Route path="/visitas-tecnicas" component={VisitasTecnicasPage} />
