@@ -627,6 +627,20 @@ export interface IStorage {
     totalSales: number;
     transactionCount: number;
   }>>;
+  getSalespersonProductDetails(salespersonName: string, productName: string, period: string, filterType: string): Promise<{
+    totalSales: number;
+    totalUnits: number;
+    topClient: { name: string; amount: number } | null;
+    transactionCount: number;
+  }>;
+  getSalespersonRecentTransactions(salespersonName: string, limit?: number): Promise<Array<{
+    date: string;
+    client: string;
+    product: string;
+    quantity: number;
+    amount: number;
+    docType: string;
+  }>>;
   getSalespersonSegments(salespersonName: string, period?: string, filterType?: string): Promise<Array<{
     segment: string;
     totalSales: number;
@@ -2647,6 +2661,143 @@ export class DatabaseStorage implements IStorage {
       name: r.name || '',
       totalSales: Number(r.totalSales),
       transactionCount: Number(r.transactionCount),
+    }));
+  }
+
+  async getSalespersonProductDetails(salespersonName: string, productName: string, period: string, filterType: string): Promise<{
+    totalSales: number;
+    totalUnits: number;
+    topClient: { name: string; amount: number } | null;
+    transactionCount: number;
+  }> {
+    const conditions = [
+      eq(factVentas.nokofu, salespersonName),
+      eq(factVentas.nokoprct, productName),
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
+    ];
+
+    // Apply date filters based on period
+    switch (filterType) {
+      case 'day':
+        // Period format: YYYY-MM-DD
+        conditions.push(
+          sql`DATE(${factVentas.feemdo}) = ${period}`
+        );
+        break;
+      case 'month':
+        // Period format: YYYY-MM
+        if (period === 'current-month') {
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE) AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE)`
+          );
+        } else if (period === 'last-month') {
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month') AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')`
+          );
+        } else {
+          const [year, month] = period.split('-');
+          conditions.push(
+            sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${year} AND EXTRACT(MONTH FROM ${factVentas.feemdo}) = ${month}`
+          );
+        }
+        break;
+      case 'year':
+        // Period format: YYYY or YYYY-MM (extract year only)
+        const yearForFilter = period.split('-')[0];
+        conditions.push(
+          sql`EXTRACT(YEAR FROM ${factVentas.feemdo}) = ${yearForFilter}`
+        );
+        break;
+      case 'range':
+        if (period.includes('_')) {
+          const [startDate, endDate] = period.split('_');
+          conditions.push(
+            sql`DATE(${factVentas.feemdo}) >= ${startDate} AND DATE(${factVentas.feemdo}) <= ${endDate}`
+          );
+        } else if (period === 'last-30-days') {
+          conditions.push(
+            sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '30 days'`
+          );
+        } else if (period === 'last-7-days') {
+          conditions.push(
+            sql`${factVentas.feemdo} >= CURRENT_DATE - INTERVAL '7 days'`
+          );
+        }
+        break;
+    }
+
+    const whereClause = and(...conditions);
+
+    // Get total sales, transaction count, and total units
+    const [summary] = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+        totalUnits: sql<number>`COALESCE(SUM(${factVentas.caprco1}), 0)`,
+        transactionCount: sql<number>`COUNT(*)`,
+      })
+      .from(factVentas)
+      .where(whereClause);
+
+    // Get top client for this product
+    const topClientData = await db
+      .select({
+        clientName: factVentas.nokoen,
+        totalAmount: sql<number>`COALESCE(SUM(${factVentas.monto}), 0)`,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .groupBy(factVentas.nokoen)
+      .orderBy(sql`SUM(${factVentas.monto}) DESC`)
+      .limit(1);
+
+    const topClient = topClientData.length > 0
+      ? { name: topClientData[0].clientName || '', amount: Number(topClientData[0].totalAmount) }
+      : null;
+
+    return {
+      totalSales: Number(summary.totalSales),
+      totalUnits: Number(summary.totalUnits),
+      topClient,
+      transactionCount: Number(summary.transactionCount),
+    };
+  }
+
+  async getSalespersonRecentTransactions(salespersonName: string, limit: number = 10): Promise<Array<{
+    date: string;
+    client: string;
+    product: string;
+    quantity: number;
+    amount: number;
+    docType: string;
+  }>> {
+    const conditions = [
+      eq(factVentas.nokofu, salespersonName),
+      sql`${factVentas.tido} != 'GDV'` // Exclude GDV - only show invoiced sales
+    ];
+
+    const whereClause = and(...conditions);
+
+    const results = await db
+      .select({
+        date: factVentas.feemdo,
+        client: factVentas.nokoen,
+        product: factVentas.nokoprct,
+        quantity: factVentas.caprco1,
+        amount: factVentas.monto,
+        docType: factVentas.tido,
+      })
+      .from(factVentas)
+      .where(whereClause)
+      .orderBy(desc(factVentas.feemdo))
+      .limit(limit);
+
+    return results.map(r => ({
+      date: r.date ? format(new Date(r.date), 'yyyy-MM-dd') : '',
+      client: r.client || '',
+      product: r.product || '',
+      quantity: Number(r.quantity) || 0,
+      amount: Number(r.amount) || 0,
+      docType: r.docType || '',
     }));
   }
 

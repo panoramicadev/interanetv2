@@ -1640,6 +1640,54 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get salesperson product details endpoint (for accordion expansion)
+  app.get('/api/salespeople/:salespersonName/products/:productName/details', requireAuth, async (req, res) => {
+    try {
+      const { salespersonName, productName } = req.params;
+      const { period, filterType } = req.query;
+      
+      console.log('[Product Details] Request:', { salespersonName, productName, period, filterType });
+      
+      if (!period || !filterType) {
+        return res.status(400).json({ message: "Period and filterType are required" });
+      }
+      
+      const details = await storage.getSalespersonProductDetails(
+        decodeURIComponent(salespersonName),
+        decodeURIComponent(productName),
+        period as string,
+        filterType as string
+      );
+      
+      console.log('[Product Details] Response:', details);
+      res.json(details);
+    } catch (error) {
+      console.error("[Product Details] Error fetching salesperson product details:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson product details" });
+    }
+  });
+
+  // Get salesperson recent transactions endpoint
+  app.get('/api/salespeople/:salespersonName/transactions/recent', requireAuth, async (req, res) => {
+    try {
+      const { salespersonName } = req.params;
+      const { limit } = req.query;
+      
+      console.log('[Recent Transactions] Request:', { salespersonName, limit });
+      
+      const transactions = await storage.getSalespersonRecentTransactions(
+        decodeURIComponent(salespersonName),
+        limit ? parseInt(limit as string) : 10
+      );
+      
+      console.log(`[Recent Transactions] Returning ${transactions.length} transactions`);
+      res.json(transactions);
+    } catch (error) {
+      console.error("[Recent Transactions] Error fetching recent transactions:", error);
+      res.status(500).json({ message: "Failed to fetch recent transactions" });
+    }
+  });
+
   // Top products endpoint
   app.get('/api/sales/top-products', requireAuth, async (req, res) => {
     try {
