@@ -811,7 +811,7 @@ export default function SalespersonDashboard() {
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-3">
                       <div className="space-y-2">
-                        {smartNotifications.inactiveClients.slice(0, 3).map((client: any, idx: number) => (
+                        {smartNotifications.inactiveClients.slice(0, 10).map((client: any, idx: number) => (
                           <div 
                             key={idx}
                             className="bg-white/60 rounded-lg p-3 border border-orange-200"
@@ -851,7 +851,7 @@ export default function SalespersonDashboard() {
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-3">
                       <div className="space-y-2">
-                        {smartNotifications.seasonalClients.slice(0, 3).map((client: any, idx: number) => (
+                        {smartNotifications.seasonalClients.slice(0, 10).map((client: any, idx: number) => (
                           <div 
                             key={idx}
                             className="bg-white/60 rounded-lg p-3 border border-blue-200"
@@ -889,7 +889,7 @@ export default function SalespersonDashboard() {
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-3">
                       <div className="space-y-2">
-                        {smartNotifications.trendingProducts.slice(0, 3).map((product: any, idx: number) => (
+                        {smartNotifications.trendingProducts.slice(0, 10).map((product: any, idx: number) => (
                           <div 
                             key={idx}
                             className="bg-white/60 rounded-lg p-3 border border-emerald-200"
