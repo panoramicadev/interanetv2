@@ -31,6 +31,13 @@ Preferred communication style: Simple, everyday language.
     1. **Frontend Guard**: Redirects salespeople from salesperson-detail view to salesperson-dashboard (prevents UI navigation to other salespeople)
     2. **Frontend UI**: Hides Vista and Vendedor dropdowns for salesperson role (prevents manual route changes)
     3. **Backend Middleware**: `requireOwnDataOrAdmin` enforces allowlist (admin, supervisor, or matching salesperson only) with normalized string comparison (decodeURIComponent, trim, lowercase) on all 18 endpoints accepting `:salespersonName` parameter. Other roles (marketing, client, técnico) are explicitly denied.
+  - **Salesperson Dashboard Enhancement** (Nov 2025):
+    - **Shared Accordion Components**: Created reusable `SalespersonClientsPanel` and `SalespersonProductsPanel` in `client/src/components/salesperson/engagement-panels.tsx` to eliminate code duplication
+    - **Custom Hook**: `useSalespersonAccordion` in `client/src/hooks/useSalespersonAccordion.ts` for centralized accordion state management (expandedClient, expandedProduct, search, pagination)
+    - **Accordion Detail Views**: Both salesperson-dashboard and salesperson-detail now use shared components with expandable clients and products showing KPIs, search functionality, and pagination
+    - **URL Encoding**: All dynamic path segments with salesperson names use `encodeURIComponent` to handle Chilean names with spaces/accents (e.g., "Juan Pérez")
+    - **Color Scheme**: Blue theme for client sections (bg-blue-50), green theme for product sections (bg-green-50)
+    - **Mutual Exclusion**: Only one client OR product accordion can be expanded at a time for focused analysis
 
 ### Database
 - **Database**: PostgreSQL (Neon serverless)
