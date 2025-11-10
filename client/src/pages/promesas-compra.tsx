@@ -90,11 +90,31 @@ export default function PromesasCompraPage() {
   const currentWeek = `${getYear(selectedWeek)}-${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;
   const currentYear = getYear(selectedWeek);
 
-  // Query para obtener clientes
-  const { data: clientes = [] } = useQuery<Cliente[]>({
-    queryKey: ['/api/clients/search', searchClient],
+  // Query para obtener clientes (same as tomador-pedidos)
+  const { data: clientsData } = useQuery({
+    queryKey: ['/api/clients', { search: searchClient }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (searchClient) params.set('search', searchClient);
+      params.set('limit', '50');
+      params.set('offset', '0');
+      
+      const response = await fetch(`/api/clients?${params}`, { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error('Failed to fetch clients');
+      }
+      return response.json() as Promise<{
+        clients: Cliente[];
+        totalCount: number;
+        currentPage: number;
+        totalPages: number;
+      }>;
+    },
     enabled: searchClient.length >= 2,
   });
+
+  // Extract clients array from response
+  const clientes = clientsData?.clients || [];
 
   // Query para obtener promesas con cumplimiento
   const { data: promesasCumplimiento = [], isLoading } = useQuery<PromesaCumplimiento[]>({
