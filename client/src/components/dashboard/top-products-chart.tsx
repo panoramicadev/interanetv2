@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, Search } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ProductSearch } from "./product-search";
+import { useState } from "react";
 
 interface TopProduct {
   productName: string;
@@ -23,6 +24,7 @@ interface TopProductsChartProps {
 }
 
 export default function TopProductsChart({ selectedPeriod, filterType, segment, salesperson }: TopProductsChartProps) {
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const { data: topProductsResponse, isLoading } = useQuery<TopProductsResponse>({
     queryKey: [`/api/sales/top-products?limit=5&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
@@ -46,35 +48,69 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-            <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+      {/* Header con búsqueda expandible */}
+      {!isSearchExpanded ? (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <ShoppingBag className="h-5 w-5 text-blue-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">Top Productos</h2>
+            
+            {/* Botón de lupa para expandir búsqueda */}
+            <button
+              onClick={() => setIsSearchExpanded(true)}
+              className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+              data-testid="button-expand-search"
+              title="Buscar producto"
+            >
+              <Search className="h-4 w-4 text-gray-600" />
+            </button>
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Top Productos</h2>
+          
+          <Link href="/metricas-productos">
+            <Button
+              variant="default"
+              size="sm"
+              className="text-xs px-4 py-2 bg-blue-600 hover:bg-blue-700"
+              data-testid="button-view-all-products"
+            >
+              Ver más productos
+            </Button>
+          </Link>
         </div>
-        
-        {/* Product Search - AJAX autocomplete */}
-        <div className="w-full sm:w-auto sm:flex-1 sm:max-w-xs">
-          <ProductSearch 
-            selectedPeriod={selectedPeriod}
-            filterType={filterType}
-            segment={segment}
-            salesperson={salesperson}
-          />
+      ) : (
+        <div className="space-y-3">
+          {/* Búsqueda expandida a ancho completo */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <ShoppingBag className="h-5 w-5 text-blue-600" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Top Productos</h2>
+            </div>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsSearchExpanded(false)}
+              className="text-xs"
+              data-testid="button-collapse-search"
+            >
+              Cerrar búsqueda
+            </Button>
+          </div>
+          
+          <div className="w-full">
+            <ProductSearch 
+              selectedPeriod={selectedPeriod}
+              filterType={filterType}
+              segment={segment}
+              salesperson={salesperson}
+            />
+          </div>
         </div>
-        
-        <Link href="/metricas-productos">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs px-3 py-1"
-            data-testid="button-view-all-products"
-          >
-            Ver todos
-          </Button>
-        </Link>
-      </div>
+      )}
       
       <div className="bg-white rounded-xl border border-gray-200/60 p-3 sm:p-6 shadow-sm">
         {isLoading ? (
