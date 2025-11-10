@@ -1589,6 +1589,30 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get salesperson client details endpoint (for accordion expansion)
+  app.get('/api/salespeople/:salespersonName/clients/:clientName/details', requireAuth, async (req, res) => {
+    try {
+      const { salespersonName, clientName } = req.params;
+      const { period, filterType } = req.query;
+      
+      if (!period || !filterType) {
+        return res.status(400).json({ message: "Period and filterType are required" });
+      }
+      
+      const details = await storage.getSalespersonClientDetails(
+        decodeURIComponent(salespersonName),
+        decodeURIComponent(clientName),
+        period as string,
+        filterType as string
+      );
+      
+      res.json(details);
+    } catch (error) {
+      console.error("Error fetching salesperson client details:", error);
+      res.status(500).json({ message: "Failed to fetch salesperson client details" });
+    }
+  });
+
   // Salesperson products search endpoint (AJAX autocomplete)
   app.get('/api/salespeople/:salespersonName/products/search', requireAuth, async (req, res) => {
     try {
