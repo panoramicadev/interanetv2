@@ -101,7 +101,12 @@ export default function CRMPage() {
   const [clientTypeFilter, setClientTypeFilter] = useState<'todos' | 'nuevos' | 'recurrentes'>('todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [segmentFilter, setSegmentFilter] = useState('all');
-  const [vendedorFilter, setVendedorFilter] = useState('all');
+  
+  // For salesperson role, auto-filter to their own leads
+  const isSalesperson = currentUser?.role === 'salesperson';
+  const currentSalespersonName = currentUser?.salespersonName || `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim();
+  const [vendedorFilter, setVendedorFilter] = useState(isSalesperson ? currentSalespersonName : 'all');
+  
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isStageManagementOpen, setIsStageManagementOpen] = useState(false);
   const [isInactiveClientsDialogOpen, setIsInactiveClientsDialogOpen] = useState(false);
@@ -396,18 +401,20 @@ export default function CRMPage() {
                 </SelectContent>
               </Select>
               
-              {/* Filtro de Vendedor */}
-              <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
-                <SelectTrigger className="flex-1 sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-vendedor-filter">
-                  <SelectValue placeholder={isMobile ? "Vendedores" : "Todos los vendedores"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los vendedores</SelectItem>
-                  {salespeople.filter(sp => sp && sp !== '.').map((salesperson) => (
-                    <SelectItem key={salesperson} value={salesperson}>{salesperson}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Filtro de Vendedor - Solo para admin y supervisor */}
+              {!isSalesperson && (
+                <Select value={vendedorFilter} onValueChange={setVendedorFilter}>
+                  <SelectTrigger className="flex-1 sm:w-[200px] h-8 sm:h-10 text-xs sm:text-sm" data-testid="select-vendedor-filter">
+                    <SelectValue placeholder={isMobile ? "Vendedores" : "Todos los vendedores"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los vendedores</SelectItem>
+                    {salespeople.filter(sp => sp && sp !== '.').map((salesperson) => (
+                      <SelectItem key={salesperson} value={salesperson}>{salesperson}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               
               {/* Botón Administrar Etapas en desktop */}
               {isAdmin && (
@@ -1489,6 +1496,9 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
     nombreObra: z.string().optional(),
   });
 
+  const { user: currentUser } = useAuth();
+  const isSalesperson = currentUser?.role === 'salesperson';
+
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -1498,7 +1508,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
       clientCompany: '',
       clientAddress: '',
       segment: prefilledData?.segment || '',
-      salespersonId: prefilledData?.salespersonId || '',
+      salespersonId: prefilledData?.salespersonId || (isSalesperson ? currentUser?.id || '' : ''),
       notes: '',
       stage: defaultStage,
       clientType: prefilledData ? 'recurrente' : 'nuevo',
@@ -1770,7 +1780,7 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 ${!isSalesperson ? 'sm:grid-cols-2' : ''} gap-4`}>
           <FormField
             control={form.control}
             name="segment"
@@ -1793,32 +1803,34 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="salespersonId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Vendedor Asignado *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger data-testid="select-salesperson">
-                      <SelectValue placeholder="Selecciona vendedor" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {users
-                      .filter((u: any) => u.role === 'salesperson' || u.role === 'supervisor' || u.role === 'admin')
-                      .map((user: any) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.salespersonName || user.firstName || user.email}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {!isSalesperson && (
+            <FormField
+              control={form.control}
+              name="salespersonId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Vendedor Asignado *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-salesperson">
+                        <SelectValue placeholder="Selecciona vendedor" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {users
+                        .filter((u: any) => u.role === 'salesperson' || u.role === 'supervisor' || u.role === 'admin')
+                        .map((user: any) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.salespersonName || user.firstName || user.email}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <FormField
