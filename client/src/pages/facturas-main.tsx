@@ -18,6 +18,9 @@ export default function FacturasMainPage() {
     return null;
   }
 
+  // Check if user can see proyección tab
+  const canSeeProyeccion = user.role !== 'salesperson';
+
   return (
     <div className="p-6 max-w-full mx-auto space-y-6">
       {/* Header */}
@@ -30,7 +33,7 @@ export default function FacturasMainPage() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className={`grid w-full ${canSeeProyeccion ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="facturas" className="flex items-center space-x-2" data-testid="tab-facturas">
             <FileText className="h-4 w-4" />
             <span>Facturas</span>
@@ -39,10 +42,12 @@ export default function FacturasMainPage() {
             <TrendingUp className="h-4 w-4" />
             <span>Notas de Venta (NVV)</span>
           </TabsTrigger>
-          <TabsTrigger value="proyeccion" className="flex items-center space-x-2" data-testid="tab-proyeccion">
-            <BarChart3 className="h-4 w-4" />
-            <span>Proyección</span>
-          </TabsTrigger>
+          {canSeeProyeccion && (
+            <TabsTrigger value="proyeccion" className="flex items-center space-x-2" data-testid="tab-proyeccion">
+              <BarChart3 className="h-4 w-4" />
+              <span>Proyección</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Facturas Tab */}
@@ -56,9 +61,11 @@ export default function FacturasMainPage() {
         </TabsContent>
 
         {/* Proyección Tab */}
-        <TabsContent value="proyeccion" className="mt-6">
-          <ProyeccionPage />
-        </TabsContent>
+        {canSeeProyeccion && (
+          <TabsContent value="proyeccion" className="mt-6">
+            <ProyeccionPage />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

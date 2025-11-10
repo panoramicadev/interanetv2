@@ -65,8 +65,8 @@ Preferred communication style: Simple, everyday language.
 - **Finance Module (Gestión de Facturas)** (Nov 2025): Unified financial management interface with tabbed navigation:
   - **Facturas Tab**: Displays real invoices from ETL (fact_ventas), not internal orders. Uses FacturasTable component that queries fact_ventas with filters for document type (FCV, BLV, NCV, FDB), status, and automatic salesperson filtering for salesperson role. Shows document number, date, client, salesperson, product, quantity, and amount.
   - **NVV Tab**: Sales notes management with salesperson-specific filtering. Salespeople can view their own NVV data but cannot import CSV. Dashboard and data table automatically filter by salesperson name when user role is salesperson.
-  - **Proyección Tab**: Sales projection tools.
-  - **Access Control**: Admin, supervisor, logistics, salesperson, and client roles can access. Salespeople see only their own data automatically filtered.
+  - **Proyección Tab**: Sales projection tools (hidden for salesperson role).
+  - **Access Control**: Admin, supervisor, logistics, salesperson, and client roles can access. Salespeople see only their own data automatically filtered and cannot access Proyección tab.
 - **Complaints Management (Reclamos Generales)**: Multi-area resolution with workflow automation, photo uploads, role-based filtering, and state machine.
   - **Technical Validation Flow** (Nov 2025): When a technician validates a complaint and assigns it to "laboratorio", the estado automatically changes to 'en_laboratorio' (not 'en_area_responsable'), ensuring laboratory users can see their assigned complaints in the "Asignados a Mi Área" tab.
 - **Maintenance Management (Mantención)**: Equipment request system with workflow, technician assignment, and history logging.
