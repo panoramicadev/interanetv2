@@ -22,6 +22,7 @@ import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { useFilter } from "@/contexts/FilterContext";
 import { SalespersonClientsPanel, SalespersonProductsPanel } from "@/components/salesperson/engagement-panels";
 import { useSalespersonAccordion } from "@/hooks/useSalespersonAccordion";
+import SalespersonNVV from "@/components/salesperson/salesperson-nvv";
 import type { DateRange } from "react-day-picker";
 import { 
   TrendingUp, 
@@ -648,6 +649,12 @@ export default function SalespersonDashboard() {
             selectedPeriod={selectedPeriod}
             goalsData={goalsData}
             isLoading={loadingGoals}
+          />
+
+          <SalespersonNVV
+            salespersonName={salespersonName}
+            selectedPeriod={selectedPeriod}
+            filterType={filterType}
           />
 
           <Card className="rounded-2xl shadow-md border-0 bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-50" data-testid="card-segment-sales">
