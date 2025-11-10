@@ -1039,12 +1039,15 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
-                  <DropdownMenu>
+                  <DropdownMenu 
+                    onOpenChange={(open) => console.log("🔍 [Dashboard] DropdownMenu opened:", open)}
+                  >
                     <DropdownMenuTrigger asChild>
                       <Button 
                         variant="outline" 
                         className="h-9 w-48 rounded-lg border-gray-200 text-sm justify-between"
                         data-testid="filter-view-selector"
+                        onClick={() => console.log("🔍 [Dashboard] Dropdown trigger clicked")}
                       >
                         <div className="flex items-center space-x-2">
                           {globalFilter.type === "all" && (
@@ -1077,8 +1080,8 @@ export default function Dashboard() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-48 rounded-lg border-gray-200" align="start">
                       <DropdownMenuItem
-                        onClick={() => {
-                          console.log("✅ [Dashboard] Clicked 'Todo el dashboard'");
+                        onSelect={() => {
+                          console.log("✅ [Dashboard] Selected 'Todo el dashboard'");
                           resetFilters();
                           setLocation('/dashboard');
                           queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
@@ -1090,8 +1093,8 @@ export default function Dashboard() {
                         <span>Todo el dashboard</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => {
-                          console.log("✅ [Dashboard] Clicked 'Por segmento'");
+                        onSelect={() => {
+                          console.log("✅ [Dashboard] Selected 'Por segmento'");
                           setGlobalFilter({ type: "segment", value: "" });
                           window.history.replaceState({}, '', '/dashboard?filter=segment');
                         }}
@@ -1101,8 +1104,8 @@ export default function Dashboard() {
                         <span>Por segmento</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => {
-                          console.log("✅ [Dashboard] Clicked 'Por sucursal'");
+                        onSelect={() => {
+                          console.log("✅ [Dashboard] Selected 'Por sucursal'");
                           setGlobalFilter({ type: "branch", value: "" });
                           window.history.replaceState({}, '', '/dashboard?filter=branch');
                         }}
@@ -1112,8 +1115,8 @@ export default function Dashboard() {
                         <span>Por sucursal</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => {
-                          console.log("✅ [Dashboard] Clicked 'Por vendedor'");
+                        onSelect={() => {
+                          console.log("✅ [Dashboard] Selected 'Por vendedor'");
                           setGlobalFilter({ type: "salesperson", value: "" });
                           window.history.replaceState({}, '', '/dashboard?filter=salesperson');
                         }}
