@@ -56,13 +56,13 @@ const getCurrentMonthLabel = () => {
 interface GoalProgress {
   id: string;
   type: string;
-  target?: string;
-  amount: number;
+  target: string | null;
+  amount: string;
   period: string;
-  description?: string;
+  description: string | null;
   currentSales: number;
   targetAmount: number;
-  progress: number;
+  percentage: number;
   remaining: number;
   isCompleted: boolean;
 }
@@ -515,7 +515,7 @@ export default function SalespersonDashboard() {
           <GoalsProgress
             globalFilter={{ type: 'salesperson', value: salespersonName }}
             selectedPeriod={selectedPeriod}
-            goalsData={goalsData?.map(goal => ({ ...goal, target: goal.target ?? null, percentage: goal.progress ?? 0 }))}
+            goalsData={goalsData}
             isLoading={loadingGoals}
           />
 
