@@ -25,7 +25,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, TrendingUp, TrendingDown, CheckCircle, XCircle, Loader2, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Calendar, TrendingUp, TrendingDown, CheckCircle, XCircle, Loader2, Search, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 
 function getWeekOfMonth(date: Date): number {
@@ -73,6 +83,7 @@ interface PromesaCumplimiento {
   ventasReales: number;
   cumplimiento: number;
   estado: 'cumplido' | 'superado' | 'no_cumplido';
+  canDelete: boolean;
 }
 
 interface Cliente {
@@ -87,8 +98,33 @@ export default function PromesasCompraPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [searchClient, setSearchClient] = useState("");
   const [selectedWeek, setSelectedWeek] = useState(new Date());
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [promesaToDelete, setPromesaToDelete] = useState<string | null>(null);
   const currentWeek = `${getYear(selectedWeek)}-${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;
   const currentYear = getYear(selectedWeek);
+  
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest('DELETE', `/api/promesas-compra/${id}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Promesa eliminada",
+        description: "La promesa de compra ha sido eliminada correctamente",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/promesas-compra/cumplimiento/reporte', currentYear, currentWeek] });
+      setDeleteDialogOpen(false);
+      setPromesaToDelete(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo eliminar la promesa de compra",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Query para obtener clientes (same as tomador-pedidos)
   const { data: clientsData } = useQuery({
@@ -267,6 +303,7 @@ export default function PromesasCompraPage() {
                       <th className="text-right py-3 px-4 font-medium">Cumplimiento</th>
                       <th className="text-center py-3 px-4 font-medium">Estado</th>
                       <th className="text-left py-3 px-4 font-medium">Observaciones</th>
+                      <th className="text-center py-3 px-4 font-medium">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -308,6 +345,24 @@ export default function PromesasCompraPage() {
                           )}
                         </td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{item.promesa.observaciones || '-'}</td>
+                        <td className="py-3 px-4">
+                          {item.canDelete && (
+                            <div className="flex justify-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setPromesaToDelete(item.promesa.id);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                data-testid={`button-delete-${item.promesa.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -369,6 +424,25 @@ export default function PromesasCompraPage() {
                             )}
                           </div>
                         </div>
+                        
+                        {/* Botón eliminar en mobile */}
+                        {item.canDelete && (
+                          <div className="pt-3 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setPromesaToDelete(item.promesa.id);
+                                setDeleteDialogOpen(true);
+                              }}
+                              className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                              data-testid={`button-delete-mobile-${item.promesa.id}`}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Eliminar promesa
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -388,6 +462,44 @@ export default function PromesasCompraPage() {
         searchClient={searchClient}
         setSearchClient={setSearchClient}
       />
+      
+      {/* Dialog de confirmación para eliminar */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar promesa de compra?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. La promesa de compra será eliminada permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setDeleteDialogOpen(false);
+              setPromesaToDelete(null);
+            }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (promesaToDelete) {
+                  deleteMutation.mutate(promesaToDelete);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                'Eliminar'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

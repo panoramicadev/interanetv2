@@ -11916,9 +11916,25 @@ export function registerRoutes(app: Express): Server {
       }
       
       // Check authorization
-      if (user.role === 'salesperson' && promesa.vendedorId !== user.id) {
-        return res.status(403).json({ message: 'No autorizado' });
+      if (user.role === 'salesperson') {
+        // Salesperson solo puede eliminar sus propias promesas
+        if (promesa.vendedorId !== user.id) {
+          return res.status(403).json({ message: 'No autorizado para eliminar esta promesa' });
+        }
+      } else if (user.role === 'supervisor') {
+        // Supervisor puede eliminar promesas de vendedores bajo su supervisión
+        const salespersonUser = await storage.getSalespersonUserById(promesa.vendedorId);
+        
+        if (!salespersonUser) {
+          return res.status(404).json({ message: 'Vendedor no encontrado' });
+        }
+        
+        // Verificar que el vendedor pertenece al supervisor
+        if (salespersonUser.supervisorId !== user.id) {
+          return res.status(403).json({ message: 'No autorizado para eliminar promesas de este vendedor' });
+        }
       }
+      // Admin puede eliminar cualquier promesa (no requiere verificación adicional)
       
       await storage.deletePromesaCompra(req.params.id);
       res.status(204).send();
@@ -11986,8 +12002,32 @@ export function registerRoutes(app: Express): Server {
         console.log('📊 [PROMESAS] Sample:', JSON.stringify(resultados[0], null, 2));
       }
       
+      // Add canDelete flag to each promesa based on user authorization
+      const resultadosConPermisos = await Promise.all(
+        resultados.map(async (item: any) => {
+          let canDelete = false;
+          
+          if (user.role === 'admin') {
+            // Admin can delete any promesa
+            canDelete = true;
+          } else if (user.role === 'salesperson') {
+            // Salesperson can delete their own promesas
+            canDelete = item.promesa.vendedorId === user.id;
+          } else if (user.role === 'supervisor') {
+            // Supervisor can delete promesas of salespeople under their supervision
+            const salespersonUser = await storage.getSalespersonUserById(item.promesa.vendedorId);
+            canDelete = salespersonUser?.supervisorId === user.id;
+          }
+          
+          return {
+            ...item,
+            canDelete
+          };
+        })
+      );
+      
       // Keep the nested structure that the frontend expects
-      res.json(resultados);
+      res.json(resultadosConPermisos);
     } catch (error: any) {
       console.error('[ERROR] /api/promesas-compra/cumplimiento/reporte:', error);
       res.status(500).json({ message: 'Error al obtener reporte de cumplimiento', error: error.message });
