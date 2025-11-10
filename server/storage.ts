@@ -16864,7 +16864,7 @@ export class DatabaseStorage implements IStorage {
       oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
       // Consulta SQL para detectar clientes inactivos desde fact_ventas
-      // Nota: fact_ventas no tiene vendedor_nombre, solo usamos nokoen y noruen
+      // Incluye nokoen (cliente), noruen (segmento) y nokofu (vendedor)
       const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
       const fortyFiveDaysAgoStr = fortyFiveDaysAgo.toISOString().split('T')[0];
       
@@ -16878,10 +16878,10 @@ export class DatabaseStorage implements IStorage {
             CURRENT_DATE - MAX(fv.feemdo)::date as days_since_last_purchase,
             SUM(fv.vabrdo) as total_purchases_last_year,
             fv.noruen as segment,
-            NULL as salesperson_name
+            fv.nokofu as salesperson_name
           FROM ventas.fact_ventas fv
           WHERE fv.feemdo >= ${sql.raw(`'${oneYearAgoStr}'::date`)}
-          GROUP BY fv.nokoen, fv.noruen
+          GROUP BY fv.nokoen, fv.noruen, fv.nokofu
           HAVING MAX(fv.feemdo) < ${sql.raw(`'${fortyFiveDaysAgoStr}'::date`)}
             AND MAX(fv.feemdo) >= ${sql.raw(`'${oneYearAgoStr}'::date`)}
         )
