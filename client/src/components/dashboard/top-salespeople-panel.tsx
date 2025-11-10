@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { UserCheck, Download, Search, X } from "lucide-react";
+import { UserCheck, Download, Search, X, DollarSign, ShoppingCart, Users, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useState, useEffect } from "react";
 
 interface TopSalesperson {
@@ -35,6 +36,7 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [limit, setLimit] = useState(10);
+  const [expandedSalesperson, setExpandedSalesperson] = useState<string>("");
   
   // Debounce search term
   useEffect(() => {
@@ -252,49 +254,68 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
           </div>
         ) : (
           <>
-            <div className="space-y-4 transition-all duration-300 ease-in-out">
+            <Accordion
+              type="single"
+              collapsible
+              value={expandedSalesperson}
+              onValueChange={setExpandedSalesperson}
+              className="space-y-2"
+            >
               {salespeopleWithPercentage?.map((sp, index) => (
-              <Link 
-                key={sp.salesperson} 
-                href={`/salesperson/${encodeURIComponent(sp.salesperson)}`}
-                className="block hover:bg-gray-50/50 rounded-lg transition-colors py-3"
-                data-testid={`salesperson-${index}`}
-              >
-                <div className="flex items-center gap-3">
-                  {/* Nombre del vendedor */}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-gray-700 font-medium truncate">
-                      {sp.salesperson}
-                    </p>
-                  </div>
-                  
-                  {/* Porcentaje */}
-                  <div className="w-12 flex-shrink-0 text-right">
-                    <span className="text-xs text-gray-600">
-                      {sp.percentage.toFixed(1)}%
-                    </span>
-                  </div>
-                  
-                  {/* Barra de progreso */}
-                  <div className="w-24 sm:w-32 flex-shrink-0">
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${Math.min(sp.percentage, 100)}%` }}
-                      ></div>
+                <AccordionItem 
+                  key={sp.salesperson} 
+                  value={sp.salesperson}
+                  className="border rounded-lg overflow-hidden bg-blue-50/30 dark:bg-blue-900/10"
+                >
+                  <AccordionTrigger 
+                    className="px-4 py-3 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:no-underline"
+                    data-testid={`accordion-trigger-salesperson-${index}`}
+                  >
+                    <div className="flex items-center gap-3 w-full pr-4">
+                      {/* Nombre del vendedor */}
+                      <div className="min-w-0 flex-1 text-left">
+                        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium truncate">
+                          {sp.salesperson}
+                        </p>
+                      </div>
+                      
+                      {/* Porcentaje */}
+                      <div className="w-12 flex-shrink-0 text-right">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {sp.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                      
+                      {/* Barra de progreso */}
+                      <div className="w-24 sm:w-32 flex-shrink-0">
+                        <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-blue-500 dark:bg-blue-600 rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${Math.min(sp.percentage, 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      {/* Monto */}
+                      <div className="w-24 flex-shrink-0 text-right">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          {formatCurrency(sp.totalSales)}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Monto */}
-                  <div className="w-24 flex-shrink-0 text-right">
-                    <span className="text-sm font-semibold text-gray-900">
-                      {formatCurrency(sp.totalSales)}
-                    </span>
-                  </div>
-                </div>
-              </Link>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4 pt-2 bg-white dark:bg-gray-800">
+                    <SalespersonDetails 
+                      salesperson={sp.salesperson}
+                      selectedPeriod={selectedPeriod}
+                      filterType={filterType}
+                      segment={segment}
+                      isExpanded={expandedSalesperson === sp.salesperson}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
               ))}
-            </div>
+            </Accordion>
             
             {/* Botón Ver más - solo si no hay búsqueda activa y hay más vendedores */}
             {!debouncedSearchTerm && topSalespeopleResponse && displaySalespeople && displaySalespeople.length < topSalespeopleResponse.totalCount && (
@@ -347,6 +368,116 @@ export default function TopSalespeoplePanel({ selectedPeriod, filterType, segmen
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// Salesperson Details Component (shown when accordion expands)
+interface SalespersonDetailsProps {
+  salesperson: string;
+  selectedPeriod: string;
+  filterType: "day" | "month" | "year" | "range";
+  segment?: string;
+  isExpanded: boolean;
+}
+
+function SalespersonDetails({ salesperson, selectedPeriod, filterType, segment, isExpanded }: SalespersonDetailsProps) {
+  const { data: details, isLoading } = useQuery({
+    queryKey: [`/api/sales/top-salespeople/${encodeURIComponent(salesperson)}/details?period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}`],
+    enabled: isExpanded, // Only fetch when accordion is expanded
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg animate-pulse">
+            <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded mb-2 w-20"></div>
+            <div className="h-5 bg-gray-200 dark:bg-gray-600 rounded w-16"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!details) {
+    return (
+      <div className="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+        No hay detalles disponibles
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Total Ventas */}
+        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <DollarSign className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Total Ventas</p>
+          </div>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {formatCurrency(details.totalSales || 0)}
+          </p>
+        </div>
+
+        {/* Transacciones */}
+        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <ShoppingCart className="w-4 h-4 text-green-600 dark:text-green-400" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Transacciones</p>
+          </div>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {(details.transactionCount || 0).toLocaleString('es-CL')}
+          </p>
+        </div>
+
+        {/* Clientes Únicos */}
+        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Clientes</p>
+          </div>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {details.uniqueClients || 0}
+          </p>
+        </div>
+
+        {/* Ticket Promedio */}
+        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">Ticket Prom.</p>
+          </div>
+          <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {formatCurrency(details.averageTicket || 0)}
+          </p>
+        </div>
+      </div>
+
+      {/* Top Productos del Vendedor */}
+      {details.topProducts && details.topProducts.length > 0 && (
+        <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Top Productos</p>
+          <div className="space-y-1">
+            {details.topProducts.slice(0, 3).map((product: any, idx: number) => (
+              <div key={idx} className="flex items-center justify-between text-xs">
+                <span className="text-gray-700 dark:text-gray-300 truncate flex-1">{product.productName}</span>
+                <span className="text-gray-900 dark:text-gray-100 font-semibold ml-2">{formatCurrency(product.sales)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
