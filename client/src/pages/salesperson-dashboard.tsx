@@ -1185,13 +1185,6 @@ export default function SalespersonDashboard() {
           />
         </div>
 
-        {/* Comparativa de Períodos */}
-        {salespersonName && (
-          <div className="modern-card p-5 lg:p-6 hover-lift">
-            <PeriodComparisonChart salespersonName={salespersonName} />
-          </div>
-        )}
-
         {/* Clientes del Vendedor con Acordeones */}
         {salespersonName && (
           <div className="modern-card p-5 lg:p-6 hover-lift">
@@ -1228,6 +1221,13 @@ export default function SalespersonDashboard() {
             salesperson={user?.salespersonName}
           />
         </div>
+
+        {/* Comparativa de Períodos */}
+        {salespersonName && (
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <PeriodComparisonChart salespersonName={salespersonName} />
+          </div>
+        )}
       </main>
 
       {/* Diálogo de Clientes */}
