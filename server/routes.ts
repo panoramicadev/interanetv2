@@ -941,24 +941,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Search clients by name (AJAX search with query parameter)
-  app.get('/api/clients/search', requireAuth, async (req, res) => {
-    try {
-      const { q } = req.query;
-      const searchTerm = typeof q === 'string' ? q.trim() : '';
-      
-      if (!searchTerm || searchTerm.length < 3) {
-        return res.json([]);
-      }
-      
-      const clients = await storage.searchClientsByName(searchTerm);
-      res.json(clients);
-    } catch (error) {
-      console.error('Error al buscar clientes:', error);
-      res.status(500).json({ error: 'Error interno del servidor' });
-    }
-  });
-
   // Create new client manually
   app.post('/api/clients', requireAuth, async (req, res) => {
     try {
