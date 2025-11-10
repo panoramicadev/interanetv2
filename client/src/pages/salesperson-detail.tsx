@@ -172,13 +172,19 @@ export default function SalespersonDetail({
   const [, setLocation] = useLocation();
   
   // Security: Redirect salespeople to their dashboard (they can only see their own data)
+  // Do this BEFORE any rendering
   useEffect(() => {
     if (!embedded && user?.role === 'salesperson') {
       setLocation('/salesperson-dashboard');
     }
   }, [user, embedded, setLocation]);
   
-  // For salespeople, force salespersonName to be their own (security)
+  // Early return to prevent rendering for unauthorized salespeople
+  if (!embedded && user?.role === 'salesperson') {
+    return null; // Don't render anything while redirecting
+  }
+  
+  // For salespeople (in embedded mode), force salespersonName to be their own (security)
   const salespersonName = user?.role === 'salesperson' 
     ? (user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim())
     : (propSalespersonName || (paramSalespersonName ? decodeURIComponent(paramSalespersonName) : undefined));
