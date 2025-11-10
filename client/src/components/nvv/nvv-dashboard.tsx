@@ -100,22 +100,44 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-red-100 text-red-800"
 };
 
-export function NvvDashboard() {
+interface NvvDashboardProps {
+  salespersonFilter?: string;
+}
+
+export function NvvDashboard({ salespersonFilter }: NvvDashboardProps) {
 
   // Obtener sumatoria total sin filtros de fecha
   const { data: totalSummary, isLoading: isLoadingTotal } = useQuery<{
     totalAmount: number;
     totalRecords: number;
   }>({
-    queryKey: ['/api/nvv/total'],
+    queryKey: ['/api/nvv/total', salespersonFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (salespersonFilter) {
+        params.set('salesperson', salespersonFilter);
+      }
+      const response = await fetch(`/api/nvv/total${params.toString() ? '?' + params.toString() : ''}`);
+      if (!response.ok) {
+        throw new Error('Error al cargar totales');
+      }
+      return response.json();
+    },
     retry: false,
   });
 
   // Obtener datos detallados de las notas de venta
   const { data: detailedData, isLoading: isLoadingDetails, error } = useQuery<NvvRecord[]>({
-    queryKey: ['/api/nvv/pending'],
+    queryKey: ['/api/nvv/pending', salespersonFilter],
     queryFn: async () => {
-      const response = await fetch('/api/nvv/pending?limit=500&offset=0');
+      const params = new URLSearchParams({
+        limit: '500',
+        offset: '0'
+      });
+      if (salespersonFilter) {
+        params.set('salesperson', salespersonFilter);
+      }
+      const response = await fetch(`/api/nvv/pending?${params}`);
       if (!response.ok) {
         throw new Error('Error al cargar datos detallados');
       }
