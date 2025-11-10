@@ -508,7 +508,7 @@ export default function SalespersonDetail({
     csvData.push(['Total Ventas', details?.totalSales || 0]);
     csvData.push(['Total Clientes', details?.totalClients || 0]);
     csvData.push(['Total Transacciones', details?.transactionCount || 0]);
-    csvData.push(['Ticket Promedio', details?.averageTicket || 0]);
+    csvData.push(['Clientes Nuevos', details?.newClients || 0]);
     csvData.push(['Frecuencia de Ventas (días)', details?.salesFrequency || 0]);
     csvData.push(['Días desde última venta', details?.daysSinceLastSale || 0]);
     if (details?.lastSaleDate) {
@@ -974,23 +974,23 @@ export default function SalespersonDetail({
               </CardContent>
             </Card>
 
-            {/* Ticket Promedio Card */}
-            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-indigo-50/80 to-indigo-100/50" data-testid="card-ticket-promedio">
+            {/* Clientes Nuevos Card */}
+            <Card className="rounded-3xl shadow-sm border-0 bg-gradient-to-br from-purple-50/80 to-purple-100/50" data-testid="card-clientes-nuevos">
               <CardContent className="pt-6 pb-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-indigo-700 mb-2">
-                      Ticket Promedio
+                    <p className="text-sm font-medium text-purple-700 mb-2">
+                      Clientes Nuevos
                     </p>
-                    <div className="text-3xl font-bold text-indigo-900 mb-1" data-testid="text-average-ticket">
-                      {isLoadingDetails ? 'Cargando...' : formatCurrency(details?.averageTicket || 0)}
+                    <div className="text-3xl font-bold text-purple-900 mb-1" data-testid="text-new-clients">
+                      {isLoadingDetails ? 'Cargando...' : formatNumber(details?.newClients || 0)}
                     </div>
-                    <p className="text-xs text-indigo-600">
-                      Por transacción
+                    <p className="text-xs text-purple-600">
+                      Primera compra en el período
                     </p>
                   </div>
-                  <div className="bg-indigo-500 rounded-2xl p-3 shadow-sm">
-                    <TrendingUp className="h-6 w-6 text-white" />
+                  <div className="bg-purple-500 rounded-2xl p-3 shadow-sm">
+                    <Users className="h-6 w-6 text-white" />
                   </div>
                 </div>
               </CardContent>
