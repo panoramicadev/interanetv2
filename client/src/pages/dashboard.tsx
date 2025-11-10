@@ -1102,7 +1102,6 @@ export default function Dashboard() {
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Por segmento'");
                             setGlobalFilter({ type: "segment", value: "" });
-                            window.history.replaceState({}, '', '/dashboard?filter=segment');
                             setIsViewPopoverOpen(false);
                           }}
                           data-testid="filter-view-segment"
@@ -1116,7 +1115,6 @@ export default function Dashboard() {
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Por sucursal'");
                             setGlobalFilter({ type: "branch", value: "" });
-                            window.history.replaceState({}, '', '/dashboard?filter=branch');
                             setIsViewPopoverOpen(false);
                           }}
                           data-testid="filter-view-branch"
@@ -1130,7 +1128,6 @@ export default function Dashboard() {
                           onClick={() => {
                             console.log("✅ [Dashboard] CLICKED 'Por vendedor'");
                             setGlobalFilter({ type: "salesperson", value: "" });
-                            window.history.replaceState({}, '', '/dashboard?filter=salesperson');
                             setIsViewPopoverOpen(false);
                           }}
                           data-testid="filter-view-salesperson"
