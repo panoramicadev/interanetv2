@@ -108,6 +108,8 @@ export default function CRMPage() {
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [prefilledClientData, setPrefilledClientData] = useState<ClienteInactivo | null>(null);
+  const [selectedLead, setSelectedLead] = useState<CrmLead | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   
   const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -526,6 +528,10 @@ export default function CRMPage() {
                                 }}
                                 onChangeStage={(newStage) => updateStageMutation.mutate({ id: lead.id, stage: newStage })}
                                 onDelete={() => deleteLeadMutation.mutate(lead.id)}
+                                onViewDetails={() => {
+                                  setSelectedLead(lead);
+                                  setIsDetailModalOpen(true);
+                                }}
                               />
                             ))
                           )}
@@ -584,6 +590,10 @@ export default function CRMPage() {
                           }}
                           onChangeStage={(newStage) => updateStageMutation.mutate({ id: lead.id, stage: newStage })}
                           onDelete={() => deleteLeadMutation.mutate(lead.id)}
+                          onViewDetails={() => {
+                            setSelectedLead(lead);
+                            setIsDetailModalOpen(true);
+                          }}
                         />
                       ))}
                     </div>
@@ -684,6 +694,18 @@ export default function CRMPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Detalles del Lead */}
+      <LeadDetailModal
+        lead={selectedLead}
+        open={isDetailModalOpen}
+        onOpenChange={(open) => {
+          setIsDetailModalOpen(open);
+          if (!open) {
+            setSelectedLead(null);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -693,6 +715,7 @@ function LeadCard({
   onToggleActivity,
   onChangeStage,
   onDelete,
+  onViewDetails,
   currentUser,
   isMobile = false,
   stageBadgeMap,
@@ -702,12 +725,12 @@ function LeadCard({
   onToggleActivity: (field: 'hasCall' | 'hasWhatsapp') => void;
   onChangeStage: (stage: string) => void;
   onDelete: () => void;
+  onViewDetails: () => void;
   currentUser: any;
   isMobile?: boolean;
   stageBadgeMap: Record<string, { label: string; bgColor: string; textColor: string }>;
   stages: CrmStage[];
 }) {
-  const [showComments, setShowComments] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const stageBadge = stageBadgeMap[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
@@ -937,24 +960,17 @@ function LeadCard({
             </Select>
           </div>
           <Button 
-            variant={showComments ? "default" : "outline"}
+            variant="outline"
             size="sm" 
-            className={`flex-shrink-0 rounded-lg transition-all font-medium shadow-sm ${isMobile ? 'h-8 px-2 text-xs' : 'h-9 px-3 text-sm'} ${showComments ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700'}`}
-            onClick={() => setShowComments(!showComments)}
-            title="Ver bitácora de comentarios"
-            data-testid={`button-comments-${lead.id}`}
+            className={`flex-shrink-0 rounded-lg transition-all font-medium shadow-sm ${isMobile ? 'h-8 px-2 text-xs' : 'h-9 px-3 text-sm'} bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700`}
+            onClick={onViewDetails}
+            title="Ver detalles completos del lead"
+            data-testid={`button-details-${lead.id}`}
           >
             <BookOpen className={isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1.5'} />
-            {!isMobile && <span>Bitácora</span>}
+            {!isMobile && <span>Ver Detalles</span>}
           </Button>
         </div>
-
-        {/* Comentarios colapsables */}
-        {showComments && (
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-2.5 -mx-1">
-            <LeadComments leadId={lead.id} />
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -1115,6 +1131,235 @@ function ListLeadRow({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function LeadDetailModal({ 
+  lead, 
+  open, 
+  onOpenChange 
+}: { 
+  lead: CrmLead | null; 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'info' | 'bitacora' | 'recomendaciones'>('info');
+
+  // Reset tab when modal closes
+  useEffect(() => {
+    if (!open) {
+      setActiveTab('info');
+    }
+  }, [open]);
+
+  // Lazy-load recommendations only when tab is visited
+  const { data: recommendations, isLoading: isLoadingRecommendations } = useQuery({
+    queryKey: ['/api/crm/leads', lead?.id, 'recommendations'],
+    enabled: open && activeTab === 'recomendaciones' && !!lead?.id,
+  });
+
+  if (!lead) return null;
+
+  const stageBadge = STAGE_BADGE_MAP[lead.stage] || { label: lead.stage, bgColor: 'bg-gray-100 dark:bg-gray-800', textColor: 'text-gray-700 dark:text-gray-300' };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid={`modal-lead-detail-${lead.id}`}>
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            {lead.clientName}
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="info" data-testid="tab-trigger-info">Información</TabsTrigger>
+            <TabsTrigger value="bitacora" data-testid="tab-trigger-bitacora">Bitácora</TabsTrigger>
+            <TabsTrigger value="recomendaciones" data-testid="tab-trigger-recomendaciones">Recomendaciones</TabsTrigger>
+          </TabsList>
+
+          {/* Tab: Información */}
+          <TabsContent value="info" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Cliente</Label>
+                <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{lead.clientName}</p>
+              </div>
+              {lead.clientPhone && (
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Teléfono</Label>
+                  <p className="text-base text-gray-900 dark:text-gray-100">{lead.clientPhone}</p>
+                </div>
+              )}
+              {lead.clientEmail && (
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</Label>
+                  <p className="text-base text-gray-900 dark:text-gray-100">{lead.clientEmail}</p>
+                </div>
+              )}
+              {lead.clientCompany && (
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Empresa</Label>
+                  <p className="text-base text-gray-900 dark:text-gray-100">{lead.clientCompany}</p>
+                </div>
+              )}
+              {lead.clientAddress && (
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Dirección</Label>
+                  <p className="text-base text-gray-900 dark:text-gray-100">{lead.clientAddress}</p>
+                </div>
+              )}
+              {lead.segment && (
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Segmento</Label>
+                  <p className="text-base text-gray-900 dark:text-gray-100">{lead.segment}</p>
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Etapa</Label>
+                <Badge className={`${stageBadge.bgColor} ${stageBadge.textColor} font-medium`}>
+                  {stageBadge.label}
+                </Badge>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Tipo de Cliente</Label>
+                <Badge className={lead.clientType === 'recurrente' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'}>
+                  {lead.clientType === 'recurrente' ? 'Cliente Recurrente' : 'Cliente Nuevo'}
+                </Badge>
+              </div>
+              {lead.nombreObra && (
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Nombre de Obra</Label>
+                  <p className="text-base text-gray-900 dark:text-gray-100">{lead.nombreObra}</p>
+                </div>
+              )}
+              {lead.notes && (
+                <div className="space-y-1 md:col-span-2">
+                  <Label className="text-sm font-medium text-gray-500 dark:text-gray-400">Notas</Label>
+                  <p className="text-base text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{lead.notes}</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Tab: Bitácora */}
+          <TabsContent value="bitacora">
+            <LeadComments leadId={lead.id} />
+          </TabsContent>
+
+          {/* Tab: Recomendaciones */}
+          <TabsContent value="recomendaciones" className="space-y-4">
+            {isLoadingRecommendations ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-32 bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : recommendations ? (
+              <div className="space-y-4">
+                {/* Actividad del Cliente */}
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                      <User className="w-5 h-5" />
+                      Actividad del Cliente
+                    </h3>
+                    {recommendations.clientActivity.isInactive ? (
+                      <div className="space-y-2">
+                        <Alert className="bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
+                          <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                          <AlertDescription className="text-orange-700 dark:text-orange-300">
+                            Cliente inactivo desde hace {recommendations.clientActivity.daysSinceLastPurchase} días
+                          </AlertDescription>
+                        </Alert>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Última Compra</p>
+                            <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                              ${(recommendations.clientActivity.lastPurchaseAmount || 0).toLocaleString('es-CL')}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Ventas Históricas</p>
+                            <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                              ${(recommendations.clientActivity.totalHistoricalSales || 0).toLocaleString('es-CL')}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Cliente activo - sin alertas de inactividad</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Patrones Estacionales */}
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                      <Clock className="w-5 h-5" />
+                      Patrones Estacionales
+                    </h3>
+                    {recommendations.isSeasonal ? (
+                      <div className="space-y-2">
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <p className="text-sm font-medium text-blue-900 dark:text-blue-100">{recommendations.purchasePattern}</p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                            Fecha esperada de compra: {recommendations.expectedPurchaseDate}
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300">
+                            Monto promedio: ${(recommendations.averagePurchaseAmount || 0).toLocaleString('es-CL')}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Sin patrones estacionales detectados</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Productos en Tendencia */}
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5" />
+                      Productos en Tendencia
+                    </h3>
+                    {recommendations.trendingProducts && recommendations.trendingProducts.length > 0 ? (
+                      <div className="space-y-2">
+                        {recommendations.trendingProducts.map((product: any, idx: number) => (
+                          <div key={idx} className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium text-green-900 dark:text-green-100">{product.productName}</p>
+                              <Badge className="bg-green-600 dark:bg-green-700 text-white">
+                                +{product.growthRate}%
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-green-700 dark:text-green-300 mt-1">{product.recommendation}</p>
+                            <p className="text-xs text-green-600 dark:text-green-400">
+                              Ventas recientes: ${product.recentSales.toLocaleString('es-CL')}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Sin productos recomendados</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  No se pudieron cargar las recomendaciones. Intenta nuevamente.
+                </AlertDescription>
+              </Alert>
+            )}
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }
 
