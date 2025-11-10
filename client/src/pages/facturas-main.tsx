@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, TrendingUp, BarChart3 } from "lucide-react";
-import OrdersPage from "./orders";
+import { FacturasTable } from "@/components/facturas/facturas-table";
 import NVVPage from "./nvv";
 import ProyeccionPage from "./proyeccion";
 
@@ -47,7 +47,7 @@ export default function FacturasMainPage() {
 
         {/* Facturas Tab */}
         <TabsContent value="facturas" className="mt-6">
-          <OrdersPage />
+          <FacturasTable />
         </TabsContent>
 
         {/* NVV Tab */}
