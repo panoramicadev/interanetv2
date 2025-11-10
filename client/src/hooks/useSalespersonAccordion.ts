@@ -13,7 +13,22 @@ export interface AccordionState {
   productLimit: number;
 }
 
-export function useSalespersonAccordion() {
+export interface AccordionControls extends AccordionState {
+  setSearchTerm: (value: string) => void;
+  setProductSearchTerm: (value: string) => void;
+  setIsSearchExpanded: (value: boolean) => void;
+  setIsProductSearchExpanded: (value: boolean) => void;
+  setExpandedClient: (value: string | null) => void;
+  setExpandedProduct: (value: string | null) => void;
+  handleClientClick: (clientName: string) => void;
+  handleProductClick: (productName: string) => void;
+  handleLoadMore: () => void;
+  handleLoadMoreProducts: () => void;
+  handleClearSearch: () => void;
+  handleClearProductSearch: () => void;
+}
+
+export function useSalespersonAccordion(): AccordionControls {
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");

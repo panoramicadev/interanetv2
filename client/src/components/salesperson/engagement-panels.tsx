@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { useSalespersonAccordion } from "@/hooks/useSalespersonAccordion";
+import { useSalespersonAccordion, type AccordionControls } from "@/hooks/useSalespersonAccordion";
 
 // ============================
 // Interfaces
@@ -95,6 +95,7 @@ interface SalespersonClientsPanelProps {
   showSearchToggle?: boolean;
   showLoadMore?: boolean;
   selectedSegment?: string | null;
+  accordionState?: AccordionControls;
 }
 
 export function SalespersonClientsPanel({
@@ -105,7 +106,12 @@ export function SalespersonClientsPanel({
   showSearchToggle = true,
   showLoadMore = true,
   selectedSegment = null,
+  accordionState: providedAccordionState,
 }: SalespersonClientsPanelProps) {
+  // Use provided accordion state or create local instance as fallback
+  const localAccordionState = useSalespersonAccordion();
+  const accordionState = providedAccordionState || localAccordionState;
+  
   const {
     expandedClient,
     searchTerm,
@@ -117,7 +123,7 @@ export function SalespersonClientsPanel({
     handleClientClick,
     handleLoadMore,
     handleClearSearch,
-  } = useSalespersonAccordion();
+  } = accordionState;
 
   // Query for paginated salesperson clients (default view)
   const { data: clientsResponse, isLoading: isLoadingClients } = useQuery<SalespersonClientsResponse>({
@@ -498,6 +504,7 @@ interface SalespersonProductsPanelProps {
   showSearchToggle?: boolean;
   showLoadMore?: boolean;
   selectedSegment?: string | null;
+  accordionState?: AccordionControls;
 }
 
 export function SalespersonProductsPanel({
@@ -508,7 +515,12 @@ export function SalespersonProductsPanel({
   showSearchToggle = true,
   showLoadMore = true,
   selectedSegment = null,
+  accordionState: providedAccordionState,
 }: SalespersonProductsPanelProps) {
+  // Use provided accordion state or create local instance as fallback
+  const localAccordionState = useSalespersonAccordion();
+  const accordionState = providedAccordionState || localAccordionState;
+  
   const {
     expandedProduct,
     productSearchTerm,
@@ -521,7 +533,7 @@ export function SalespersonProductsPanel({
     handleProductClick,
     handleLoadMoreProducts,
     handleClearProductSearch,
-  } = useSalespersonAccordion();
+  } = accordionState;
 
   // Query for paginated salesperson products (default view)
   const { data: productsResponse, isLoading: isLoadingProducts } = useQuery<SalespersonProductsResponse>({

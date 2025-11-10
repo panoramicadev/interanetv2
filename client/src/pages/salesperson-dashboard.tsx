@@ -19,6 +19,7 @@ import NotificationsPanel from "@/components/dashboard/notifications-panel";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { useFilter } from "@/contexts/FilterContext";
 import { SalespersonClientsPanel, SalespersonProductsPanel } from "@/components/salesperson/engagement-panels";
+import { useSalespersonAccordion } from "@/hooks/useSalespersonAccordion";
 import type { DateRange } from "react-day-picker";
 import { 
   TrendingUp, 
@@ -146,6 +147,9 @@ export default function SalespersonDashboard() {
       setClientSearch("");
     }
   }, [showClientsDialog]);
+
+  // Shared accordion state for mutual exclusion between clients and products
+  const accordionState = useSalespersonAccordion();
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -1118,6 +1122,7 @@ export default function SalespersonDashboard() {
               filterType={filterType}
               showSearchToggle={true}
               showLoadMore={true}
+              accordionState={accordionState}
             />
           </div>
         )}
@@ -1131,6 +1136,7 @@ export default function SalespersonDashboard() {
               filterType={filterType}
               showSearchToggle={true}
               showLoadMore={true}
+              accordionState={accordionState}
             />
           </div>
         )}
