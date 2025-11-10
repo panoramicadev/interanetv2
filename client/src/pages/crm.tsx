@@ -282,27 +282,29 @@ export default function CRMPage() {
   }
 
   return (
-    <div className="p-2 sm:p-6 space-y-2 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-        <div>
-          <h1 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">Leads</h1>
-          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-0.5 sm:mt-1 hidden sm:block">
-            Gestión de clientes y promesas de compra
-          </p>
+    <div className="p-2 sm:p-6 space-y-3 sm:space-y-4">
+      {/* Header - Modernized */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">Leads</h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-export">
-            <Download className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Export</span>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="h-9 px-4 text-sm font-medium border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800" 
+            data-testid="button-export"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export
           </Button>
           <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
             setIsCreateDialogOpen(open);
             if (!open) setPrefilledClientData(null);
           }}>
             <DialogTrigger asChild>
-              <Button size="sm" className="h-8 text-xs sm:text-sm sm:h-9" data-testid="button-create-lead">
-                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+              <Button size="sm" className="h-9 px-4 text-sm font-medium" data-testid="button-create-lead">
+                <Plus className="w-4 h-4 mr-2" />
                 Nuevo Lead
               </Button>
             </DialogTrigger>
@@ -496,26 +498,28 @@ export default function CRMPage() {
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                   >
-                    <Card className={`h-full transition-all ${isDropTarget ? 'ring-2 ring-blue-400 bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
-                      <CardContent className="p-4">
-                        {/* Encabezado de columna */}
-                        <div className="mb-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                              {stage.name}
-                            </h3>
-                            <Badge variant="secondary" className="text-xs">
-                              {stageLeads.length} Leads
+                    <div className={`h-full transition-all rounded-lg bg-gray-50/50 dark:bg-gray-900/50 ${isDropTarget ? 'ring-2 ring-blue-400 bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                      <div className="p-3">
+                        {/* Encabezado de columna - Modernizado */}
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className={`w-2 h-2 rounded-full ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''}`}
+                                style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
+                              />
+                              <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300">
+                                {stage.name}
+                              </h3>
+                            </div>
+                            <Badge variant="secondary" className="text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                              {stageLeads.length} {stageLeads.length === 1 ? 'Lead' : 'Leads'}
                             </Badge>
                           </div>
-                          <div 
-                            className={`h-1 rounded-full ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''}`}
-                            style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
-                          />
                         </div>
 
                         {/* Leads en esta columna */}
-                        <div className="space-y-3 max-h-[600px] overflow-y-auto min-h-[100px]">
+                        <div className="space-y-2.5 max-h-[600px] overflow-y-auto min-h-[100px]">
                           {stageLeads.length === 0 ? (
                             <div className="text-center py-8 text-gray-400 text-sm">
                               {isDropTarget ? 'Suelta aquí' : 'Sin leads'}
@@ -543,8 +547,8 @@ export default function CRMPage() {
                             ))
                           )}
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -794,42 +798,54 @@ function LeadCard({
 
   return (
     <Card 
-      className={`overflow-hidden rounded-xl hover:shadow-lg transition-all duration-200 bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-800/50 border border-gray-200/60 dark:border-gray-700/60 ${!isMobile ? 'cursor-move hover:cursor-pointer' : 'cursor-pointer'} ${isDragging ? 'opacity-50 scale-95' : 'hover:border-gray-300 dark:hover:border-gray-600'}`} 
+      className={`overflow-hidden rounded-lg hover:shadow-md transition-all duration-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 ${!isMobile ? 'cursor-move hover:cursor-pointer' : 'cursor-pointer'} ${isDragging ? 'opacity-50 scale-95' : 'hover:border-gray-300 dark:hover:border-gray-600'}`} 
       data-testid={`card-lead-${lead.id}`}
       draggable={!isMobile}
       onDragStart={!isMobile ? handleDragStart : undefined}
       onDragEnd={!isMobile ? handleDragEnd : undefined}
       onClick={onViewDetails}
     >
-      <CardContent className={isMobile ? "p-3 space-y-2.5" : "p-4 space-y-3"}>
+      <CardContent className={isMobile ? "p-3 space-y-2.5" : "p-3.5 space-y-2.5"}>
         {/* Header con avatar y acciones */}
         <div className="flex items-start justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2.5 flex-1 min-w-0 overflow-hidden">
-            <div className={`rounded-full ${avatarColor} flex items-center justify-center text-white font-bold shadow-lg flex-shrink-0 ring-2 ring-white dark:ring-gray-800 ${isMobile ? 'w-10 h-10 text-xs' : 'w-11 h-11 text-sm'}`}>
+            <div className={`rounded-full ${avatarColor} flex items-center justify-center text-white font-semibold shadow-sm flex-shrink-0 ${isMobile ? 'w-10 h-10 text-xs' : 'w-12 h-12 text-sm'}`}>
               {initials}
             </div>
             <div className="flex-1 min-w-0 overflow-hidden">
-              <h4 className={`font-bold text-gray-900 dark:text-gray-100 truncate ${isMobile ? 'text-sm' : 'text-base'}`}>
+              <h4 className={`font-semibold text-gray-900 dark:text-gray-100 truncate ${isMobile ? 'text-sm' : 'text-sm'}`}>
                 {lead.clientName}
               </h4>
               <p className={`text-gray-500 dark:text-gray-400 ${isMobile ? 'text-[11px]' : 'text-xs'}`}>
-                {lead.createdAt ? new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''}
+                Today {lead.createdAt ? new Date(lead.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : ''}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {isAdmin && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className={`rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors ${isMobile ? 'h-8 w-8' : 'h-9 w-9'}`}
-                onClick={(e) => { e.stopPropagation(); setIsEditDialogOpen(true); }}
-                title="Editar lead"
-                data-testid={`button-edit-${lead.id}`}
-              >
-                <Edit className={isMobile ? 'w-4 h-4' : 'w-4 h-4'} />
-              </Button>
-            )}
+          <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className={`rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 ${isMobile ? 'h-7 w-7 p-0' : 'h-8 w-8 p-0'}`}
+                  data-testid={`button-menu-${lead.id}`}
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)} data-testid={`menu-edit-${lead.id}`}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Editar
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={onViewDetails} data-testid={`menu-view-${lead.id}`}>
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  Ver Detalles
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -862,122 +878,29 @@ function LeadCard({
           return null;
         })()}
 
-        {/* Información de contacto */}
-        <div className={`space-y-1.5 min-w-0 overflow-hidden ${isMobile ? 'text-xs' : 'text-sm'}`}>
+        {/* Información de contacto - Compacta */}
+        <div className="space-y-1.5 min-w-0 overflow-hidden text-xs">
           {lead.clientPhone && (
-            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 min-w-0">
-              <Phone className={`flex-shrink-0 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
-              <span className="truncate font-medium">{lead.clientPhone}</span>
+            <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 min-w-0">
+              <Phone className="flex-shrink-0 w-3.5 h-3.5" />
+              <span className="truncate">{lead.clientPhone}</span>
             </div>
           )}
           {lead.clientEmail && (
-            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 min-w-0">
-              <Mail className={`flex-shrink-0 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
-              <span className="truncate font-medium">{lead.clientEmail}</span>
-            </div>
-          )}
-          {lead.clientCompany && (
-            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 min-w-0">
-              <Building2 className={`flex-shrink-0 ${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />
-              <span className="truncate font-medium">{lead.clientCompany}</span>
+            <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400 min-w-0">
+              <Mail className="flex-shrink-0 w-3.5 h-3.5" />
+              <span className="truncate">{lead.clientEmail}</span>
             </div>
           )}
         </div>
 
-        {/* Tipo de cliente y nombre de obra */}
-        <div className={`flex flex-wrap gap-2 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-          {lead.clientType && (
-            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${
-              lead.clientType === 'recurrente' 
-                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' 
-                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800'
-            }`}>
-              <User className={`flex-shrink-0 ${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
-              <span className={isMobile ? 'text-[10px]' : 'text-xs'}>
-                {lead.clientType === 'recurrente' ? 'Cliente Recurrente' : 'Cliente Nuevo'}
-              </span>
-            </div>
-          )}
-          {lead.nombreObra && (
-            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800`}>
-              <Home className={`flex-shrink-0 ${isMobile ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} />
-              <span className={`truncate ${isMobile ? 'text-[10px] max-w-[120px]' : 'text-xs max-w-[180px]'}`}>
-                {lead.nombreObra}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Botones de acción modernos */}
-        <div className={`grid grid-cols-3 ${isMobile ? 'gap-1.5' : 'gap-2'}`}>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleCall(); }}
-            disabled={!lead.clientPhone}
-            className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/50 hover:from-blue-100 hover:to-blue-200/50 dark:hover:from-blue-900/30 dark:hover:to-blue-800/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-blue-50 disabled:hover:to-blue-100/50 font-semibold text-blue-700 dark:text-blue-300 shadow-sm ${isMobile ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-2 py-2 text-xs'}`}
-            data-testid={`button-call-${lead.id}`}
+        {/* Badge de estado - Más suave */}
+        <div>
+          <Badge 
+            className={`font-medium ${stageBadge.bgColor} ${stageBadge.textColor} border-0 text-xs px-2.5 py-0.5`}
           >
-            <Phone className={isMobile ? "w-3 h-3" : "w-3.5 h-3.5"} />
-            <span className="truncate">Llamar</span>
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleWhatsApp(); }}
-            disabled={!lead.clientPhone}
-            className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-700/50 hover:from-green-100 hover:to-green-200/50 dark:hover:from-green-900/30 dark:hover:to-green-800/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-green-50 disabled:hover:to-green-100/50 font-semibold text-green-700 dark:text-green-300 shadow-sm ${isMobile ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-2 py-2 text-xs'}`}
-            data-testid={`button-whatsapp-${lead.id}`}
-          >
-            <MessageSquare className={isMobile ? "w-3 h-3" : "w-3.5 h-3.5"} />
-            <span className="truncate">WhatsApp</span>
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleEmail(); }}
-            disabled={!lead.clientEmail}
-            className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-700/50 hover:from-purple-100 hover:to-purple-200/50 dark:hover:from-purple-900/30 dark:hover:to-purple-800/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-purple-50 disabled:hover:to-purple-100/50 font-semibold text-purple-700 dark:text-purple-300 shadow-sm ${isMobile ? 'gap-1 px-2 py-1.5 text-[10px]' : 'gap-1.5 px-2 py-2 text-xs'}`}
-            data-testid={`button-email-${lead.id}`}
-          >
-            <Mail className={isMobile ? "w-3 h-3" : "w-3.5 h-3.5"} />
-            <span className="truncate">Email</span>
-          </button>
-        </div>
-
-        {/* Selector de etapa y botón de bitácora */}
-        <div className={`flex ${isMobile ? 'gap-1.5' : 'gap-2'} min-w-0 overflow-hidden`}>
-          <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-            <Select value={lead.stage} onValueChange={(newStage) => onChangeStage(newStage)}>
-              <SelectTrigger 
-                className={`w-full font-semibold rounded-lg shadow-sm ${stageBadge.bgColor.startsWith('bg-') ? stageBadge.bgColor : ''} ${stageBadge.textColor} border-0 ${isMobile ? 'h-8 text-[11px]' : 'h-9 text-xs'}`}
-                style={!stageBadge.bgColor.startsWith('bg-') ? { backgroundColor: stageBadge.bgColor } : undefined}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {stages.filter(stage => stage.stageKey && stage.stageKey.trim() !== '').map((stage) => {
-                  const badge = stageBadgeMap[stage.stageKey] || { label: stage.name, bgColor: stage.color, textColor: 'text-gray-700 dark:text-gray-300' };
-                  const isHexColor = !badge.bgColor.startsWith('bg-');
-                  return (
-                    <SelectItem key={stage.id} value={stage.stageKey}>
-                      <span 
-                        className={`inline-block px-2 py-0.5 rounded font-medium ${isHexColor ? '' : badge.bgColor} ${badge.textColor}`}
-                        style={isHexColor ? { backgroundColor: badge.bgColor } : undefined}
-                      >
-                        {badge.label}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button 
-            variant="outline"
-            size="sm" 
-            className={`flex-shrink-0 rounded-lg transition-all font-medium shadow-sm ${isMobile ? 'h-8 px-2 text-xs' : 'h-9 px-3 text-sm'} bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700`}
-            onClick={(e) => { e.stopPropagation(); onViewDetails(); }}
-            title="Ver detalles completos del lead"
-            data-testid={`button-details-${lead.id}`}
-          >
-            <BookOpen className={isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1.5'} />
-            {!isMobile && <span>Ver Detalles</span>}
-          </Button>
+            {stageBadge.label}
+          </Badge>
         </div>
       </CardContent>
     </Card>
