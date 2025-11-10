@@ -1040,38 +1040,31 @@ export default function Dashboard() {
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
                   {console.log("🎨 [Dashboard RENDER] Select value:", globalFilter.type, "Full filter:", globalFilter)}
                   <Select 
-                    key={`filter-select-${globalFilter.type}-${globalFilter.value}`}
                     value={globalFilter.type}
                     onOpenChange={(open) => console.log("🎨 [Dashboard] Select opened/closed:", open, "Current value:", globalFilter.type)} 
                     onValueChange={(value) => {
                       console.log("🎯 [Dashboard] Select onChange - value:", value);
                       console.log("🎯 [Dashboard] Current globalFilter BEFORE change:", globalFilter);
-                      console.log("🎯 [Dashboard] Current URL:", window.location.href);
                       
                       if (value === "all") {
-                        console.log("🔄 [Dashboard] User selected 'all' - resetting filters");
-                        // Reset filters via context and navigate to clean dashboard
+                        console.log("🔄 [Dashboard] User selected 'all' - resetting to full dashboard");
                         resetFilters();
-                        console.log("✅ [Dashboard] Called resetFilters()");
                         setLocation('/dashboard');
-                        console.log("✅ [Dashboard] Called setLocation('/dashboard')");
-                        // Invalidate queries to refetch with clean filters
                         queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
                         queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
-                        console.log("✅ [Dashboard] Invalidated queries");
-                      } else {
-                        console.log("🔧 [Dashboard] User selected filter type:", value);
-                        // Clear the global filter value but preserve the period selection
-                        if (value === "segment") {
-                          setGlobalFilter({ type: "segment", value: "" });
-                          window.history.replaceState({}, '', '/dashboard?filter=segment');
-                        } else if (value === "branch") {
-                          setGlobalFilter({ type: "branch", value: "" });
-                          window.history.replaceState({}, '', '/dashboard?filter=branch');
-                        } else if (value === "salesperson") {
-                          setGlobalFilter({ type: "salesperson", value: "" });
-                          window.history.replaceState({}, '', '/dashboard?filter=salesperson');
-                        }
+                        console.log("✅ [Dashboard] Reset complete");
+                      } else if (value === "segment") {
+                        console.log("🔧 [Dashboard] Switching to segment view");
+                        setGlobalFilter({ type: "segment", value: "" });
+                        window.history.replaceState({}, '', '/dashboard?filter=segment');
+                      } else if (value === "branch") {
+                        console.log("🔧 [Dashboard] Switching to branch view");
+                        setGlobalFilter({ type: "branch", value: "" });
+                        window.history.replaceState({}, '', '/dashboard?filter=branch');
+                      } else if (value === "salesperson") {
+                        console.log("🔧 [Dashboard] Switching to salesperson view");
+                        setGlobalFilter({ type: "salesperson", value: "" });
+                        window.history.replaceState({}, '', '/dashboard?filter=salesperson');
                       }
                     }}
                   >
@@ -1079,16 +1072,7 @@ export default function Dashboard() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                      <SelectItem 
-                        value="all" 
-                        onSelect={() => {
-                          console.log("🖱️ [Dashboard] SelectItem 'all' SELECTED via onSelect");
-                          resetFilters();
-                          setLocation('/dashboard');
-                          queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-                          queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
-                        }}
-                      >
+                      <SelectItem value="all">
                         <div className="flex items-center space-x-2">
                           <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
                           <span>Todo el dashboard</span>
