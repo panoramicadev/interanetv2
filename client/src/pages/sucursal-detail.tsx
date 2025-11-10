@@ -77,7 +77,7 @@ export default function SucursalDetail({
   const [, setLocation] = useLocation();
   
   // Use global filter context
-  const { selection, setSelection } = useFilter();
+  const { selection, setSelection, setGlobalFilter } = useFilter();
   
   // Local state for view type
   const [selectedView, setSelectedView] = useState<"all" | "segmento" | "sucursal" | "vendedor">("sucursal");
@@ -434,6 +434,8 @@ export default function SucursalDetail({
                   onValueChange={(value: "all" | "segmento" | "sucursal" | "vendedor") => {
                     setSelectedView(value);
                     if (value === "all") {
+                      // Clear view filters (branch, segment, salesperson) but keep period filters
+                      setGlobalFilter({ type: "all", value: "" });
                       setLocation('/');
                     }
                     // Note: segmento option will show a selector below for choosing specific segment
