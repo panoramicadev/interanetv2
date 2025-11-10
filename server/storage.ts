@@ -11207,18 +11207,19 @@ export class DatabaseStorage implements IStorage {
         console.log(`[NVV SALESPERSON] Trying to find actual code from fact_ventas for: "${salespersonName}"`);
         
         // Get the actual KOFULIDO used by this salesperson in fact_ventas
-        const actualCodeResult = await db
-          .select({ kofulido: sql`DISTINCT "KOFULIDO"` })
-          .from(sql`ventas.fact_ventas`)
-          .where(sql`UPPER(TRIM("NOKOFULI")) = ${salespersonName.toUpperCase().trim()}`)
-          .limit(1);
+        const actualCodeResult = await db.execute<{ KOFULIDO: string }>(sql`
+          SELECT DISTINCT "KOFULIDO" 
+          FROM ventas.fact_ventas 
+          WHERE UPPER(TRIM("NOKOFULI")) = ${salespersonName.toUpperCase().trim()}
+          LIMIT 1
+        `);
         
-        if (actualCodeResult.length === 0) {
+        if (actualCodeResult.rows.length === 0) {
           console.log(`[NVV SALESPERSON] No code found in fact_ventas for: "${salespersonName}"`);
           return null;
         }
         
-        const actualCode = String(actualCodeResult[0].kofulido).trim();
+        const actualCode = String(actualCodeResult.rows[0].KOFULIDO).trim();
         console.log(`[NVV SALESPERSON] Found actual code "${actualCode}" in fact_ventas, retrying search...`);
         
         // Retry with the actual code from fact_ventas
