@@ -1034,169 +1034,173 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
-            /* Desktop Layout */
             <div className="space-y-4 w-full">
-              {/* All filters in one line */}
+              {/* Desktop Layout - Unified with Drawer */}
+              {/* Botón para abrir filtros + chips de filtros activos */}
               <div className="flex items-center gap-3 flex-wrap">
-                {/* Vista */}
-                <div className="flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                  <span className="text-sm font-medium text-gray-700">Vista:</span>
-                  <Popover open={isViewPopoverOpen} onOpenChange={setIsViewPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        className="h-9 w-48 rounded-lg border-gray-200 text-sm justify-between"
-                        data-testid="filter-view-selector"
-                      >
-                        <div className="flex items-center space-x-2">
-                          {globalFilter.type === "all" && (
-                            <>
-                              <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
-                              <span>Todo el dashboard</span>
-                            </>
-                          )}
-                          {globalFilter.type === "segment" && (
-                            <>
-                              <Building className="h-3.5 w-3.5 text-green-500" />
-                              <span>Por segmento</span>
-                            </>
-                          )}
-                          {globalFilter.type === "branch" && (
-                            <>
-                              <Building className="h-3.5 w-3.5 text-blue-500" />
-                              <span>Por sucursal</span>
-                            </>
-                          )}
-                          {globalFilter.type === "salesperson" && (
-                            <>
-                              <Users className="h-3.5 w-3.5 text-purple-500" />
-                              <span>Por vendedor</span>
-                            </>
+                <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+                  <DrawerTrigger asChild>
+                    <Button 
+                      variant="outline"
+                      className="h-10 px-4 rounded-lg border-gray-300 hover:border-orange-400 hover:bg-orange-50"
+                      data-testid="button-open-filters-desktop"
+                    >
+                      <Filter className="h-4 w-4 mr-2" />
+                      <span className="font-medium">Editar filtros</span>
+                    </Button>
+                  </DrawerTrigger>
+                  <DrawerContent>
+                    <DrawerHeader className="border-b pb-4">
+                      <div className="flex items-center space-x-2">
+                        <Filter className="h-5 w-5 text-orange-600" />
+                        <DrawerTitle>Filtros del Dashboard</DrawerTitle>
+                      </div>
+                      <DrawerDescription>
+                        Selecciona el período y la vista que deseas analizar
+                      </DrawerDescription>
+                    </DrawerHeader>
+                    
+                    <div className="px-6 space-y-6 overflow-y-auto flex-1 max-h-[60vh]">
+                      {/* Vista Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                          <Filter className="h-4 w-4" />
+                          <span>Vista del dashboard</span>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-2">Tipo de vista</label>
+                            <Select 
+                              value={localGlobalFilter.type} 
+                              onValueChange={(value) => {
+                                if (value === "all") {
+                                  setLocalGlobalFilter({ type: "all" });
+                                } else if (value === "segment") {
+                                  setLocalGlobalFilter({ type: "segment", value: undefined });
+                                } else if (value === "branch") {
+                                  setLocalGlobalFilter({ type: "branch", value: undefined });
+                                } else if (value === "salesperson") {
+                                  setLocalGlobalFilter({ type: "salesperson", value: undefined });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-xl border-gray-200">
+                                <SelectItem value="all">
+                                  <div className="flex items-center space-x-2">
+                                    <TrendingUp className="h-4 w-4 text-gray-500" />
+                                    <span>Todo el dashboard</span>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="segment">
+                                  <div className="flex items-center space-x-2">
+                                    <Building className="h-4 w-4 text-green-500" />
+                                    <span>Por segmento</span>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="branch">
+                                  <div className="flex items-center space-x-2">
+                                    <Building className="h-4 w-4 text-blue-500" />
+                                    <span>Por sucursal</span>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="salesperson">
+                                  <div className="flex items-center space-x-2">
+                                    <Users className="h-4 w-4 text-purple-500" />
+                                    <span>Por vendedor</span>
+                                  </div>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {(localGlobalFilter.type === "segment" || localGlobalFilter.type === "branch" || localGlobalFilter.type === "salesperson") && (
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 block mb-2">
+                                {localGlobalFilter.type === "segment" ? "Segmento específico" : localGlobalFilter.type === "branch" ? "Sucursal específica" : "Vendedor específico"}
+                              </label>
+                              <Select 
+                                key={localGlobalFilter.type}
+                                value={localGlobalFilter.value || ""} 
+                                onValueChange={(value) => {
+                                  if (localGlobalFilter.type === "segment") {
+                                    setLocalGlobalFilter({ type: "segment", value });
+                                  } else if (localGlobalFilter.type === "branch") {
+                                    setLocalGlobalFilter({ type: "branch", value });
+                                  } else if (localGlobalFilter.type === "salesperson") {
+                                    setLocalGlobalFilter({ type: "salesperson", value });
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
+                                  <SelectValue placeholder={
+                                    localGlobalFilter.type === "segment" ? "Selecciona segmento" : localGlobalFilter.type === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
+                                  } />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
+                                  {localGlobalFilter.type === "segment" ? (
+                                    segments?.map((segment) => (
+                                      <SelectItem key={segment} value={segment}>
+                                        {segment}
+                                      </SelectItem>
+                                    ))
+                                  ) : localGlobalFilter.type === "branch" ? (
+                                    ["CONCEPCION", "SANTIAGO"].map((branch) => (
+                                      <SelectItem key={branch} value={branch}>
+                                        {branch}
+                                      </SelectItem>
+                                    ))
+                                  ) : (
+                                    salespeople?.map((salesperson) => (
+                                      <SelectItem key={salesperson} value={salesperson}>
+                                        {salesperson}
+                                      </SelectItem>
+                                    ))
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           )}
                         </div>
-                        <Settings2 className="h-3.5 w-3.5 text-gray-400 ml-2" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-56 p-2 shadow-lg border-2 border-orange-200" align="start">
-                      <div className="flex flex-col gap-1.5">
-                        <Button
-                          variant="ghost"
-                          className="justify-start h-10 px-3 text-sm hover:bg-gray-100 rounded-lg"
-                          onClick={() => {
-                            console.log("✅ [Dashboard] CLICKED 'Todo el dashboard'");
-                            resetFilters();
-                            setLocation('/dashboard');
-                            queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-                            queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
-                            setIsViewPopoverOpen(false);
-                          }}
-                          data-testid="filter-view-all"
+                      </div>
+
+                      {/* Período Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
+                          <CalendarIcon className="h-4 w-4" />
+                          <span>Período de análisis</span>
+                        </div>
+                        <YearMonthSelector
+                          value={localSelection}
+                          onChange={setLocalSelection}
+                        />
+                      </div>
+                    </div>
+                    
+                    <DrawerFooter className="border-t pt-4">
+                      <div className="flex gap-3">
+                        <Button 
+                          variant="outline" 
+                          onClick={handleClearFilters}
+                          className="flex-1"
+                          data-testid="button-clear-filters"
                         >
-                          <TrendingUp className="h-4 w-4 text-gray-500 mr-2.5" />
-                          <span>Todo el dashboard</span>
+                          Limpiar
                         </Button>
-                        <Button
-                          variant="ghost"
-                          className="justify-start h-10 px-3 text-sm hover:bg-green-50 rounded-lg border border-transparent hover:border-green-200"
-                          onClick={() => {
-                            console.log("✅ [Dashboard] CLICKED 'Por segmento'");
-                            setGlobalFilter({ type: "segment", value: "" });
-                            setIsViewPopoverOpen(false);
-                          }}
-                          data-testid="filter-view-segment"
+                        <Button 
+                          onClick={handleApplyFilters}
+                          className="flex-1"
+                          data-testid="button-apply-filters"
                         >
-                          <Building className="h-4 w-4 text-green-600 mr-2.5 font-bold" />
-                          <span className="font-medium">Por segmento</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="justify-start h-10 px-3 text-sm hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200"
-                          onClick={() => {
-                            console.log("✅ [Dashboard] CLICKED 'Por sucursal'");
-                            setGlobalFilter({ type: "branch", value: "" });
-                            setIsViewPopoverOpen(false);
-                          }}
-                          data-testid="filter-view-branch"
-                        >
-                          <Building className="h-4 w-4 text-blue-600 mr-2.5" />
-                          <span>Por sucursal</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="justify-start h-10 px-3 text-sm hover:bg-purple-50 rounded-lg border border-transparent hover:border-purple-200"
-                          onClick={() => {
-                            console.log("✅ [Dashboard] CLICKED 'Por vendedor'");
-                            setGlobalFilter({ type: "salesperson", value: "" });
-                            setIsViewPopoverOpen(false);
-                          }}
-                          data-testid="filter-view-salesperson"
-                        >
-                          <Users className="h-4 w-4 text-purple-600 mr-2.5" />
-                          <span>Por vendedor</span>
+                          Aplicar filtros
                         </Button>
                       </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Segment/Branch/Salesperson selector - shown conditionally */}
-                {(globalFilter.type === "segment" || globalFilter.type === "branch" || globalFilter.type === "salesperson") && (
-                  <div className="flex items-center gap-2" key={`specific-selector-${globalFilter.type}`}>
-                    <span className="text-sm font-medium text-gray-700">
-                      {globalFilter.type === "segment" ? "Segmento:" : globalFilter.type === "branch" ? "Sucursal:" : "Vendedor:"}
-                    </span>
-                    <Select 
-                      key={globalFilter.type}
-                      value={globalFilter.value || ""} 
-                      onValueChange={(value) => {
-                        if (globalFilter.type === "segment") {
-                          setGlobalFilter({ type: "segment", value });
-                        } else if (globalFilter.type === "branch") {
-                          setGlobalFilter({ type: "branch", value });
-                        } else if (globalFilter.type === "salesperson") {
-                          setGlobalFilter({ type: "salesperson", value });
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
-                        <SelectValue placeholder={globalFilter.type === "segment" ? "Selecciona segmento" : globalFilter.type === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"} />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
-                        {globalFilter.type === "segment" ? (
-                          segments?.map((segment) => (
-                            <SelectItem key={segment} value={segment}>
-                              {segment}
-                            </SelectItem>
-                          ))
-                        ) : globalFilter.type === "branch" ? (
-                          ["CONCEPCION", "SANTIAGO"].map((branch) => (
-                            <SelectItem key={branch} value={branch}>
-                              {branch}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          salespeople?.map((salesperson) => (
-                            <SelectItem key={salesperson} value={salesperson}>
-                              {salesperson}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Period */}
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                  <span className="text-sm font-medium text-gray-700">Período:</span>
-                  <YearMonthSelector
-                    value={selection}
-                    onChange={setSelection}
-                  />
-                </div>
-              </div>
+                    </DrawerFooter>
+                  </DrawerContent>
+                </Drawer>
 
               {/* Display Selected Filters as chips */}
               <div className="pt-2 border-t space-y-2">
@@ -1241,6 +1245,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 )}
+              </div>
               </div>
             </div>
           )}
