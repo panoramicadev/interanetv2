@@ -13,9 +13,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, FileText, Package, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, FileText, Package, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface Factura {
   idmaeedo: string;
@@ -36,7 +41,20 @@ export function FacturasTable() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const itemsPerPage = 50;
+
+  const toggleRow = (id: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
 
   const buildQueryParams = () => {
     const params = new URLSearchParams();
@@ -213,33 +231,74 @@ export function FacturasTable() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12"></TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Número</TableHead>
                       <TableHead>Fecha</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Vendedor</TableHead>
-                      <TableHead>Producto</TableHead>
                       <TableHead className="text-right">Cantidad</TableHead>
                       <TableHead className="text-right">Monto</TableHead>
                       <TableHead>Estado</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredFacturas.map((factura, index) => (
-                      <TableRow key={`${factura.idmaeedo}-${factura.idmaeddo}-${index}`} data-testid={`row-factura-${index}`}>
-                        <TableCell>{getDocumentTypeBadge(factura.tido)}</TableCell>
-                        <TableCell className="font-medium" data-testid={`text-nudo-${index}`}>{factura.nudo}</TableCell>
-                        <TableCell data-testid={`text-fecha-${index}`}>{formatDate(factura.feemdo)}</TableCell>
-                        <TableCell className="max-w-[200px] truncate" data-testid={`text-cliente-${index}`}>{factura.nokoen}</TableCell>
-                        <TableCell className="max-w-[150px] truncate" data-testid={`text-vendedor-${index}`}>{factura.nokofu}</TableCell>
-                        <TableCell className="max-w-[200px] truncate" data-testid={`text-producto-${index}`}>{factura.nokopr}</TableCell>
-                        <TableCell className="text-right" data-testid={`text-cantidad-${index}`}>{parseFloat(factura.caprco2 || '0').toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-semibold" data-testid={`text-monto-${index}`}>
-                          {formatCurrency(factura.monto)}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(factura.esdo)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredFacturas.map((factura, index) => {
+                      const rowId = `${factura.idmaeedo}-${factura.idmaeddo}-${index}`;
+                      const isExpanded = expandedRows.has(rowId);
+                      
+                      return (
+                        <>
+                          <TableRow key={rowId} data-testid={`row-factura-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => toggleRow(rowId)}
+                                className="h-8 w-8 p-0"
+                                data-testid={`button-expand-${index}`}
+                              >
+                                {isExpanded ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                            <TableCell>{getDocumentTypeBadge(factura.tido)}</TableCell>
+                            <TableCell className="font-medium" data-testid={`text-nudo-${index}`}>{factura.nudo}</TableCell>
+                            <TableCell data-testid={`text-fecha-${index}`}>{formatDate(factura.feemdo)}</TableCell>
+                            <TableCell className="max-w-[200px] truncate" data-testid={`text-cliente-${index}`}>{factura.nokoen}</TableCell>
+                            <TableCell className="max-w-[150px] truncate" data-testid={`text-vendedor-${index}`}>{factura.nokofu}</TableCell>
+                            <TableCell className="text-right" data-testid={`text-cantidad-${index}`}>{parseFloat(factura.caprco2 || '0').toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-semibold" data-testid={`text-monto-${index}`}>
+                              {formatCurrency(factura.monto)}
+                            </TableCell>
+                            <TableCell>{getStatusBadge(factura.esdo)}</TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow key={`${rowId}-details`} className="bg-gray-50 dark:bg-gray-800/30">
+                              <TableCell colSpan={9} className="py-4">
+                                <div className="ml-12 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <Package className="h-4 w-4 text-gray-500" />
+                                    <span className="font-semibold text-sm">Producto:</span>
+                                    <span className="text-sm" data-testid={`text-producto-detail-${index}`}>{factura.nokopr}</span>
+                                  </div>
+                                  {factura.noruen && (
+                                    <div className="flex items-center gap-2">
+                                      <FileText className="h-4 w-4 text-gray-500" />
+                                      <span className="font-semibold text-sm">Segmento:</span>
+                                      <span className="text-sm">{factura.noruen}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
