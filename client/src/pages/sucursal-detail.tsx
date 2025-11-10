@@ -80,7 +80,7 @@ export default function SucursalDetail({
   const { selection, setSelection } = useFilter();
   
   // Local state for view type
-  const [selectedView, setSelectedView] = useState<"all" | "sucursal" | "vendedor">("sucursal");
+  const [selectedView, setSelectedView] = useState<"all" | "segmento" | "sucursal" | "vendedor">("sucursal");
   
   // Ref to store scroll position
   const scrollPositionRef = useRef<number>(0);
@@ -293,6 +293,11 @@ export default function SucursalDetail({
     queryKey: ["/api/goals/data/salespeople"],
   });
 
+  // Fetch all segments for dropdown when switching views
+  const { data: allSegments } = useQuery<string[]>({
+    queryKey: ["/api/goals/data/segments"],
+  });
+
   const { data: clients = [], isLoading: isLoadingClients } = useQuery<BranchClient[]>({
     queryKey: ['/api/sales/branch', branchName, 'clients', selectedPeriod, filterType],
     queryFn: async () => {
@@ -424,11 +429,12 @@ export default function SucursalDetail({
                 <span className="text-sm font-medium text-gray-700">Vista:</span>
                 <Select 
                   value={selectedView}
-                  onValueChange={(value: "all" | "sucursal" | "vendedor") => {
+                  onValueChange={(value: "all" | "segmento" | "sucursal" | "vendedor") => {
                     setSelectedView(value);
                     if (value === "all") {
-                      setLocation('/');
+                      setLocation('/dashboard');
                     }
+                    // Note: segmento option will show a selector below for choosing specific segment
                   }}
                 >
                   <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
@@ -441,9 +447,15 @@ export default function SucursalDetail({
                         <span>Todo el dashboard</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="sucursal">
+                    <SelectItem value="segmento">
                       <div className="flex items-center gap-2">
                         <Building className="h-3.5 w-3.5 text-green-500" />
+                        <span>Por segmento</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="sucursal">
+                      <div className="flex items-center gap-2">
+                        <Building className="h-3.5 w-3.5 text-blue-500" />
                         <span>Por sucursal</span>
                       </div>
                     </SelectItem>
@@ -457,7 +469,31 @@ export default function SucursalDetail({
                 </Select>
               </div>
 
-              {/* Segment selector - shown when view is sucursal */}
+              {/* Segment selector - shown when view is segmento */}
+              {!embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
+                <div className="flex items-center gap-2" key="segment-selector">
+                  <span className="text-sm font-medium text-gray-700">Segmento:</span>
+                  <Select 
+                    value=""
+                    onValueChange={(segment) => {
+                      setLocation(`/segment/${encodeURIComponent(segment)}`);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm" data-testid="select-segment">
+                      <SelectValue placeholder="Selecciona segmento" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                      {allSegments.map((segment) => (
+                        <SelectItem key={segment} value={segment}>
+                          {segment}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Branch selector - shown when view is sucursal */}
               {!embedded && selectedView === "sucursal" && allBranches && allBranches.length > 0 && branchName && (
                 <div className="flex items-center gap-2" key="branch-selector">
                   <span className="text-sm font-medium text-gray-700">Sucursal:</span>
