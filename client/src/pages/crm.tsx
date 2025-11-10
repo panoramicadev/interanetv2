@@ -1438,8 +1438,17 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
   const { toast } = useToast();
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(clientSearchQuery);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [clientSearchQuery]);
 
   const { data: segments = [] } = useQuery<string[]>({
     queryKey: ['/api/goals/data/segments'],
@@ -1449,18 +1458,23 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
     queryKey: ['/api/users'],
   });
 
-  // Buscar clientes dinámicamente desde el servidor
-  const { data: clients = [], isLoading: isSearching } = useQuery<any[]>({
-    queryKey: ['/api/users/clients/search', clientSearchQuery],
+  // Buscar clientes usando el mismo endpoint que tomador-pedidos
+  const { data: clientsData, isLoading: isSearching } = useQuery({
+    queryKey: ['/api/clients', { search: debouncedSearchQuery }],
     queryFn: async () => {
-      const query = clientSearchQuery.trim();
-      if (query.length < 2) return [];
-      const response = await fetch(`/api/users/clients/search?q=${encodeURIComponent(query)}`);
+      const params = new URLSearchParams();
+      if (debouncedSearchQuery) params.set('search', debouncedSearchQuery);
+      params.set('limit', '50');
+      params.set('offset', '0');
+      
+      const response = await fetch(`/api/clients?${params}`, { credentials: 'include' });
       if (!response.ok) throw new Error('Error al buscar clientes');
       return response.json();
     },
-    enabled: clientSearchQuery.trim().length >= 2,
+    enabled: debouncedSearchQuery.trim().length >= 2,
   });
+
+  const clients = clientsData?.clients || [];
 
   // Obtener etapas disponibles para usar la primera como valor por defecto
   const { data: stages = [] } = useQuery<CrmStage[]>({
@@ -1517,15 +1531,16 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
     },
   });
 
-  // Update form when prefilledData changes
+  // Update form when prefilledData changes (cliente inactivo desde panel)
   useEffect(() => {
     if (prefilledData) {
+      // Auto-rellenar todos los campos inmediatamente cuando se hace clic en "Añadir al CRM"
       form.reset({
         clientName: prefilledData.clientName || '',
         clientPhone: prefilledData.clientPhone || '',
         clientEmail: prefilledData.clientEmail || '',
         clientCompany: '',
-        clientAddress: '',
+        clientAddress: prefilledData.clientAddress || '',
         segment: prefilledData.segment || '',
         salespersonId: prefilledData.salespersonId || '',
         notes: `Cliente inactivo desde hace ${prefilledData.daysSinceLastPurchase} días`,
@@ -1533,26 +1548,29 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
         clientType: 'recurrente',
         nombreObra: '',
       });
+      
+      // Marcar como cliente asociado
+      setClientSearchQuery(prefilledData.clientName || '');
+      setSelectedClientId(prefilledData.clientName || '');
     }
-  }, [prefilledData]);
+  }, [prefilledData, defaultStage]);
 
-  // Los clientes ya vienen filtrados desde el servidor, no es necesario filtrar aquí
-
-  // Función para auto-rellenar el formulario cuando se selecciona un cliente
+  // Función para auto-rellenar el formulario cuando se selecciona un cliente del buscador
   const handleClientSelect = (client: any) => {
-    setSelectedClientId(client.id);
-    setClientSearchQuery(client.nokoen || '');
+    setSelectedClientId(client.id || client.koen);
+    setClientSearchQuery(client.clientName || client.nokoen || '');
     setShowClientDropdown(false);
     
-    // Rellenar con datos de cliente de ventas (nokoen, koen, rten, etc)
-    form.setValue('clientName', client.nokoen || '');
-    form.setValue('clientCompany', client.rten || '');
-    form.setValue('clientAddress', client.dien || '');
-    form.setValue('segment', client.gien || '');
+    // Rellenar con datos del cliente (estructura de /api/clients)
+    form.setValue('clientName', client.clientName || client.nokoen || '');
+    form.setValue('clientCompany', client.businessName || client.rten || '');
+    form.setValue('clientAddress', client.address || client.dien || '');
+    form.setValue('segment', client.segment || client.gien || '');
     form.setValue('clientType', 'recurrente'); // Cliente existente = recurrente
-    // Email y teléfono pueden no estar disponibles en todos los clientes
+    
+    // Email y teléfono
     if (client.email) form.setValue('clientEmail', client.email);
-    if (client.foen) form.setValue('clientPhone', client.foen);
+    if (client.phone || client.foen) form.setValue('clientPhone', client.phone || client.foen);
   };
 
   const handleClearClient = () => {
@@ -1676,36 +1694,37 @@ function CreateLeadForm({ onSuccess, prefilledData }: { onSuccess: () => void; p
             )}
             
             {/* Dropdown de resultados */}
-            {showClientDropdown && clientSearchQuery.trim() && (
+            {showClientDropdown && debouncedSearchQuery.trim().length >= 2 && (
               <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                {clientSearchQuery.trim().length < 2 ? (
-                  <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                    Escribe al menos 2 caracteres para buscar...
-                  </div>
-                ) : isSearching ? (
+                {isSearching ? (
                   <div className="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     Buscando...
                   </div>
                 ) : clients.length > 0 ? (
-                  clients.map((client) => (
+                  clients.map((client: any) => (
                     <button
-                      key={client.id}
+                      key={client.id || client.koen}
                       type="button"
                       className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-0"
                       onClick={() => handleClientSelect(client)}
-                      data-testid={`client-option-${client.id}`}
+                      data-testid={`client-option-${client.id || client.koen}`}
                     >
                       <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
-                        {client.nokoen}
+                        {client.clientName || client.nokoen}
                       </div>
-                      {client.rten && (
+                      {(client.businessName || client.rten) && (
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {client.rten}
+                          {client.businessName || client.rten}
                         </div>
                       )}
-                      {client.koen && (
+                      {(client.rut || client.koen) && (
                         <div className="text-xs text-gray-400 dark:text-gray-500">
-                          Código: {client.koen}
+                          RUT: {client.rut || client.koen}
+                        </div>
+                      )}
+                      {(client.segment || client.gien) && (
+                        <div className="text-xs text-blue-600 dark:text-blue-400">
+                          {client.segment || client.gien}
                         </div>
                       )}
                     </button>
