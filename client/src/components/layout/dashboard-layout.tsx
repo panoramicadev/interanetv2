@@ -17,7 +17,6 @@ import { SIDEBAR_CONFIG } from "@/config/sidebar-config";
 import ImportModal from "@/components/dashboard/import-modal";
 import ChangelogDialog from "@/components/ChangelogDialog";
 import logoPath from "@assets/logo_1757532115858.png";
-import { useFilter } from "@/contexts/FilterContext";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -25,12 +24,11 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logoutMutation } = useAuth();
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showChangelogDialog, setShowChangelogDialog] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const { resetFilters } = useFilter();
 
   const handleLogout = () => {
     logoutMutation.mutate();
@@ -123,15 +121,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="p-6 border-b border-slate-700/50">
-            <div 
-              className="flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => {
-                console.log("🏠 [Logo] Navegando a dashboard principal y limpiando filtros");
-                resetFilters();
-                setLocation('/dashboard');
-              }}
-              data-testid="logo-home"
-            >
+            <div className="flex items-center justify-center">
               <img 
                 src={logoPath} 
                 alt="PANORAMICA Logo" 

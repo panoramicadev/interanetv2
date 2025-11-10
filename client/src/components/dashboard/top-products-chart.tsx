@@ -1,11 +1,8 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ShoppingBag, ChevronDown } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ProductSearch } from "./product-search";
-import ProductDetail from "@/pages/product-detail";
 
 interface TopProduct {
   productName: string;
@@ -26,11 +23,8 @@ interface TopProductsChartProps {
 }
 
 export default function TopProductsChart({ selectedPeriod, filterType, segment, salesperson }: TopProductsChartProps) {
-  const [displayLimit, setDisplayLimit] = useState(10);
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  
   const { data: topProductsResponse, isLoading } = useQuery<TopProductsResponse>({
-    queryKey: [`/api/sales/top-products?limit=${displayLimit}&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+    queryKey: [`/api/sales/top-products?limit=5&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
   });
 
   const topProducts = topProductsResponse?.items;
@@ -97,18 +91,17 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
             ))}
           </div>
         ) : (
-          <>
-            <div className="space-y-4">
-              {productsWithPercentage?.map((product, index) => (
-                <button
-                  key={product.productName}
-                  onClick={() => setSelectedProduct(product.productName)}
-                  className="w-full block hover:bg-gray-50/50 rounded-lg transition-colors text-left"
+          <div className="space-y-4">
+            {productsWithPercentage?.map((product, index) => (
+              <Link 
+                key={product.productName} 
+                href={`/product/${encodeURIComponent(product.productName)}`}
+                className="block hover:bg-gray-50/50 rounded-lg transition-colors"
+              >
+                <div 
+                  className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
                   data-testid={`product-${index}`}
                 >
-                  <div 
-                    className="flex flex-col sm:flex-row sm:items-center py-2 sm:py-3 space-y-2 sm:space-y-0"
-                  >
                 {/* Nombre del producto y monto - Mobile */}
                 <div className="flex justify-between items-center sm:hidden">
                   <p className="text-sm text-gray-700 font-medium truncate flex-1 min-w-0 pr-2">
@@ -171,44 +164,12 @@ export default function TopProductsChart({ selectedPeriod, filterType, segment, 
                     </div>
                   </div>
                 </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            
-            {/* Botón Cargar más */}
-            {topProducts && topProducts.length >= displayLimit && (
-              <div className="mt-4 text-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDisplayLimit(prev => prev + 10)}
-                  className="text-xs"
-                  data-testid="button-load-more-products"
-                >
-                  Cargar más (10+) <ChevronDown className="ml-1 h-4 w-4" />
-                </Button>
-              </div>
-            )}
-          </>
+                </div>
+              </Link>
+            ))}
+          </div>
         )}
       </div>
-      
-      {/* Modal de Producto */}
-      <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Análisis de Producto</DialogTitle>
-          </DialogHeader>
-          {selectedProduct && (
-            <ProductDetail
-              productNameOverride={selectedProduct}
-              embedded={true}
-              onClose={() => setSelectedProduct(null)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

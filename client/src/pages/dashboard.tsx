@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useSearch } from "wouter";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -29,7 +29,6 @@ import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nv
 import AllSalespeopleNVV from "@/components/dashboard/all-salespeople-nvv";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
@@ -40,7 +39,6 @@ import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { useIsMobile } from "@/hooks/use-mobile";
 import panoramicaLogo from "@assets/Diseno-sin-titulo-12-1-e1733933035809_1759422274944.webp";
-import { VIEW_OPTIONS, type ViewKey } from "@/constants/views";
 
 interface YearMonthSelection {
   years: number[];
@@ -59,7 +57,7 @@ export default function Dashboard() {
   const { isAuthenticated, isLoading, user } = useAuth();
   
   // Use global filter context
-  const { selection, setSelection, globalFilter, setGlobalFilter, resetFilters } = useFilter();
+  const { selection, setSelection, globalFilter, setGlobalFilter } = useFilter();
   
   // Derived values from selection for backward compatibility
   const selectedPeriod = (() => {
@@ -109,13 +107,11 @@ export default function Dashboard() {
     return undefined;
   })();
   
-  // No separate selectedFilter state - use globalFilter.type directly
+  // Filter selector state
+  const [selectedFilter, setSelectedFilter] = useState<string>("all");
   
   // Comparison period state
   const [comparePeriod, setComparePeriod] = useState<string>("none");
-  
-  // Popover state for view selector
-  const [isViewPopoverOpen, setIsViewPopoverOpen] = useState(false);
   
   // Detect comparative mode (multiple periods selected)
   const isComparativeMode = (() => {
@@ -230,66 +226,30 @@ export default function Dashboard() {
   
   // Local state for drawer filters (before applying)
   const [localSelection, setLocalSelection] = useState(selection);
+  const [localSelectedFilter, setLocalSelectedFilter] = useState(selectedFilter);
   const [localGlobalFilter, setLocalGlobalFilter] = useState(globalFilter);
   const [localComparePeriod, setLocalComparePeriod] = useState(comparePeriod);
   
   // Get current location from wouter
   const [currentLocation] = useLocation();
   
-  // Clean up old localStorage keys on mount (one-time cleanup)
+  // Read URL parameters and update filter
   useEffect(() => {
-    console.log("🧹 [Dashboard] Limpiando localStorage antiguo...");
-    
-    // Remove any old filter-related keys that might conflict
-    const keysToRemove = [
-      'dashboard-filter-type',
-      'dashboard-filter-value',
-      'dashboard-selected-view',
-      'dashboard-popover-state'
-    ];
-    
-    keysToRemove.forEach(key => {
-      if (localStorage.getItem(key)) {
-        console.log(`🗑️ [Dashboard] Eliminando key antigua: ${key}`);
-        localStorage.removeItem(key);
-      }
-    });
-    
-    console.log("✅ [Dashboard] localStorage limpio");
-  }, []); // Empty deps = run once on mount
-  
-  // Read URL parameters and update filter (only when target is specified)
-  useEffect(() => {
-    console.log("🔍 [Dashboard] URL params effect triggered");
-    console.log("🔍 [Dashboard] currentLocation:", currentLocation);
-    console.log("🔍 [Dashboard] window.location.search:", window.location.search);
-    
     const params = new URLSearchParams(window.location.search);
     const filterParam = params.get('filter');
-    const targetParam = params.get('target');
-    
-    console.log("🔍 [Dashboard] filterParam:", filterParam);
-    console.log("🔍 [Dashboard] targetParam:", targetParam);
-    console.log("🔍 [Dashboard] Current globalFilter:", globalFilter);
-    
-    // Only apply filter if there's a target value, not just the filter type
-    if (filterParam && targetParam) {
-      console.log("⚠️ [Dashboard] Applying filter from URL params");
-      if (filterParam === 'segment') {
-        setGlobalFilter({ type: 'segment', value: targetParam });
-      } else if (filterParam === 'salesperson') {
-        setGlobalFilter({ type: 'salesperson', value: targetParam });
-      } else if (filterParam === 'branch') {
-        setGlobalFilter({ type: 'branch', value: targetParam });
-      }
-    } else {
-      console.log("✅ [Dashboard] No filter to apply from URL (no target param)");
+    if (filterParam === 'segment') {
+      setSelectedFilter('segment');
+      setGlobalFilter({ type: 'segment', value: undefined });
+    } else if (filterParam === 'salesperson') {
+      setSelectedFilter('salesperson');
+      setGlobalFilter({ type: 'salesperson', value: undefined });
     }
   }, [currentLocation, setGlobalFilter]);
   
   // Update local state when drawer opens
   const handleDrawerOpen = () => {
     setLocalSelection(selection);
+    setLocalSelectedFilter(selectedFilter);
     setLocalGlobalFilter(globalFilter);
     setLocalComparePeriod(comparePeriod);
     setIsDrawerOpen(true);
@@ -297,30 +257,10 @@ export default function Dashboard() {
   
   // Apply drawer filters to main state
   const handleApplyFilters = () => {
-    // Special case: if switching to "all", reset everything
-    if (localGlobalFilter.type === "all") {
-      resetFilters();
-      setLocation('/');
-      // Invalidate queries to refetch with clean filters
-      queryClient.invalidateQueries({ queryKey: ['/api/sales'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/goals/progress'] });
-      setIsDrawerOpen(false);
-      return;
-    }
-    
     setSelection(localSelection);
+    setSelectedFilter(localSelectedFilter);
     setGlobalFilter(localGlobalFilter);
     setComparePeriod(localComparePeriod);
-    
-    // Update URL to match the selected filter type (without target)
-    if (localGlobalFilter.type === "segment") {
-      window.history.replaceState({}, '', '/?filter=segment');
-    } else if (localGlobalFilter.type === "branch") {
-      window.history.replaceState({}, '', '/?filter=branch');
-    } else if (localGlobalFilter.type === "salesperson") {
-      window.history.replaceState({}, '', '/?filter=salesperson');
-    }
-    
     setIsDrawerOpen(false);
   };
   
@@ -333,6 +273,7 @@ export default function Dashboard() {
       months: [now.getMonth() + 1], // Convert to 1-12 format array
       display: format(now, "MMMM yyyy")
     });
+    setLocalSelectedFilter("all");
     setLocalGlobalFilter({ type: "all" });
     setLocalComparePeriod("none");
   };
@@ -458,7 +399,10 @@ export default function Dashboard() {
     queryKey: ["/api/goals/data/salespeople"],
   });
 
-  // No need to sync - using globalFilter.type directly
+  // Sync local filter state with globalFilter changes
+  useEffect(() => {
+    setSelectedFilter(globalFilter.type);
+  }, [globalFilter.type]);
   
   // Helper function to convert old filter format to new YearMonthSelection format
   const convertToSelection = (
@@ -677,6 +621,7 @@ export default function Dashboard() {
       const salespersonName = user.fullName || user.salespersonName;
       if (salespersonName) {
         setGlobalFilter({ type: 'salesperson', value: salespersonName });
+        setSelectedFilter('salesperson');
       }
     }
   }, [user, globalFilter.type]);
@@ -714,7 +659,8 @@ export default function Dashboard() {
   // Si hay un segmento seleccionado, mostrar el dashboard del segmento embedido
   if (globalFilter.type === "segment" && globalFilter.value) {
     const handleBack = () => {
-      setGlobalFilter({ type: "all", value: "" });
+      setGlobalFilter({ type: "all" });
+      setSelectedFilter("all");
     };
     
     const handleSegmentChange = (newSegment: string) => {
@@ -753,7 +699,8 @@ export default function Dashboard() {
   // Si hay una sucursal seleccionada, mostrar el dashboard de la sucursal embedido
   if (globalFilter.type === "branch" && globalFilter.value) {
     const handleBack = () => {
-      setGlobalFilter({ type: "all", value: "" });
+      setGlobalFilter({ type: "all" });
+      setSelectedFilter("all");
     };
     
     const handleBranchChange = (newBranch: string) => {
@@ -796,7 +743,8 @@ export default function Dashboard() {
     
     const handleBack = () => {
       if (canNavigateBack) {
-        setGlobalFilter({ type: "all", value: "" });
+        setGlobalFilter({ type: "all" });
+        setSelectedFilter("all");
       }
     };
     
@@ -882,10 +830,10 @@ export default function Dashboard() {
                           <div>
                             <label className="text-sm font-medium text-gray-700 block mb-2">Tipo de vista</label>
                             <Select 
-                              value={localGlobalFilter.type} 
+                              value={localSelectedFilter} 
                               onValueChange={(value) => {
-                                // Clear the global filter value but preserve the period selection
-                                // Only change the filter type, never touch the period (localSelection)
+                                setLocalSelectedFilter(value);
+                                // Clear the value when changing filter type to avoid showing wrong data
                                 if (value === "all") {
                                   setLocalGlobalFilter({ type: "all" });
                                 } else if (value === "segment") {
@@ -895,8 +843,6 @@ export default function Dashboard() {
                                 } else if (value === "salesperson") {
                                   setLocalGlobalFilter({ type: "salesperson", value: undefined });
                                 }
-                                // Period (localSelection) is NOT modified here - it stays as is
-                                // Note: URL is updated when filters are applied via handleApplyFilters
                               }}
                             >
                               <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
@@ -931,60 +877,48 @@ export default function Dashboard() {
                             </Select>
                           </div>
                           
-                          {(localGlobalFilter.type === "segment" || localGlobalFilter.type === "branch" || localGlobalFilter.type === "salesperson") && (
+                          {(localSelectedFilter === "segment" || localSelectedFilter === "branch" || localSelectedFilter === "salesperson") && (
                             <div>
                               <label className="text-sm font-medium text-gray-700 block mb-2">
-                                {localGlobalFilter.type === "segment" ? "Segmento específico" : localGlobalFilter.type === "branch" ? "Sucursal específica" : "Vendedor específico"}
+                                {localSelectedFilter === "segment" ? "Segmento específico" : localSelectedFilter === "branch" ? "Sucursal específica" : "Vendedor específico"}
                               </label>
                               <Select 
-                                key={localGlobalFilter.type}
-                                value={localGlobalFilter.value || ""} 
+                                key={localSelectedFilter}
+                                value={(localGlobalFilter.type === localSelectedFilter && localGlobalFilter.value) ? localGlobalFilter.value : ""} 
                                 onValueChange={(value) => {
-                                  if (localGlobalFilter.type === "segment") {
+                                  if (localSelectedFilter === "segment") {
                                     setLocalGlobalFilter({ type: "segment", value });
-                                  } else if (localGlobalFilter.type === "branch") {
+                                  } else if (localSelectedFilter === "branch") {
                                     setLocalGlobalFilter({ type: "branch", value });
-                                  } else if (localGlobalFilter.type === "salesperson") {
+                                  } else if (localSelectedFilter === "salesperson") {
                                     setLocalGlobalFilter({ type: "salesperson", value });
                                   }
                                 }}
                               >
                                 <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
                                   <SelectValue placeholder={
-                                    localGlobalFilter.type === "segment" ? "Selecciona segmento" : localGlobalFilter.type === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
+                                    localSelectedFilter === "segment" ? "Selecciona segmento" : localSelectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
                                   } />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
-                                  {localGlobalFilter.type === "segment" ? (
-                                    segments && segments.length > 0 ? (
-                                      segments.map((segment) => (
-                                        <SelectItem key={segment} value={segment}>
-                                          {segment}
-                                        </SelectItem>
-                                      ))
-                                    ) : (
-                                      <SelectItem value="_loading" disabled>
-                                        Cargando...
+                                  {localSelectedFilter === "segment" ? (
+                                    segments?.map((segment) => (
+                                      <SelectItem key={segment} value={segment}>
+                                        {segment}
                                       </SelectItem>
-                                    )
-                                  ) : localGlobalFilter.type === "branch" ? (
+                                    ))
+                                  ) : localSelectedFilter === "branch" ? (
                                     ["CONCEPCION", "SANTIAGO"].map((branch) => (
                                       <SelectItem key={branch} value={branch}>
                                         {branch}
                                       </SelectItem>
                                     ))
                                   ) : (
-                                    salespeople && salespeople.length > 0 ? (
-                                      salespeople.map((salesperson) => (
-                                        <SelectItem key={salesperson} value={salesperson}>
-                                          {salesperson}
-                                        </SelectItem>
-                                      ))
-                                    ) : (
-                                      <SelectItem value="_loading" disabled>
-                                        Cargando...
+                                    salespeople?.map((salesperson) => (
+                                      <SelectItem key={salesperson} value={salesperson}>
+                                        {salesperson}
                                       </SelectItem>
-                                    )
+                                    ))
                                   )}
                                 </SelectContent>
                               </Select>
@@ -1069,20 +1003,21 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
+            /* Desktop Layout */
             <div className="space-y-4 w-full">
-              {/* Desktop Layout - Unified with Drawer */}
-              {/* Botón para abrir filtros + chips de filtros activos */}
+              {/* All filters in one line */}
               <div className="flex items-center gap-3 flex-wrap">
-                {/* Vista selector */}
+                {/* Vista */}
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700">Vista:</span>
                   <Select 
-                    value={globalFilter.type}
-                    onValueChange={(value: ViewKey) => {
+                    value={selectedFilter} 
+                    onValueChange={(value) => {
+                      setSelectedFilter(value);
+                      // Clear the value when changing filter type to avoid showing wrong data
                       if (value === "all") {
                         setGlobalFilter({ type: "all" });
-                        setLocation('/');
                       } else if (value === "segment") {
                         setGlobalFilter({ type: "segment", value: undefined });
                       } else if (value === "branch") {
@@ -1092,288 +1027,139 @@ export default function Dashboard() {
                       }
                     }}
                   >
-                    <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm bg-gray-50">
+                    <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                      {VIEW_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          <div className="flex items-center gap-2">
-                            <option.icon className={`h-3.5 w-3.5 ${option.iconColor}`} />
-                            <span>{option.label}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="all">
+                        <div className="flex items-center space-x-2">
+                          <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                          <span>Todo el dashboard</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="segment">
+                        <div className="flex items-center space-x-2">
+                          <Building className="h-3.5 w-3.5 text-green-500" />
+                          <span>Por segmento</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="branch">
+                        <div className="flex items-center space-x-2">
+                          <Building className="h-3.5 w-3.5 text-blue-500" />
+                          <span>Por sucursal</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="salesperson">
+                        <div className="flex items-center space-x-2">
+                          <Users className="h-3.5 w-3.5 text-purple-500" />
+                          <span>Por vendedor</span>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Segment, Branch, or Salesperson selector - shown when not "all" */}
-                {globalFilter.type === "segment" && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700">Segmento:</span>
+                {/* Segment/Branch/Salesperson selector - shown conditionally */}
+                {(selectedFilter === "segment" || selectedFilter === "branch" || selectedFilter === "salesperson") && (
+                  <div className="flex items-center gap-2" key={`specific-selector-${selectedFilter}`}>
+                    <span className="text-sm font-medium text-gray-700">
+                      {selectedFilter === "segment" ? "Segmento:" : selectedFilter === "branch" ? "Sucursal:" : "Vendedor:"}
+                    </span>
                     <Select 
-                      value={globalFilter.value || ""}
-                      onValueChange={(segment) => {
-                        setGlobalFilter({ type: "segment", value: segment });
-                        setLocation(`/segment/${encodeURIComponent(segment)}`);
+                      key={selectedFilter}
+                      value={(globalFilter.type === selectedFilter && globalFilter.value) ? globalFilter.value : ""} 
+                      onValueChange={(value) => {
+                        if (selectedFilter === "segment") {
+                          setGlobalFilter({ type: "segment", value });
+                        } else if (selectedFilter === "branch") {
+                          setGlobalFilter({ type: "branch", value });
+                        } else if (selectedFilter === "salesperson") {
+                          setGlobalFilter({ type: "salesperson", value });
+                        }
                       }}
                     >
                       <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
-                        <SelectValue placeholder="Selecciona segmento" />
+                        <SelectValue placeholder={selectedFilter === "segment" ? "Selecciona segmento" : selectedFilter === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"} />
                       </SelectTrigger>
-                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
-                        {segments && segments.length > 0 ? (
-                          segments.map((segment) => (
+                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto" sideOffset={4}>
+                        {selectedFilter === "segment" ? (
+                          segments?.map((segment) => (
                             <SelectItem key={segment} value={segment}>
                               {segment}
                             </SelectItem>
                           ))
+                        ) : selectedFilter === "branch" ? (
+                          ["CONCEPCION", "SANTIAGO"].map((branch) => (
+                            <SelectItem key={branch} value={branch}>
+                              {branch}
+                            </SelectItem>
+                          ))
                         ) : (
-                          <SelectItem value="_loading" disabled>
-                            Cargando...
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {globalFilter.type === "branch" && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700">Sucursal:</span>
-                    <Select 
-                      value={globalFilter.value || ""}
-                      onValueChange={(branch) => {
-                        setGlobalFilter({ type: "branch", value: branch });
-                        setLocation(`/branch/${encodeURIComponent(branch)}`);
-                      }}
-                    >
-                      <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm">
-                        <SelectValue placeholder="Selecciona sucursal" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-lg border-gray-200">
-                        <SelectItem value="CONCEPCION">CONCEPCION</SelectItem>
-                        <SelectItem value="SANTIAGO">SANTIAGO</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {globalFilter.type === "salesperson" && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700">Vendedor:</span>
-                    <Select 
-                      value={globalFilter.value || ""}
-                      onValueChange={(salesperson) => {
-                        setGlobalFilter({ type: "salesperson", value: salesperson });
-                        setLocation(`/salesperson/${encodeURIComponent(salesperson)}`);
-                      }}
-                    >
-                      <SelectTrigger className="h-9 w-56 rounded-lg border-gray-200 text-sm">
-                        <SelectValue placeholder="Selecciona vendedor" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-lg border-gray-200 max-h-60 overflow-y-auto">
-                        {salespeople && salespeople.length > 0 ? (
-                          salespeople.map((salesperson) => (
+                          salespeople?.map((salesperson) => (
                             <SelectItem key={salesperson} value={salesperson}>
                               {salesperson}
                             </SelectItem>
                           ))
-                        ) : (
-                          <SelectItem value="_loading" disabled>
-                            Cargando...
-                          </SelectItem>
                         )}
                       </SelectContent>
                     </Select>
                   </div>
                 )}
 
-                {/* Period display */}
+                {/* Period */}
                 <div className="flex items-center gap-2">
                   <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-700">Período:</span>
-                  <Badge variant="secondary" className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-lg">
-                    {selection.display}
-                  </Badge>
+                  <YearMonthSelector
+                    value={selection}
+                    onChange={setSelection}
+                  />
+                </div>
+              </div>
+
+              {/* Display Selected Filters as chips */}
+              <div className="pt-2 border-t space-y-2">
+                <div className="text-xs font-medium text-gray-500 mb-2">Filtros activos:</div>
+                
+                <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 rounded border border-purple-200">
+                  <Eye className="h-3 w-3 text-purple-600 flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-purple-900">
+                      Vista: {selectedFilter === "all" ? "Todo el dashboard" : 
+                             selectedFilter === "segment" ? "Por segmento" :
+                             selectedFilter === "branch" ? "Por sucursal" : "Por vendedor"}
+                    </div>
+                  </div>
                 </div>
 
-                <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-                  <DrawerTrigger asChild>
-                    <Button 
-                      variant="outline"
-                      className="h-10 px-4 rounded-lg border-gray-300 hover:border-orange-400 hover:bg-orange-50"
-                      data-testid="button-open-filters-desktop"
-                    >
-                      <Filter className="h-4 w-4 mr-2" />
-                      <span className="font-medium">Editar filtros</span>
-                    </Button>
-                  </DrawerTrigger>
-                  <DrawerContent>
-                    <DrawerHeader className="border-b pb-4">
-                      <div className="flex items-center space-x-2">
-                        <Filter className="h-5 w-5 text-orange-600" />
-                        <DrawerTitle>Filtros del Dashboard</DrawerTitle>
-                      </div>
-                      <DrawerDescription>
-                        Selecciona el período y la vista que deseas analizar
-                      </DrawerDescription>
-                    </DrawerHeader>
-                    
-                    <div className="px-6 space-y-6 overflow-y-auto flex-1 max-h-[60vh]">
-                      {/* Vista Section */}
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
-                          <Filter className="h-4 w-4" />
-                          <span>Vista del dashboard</span>
-                        </div>
-                        
-                        <div className="space-y-3">
-                          <div>
-                            <label className="text-sm font-medium text-gray-700 block mb-2">Tipo de vista</label>
-                            <Select 
-                              value={localGlobalFilter.type} 
-                              onValueChange={(value) => {
-                                if (value === "all") {
-                                  setLocalGlobalFilter({ type: "all" });
-                                } else if (value === "segment") {
-                                  setLocalGlobalFilter({ type: "segment", value: undefined });
-                                } else if (value === "branch") {
-                                  setLocalGlobalFilter({ type: "branch", value: undefined });
-                                } else if (value === "salesperson") {
-                                  setLocalGlobalFilter({ type: "salesperson", value: undefined });
-                                }
-                              }}
-                            >
-                              <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="rounded-xl border-gray-200">
-                                <SelectItem value="all">
-                                  <div className="flex items-center space-x-2">
-                                    <TrendingUp className="h-4 w-4 text-gray-500" />
-                                    <span>Todo el dashboard</span>
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="segment">
-                                  <div className="flex items-center space-x-2">
-                                    <Building className="h-4 w-4 text-green-500" />
-                                    <span>Por segmento</span>
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="branch">
-                                  <div className="flex items-center space-x-2">
-                                    <Building className="h-4 w-4 text-blue-500" />
-                                    <span>Por sucursal</span>
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="salesperson">
-                                  <div className="flex items-center space-x-2">
-                                    <Users className="h-4 w-4 text-purple-500" />
-                                    <span>Por vendedor</span>
-                                  </div>
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          
-                          {(localGlobalFilter.type === "segment" || localGlobalFilter.type === "branch" || localGlobalFilter.type === "salesperson") && (
-                            <div>
-                              <label className="text-sm font-medium text-gray-700 block mb-2">
-                                {localGlobalFilter.type === "segment" ? "Segmento específico" : localGlobalFilter.type === "branch" ? "Sucursal específica" : "Vendedor específico"}
-                              </label>
-                              <Select 
-                                key={localGlobalFilter.type}
-                                value={localGlobalFilter.value || ""} 
-                                onValueChange={(value) => {
-                                  if (localGlobalFilter.type === "segment") {
-                                    setLocalGlobalFilter({ type: "segment", value });
-                                  } else if (localGlobalFilter.type === "branch") {
-                                    setLocalGlobalFilter({ type: "branch", value });
-                                  } else if (localGlobalFilter.type === "salesperson") {
-                                    setLocalGlobalFilter({ type: "salesperson", value });
-                                  }
-                                }}
-                              >
-                                <SelectTrigger className="h-11 w-full rounded-xl border-gray-200">
-                                  <SelectValue placeholder={
-                                    localGlobalFilter.type === "segment" ? "Selecciona segmento" : localGlobalFilter.type === "branch" ? "Selecciona sucursal" : "Selecciona vendedor"
-                                  } />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl border-gray-200 max-h-60 overflow-y-auto">
-                                  {localGlobalFilter.type === "segment" ? (
-                                    segments && segments.length > 0 ? (
-                                      segments.map((segment) => (
-                                        <SelectItem key={segment} value={segment}>
-                                          {segment}
-                                        </SelectItem>
-                                      ))
-                                    ) : (
-                                      <SelectItem value="_loading" disabled>
-                                        Cargando...
-                                      </SelectItem>
-                                    )
-                                  ) : localGlobalFilter.type === "branch" ? (
-                                    ["CONCEPCION", "SANTIAGO"].map((branch) => (
-                                      <SelectItem key={branch} value={branch}>
-                                        {branch}
-                                      </SelectItem>
-                                    ))
-                                  ) : (
-                                    salespeople && salespeople.length > 0 ? (
-                                      salespeople.map((salesperson) => (
-                                        <SelectItem key={salesperson} value={salesperson}>
-                                          {salesperson}
-                                        </SelectItem>
-                                      ))
-                                    ) : (
-                                      <SelectItem value="_loading" disabled>
-                                        Cargando...
-                                      </SelectItem>
-                                    )
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded border border-blue-200">
+                  <CalendarIcon className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-blue-900">
+                      Período: {selection.display}
+                    </div>
+                    <div className="text-[10px] text-blue-700 mt-0.5">
+                      {selection.period === "full-year" && `${selection.years.length} año(s) completo(s)`}
+                      {selection.period === "month" && `Mes específico en ${selection.years.length} año(s)`}
+                      {selection.period === "months" && `${selection.months?.length} meses en ${selection.years.length} año(s)`}
+                      {selection.period === "day" && `Día específico en ${selection.years.length} año(s)`}
+                      {selection.period === "days" && `${selection.days?.length} días en ${selection.years.length} año(s)`}
+                    </div>
+                  </div>
+                </div>
 
-                      {/* Período Section */}
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-2 text-sm font-medium text-gray-900">
-                          <CalendarIcon className="h-4 w-4" />
-                          <span>Período de análisis</span>
-                        </div>
-                        <YearMonthSelector
-                          value={localSelection}
-                          onChange={setLocalSelection}
-                        />
+                {globalFilter.value && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded border border-green-200">
+                    <div className="h-3 w-3 text-green-600 flex-shrink-0 rounded-full bg-green-200" />
+                    <div className="flex-1">
+                      <div className="text-xs font-medium text-green-900">
+                        {selectedFilter === "segment" && `Segmento: ${globalFilter.value}`}
+                        {selectedFilter === "branch" && `Sucursal: ${globalFilter.value}`}
+                        {selectedFilter === "salesperson" && `Vendedor: ${globalFilter.value}`}
                       </div>
                     </div>
-                    
-                    <DrawerFooter className="border-t pt-4">
-                      <div className="flex gap-3">
-                        <Button 
-                          variant="outline" 
-                          onClick={handleClearFilters}
-                          className="flex-1"
-                          data-testid="button-clear-filters"
-                        >
-                          Limpiar
-                        </Button>
-                        <Button 
-                          onClick={handleApplyFilters}
-                          className="flex-1"
-                          data-testid="button-apply-filters"
-                        >
-                          Aplicar filtros
-                        </Button>
-                      </div>
-                    </DrawerFooter>
-                  </DrawerContent>
-                </Drawer>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1392,8 +1178,8 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <main className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 space-y-3 sm:space-y-4 lg:space-y-6 relative">
-          {/* Subtle last updated message - Hide in comparative mode */}
-          {lastUpdated && !isComparativeMode && (
+          {/* Subtle last updated message */}
+          {lastUpdated && (
             <div className="absolute top-1 right-3 text-[10px] text-gray-400/60 font-mono pointer-events-none select-none">
               Actualizado {formatLastUpdated(lastUpdated)}
             </div>
@@ -1415,6 +1201,14 @@ export default function Dashboard() {
               {globalFilter.type === "all" && (
                 <ComparativeSegmentTable periods={comparativePeriods} />
               )}
+
+              {/* Resumen Comparativo Section */}
+              <div className="bg-white border rounded-lg p-4">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Resumen Comparativo</h2>
+                <div className="text-sm text-gray-600 mb-4">
+                  Comparando datos de {comparativePeriods.length} períodos seleccionados
+                </div>
+              </div>
 
               {/* Comparative Salespeople Chart */}
               {globalFilter.type === "all" && (
@@ -1553,6 +1347,7 @@ export default function Dashboard() {
                     filterType={filterType}
                     onSegmentClick={(segmentName) => {
                       setGlobalFilter({ type: "segment", value: segmentName });
+                      setSelectedFilter("segment");
                     }}
                   />
                 </div>

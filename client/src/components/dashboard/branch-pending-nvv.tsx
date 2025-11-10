@@ -5,11 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -52,7 +47,6 @@ export default function BranchPendingNVV({
   branch
 }: BranchPendingNVVProps) {
   const [showAll, setShowAll] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(true);
   
   const { data: nvvData, isLoading } = useQuery<NVVRecord[]>({
     queryKey: [`/api/nvv/by-branch`, branch],
@@ -166,184 +160,171 @@ export default function BranchPendingNVV({
   }
 
   return (
-    <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
-      <Card>
-        <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                Notas de Venta Pendientes - {branch}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <div className="flex gap-2">
-                  <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
-                    {totalClients} {totalClients === 1 ? 'cliente' : 'clientes'}
-                  </Badge>
-                  <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
-                    {totalOrders} {totalOrders === 1 ? 'pedido' : 'pedidos'}
-                  </Badge>
-                </div>
-                <ChevronDown 
-                  className={`h-5 w-5 text-gray-500 transition-transform duration-200 ${
-                    isCollapsed ? '' : 'rotate-180'
-                  }`}
-                />
-              </div>
-            </div>
-          </CardHeader>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <CardContent className="space-y-4">
-            {/* Summary Cards */}
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Notas de Venta Pendientes - {branch}
+          </CardTitle>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700">
+              {totalClients} {totalClients === 1 ? 'cliente' : 'clientes'}
+            </Badge>
+            <Badge variant="outline" className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
+              {totalOrders} {totalOrders === 1 ? 'pedido' : 'pedidos'}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
             <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500 mb-1">
-                  <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                    <DollarSign className="h-4 w-4" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Monto Pendiente</span>
-                </div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {formatCurrency(totalPendingAmount)}
-                </div>
+              <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                <DollarSign className="h-4 w-4" />
               </div>
-              
-              <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
-                <div className="flex items-center gap-2 text-blue-600 dark:text-blue-500 mb-1">
-                  <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <ShoppingCart className="h-4 w-4" />
-                  </div>
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Total Pedidos</span>
-                </div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalOrders}</div>
-              </div>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Monto Pendiente</span>
             </div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              {formatCurrency(totalPendingAmount)}
+            </div>
+          </div>
+          
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-500 mb-1">
+              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <ShoppingCart className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Total Pedidos</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{totalOrders}</div>
+          </div>
+        </div>
 
-            {/* Grouped by Client with Accordion */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Por Cliente</h3>
-              <div>
-                <Accordion type="single" collapsible className="space-y-2">
-                  {(showAll ? groupedByClient : groupedByClient.slice(0, 5)).map((clientGroup, index) => (
-                  <AccordionItem 
-                    key={clientGroup.uniqueKey} 
-                    value={clientGroup.uniqueKey}
-                    className="border rounded-lg overflow-hidden"
-                    data-testid={`branch-client-group-${clientGroup.uniqueKey}`}
-                  >
-                    <AccordionTrigger 
-                      className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 hover:no-underline"
-                      data-testid={`branch-client-trigger-${clientGroup.uniqueKey}`}
-                    >
-                      <div className="flex items-center justify-between w-full pr-4">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-                            <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <div className="text-left">
-                            <div className="font-semibold text-gray-900 dark:text-gray-100">{clientGroup.clientName}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {clientGroup.totalOrders} {clientGroup.totalOrders === 1 ? 'documento' : 'documentos'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Monto Total</div>
-                            <div className="font-bold text-amber-700 dark:text-amber-300">
-                              {formatCurrency(clientGroup.totalAmount)}
-                            </div>
-                          </div>
+        {/* Grouped by Client with Accordion */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Por Cliente</h3>
+          <div>
+            <Accordion type="single" collapsible className="space-y-2">
+              {(showAll ? groupedByClient : groupedByClient.slice(0, 5)).map((clientGroup, index) => (
+              <AccordionItem 
+                key={clientGroup.uniqueKey} 
+                value={clientGroup.uniqueKey}
+                className="border rounded-lg overflow-hidden"
+                data-testid={`branch-client-group-${clientGroup.uniqueKey}`}
+              >
+                <AccordionTrigger 
+                  className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 hover:no-underline"
+                  data-testid={`branch-client-trigger-${clientGroup.uniqueKey}`}
+                >
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
+                        <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-semibold text-gray-900 dark:text-gray-100">{clientGroup.clientName}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {clientGroup.totalOrders} {clientGroup.totalOrders === 1 ? 'documento' : 'documentos'}
                         </div>
                       </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4">
-                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-2">
-                        <div className="flex items-center gap-2 mb-3 text-gray-700 dark:text-gray-300">
-                          <FileText className="h-4 w-4" />
-                          <span className="text-sm font-medium">Documentos</span>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Documento</TableHead>
-                                <TableHead>Fecha</TableHead>
-                                <TableHead>Cliente</TableHead>
-                                <TableHead>Vendedor</TableHead>
-                                <TableHead className="text-right">Monto</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {clientGroup.records.map((record) => (
-                                <TableRow key={record.id} data-testid={`branch-nvv-detail-${record.id}`}>
-                                  <TableCell className="font-medium">
-                                    <div>
-                                      <div className="font-semibold text-gray-900 dark:text-gray-100">{record.NUDO}</div>
-                                      <div className="text-xs text-gray-500 dark:text-gray-400">{record.TIDO}</div>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex items-center gap-1 text-sm">
-                                      <Calendar className="h-3 w-3 text-gray-400" />
-                                      {formatDate(record.FEEMDO)}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="max-w-xs">
-                                      <div className="font-medium text-sm truncate">{record.NOKOEN}</div>
-                                      <div className="text-xs text-gray-500">{record.ENDO}</div>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                                      {record.KOFULIDO}
-                                    </span>
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <span className="font-semibold text-amber-700 dark:text-amber-300">
-                                      {formatCurrency(record.VABRDO)}
-                                    </span>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Monto Total</div>
+                        <div className="font-bold text-amber-700 dark:text-amber-300">
+                          {formatCurrency(clientGroup.totalAmount)}
                         </div>
                       </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                  ))}
-                </Accordion>
-                
-                {/* Ver más / Ver menos */}
-                {groupedByClient.length > 5 && (
-                  <div className="mt-3 text-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAll(!showAll)}
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                      data-testid="button-toggle-branch-nvv"
-                    >
-                      {showAll ? (
-                        <>
-                          Ver menos <ChevronDown className="ml-1 h-4 w-4 rotate-180" />
-                        </>
-                      ) : (
-                        <>
-                          Ver más ({groupedByClient.length - 5} clientes más) <ChevronDown className="ml-1 h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
+                    </div>
                   </div>
-                )}
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-2">
+                    <div className="flex items-center gap-2 mb-3 text-gray-700 dark:text-gray-300">
+                      <FileText className="h-4 w-4" />
+                      <span className="text-sm font-medium">Documentos</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Documento</TableHead>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Vendedor</TableHead>
+                            <TableHead className="text-right">Monto</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {clientGroup.records.map((record) => (
+                            <TableRow key={record.id} data-testid={`branch-nvv-detail-${record.id}`}>
+                              <TableCell className="font-medium">
+                                <div>
+                                  <div className="font-semibold text-gray-900 dark:text-gray-100">{record.NUDO}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">{record.TIDO}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1 text-sm">
+                                  <Calendar className="h-3 w-3 text-gray-400" />
+                                  {formatDate(record.FEEMDO)}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="max-w-xs">
+                                  <div className="font-medium text-sm truncate">{record.NOKOEN}</div>
+                                  <div className="text-xs text-gray-500">{record.ENDO}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  {record.KOFULIDO}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className="font-semibold text-amber-700 dark:text-amber-300">
+                                  {formatCurrency(record.VABRDO)}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              ))}
+            </Accordion>
+            
+            {/* Ver más / Ver menos */}
+            {groupedByClient.length > 5 && (
+              <div className="mt-3 text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAll(!showAll)}
+                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  data-testid="button-toggle-branch-nvv"
+                >
+                  {showAll ? (
+                    <>
+                      Ver menos <ChevronDown className="ml-1 h-4 w-4 rotate-180" />
+                    </>
+                  ) : (
+                    <>
+                      Ver más ({groupedByClient.length - 5} clientes más) <ChevronDown className="ml-1 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
               </div>
-            </div>
-              </CardContent>
-            </CollapsibleContent>
-      </Card>
-    </Collapsible>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -16,7 +16,7 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Tailwind CSS
 - **Charts**: Chart.js
 - **Build Tool**: Vite
-- **PWA**: Service Worker v2.8.0 (Network-First for HTML, Stale-While-Revalidate for static assets)
+- **PWA**: Service Worker v2.0.0 (Network-First for HTML, Stale-While-Revalidate for static assets)
 
 ### Backend
 - **Runtime**: Node.js with Express.js
@@ -37,27 +37,9 @@ Preferred communication style: Simple, everyday language.
 
 ### UI/UX
 - **Branding**: Panoramica 30th-anniversary logo on login and PDFs.
-- **Navigation**: Clickable logo in sidebar for quick return to dashboard home.
 - **Responsiveness**: Mobile-responsive design.
 - **Theming**: Custom design tokens and CSS variables.
 - **Professional Documents**: Enhanced PDF layouts with multi-column design and branding.
-- **Calendar Selector (Nov 2025)**: Enhanced year-month-day selector with range selection capabilities:
-  - Two-click day range selection (click start → click end → auto-fills intermediate days)
-  - Visual highlighting: start/end days with border emphasis, intermediate days fully highlighted in orange
-  - "Limpiar todo" button to reset all selections (years, months, days)
-  - Display format: "3-9 Noviembre 2025 (7 días)" for ranges
-  - Preserves selection state when reopening calendar
-  - Period selection preserved when switching between filter views (all/segment/salesperson/branch)
-- **View Selector System (Nov 2025)**: Unified VIEW_OPTIONS constants for consistent view selection across all pages:
-  - Centralized in client/src/constants/views.ts with ViewKey type and VIEW_OPTIONS array
-  - All pages (dashboard, salesperson-detail, segment-detail, sucursal-detail) use same 4 options:
-    - "all" (Todo el dashboard) - Shows complete dashboard with all data
-    - "segment" (Por segmento) - Filters by business segment
-    - "branch" (Por sucursal) - Filters by branch/location
-    - "salesperson" (Por vendedor) - Filters by individual salesperson
-  - English values internally ("all", "segment", "branch", "salesperson") with Spanish labels for UI
-  - Consistent icons and colors across all selectors (TrendingUp gray, Building green/blue, Users purple)
-  - ViewKey union type ensures type safety across all components
 
 ### Key Features
 - **Client & User Management**: Role-based access and client linking.
