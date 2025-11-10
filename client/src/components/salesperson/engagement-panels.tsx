@@ -366,12 +366,29 @@ export function SalespersonClientsPanel({
                               </div>
                               <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
                                 <p className="text-xs text-gray-600 mb-1">Última Venta</p>
-                                <p className="text-sm font-semibold text-gray-900">
-                                  {clientDetails.lastSaleDate 
-                                    ? format(new Date(clientDetails.lastSaleDate), "d 'de' MMM yyyy", { locale: es })
-                                    : 'N/A'
-                                  }
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {clientDetails.lastSaleDate 
+                                      ? format(new Date(clientDetails.lastSaleDate), "d 'de' MMM yyyy", { locale: es })
+                                      : 'N/A'
+                                    }
+                                  </p>
+                                  {clientDetails.lastSaleDate && (() => {
+                                    const daysSince = Math.floor(
+                                      (new Date().getTime() - new Date(clientDetails.lastSaleDate).getTime()) / (1000 * 60 * 60 * 24)
+                                    );
+                                    const isRecent = daysSince <= 31;
+                                    return (
+                                      <span 
+                                        className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                                          isRecent ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100'
+                                        }`}
+                                      >
+                                        {daysSince}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
                               </div>
                               <div className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
                                 <p className="text-xs text-gray-600 mb-1">Transacciones</p>
