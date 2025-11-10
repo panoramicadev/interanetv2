@@ -617,23 +617,24 @@ export default function SalespersonDashboard() {
 
             </div>
             
-            {/* Year/Month Selector */}
-            <div className="w-full">
-              <YearMonthSelector
-                value={selection}
-                onChange={(newSelection) => newSelection && setSelection(newSelection)}
-              />
-            </div>
-            
-            {/* Selected Period Display */}
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">
-                Período actual:
-              </span>
-              <Badge variant="secondary" className="text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200">
-                {getPeriodLabel()}
-              </Badge>
+            {/* Year/Month Selector and Period Display - In Line */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
+              <div className="flex-shrink-0">
+                <YearMonthSelector
+                  value={selection}
+                  onChange={(newSelection) => newSelection && setSelection(newSelection)}
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">
+                  Período actual:
+                </span>
+                <Badge variant="secondary" className="text-sm font-semibold bg-blue-100 text-blue-700 hover:bg-blue-200">
+                  {getPeriodLabel()}
+                </Badge>
+              </div>
             </div>
           </div>
         </header>
