@@ -17,6 +17,7 @@ import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import ComparativeSalespersonTable from "@/components/dashboard/comparative-salesperson-table";
 import SalespersonPendingNVV from "@/components/dashboard/salesperson-pending-nvv";
 import PackagingSalesMetrics from "@/components/dashboard/packaging-sales-metrics";
+import { useAuth } from "@/hooks/useAuth";
 
 interface GoalProgress {
   id: string;
@@ -166,9 +167,21 @@ export default function SalespersonDetail({
   dashboardSelectedYear,
   dashboardDateRange
 }: SalespersonDetailProps = {}) {
+  const { user } = useAuth();
   const { salespersonName: paramSalespersonName } = useParams();
-  const salespersonName = propSalespersonName || (paramSalespersonName ? decodeURIComponent(paramSalespersonName) : undefined);
   const [, setLocation] = useLocation();
+  
+  // Security: Redirect salespeople to their dashboard (they can only see their own data)
+  useEffect(() => {
+    if (!embedded && user?.role === 'salesperson') {
+      setLocation('/salesperson-dashboard');
+    }
+  }, [user, embedded, setLocation]);
+  
+  // For salespeople, force salespersonName to be their own (security)
+  const salespersonName = user?.role === 'salesperson' 
+    ? (user.salespersonName || `${user.firstName || ''} ${user.lastName || ''}`.trim())
+    : (propSalespersonName || (paramSalespersonName ? decodeURIComponent(paramSalespersonName) : undefined));
   
   // Use global filter context
   const { selection, setSelection } = useFilter();
@@ -838,59 +851,61 @@ export default function SalespersonDetail({
           <div className="space-y-4 w-full">
             {/* All filters in one line */}
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Home button and Vista */}
-              <div className="flex items-center gap-2">
-                {onBack && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onBack}
-                    className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
-                    data-testid="button-back-dashboard"
-                    title="Volver al Dashboard"
+              {/* Home button and Vista - Hide for salespeople */}
+              {user?.role !== 'salesperson' && (
+                <div className="flex items-center gap-2">
+                  {onBack && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onBack}
+                      className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 transition-colors"
+                      data-testid="button-back-dashboard"
+                      title="Volver al Dashboard"
+                    >
+                      <Home className="h-4 w-4 text-gray-600" />
+                    </Button>
+                  )}
+                  <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm font-medium text-gray-700">Vista:</span>
+                  <Select 
+                    value={selectedView}
+                    onValueChange={(value: "all" | "segmento" | "vendedor") => {
+                      setSelectedView(value);
+                      if (value === "all") {
+                        setLocation('/');
+                      }
+                    }}
                   >
-                    <Home className="h-4 w-4 text-gray-600" />
-                  </Button>
-                )}
-                <Eye className="h-4 w-4 text-gray-500 flex-shrink-0" />
-                <span className="text-sm font-medium text-gray-700">Vista:</span>
-                <Select 
-                  value={selectedView}
-                  onValueChange={(value: "all" | "segmento" | "vendedor") => {
-                    setSelectedView(value);
-                    if (value === "all") {
-                      setLocation('/');
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
-                    <SelectItem value="all">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
-                        <span>Todo el dashboard</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="vendedor">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5 text-purple-500" />
-                        <span>Por vendedor</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="segmento">
-                      <div className="flex items-center gap-2">
-                        <Building className="h-3.5 w-3.5 text-green-500" />
-                        <span>Por segmento</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                    <SelectTrigger className="h-9 w-48 rounded-lg border-gray-200 text-sm bg-gray-50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-gray-200" sideOffset={4}>
+                      <SelectItem value="all">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-3.5 w-3.5 text-gray-500" />
+                          <span>Todo el dashboard</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="vendedor">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-3.5 w-3.5 text-purple-500" />
+                          <span>Por vendedor</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="segmento">
+                        <div className="flex items-center gap-2">
+                          <Building className="h-3.5 w-3.5 text-green-500" />
+                          <span>Por segmento</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-              {/* Segment selector - shown when view is segmento */}
-              {!embedded && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
+              {/* Segment selector - shown when view is segmento (hide for salespeople) */}
+              {!embedded && user?.role !== 'salesperson' && selectedView === "segmento" && allSegments && allSegments.length > 0 && (
                 <div className="flex items-center gap-2" key="segment-selector">
                   <span className="text-sm font-medium text-gray-700">Segmento:</span>
                   <Select 
@@ -913,8 +928,8 @@ export default function SalespersonDetail({
                 </div>
               )}
 
-              {/* Salesperson selector - shown when view is vendedor */}
-              {!embedded && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
+              {/* Salesperson selector - shown when view is vendedor (hide for salespeople) */}
+              {!embedded && user?.role !== 'salesperson' && selectedView === "vendedor" && allSalespeople && allSalespeople.length > 0 && (
                 <div className="flex items-center gap-2" key="salesperson-selector">
                   <span className="text-sm font-medium text-gray-700">Vendedor:</span>
                   <Select 
