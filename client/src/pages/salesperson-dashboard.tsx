@@ -18,6 +18,7 @@ import TopProductsChart from "@/components/dashboard/top-products-chart";
 import NotificationsPanel from "@/components/dashboard/notifications-panel";
 import { YearMonthSelector } from "@/components/dashboard/year-month-selector";
 import { useFilter } from "@/contexts/FilterContext";
+import { SalespersonClientsPanel, SalespersonProductsPanel } from "@/components/salesperson/engagement-panels";
 import type { DateRange } from "react-day-picker";
 import { 
   TrendingUp, 
@@ -1108,14 +1109,31 @@ export default function SalespersonDashboard() {
           />
         </div>
 
-        {/* Top Productos */}
-        <div className="modern-card p-5 lg:p-6 hover-lift">
-          <TopProductsChart 
-            selectedPeriod={selectedPeriod} 
-            filterType={filterType}
-            salesperson={user?.salespersonName}
-          />
-        </div>
+        {/* Clientes del Vendedor con Acordeones */}
+        {salespersonName && (
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <SalespersonClientsPanel 
+              salespersonName={salespersonName}
+              selectedPeriod={selectedPeriod}
+              filterType={filterType}
+              showSearchToggle={true}
+              showLoadMore={true}
+            />
+          </div>
+        )}
+
+        {/* Productos del Vendedor con Acordeones */}
+        {salespersonName && (
+          <div className="modern-card p-5 lg:p-6 hover-lift">
+            <SalespersonProductsPanel 
+              salespersonName={salespersonName}
+              selectedPeriod={selectedPeriod}
+              filterType={filterType}
+              showSearchToggle={true}
+              showLoadMore={true}
+            />
+          </div>
+        )}
 
         {/* Tabla de Transacciones */}
         <div className="modern-card p-5 lg:p-6 hover-lift">
