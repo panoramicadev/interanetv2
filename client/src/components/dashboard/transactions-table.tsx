@@ -101,8 +101,27 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
   };
 
 
-  const { data: allTransactions, isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/sales/transactions?limit=100&period=${selectedPeriod}&filterType=${filterType}${segment ? `&segment=${encodeURIComponent(segment)}` : ''}${salesperson ? `&salesperson=${encodeURIComponent(salesperson)}` : ''}`],
+  const { data: allTransactions, isLoading, isError } = useQuery<Transaction[]>({
+    queryKey: ['/api/sales/transactions', { limit: 100, period: selectedPeriod, filterType, segment, salesperson }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('limit', '100');
+      params.append('period', selectedPeriod);
+      params.append('filterType', filterType);
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      
+      const response = await fetch(`/api/sales/transactions?${params}`, { 
+        credentials: 'include',
+        cache: 'no-store' // Bypass browser cache to avoid 304 issues
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return response.json();
+    },
   });
 
 
@@ -243,6 +262,18 @@ export default function TransactionsTable({ selectedPeriod, filterType, segment,
                       <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
                     </TableRow>
                   ))
+                ) : isError ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-red-600">
+                      Error al cargar las transacciones. Por favor, intenta nuevamente.
+                    </TableCell>
+                  </TableRow>
+                ) : groupedSales.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      No se encontraron órdenes para el período seleccionado.
+                    </TableCell>
+                  </TableRow>
                 ) : (
                   groupedSales.map((sale) => {
                     const salesperson = getSalespersonDisplay(sale.salesperson);
