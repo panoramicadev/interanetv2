@@ -1197,20 +1197,20 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* Comparative Segment Table - Moved to top */}
-              {globalFilter.type === "all" && (
-                <ComparativeSegmentTable periods={comparativePeriods} />
-              )}
-
               {/* Resumen Comparativo Section */}
               <div className="bg-white border rounded-lg p-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Resumen Comparativo</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Modo Comparativo</h2>
                 <div className="text-sm text-gray-600 mb-4">
                   Comparando datos de {comparativePeriods.length} períodos seleccionados
                 </div>
               </div>
 
-              {/* Comparative Salespeople Chart */}
+              {/* Evolución de Ventas por Segmento */}
+              {globalFilter.type === "all" && (
+                <ComparativeSegmentTable periods={comparativePeriods} />
+              )}
+
+              {/* Evolución de Ventas por Vendedor */}
               {globalFilter.type === "all" && (
                 <ComparativeSalespeopleTable periods={comparativePeriods} />
               )}
