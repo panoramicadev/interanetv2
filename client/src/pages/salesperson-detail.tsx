@@ -36,6 +36,7 @@ interface SalespersonDetails {
   totalClients: number;
   transactionCount: number;
   averageTicket: number;
+  newClients: number; // clientes que compraron por primera vez al vendedor en el período
   salesFrequency: number; // average days between sales
   daysSinceLastSale: number; // actual days since last sale
   lastSaleDate: string | null; // date of last sale
