@@ -5377,6 +5377,15 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getSalespersonUserById(userId: string): Promise<SalespersonUser | undefined> {
+    // Look up salespersonUser by their linked userId
+    const [salespersonUser] = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.userId, userId));
+    return salespersonUser;
+  }
+
   async getSalespersonClientsAnalysis(salesperson: string): Promise<{
     vipClients: Array<{
       clientName: string;
@@ -5728,6 +5737,7 @@ export class DatabaseStorage implements IStorage {
       lastPurchaseAmount: number;
       totalHistoricalSales: number;
       lastPurchaseId: string;
+      id?: string;
     }>;
     seasonalClients: Array<{
       clientName: string;
@@ -5742,15 +5752,69 @@ export class DatabaseStorage implements IStorage {
       recommendation: string;
     }>;
   }> {
-    // Use shared helpers to get all notifications
-    const [inactiveClients, seasonalClients, trendingProducts] = await Promise.all([
-      this._getInactiveClientsForSalesperson(salesperson),
+    // Try to get salesperson user
+    const salespersonUser = await db
+      .select()
+      .from(salespeopleUsers)
+      .where(eq(salespeopleUsers.salespersonName, salesperson))
+      .limit(1);
+
+    let inactiveClientsResult: Array<{
+      clientName: string;
+      daysSinceLastPurchase: number;
+      lastPurchaseAmount: number;
+      totalHistoricalSales: number;
+      lastPurchaseId: string;
+      id?: string;
+    }> = [];
+    
+    let usedFallback = false;
+
+    // FALLBACK: Use on-demand query if salesperson user lookup fails (ETL hasn't run or user not in table)
+    if (salespersonUser.length === 0) {
+      console.log(`[SMART-NOTIFICATIONS] Using fallback for ${salesperson}: no salespeopleUsers record found`);
+      inactiveClientsResult = await this._getInactiveClientsForSalesperson(salesperson);
+      usedFallback = true;
+    } else {
+      // Use clientesInactivos table (same source as CRM)
+      try {
+        const results = await db
+          .select()
+          .from(clientesInactivos)
+          .where(and(
+            eq(clientesInactivos.salespersonId, salespersonUser[0].id),
+            eq(clientesInactivos.addedToCrm, false),
+            eq(clientesInactivos.dismissed, false)
+          ))
+          .orderBy(desc(clientesInactivos.daysSinceLastPurchase))
+          .limit(20);
+
+        inactiveClientsResult = results.map(client => ({
+          id: client.id,
+          clientName: client.clientName,
+          daysSinceLastPurchase: client.daysSinceLastPurchase,
+          lastPurchaseAmount: Number(client.lastPurchaseAmount || 0),
+          totalHistoricalSales: Number(client.totalPurchasesLastYear || 0),
+          lastPurchaseId: '', // Will be fetched on-demand when needed
+        }));
+        
+        // Empty result is valid - it means all clients are already added or dismissed
+      } catch (error) {
+        // FALLBACK: Only if the query itself fails
+        console.error(`[SMART-NOTIFICATIONS] clientesInactivos query failed for ${salesperson}, using fallback:`, error);
+        inactiveClientsResult = await this._getInactiveClientsForSalesperson(salesperson);
+        usedFallback = true;
+      }
+    }
+
+    // Get seasonal and trending products in parallel
+    const [seasonalClients, trendingProducts] = await Promise.all([
       this._getSeasonalPatternsForSalesperson(salesperson),
       this._getTrendingProductsForSalesperson(salesperson, 10)
     ]);
 
     return {
-      inactiveClients,
+      inactiveClients: inactiveClientsResult,
       seasonalClients,
       trendingProducts
     };
@@ -17542,6 +17606,64 @@ export class DatabaseStorage implements IStorage {
     } catch (error: any) {
       console.error('Error getting inactive clients:', error.message);
       return [];
+    }
+  }
+
+  async getInactiveClientById(id: string): Promise<ClienteInactivo | null> {
+    try {
+      const results = await db
+        .select()
+        .from(clientesInactivos)
+        .where(eq(clientesInactivos.id, id))
+        .limit(1);
+
+      return results.length > 0 ? results[0] : null;
+    } catch (error: any) {
+      console.error('Error getting inactive client by id:', error.message);
+      return null;
+    }
+  }
+
+  async createLeadFromInactiveClient(
+    inactiveClientId: string,
+    leadData: InsertCrmLeadInput
+  ): Promise<{ success: boolean; lead?: CrmLead; error?: string }> {
+    try {
+      // TRANSACTION: Create lead and mark inactive client as added atomically
+      const result = await db.transaction(async (tx) => {
+        // 1. Create the CRM lead
+        const [newLead] = await tx
+          .insert(crmLeads)
+          .values(leadData)
+          .returning();
+
+        if (!newLead) {
+          throw new Error("Failed to create lead");
+        }
+
+        // 2. Mark inactive client as added to CRM
+        const updateResult = await tx
+          .update(clientesInactivos)
+          .set({ 
+            addedToCrm: true,
+            crmLeadId: newLead.id,
+            updatedAt: new Date().toISOString()
+          })
+          .where(eq(clientesInactivos.id, inactiveClientId))
+          .returning();
+
+        if (updateResult.length === 0) {
+          throw new Error("Failed to update inactive client record");
+        }
+
+        return newLead;
+      });
+
+      console.log(`[CRM] Successfully created lead from inactive client ${inactiveClientId}`);
+      return { success: true, lead: result };
+    } catch (error: any) {
+      console.error(`[CRM] Transaction failed for inactive client ${inactiveClientId}:`, error.message);
+      return { success: false, error: error.message };
     }
   }
 

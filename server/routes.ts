@@ -5405,6 +5405,80 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Combined endpoint to create CRM lead from inactive client (from salesperson dashboard)
+  app.post('/api/crm/inactive-clients/:id/create-lead', requireAuth, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user;
+      
+      // VALIDATION: Validate request body with Zod
+      const validStages = ['lead', 'contacto', 'visita', 'lista_precio', 'campana', 'primera_venta', 'promesa', 'venta'];
+      const createLeadSchema = z.object({
+        stage: z.enum(['lead', 'contacto', 'visita', 'lista_precio', 'campana', 'primera_venta', 'promesa', 'venta'] as [string, ...string[]]).optional().default('lead'),
+        notes: z.string().max(2000).optional(),
+      });
+      
+      const validationResult = createLeadSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid request data",
+          errors: validationResult.error.flatten()
+        });
+      }
+      
+      const { stage, notes } = validationResult.data;
+
+      // Get the inactive client
+      const inactiveClient = await storage.getInactiveClientById(id);
+      
+      if (!inactiveClient) {
+        return res.status(404).json({ message: "Inactive client not found" });
+      }
+
+      // SECURITY: Verify ownership - client must belong to requesting salesperson
+      if (user.role === 'salesperson') {
+        // Get salesperson user record to compare IDs correctly
+        const salespersonRecord = await storage.getSalespersonUserById(user.id);
+        
+        if (!salespersonRecord) {
+          return res.status(403).json({ message: "Salesperson record not found" });
+        }
+        
+        // Compare salespeopleUsers.id (from inactive client) with salespeopleUsers.id (from user lookup)
+        if (inactiveClient.salespersonId !== salespersonRecord.id) {
+          return res.status(403).json({ message: "You can only create leads from your own inactive clients" });
+        }
+      }
+
+      // SECURITY: Verify not already added to CRM
+      if (inactiveClient.addedToCrm) {
+        return res.status(400).json({ message: "This client has already been added to CRM" });
+      }
+
+      // TRANSACTION: Create lead and mark as added to CRM atomically
+      const result = await storage.createLeadFromInactiveClient(id, {
+        clientName: inactiveClient.clientName,
+        clientKoen: inactiveClient.clientKoen || undefined,
+        salesperson: inactiveClient.salespersonName,
+        stage,
+        notes: notes || `Cliente inactivo: ${inactiveClient.daysSinceLastPurchase} días sin comprar. Última compra: $${Number(inactiveClient.lastPurchaseAmount).toLocaleString('es-CL')}`,
+        segment: inactiveClient.segment || undefined,
+      });
+
+      if (!result.success) {
+        return res.status(500).json({ message: result.error || "Failed to create lead from inactive client" });
+      }
+
+      res.json({ 
+        message: "Lead created successfully from inactive client",
+        lead: result.lead 
+      });
+    } catch (error) {
+      console.error("Error creating lead from inactive client:", error);
+      res.status(500).json({ message: "Failed to create lead from inactive client" });
+    }
+  });
+
   // ============================================
   // NOTIFICATION ENDPOINTS - Sistema robusto de notificaciones internas
   // ============================================
