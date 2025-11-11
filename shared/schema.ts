@@ -3840,6 +3840,11 @@ export const insertGastoMaterialMantencionSchema = createInsertSchema(gastosMate
   id: true,
   createdAt: true,
 }).extend({
+  fecha: z.union([z.string(), z.date()])
+    .transform((val) => typeof val === 'string' ? new Date(val) : val)
+    .refine((date) => !isNaN(date.getTime()), {
+      message: "Fecha inválida"
+    }),
   item: z.string().min(1, "El ítem es requerido"),
   cantidad: z.union([z.string(), z.number()]).transform((val) => 
     typeof val === 'string' ? val : val.toString()
