@@ -2,7 +2,17 @@ import mssql from 'mssql';
 import { db } from './db';
 import { sql, desc, eq, inArray } from 'drizzle-orm';
 import { EventEmitter } from 'events';
-import { factGdv, gdvSyncLog } from '../shared/schema';
+import { 
+  stgMaeedoGdv, 
+  stgMaeddoGdv,
+  stgMaeenGdv,
+  stgMaeprGdv,
+  stgMaevenGdv,
+  stgTabruGdv,
+  stgTabboGdv,
+  factGdv,
+  gdvSyncLog
+} from '../shared/schema';
 import { CircuitBreaker, executeWithResilience } from './etl-resilience';
 import { createETLLogger } from './production-logger';
 
@@ -39,6 +49,7 @@ interface GDVETLResult {
   recordsUpdated: number;
   statusChanges: number;
   executionTimeMs: number;
+  watermarkDate?: Date;
   error?: string;
 }
 
@@ -70,6 +81,40 @@ function emitProgress(step: number, totalSteps: number, message: string, details
   }
 }
 
+// Función helper para batch insert con manejo de errores
+async function batchInsert<T>(
+  table: any, 
+  records: T[], 
+  tableName: string,
+  logger: ReturnType<typeof createETLLogger>,
+  batchSize: number = 1000
+) {
+  if (records.length === 0) return 0;
+  
+  let inserted = 0;
+  
+  logger.info(`Iniciando batch insert en ${tableName}`, { 
+    totalRecords: records.length, 
+    batchSize 
+  });
+  
+  for (let i = 0; i < records.length; i += batchSize) {
+    const batch = records.slice(i, i + batchSize);
+    try {
+      await db.insert(table).values(batch).onConflictDoNothing();
+      inserted += batch.length;
+    } catch (error: any) {
+      logger.critical(`Error en batch insert de ${tableName}`, { 
+        batchSize: batch.length,
+        errorMessage: error.message
+      }, error);
+      throw error;
+    }
+  }
+  
+  return inserted;
+}
+
 function cleanNumeric(value: any): number {
   if (value === null || value === undefined || value === '') return 0;
   const str = String(value).replace(/[^0-9.-]/g, '');
@@ -89,9 +134,26 @@ function cleanBigIntId(value: any): string {
   return String(value).trim();
 }
 
+// Obtener último watermark de GDV
+async function getLastWatermark(): Promise<Date> {
+  const lastExecution = await db
+    .select()
+    .from(gdvSyncLog)
+    .where(sql`status = 'success'`)
+    .orderBy(desc(gdvSyncLog.watermarkDate))
+    .limit(1);
+
+  if (lastExecution.length > 0 && lastExecution[0].watermarkDate) {
+    return new Date(lastExecution[0].watermarkDate);
+  }
+
+  // Si no hay ejecuciones previas, comenzar desde 2025-01-01
+  return new Date('2025-01-01');
+}
+
 export async function executeGDVETL(): Promise<GDVETLResult> {
   console.log('\n╔═══════════════════════════════════════════════════════════════╗');
-  console.log('║  📦 ETL DE GUÍAS DE DESPACHO (GDV)                           ║');
+  console.log('║  📦 ETL DE GUÍAS DE DESPACHO (GDV) - INCREMENTAL            ║');
   console.log('╚═══════════════════════════════════════════════════════════════╝');
   console.log(`⏰ Inicio: ${new Date().toISOString()}`);
   
@@ -101,7 +163,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
   
   let pool: mssql.ConnectionPool | null = null;
   const sucursales = ['004', '006', '007'];
-  const TOTAL_STEPS = 5;
+  const TOTAL_STEPS = 10;
 
   try {
     console.log('\n🔍 Verificando credenciales SQL Server...');
@@ -131,6 +193,19 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     }
     console.log('✅ No hay ejecuciones activas\n');
 
+    // Obtener watermarks
+    const lastWatermark = await getLastWatermark();
+    const currentWatermark = new Date();
+    
+    console.log('╔═══════════════════════════════════════════════════════════════╗');
+    console.log('║  🔍 CONFIGURACIÓN DEL WATERMARK                               ║');
+    console.log('╚═══════════════════════════════════════════════════════════════╝');
+    console.log(`📍 Watermark inicial: ${lastWatermark.toISOString()}`);
+    console.log(`📍 Watermark actual: ${currentWatermark.toISOString()}`);
+    console.log(`📅 Fecha inicio: ${lastWatermark.toISOString().split('T')[0]}`);
+    console.log(`📅 Fecha fin: ${currentWatermark.toISOString().split('T')[0]}`);
+    console.log('');
+
     // Conectar a SQL Server
     emitProgress(1, TOTAL_STEPS, 'Conectando a SQL Server', 'Estableciendo conexión...');
     console.log('🔄 Conectando a SQL Server...');
@@ -142,83 +217,63 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     console.log('✅ Conectado a SQL Server\n');
 
     // Registrar inicio de ejecución
+    const periodLabel = `${lastWatermark.toISOString().split('T')[0]} to ${currentWatermark.toISOString().split('T')[0]}`;
     const [executionLog] = await db.insert(gdvSyncLog).values({
       status: 'running',
-      period: 'Todas las GDV',
+      period: periodLabel,
       branches: sucursales.join(','),
+      watermarkDate: currentWatermark,
     }).returning();
 
-    // Extraer GDV de SQL Server
-    emitProgress(2, TOTAL_STEPS, 'Extrayendo GDV', `Sucursales: ${sucursales.join(', ')}...`);
-    console.log('\n📦 Extrayendo GDV de SQL Server...');
-    console.log(`   Filtros: TIDO = 'GDV' AND SUDO IN (${sucursales.join(', ')})`);
+    // Limpiar tablas staging de GDV (propias, no compartidas con ventas)
+    console.log('🧹 Limpiando tablas staging de GDV...');
+    await db.execute(sql`TRUNCATE TABLE gdv.stg_maeedo_gdv CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE gdv.stg_maeddo_gdv CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE gdv.stg_maeen_gdv CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE gdv.stg_maepr_gdv CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE gdv.stg_maeven_gdv CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE gdv.stg_tabru_gdv CASCADE`);
+    await db.execute(sql`TRUNCATE TABLE gdv.stg_tabbo_gdv CASCADE`);
+    console.log('✅ Tablas staging limpias (aisladas de ETL ventas)\n');
+
+    // 1. EXTRAER MAEEDO (encabezados GDV) con watermark
+    // CORRECCIÓN: Usar FEER (fecha última actualización) para detectar cambios de estado
+    emitProgress(2, TOTAL_STEPS, 'Extrayendo MAEEDO (GDV)', 'Consultando SQL Server...');
+    console.log('1️⃣  Extrayendo MAEEDO (Encabezados GDV)...');
     
-    const gdvData = await executeWithResilience(
-      async () => pool.request().query(`
-        SELECT 
-          d.IDMAEDDO,
-          d.IDMAEEDO,
-          e.TIDO,
-          e.NUDO,
-          e.ENDO,
-          e.SUENDO,
-          e.SUDO,
-          e.FEEMDO,
-          e.FEER as FEULVEDO,
-          e.ESDO,
-          e.ESPGDO,
-          e.KOFUDO,
-          e.MODO,
-          e.TIMODO,
-          e.TAMODO,
-          e.VANEDO,
-          e.VAIVDO,
-          e.VABRDO,
-          e.LILG,
-          e.BOSULIDO,
-          e.OCDO,
-          d.KOPRCT,
-          d.NOKOPR,
-          d.UDTRPR,
-          d.CAPRCO1,
-          d.CAPRCO2,
-          d.PREUNI,
-          d.VANELI,
-          d.FEEMLI,
-          d.FEERLI,
-          d.DEVOL1,
-          d.DEVOL2,
-          d.STOCKFIS,
-          -- Tablas relacionadas
-          en.NOKOEN,
-          en.RUEN,
-          fu.NOKOFU,
-          ru.NOKORU,
-          bo.NOKOBO as NOBOSULI,
-          pr.UD01PR,
-          pr.UD02PR,
-          pr.TIPR,
-          pr.PM as LISTACOST
-        FROM dbo.MAEDDO d
-        INNER JOIN dbo.MAEEDO e ON d.IDMAEEDO = e.IDMAEEDO
-        LEFT JOIN dbo.MAEEN en ON e.ENDO = en.KOEN
-        LEFT JOIN dbo.TABFU fu ON en.KOFUEN = fu.KOFU
-        LEFT JOIN dbo.TABRU ru ON en.RUEN = ru.KORU
-        LEFT JOIN dbo.TABBO bo ON e.SULI = bo.EMPRESA AND e.BOSULIDO = bo.KOBO
-        LEFT JOIN dbo.MAEPR pr ON d.KOPRCT = pr.KOPR
-        WHERE e.TIDO = 'GDV'
-          AND e.SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-        ORDER BY e.FEEMDO, d.IDMAEDDO
+    const startDateSQL = lastWatermark.toISOString().split('T')[0];
+    const endDateSQL = currentWatermark.toISOString().split('T')[0];
+    const startYear = lastWatermark.getFullYear();
+    
+    console.log('╔═══════════════════════════════════════════════════════════════╗');
+    console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
+    console.log('╚═══════════════════════════════════════════════════════════════╝');
+    console.log(`🔍 TIDO = 'GDV'`);
+    console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
+    console.log(`🔍 FEER >= '${startDateSQL}' (Fecha última actualización - CLAVE para detectar cambios)`);
+    console.log(`🔍 FEER <= '${endDateSQL}'`);
+    console.log(`🔍 YEAR(FEER) >= ${startYear}`);
+    console.log('');
+    
+    const maeedo = await executeWithResilience(
+      async () => pool!.request().query(`
+        SELECT *
+        FROM dbo.MAEEDO
+        WHERE TIDO = 'GDV'
+          AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
+          AND YEAR(FEER) >= ${startYear}
+          AND FEER >= '${startDateSQL}'
+          AND FEER <= '${endDateSQL}'
+        ORDER BY FEER
       `),
       sqlServerBreaker,
       { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
     );
+    
+    console.log(`   ✅ ${maeedo.recordset.length} documentos GDV encontrados`);
 
-    const totalRecords = gdvData.recordset.length;
-    console.log(`   ✅ ${totalRecords} líneas de GDV extraídas\n`);
-
-    if (totalRecords === 0) {
-      console.log('⚠️  No se encontraron GDV para procesar\n');
+    if (maeedo.recordset.length === 0) {
+      console.log('\n⚠️  No hay GDV nuevas para procesar en el período especificado\n');
       
       await db.update(gdvSyncLog)
         .set({
@@ -240,14 +295,242 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         recordsUpdated: 0,
         statusChanges: 0,
         executionTimeMs: Date.now() - startTime,
+        watermarkDate: currentWatermark,
       };
     }
 
-    // Obtener registros existentes para detectar cambios de estado
-    emitProgress(3, TOTAL_STEPS, 'Detectando cambios', 'Comparando con registros existentes...');
-    console.log('🔍 Obteniendo registros existentes para detectar cambios...');
+    // Cargar MAEEDO a staging
+    const maeedo_records = maeedo.recordset.map(row => ({
+      idmaeedo: cleanNumeric(row.IDMAEEDO),
+      empresa: row.EMPRESA?.trim() || null,
+      tido: row.TIDO?.trim() || null,
+      nudo: row.NUDO?.trim() || null,
+      endo: row.ENDO?.trim() || null,
+      suendo: row.SUENDO?.trim() || null,
+      endofi: row.ENDOFI?.trim() || null,
+      tigedo: row.TIGEDO?.trim() || null,
+      sudo: row.SUDO?.trim() || null,
+      luvtdo: row.LUVTDO?.trim() || null,
+      feemdo: row.FEEMDO || null,
+      kofudo: row.KOFUDO?.trim() || null,
+      esdo: row.ESDO?.trim() || null,
+      espgdo: row.ESPGDO?.trim() || null,
+      suli: row.SULI?.trim() || null,
+      bosulido: row.BOSULIDO?.trim() || null,
+      feer: row.FEER || null,
+      vanedo: cleanNumeric(row.VANEDO),
+      vaivdo: cleanNumeric(row.VAIVDO),
+      vabrdo: cleanNumeric(row.VABRDO),
+      lilg: row.LILG?.trim() || null,
+      modo: row.MODO?.trim() || null,
+      timodo: row.TIMODO?.trim() || null,
+      tamodo: cleanNumeric(row.TAMODO),
+      ocdo: row.OCDO?.trim() || null,
+      feulvedo: row.FEER || null,
+    }));
+    await batchInsert(stgMaeedoGdv, maeedo_records, 'stg_maeedo_gdv', logger);
+    emitProgress(3, TOTAL_STEPS, 'Cargando MAEEDO a staging', `${maeedo_records.length} registros`);
+
+    // 2. EXTRAER MAEDDO (detalles) con CHUNKING para evitar límite de parámetros SQL Server
+    emitProgress(4, TOTAL_STEPS, 'Extrayendo MAEDDO (Detalles)', 'Consultando SQL Server...');
+    console.log('2️⃣  Extrayendo MAEDDO (Detalles)...');
+    const idmaeedos = maeedo.recordset.map(r => r.IDMAEEDO);
     
-    const idmaeddosToProcess = gdvData.recordset.map(r => cleanBigIntId(r.IDMAEDDO));
+    // Chunking para evitar límite de 2100 parámetros en SQL Server
+    const chunkSize = 2000;
+    let allMaeddo: any[] = [];
+    
+    for (let i = 0; i < idmaeedos.length; i += chunkSize) {
+      const chunk = idmaeedos.slice(i, i + chunkSize);
+      console.log(`   Procesando chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(idmaeedos.length / chunkSize)} (${chunk.length} IDs)...`);
+      
+      const maeddoChunk = await executeWithResilience(
+        async () => pool!.request().query(`
+          SELECT *
+          FROM dbo.MAEDDO
+          WHERE IDMAEEDO IN (${chunk.join(',')})
+        `),
+        sqlServerBreaker,
+        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+      );
+      
+      allMaeddo = allMaeddo.concat(maeddoChunk.recordset);
+    }
+    
+    const maeddo = { recordset: allMaeddo };
+    console.log(`   ✅ ${maeddo.recordset.length} líneas de detalle encontradas`);
+
+    // Cargar MAEDDO a staging - INCLUYE KOFULIDO DEL DETALLE
+    const maeddo_records = maeddo.recordset.map(row => ({
+      idmaeddo: cleanNumeric(row.IDMAEDDO),
+      idmaeedo: cleanNumeric(row.IDMAEEDO),
+      koprct: row.KOPRCT?.trim() || null,
+      nokopr: row.NOKOPR?.trim() || null,
+      udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
+      caprco1: cleanNumeric(row.CAPRCO1),
+      caprco2: cleanNumeric(row.CAPRCO2),
+      preuni: cleanNumeric(row.PREUNI),
+      vaneli: cleanNumeric(row.VANELI),
+      feemli: row.FEEMLI || null,
+      feerli: row.FEERLI || null,
+      devol1: cleanNumeric(row.DEVOL1),
+      devol2: cleanNumeric(row.DEVOL2),
+      stockfis: cleanNumeric(row.STOCKFIS),
+      kofulido: row.KOFULIDO?.trim() || null, // CORRECCIÓN: Usar KOFULIDO del detalle
+      nulido: row.NULIDO?.trim() || null,
+      sulido: row.SULIDO?.trim() || null,
+      luvtlido: row.LUVTLIDO?.trim() || null,
+      bosulido: row.BOSULIDO?.trim() || null,
+    }));
+    await batchInsert(stgMaeddoGdv, maeddo_records, 'stg_maeddo_gdv', logger);
+    emitProgress(5, TOTAL_STEPS, 'Cargando MAEDDO a staging', `${maeddo_records.length} registros`);
+
+    // 3-6. EXTRAER TABLAS MAESTRAS (reutilizamos las del esquema ventas)
+    emitProgress(6, TOTAL_STEPS, 'Extrayendo tablas maestras', 'MAEEN, MAEPR, TABFU, TABRU, TABBO...');
+    
+    // MAEEN (Clientes)
+    console.log('3️⃣  Extrayendo MAEEN (Entidades)...');
+    const endos = Array.from(new Set(maeedo.recordset.map(r => r.ENDO?.trim()).filter(e => e)));
+    let maeen: any = { recordset: [] };
+    
+    if (endos.length > 0) {
+      maeen = await executeWithResilience(
+        async () => pool!.request().query(`
+          SELECT KOEN, NOKOEN, RUEN, ZOEN, KOFUEN
+          FROM dbo.MAEEN
+          WHERE LTRIM(RTRIM(KOEN)) IN (${endos.map(e => `'${e}'`).join(',')})
+        `),
+        sqlServerBreaker,
+        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+      );
+    }
+    console.log(`   ✅ ${maeen.recordset.length} entidades encontradas`);
+
+    const maeen_records = maeen.recordset.map((row: any) => ({
+      koen: row.KOEN?.trim() || '',
+      nokoen: row.NOKOEN?.trim() || null,
+      rut: row.RUEN?.trim() || null,
+      ruen: row.RUEN?.trim() || null,
+      zona: row.ZOEN?.trim() || null,
+      kofuen: row.KOFUEN?.trim() || null,
+    }));
+    await batchInsert(stgMaeenGdv, maeen_records, 'stg_maeen_gdv', logger);
+
+    // MAEPR (Productos)
+    console.log('4️⃣  Extrayendo MAEPR (Productos)...');
+    const koprcts = Array.from(new Set(maeddo.recordset.map(r => r.KOPRCT)));
+    const maepr = await executeWithResilience(
+      async () => pool!.request().query(`
+        SELECT KOPR, NOKOPR, UD01PR, UD02PR, TIPR
+        FROM dbo.MAEPR
+        WHERE KOPR IN (${koprcts.map(k => `'${k}'`).join(',')})
+      `),
+      sqlServerBreaker,
+      { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+    );
+    console.log(`   ✅ ${maepr.recordset.length} productos encontrados`);
+
+    const maepr_records = maepr.recordset.map(row => ({
+      kopr: row.KOPR?.trim() || '',
+      nomrpr: row.NOKOPR?.trim() || null,
+      ud01pr: row.UD01PR?.trim() || null,
+      ud02pr: row.UD02PR?.trim() || null,
+      tipr: row.TIPR?.trim() || null,
+    }));
+    await batchInsert(stgMaeprGdv, maepr_records, 'stg_maepr_gdv', logger);
+
+    // TABFU (Vendedores) - Extraer tanto KOFUDO de encabezado como KOFULIDO de detalle
+    console.log('5️⃣  Extrayendo TABFU (Vendedores)...');
+    const kofudos = Array.from(new Set([
+      ...maeedo.recordset.map(r => r.KOFUDO?.trim()).filter(k => k),
+      ...maeddo.recordset.map(r => r.KOFULIDO?.trim()).filter(k => k)
+    ]));
+    let tabfu: any = { recordset: [] };
+    
+    if (kofudos.length > 0) {
+      tabfu = await executeWithResilience(
+        async () => pool!.request().query(`
+          SELECT KOFU, NOKOFU
+          FROM dbo.TABFU
+          WHERE KOFU IN (${kofudos.map(k => `'${k}'`).join(',')})
+        `),
+        sqlServerBreaker,
+        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+      );
+    }
+    console.log(`   ✅ ${tabfu.recordset.length} vendedores encontrados`);
+
+    const tabfu_records = tabfu.recordset.map((row: any) => ({
+      kofu: row.KOFU?.trim() || '',
+      nokofu: row.NOKOFU?.trim() || null,
+    }));
+    await batchInsert(stgMaevenGdv, tabfu_records, 'stg_maeven_gdv', logger);
+
+    // TABRU (Segmentos)
+    console.log('6️⃣  Extrayendo TABRU (Segmentos)...');
+    const ruens = Array.from(new Set(maeen.recordset.map((r: any) => r.RUEN).filter((r: any) => r)));
+    let tabru: any = { recordset: [] };
+    
+    if (ruens.length > 0) {
+      tabru = await executeWithResilience(
+        async () => pool!.request().query(`
+          SELECT KORU, NOKORU
+          FROM dbo.TABRU
+          WHERE KORU IN (${ruens.map(r => `'${r}'`).join(',')})
+        `),
+        sqlServerBreaker,
+        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+      );
+    }
+    console.log(`   ✅ ${tabru.recordset.length} segmentos encontrados`);
+
+    const tabru_records = tabru.recordset.map((row: any) => ({
+      koru: row.KORU?.trim() || '',
+      nokoru: row.NOKORU?.trim() || null,
+    }));
+    await batchInsert(stgTabruGdv, tabru_records, 'stg_tabru_gdv', logger);
+
+    // TABBO (Bodegas)
+    console.log('7️⃣  Extrayendo TABBO (Bodegas)...');
+    const bodegas = Array.from(new Set(maeedo.recordset.map(r => {
+      const suli = r.SULI?.trim();
+      const bosulido = r.BOSULIDO?.trim();
+      return suli && bosulido ? `${suli}|${bosulido}` : null;
+    }).filter(b => b)));
+    
+    let tabbo: any = { recordset: [] };
+    
+    if (bodegas.length > 0) {
+      const bodegaConditions = bodegas.map(b => {
+        const [suli, bosulido] = b!.split('|');
+        return `(EMPRESA = '${suli}' AND KOBO = '${bosulido}')`;
+      }).join(' OR ');
+      
+      tabbo = await executeWithResilience(
+        async () => pool!.request().query(`
+          SELECT EMPRESA as SULI, KOBO as BOSULI, NOKOBO as NOBOSULI
+          FROM dbo.TABBO
+          WHERE ${bodegaConditions}
+        `),
+        sqlServerBreaker,
+        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
+      );
+    }
+    console.log(`   ✅ ${tabbo.recordset.length} bodegas encontradas`);
+
+    const tabbo_records = tabbo.recordset.map((row: any) => ({
+      suli: row.SULI?.trim() || '',
+      bosuli: row.BOSULI?.trim() || '',
+      nobosuli: row.NOBOSULI?.trim() || null,
+    }));
+    await batchInsert(stgTabboGdv, tabbo_records, 'stg_tabbo_gdv', logger);
+
+    // 7. MERGE A FACT_GDV CON DETECCIÓN DE CAMBIOS DE ESTADO
+    emitProgress(7, TOTAL_STEPS, 'Detectando cambios de estado', 'Comparando con registros existentes...');
+    console.log('\n8️⃣  Detectando cambios de estado...');
+    
+    // Obtener registros existentes
+    const idmaeddosToProcess = maeddo.recordset.map(r => cleanBigIntId(r.IDMAEDDO));
     
     const existingGDVs = await db
       .select()
@@ -255,167 +538,134 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       .where(inArray(factGdv.idmaeddo, idmaeddosToProcess))
       .execute();
 
-    // Map para detección rápida de cambios (O(1) lookup)
+    // Map para detección rápida de cambios
     const existingMap = new Map(
       existingGDVs.map(gdv => [gdv.idmaeddo?.toString() || '0', gdv])
     );
 
-    // Procesar UPSERT con detección de cambios de estado
-    emitProgress(4, TOTAL_STEPS, 'Procesando UPSERT', 'Insertando/actualizando registros...');
-    console.log('\n📝 Procesando UPSERT en fact_gdv...');
-    
-    let recordsInserted = 0;
-    let recordsUpdated = 0;
     let statusChanges = 0;
+
+    // Detectar cambios de estado antes del merge
+    for (const row of maeddo.recordset) {
+      const idmaeddo = cleanBigIntId(row.IDMAEDDO);
+      const existingRecord = existingMap.get(idmaeddo);
+      
+      if (existingRecord) {
+        const oldStatus = existingRecord.esdo;
+        const newStatus = cleanText(maeedo.recordset.find(m => m.IDMAEEDO === row.IDMAEEDO)?.ESDO);
+        
+        // Detectar cambio de estado a cerrado
+        if (!oldStatus && newStatus === 'C') {
+          statusChanges++;
+          logger.info(`Cambio de estado detectado: GDV cerrada`, {
+            idmaeedo: row.IDMAEEDO,
+            oldStatus: 'ABIERTO',
+            newStatus: 'CERRADO'
+          });
+          console.log(`   ✅ Estado cambiado a CERRADO: IDMAEDDO ${idmaeddo}`);
+        }
+      }
+    }
+    console.log(`   Total cambios de estado: ${statusChanges}\n`);
+
+    // 8. MERGE INCREMENTAL usando JOINs a staging
+    emitProgress(8, TOTAL_STEPS, 'Procesando MERGE', 'UPSERT incremental en fact_gdv...');
+    console.log('9️⃣  Procesando MERGE incremental a fact_gdv...');
     
-    // Contar registros antes del UPSERT
-    const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_gdv`);
+    // Contar registros antes
+    const countBeforeResult = await db.execute(sql`SELECT COUNT(*) as count FROM gdv.fact_gdv`);
     const rowsBeforeUpsert = Number(countBeforeResult.rows[0].count);
 
     await db.transaction(async (tx) => {
-      // Detectar cambios de estado usando el Map (O(1) lookup)
-      for (const row of gdvData.recordset) {
-        const idmaeddo = cleanBigIntId(row.IDMAEDDO);
-        const existingRecord = existingMap.get(idmaeddo);
-        
-        if (existingRecord) {
-          const oldStatus = existingRecord.esdo;
-          const newStatus = cleanText(row.ESDO);
-          
-          // Detectar cambio de estado a cerrado
-          if (!oldStatus && newStatus === 'C') {
-            statusChanges++;
-            logger.info(`Cambio de estado detectado: GDV ${existingRecord.nudo}`, {
-              idmaeedo: existingRecord.idmaeedo?.toString(),
-              oldStatus: 'ABIERTO',
-              newStatus: 'CERRADO',
-              monto: existingRecord.monto?.toString()
-            });
-            console.log(`   ✅ Estado cambiado: GDV #${existingRecord.nudo} (${oldStatus || 'ABIERTO'} → ${newStatus})`);
-          }
-        }
-      }
-
-      // Eliminar registros existentes que serán actualizados (usa índice PK)
+      // DELETE registros que serán actualizados
       if (idmaeddosToProcess.length > 0) {
         await tx.delete(factGdv).where(inArray(factGdv.idmaeddo, idmaeddosToProcess));
       }
 
-      // Insertar todos los registros (nuevos y actualizados)
-      const records = gdvData.recordset.map(row => ({
-        idmaeddo: cleanBigIntId(row.IDMAEDDO),
-        idmaeedo: cleanBigIntId(row.IDMAEEDO),
-        tido: cleanText(row.TIDO),
-        nudo: cleanNumeric(row.NUDO),
-        endo: cleanText(row.ENDO),
-        suendo: cleanText(row.SUENDO),
-        sudo: cleanNumeric(row.SUDO),
-        feemdo: row.FEEMDO || null,
-        feulvedo: row.FEULVEDO || null,
-        esdo: cleanText(row.ESDO),
-        espgdo: cleanText(row.ESPGDO),
-        kofudo: cleanText(row.KOFUDO),
-        modo: cleanText(row.MODO),
-        timodo: cleanText(row.TIMODO),
-        tamodo: cleanNumeric(row.TAMODO),
-        caprad: null,
-        caprex: null,
-        vanedo: cleanNumeric(row.VANEDO),
-        vaivdo: cleanNumeric(row.VAIVDO),
-        vabrdo: cleanNumeric(row.VABRDO),
-        lilg: cleanText(row.LILG),
-        nulido: null,
-        sulido: null,
-        luvtlido: null,
-        bosulido: cleanNumeric(row.BOSULIDO),
-        kofulido: cleanText(row.KOFUDO),
-        prct: false,
-        tict: null,
-        tipr: cleanText(row.TIPR),
-        nusepr: null,
-        koprct: cleanText(row.KOPRCT),
-        udtrpr: cleanNumeric(row.UDTRPR),
-        rludpr: null,
-        caprco1: cleanNumeric(row.CAPRCO1),
-        caprad1: null,
-        caprex1: null,
-        caprnc1: null,
-        ud01pr: cleanText(row.UD01PR),
-        caprco2: cleanNumeric(row.CAPRCO2),
-        caprad2: null,
-        caprex2: null,
-        caprnc2: null,
-        ud02pr: cleanText(row.UD02PR),
-        ppprne: cleanNumeric(row.PREUNI),
-        ppprbr: null,
-        vaneli: cleanNumeric(row.VANELI),
-        vabrli: null,
-        feemli: row.FEEMLI || null,
-        feerli: row.FEERLI || null,
-        ppprpm: null,
-        ppprpmifrs: null,
-        logistica: null,
-        eslido: null,
-        ppprnere1: null,
-        ppprnere2: null,
-        fmpr: null,
-        mrpr: null,
-        zona: null,
-        ruen: null,
-        recaprre: false,
-        pfpr: null,
-        hfpr: null,
-        monto: cleanNumeric(row.VANELI),
-        ocdo: cleanText(row.OCDO),
-        nokoprct: cleanText(row.NOKOPR),
-        nokozo: null,
-        nosudo: `Sucursal ${row.SUDO}`,
-        nokofu: cleanText(row.NOKOFU),
-        nokofudo: null,
-        nobosuli: cleanText(row.NOBOSULI),
-        nokoen: cleanText(row.NOKOEN),
-        noruen: cleanText(row.NOKORU),
-        nomrpr: null,
-        nofmpr: null,
-        nopfpr: null,
-        nohfpr: null,
-        devol1: cleanNumeric(row.DEVOL1),
-        devol2: cleanNumeric(row.DEVOL2),
-        stockfis: cleanNumeric(row.STOCKFIS),
-        listacost: cleanNumeric(row.LISTACOST),
-        liscosmod: cleanNumeric(row.LISTACOST),
-        lastEtlSync: new Date(),
-      }));
-
-      // Insertar en batches de 1000
-      const batchSize = 1000;
-      for (let i = 0; i < records.length; i += batchSize) {
-        const batch = records.slice(i, i + batchSize);
-        await tx.insert(factGdv).values(batch);
-      }
+      // INSERT con JOINs a staging tables para obtener nombres
+      await tx.execute(sql`
+        INSERT INTO gdv.fact_gdv (
+          idmaeddo, idmaeedo, tido, nudo, endo, suendo, sudo, feemdo, feulvedo,
+          esdo, espgdo, kofudo, modo, timodo, tamodo,
+          vanedo, vaivdo, vabrdo, lilg, bosulido, kofulido,
+          koprct, ud01pr, ud02pr, caprco2, vaneli, feemli, feerli,
+          devol1, devol2, stockfis, ocdo,
+          nokoprct, nosudo, nokofu, nobosuli, nokoen, noruen,
+          monto, last_etl_sync, data_source
+        )
+        SELECT 
+          dd.idmaeddo,
+          dd.idmaeedo,
+          'GDV' as tido,
+          CAST(ed.nudo AS NUMERIC),
+          ed.endo,
+          ed.suendo,
+          CAST(ed.sudo AS NUMERIC),
+          ed.feemdo,
+          ed.feulvedo,
+          ed.esdo,
+          ed.espgdo,
+          ed.kofudo,
+          ed.modo,
+          ed.timodo,
+          ed.tamodo,
+          ed.vanedo,
+          ed.vaivdo,
+          ed.vabrdo,
+          ed.lilg,
+          CAST(ed.bosulido AS NUMERIC),
+          dd.kofulido, -- CORRECCIÓN: Usar kofulido del detalle
+          dd.koprct,
+          pr.ud01pr,
+          pr.ud02pr,
+          dd.caprco2,
+          dd.vaneli,
+          dd.feemli,
+          dd.feerli,
+          dd.devol1,
+          dd.devol2,
+          dd.stockfis,
+          ed.ocdo,
+          pr.nomrpr as nokoprct,
+          'Sucursal ' || ed.sudo as nosudo,
+          fu.nokofu,
+          bo.nobosuli,
+          en.nokoen,
+          ru.nokoru as noruen,
+          dd.vaneli as monto,
+          NOW() as last_etl_sync,
+          'etl_gdv' as data_source
+        FROM gdv.stg_maeddo_gdv dd
+        INNER JOIN gdv.stg_maeedo_gdv ed ON dd.idmaeedo = ed.idmaeedo
+        LEFT JOIN gdv.stg_maeen_gdv en ON ed.endo = en.koen
+        LEFT JOIN gdv.stg_maepr_gdv pr ON dd.koprct = pr.kopr
+        LEFT JOIN gdv.stg_maeven_gdv fu ON dd.kofulido = fu.kofu
+        LEFT JOIN gdv.stg_tabru_gdv ru ON en.ruen = ru.koru
+        LEFT JOIN gdv.stg_tabbo_gdv bo ON ed.suli = bo.suli AND ed.bosulido = bo.bosuli
+      `);
     });
 
-    // Calcular métricas
-    const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM ventas.fact_gdv`);
+    // Contar registros después
+    const countAfterResult = await db.execute(sql`SELECT COUNT(*) as count FROM gdv.fact_gdv`);
     const rowsAfterUpsert = Number(countAfterResult.rows[0].count);
     
-    recordsInserted = rowsAfterUpsert - rowsBeforeUpsert;
-    recordsUpdated = idmaeddosToProcess.length - recordsInserted;
+    const recordsInserted = Math.max(0, rowsAfterUpsert - rowsBeforeUpsert);
+    const recordsUpdated = idmaeddosToProcess.length - recordsInserted;
 
-    console.log(`\n📊 Resultados del UPSERT:`);
-    console.log(`   Total procesado: ${totalRecords} líneas`);
+    console.log(`\n📊 Resultados del MERGE:`);
+    console.log(`   Total procesado: ${maeddo.recordset.length} líneas`);
     console.log(`   Nuevos registros: ${recordsInserted}`);
     console.log(`   Registros actualizados: ${recordsUpdated}`);
     console.log(`   Cambios de estado: ${statusChanges}`);
     console.log(`   Total en fact_gdv: ${rowsAfterUpsert}\n`);
 
     // Actualizar log de ejecución
-    emitProgress(5, TOTAL_STEPS, 'Finalizando', 'Actualizando log de sincronización...');
+    emitProgress(10, TOTAL_STEPS, 'Finalizando', 'Actualizando log de sincronización...');
     
     await db.update(gdvSyncLog)
       .set({
         status: 'success',
-        recordsProcessed: totalRecords,
+        recordsProcessed: maeddo.recordset.length,
         recordsInserted,
         recordsUpdated,
         statusChanges,
@@ -430,13 +680,13 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     console.log('║  ✅ ETL DE GDV COMPLETADO EXITOSAMENTE                        ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`⏱️  Tiempo de ejecución: ${(executionTime / 1000).toFixed(2)}s`);
-    console.log(`📦 Registros procesados: ${totalRecords}`);
+    console.log(`📦 Registros procesados: ${maeddo.recordset.length}`);
     console.log(`➕ Nuevos: ${recordsInserted}`);
     console.log(`🔄 Actualizados: ${recordsUpdated}`);
     console.log(`🔀 Cambios de estado: ${statusChanges}\n`);
 
     logger.info('ETL de GDV completado exitosamente', {
-      recordsProcessed: totalRecords,
+      recordsProcessed: maeddo.recordset.length,
       recordsInserted,
       recordsUpdated,
       statusChanges,
@@ -445,11 +695,12 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
 
     return {
       success: true,
-      recordsProcessed: totalRecords,
+      recordsProcessed: maeddo.recordset.length,
       recordsInserted,
       recordsUpdated,
       statusChanges,
       executionTimeMs: executionTime,
+      watermarkDate: currentWatermark,
     };
 
   } catch (error: any) {

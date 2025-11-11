@@ -4528,6 +4528,97 @@ export const factGdv = gdvSchema.table("fact_gdv", {
 export type FactGdv = typeof factGdv.$inferSelect;
 export type InsertFactGdv = typeof factGdv.$inferInsert;
 
+// ===== TABLAS DE STAGING PARA ETL GDV =====
+
+// Staging: MAEEDO (Encabezado de documentos GDV)
+export const stgMaeedoGdv = gdvSchema.table("stg_maeedo_gdv", {
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }).primaryKey(),
+  empresa: text("empresa"),
+  tido: text("tido"),
+  nudo: text("nudo"),
+  endo: text("endo"),
+  suendo: text("suendo"),
+  endofi: text("endofi"),
+  tigedo: text("tigedo"),
+  sudo: text("sudo"),
+  luvtdo: text("luvtdo"),
+  feemdo: date("feemdo"),
+  kofudo: text("kofudo"),
+  esdo: text("esdo"),
+  espgdo: text("espgdo"),
+  suli: text("suli"),
+  bosulido: text("bosulido"),
+  feer: date("feer"),
+  vanedo: numeric("vanedo", { precision: 18, scale: 4 }),
+  vaivdo: numeric("vaivdo", { precision: 18, scale: 4 }),
+  vabrdo: numeric("vabrdo", { precision: 18, scale: 4 }),
+  lilg: text("lilg"),
+  modo: text("modo"),
+  timodo: text("timodo"),
+  tamodo: numeric("tamodo", { precision: 18, scale: 4 }),
+  ocdo: text("ocdo"),
+  feulvedo: date("feulvedo"),
+});
+
+// Staging: MAEDDO (Detalle de documentos GDV)
+export const stgMaeddoGdv = gdvSchema.table("stg_maeddo_gdv", {
+  idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(),
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }).notNull(),
+  koprct: text("koprct"),
+  nokopr: text("nokopr"),
+  udtrpr: text("udtrpr"),
+  caprco1: numeric("caprco1", { precision: 18, scale: 4 }),
+  caprco2: numeric("caprco2", { precision: 18, scale: 4 }),
+  preuni: numeric("preuni", { precision: 18, scale: 6 }),
+  vaneli: numeric("vaneli", { precision: 18, scale: 4 }),
+  feemli: timestamp("feemli"),
+  feerli: timestamp("feerli"),
+  devol1: numeric("devol1", { precision: 18, scale: 4 }),
+  devol2: numeric("devol2", { precision: 18, scale: 4 }),
+  stockfis: numeric("stockfis", { precision: 18, scale: 4 }),
+  kofulido: text("kofulido"),
+  nulido: text("nulido"),
+  sulido: text("sulido"),
+  luvtlido: text("luvtlido"),
+  bosulido: text("bosulido"),
+});
+
+// Staging: Tablas maestras propias para GDV (evita concurrencia con ETL ventas)
+export const stgMaeenGdv = gdvSchema.table("stg_maeen_gdv", {
+  koen: text("koen").primaryKey(),
+  nokoen: text("nokoen"),
+  rut: text("rut"),
+  ruen: text("ruen"),
+  zona: text("zona"),
+  kofuen: text("kofuen"),
+});
+
+export const stgMaeprGdv = gdvSchema.table("stg_maepr_gdv", {
+  kopr: text("kopr").primaryKey(),
+  nomrpr: text("nomrpr"),
+  ud01pr: text("ud01pr"),
+  ud02pr: text("ud02pr"),
+  tipr: text("tipr"),
+});
+
+export const stgMaevenGdv = gdvSchema.table("stg_maeven_gdv", {
+  kofu: text("kofu").primaryKey(),
+  nokofu: text("nokofu"),
+});
+
+export const stgTabboGdv = gdvSchema.table("stg_tabbo_gdv", {
+  suli: text("suli").notNull(),
+  bosuli: text("bosuli").notNull(),
+  nobosuli: text("nobosuli"),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.suli, table.bosuli] }),
+}));
+
+export const stgTabruGdv = gdvSchema.table("stg_tabru_gdv", {
+  koru: text("koru").primaryKey(),
+  nokoru: text("nokoru"),
+});
+
 // ===== TABLA DE LOG DE SINCRONIZACIÓN GDV =====
 export const gdvSyncLog = gdvSchema.table("gdv_sync_log", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
