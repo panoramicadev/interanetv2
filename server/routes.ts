@@ -531,6 +531,38 @@ export function registerRoutes(app: Express): Server {
       const currentStartDate = (startDate as string) || dateRange.startDate;
       const currentEndDate = (endDate as string) || dateRange.endDate;
       
+      // Calculate previous year dates - exactly same period but one year before (year-over-year comparison)
+      const currentStart = new Date(currentStartDate!);
+      const currentEnd = new Date(currentEndDate!);
+      
+      // Clone the dates and move them back by exactly one year
+      const previousStart = new Date(currentStart);
+      const previousEnd = new Date(currentEnd);
+      
+      // Move to same period in previous year (year-over-year)
+      previousStart.setFullYear(previousStart.getFullYear() - 1);
+      previousEnd.setFullYear(previousEnd.getFullYear() - 1);
+      
+      // Handle edge case for Feb 29 in leap years
+      if (currentStart.getMonth() === 1 && currentStart.getDate() === 29) {
+        // If current is Feb 29 and previous year is not a leap year, use Feb 28
+        if (previousStart.getMonth() !== 1) {
+          previousStart.setMonth(1, 28);
+        }
+      }
+      if (currentEnd.getMonth() === 1 && currentEnd.getDate() === 29) {
+        // If current is Feb 29 and previous year is not a leap year, use Feb 28
+        if (previousEnd.getMonth() !== 1) {
+          previousEnd.setMonth(1, 28);
+        }
+      }
+      
+      const previousStartFormatted = formatDateLocal(previousStart);
+      const previousEndFormatted = formatDateLocal(previousEnd);
+      
+      console.log(`[DEBUG] Periodo actual: ${currentStartDate} a ${currentEndDate}`);
+      console.log(`[DEBUG] Periodo año anterior: ${previousStartFormatted} a ${previousEndFormatted}`);
+      
       // Get current period metrics
       const metrics = await storage.getSalesMetrics({
         startDate: currentStartDate,
@@ -541,70 +573,30 @@ export function registerRoutes(app: Express): Server {
         supplier: supplier as string,
       });
       
-      // Only calculate year-over-year comparison if dates are provided
-      let metricsWithComparison;
-      if (currentStartDate && currentEndDate) {
-        // Calculate previous year dates - exactly same period but one year before (year-over-year comparison)
-        const currentStart = new Date(currentStartDate);
-        const currentEnd = new Date(currentEndDate);
-        
-        // Clone the dates and move them back by exactly one year
-        const previousStart = new Date(currentStart);
-        const previousEnd = new Date(currentEnd);
-        
-        // Move to same period in previous year (year-over-year)
-        previousStart.setFullYear(previousStart.getFullYear() - 1);
-        previousEnd.setFullYear(previousEnd.getFullYear() - 1);
-        
-        // Handle edge case for Feb 29 in leap years
-        if (currentStart.getMonth() === 1 && currentStart.getDate() === 29) {
-          // If current is Feb 29 and previous year is not a leap year, use Feb 28
-          if (previousStart.getMonth() !== 1) {
-            previousStart.setMonth(1, 28);
-          }
-        }
-        if (currentEnd.getMonth() === 1 && currentEnd.getDate() === 29) {
-          // If current is Feb 29 and previous year is not a leap year, use Feb 28
-          if (previousEnd.getMonth() !== 1) {
-            previousEnd.setMonth(1, 28);
-          }
-        }
-        
-        const previousStartFormatted = formatDateLocal(previousStart);
-        const previousEndFormatted = formatDateLocal(previousEnd);
-        
-        console.log(`[DEBUG] Periodo actual: ${currentStartDate} a ${currentEndDate}`);
-        console.log(`[DEBUG] Periodo año anterior: ${previousStartFormatted} a ${previousEndFormatted}`);
-        
-        // Get previous year metrics for comparison (same period in previous year - year-over-year)
-        const previousMetrics = await storage.getSalesMetrics({
-          startDate: previousStartFormatted,
-          endDate: previousEndFormatted,
-          salesperson: salesperson as string,
-          segment: segment as string,
-          client: client as string,
-          supplier: supplier as string,
-        });
-        
-        console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);
-        console.log(`[DEBUG] Métricas año anterior: Ventas=${previousMetrics.totalSales}, Transacciones=${previousMetrics.totalTransactions}`);
-        
-        // Add previous year data for comparison (year-over-year) - only include if there's actual transaction data
-        // This ensures we show "Sin datos previos" when there were no transactions in the previous year period
-        metricsWithComparison = {
-          ...metrics,
-          previousMonthSales: previousMetrics.totalTransactions > 0 ? previousMetrics.totalSales : undefined,
-          previousMonthTransactions: previousMetrics.totalTransactions > 0 ? previousMetrics.totalTransactions : undefined,
-          previousMonthOrders: previousMetrics.totalOrders > 0 ? previousMetrics.totalOrders : undefined,
-          previousMonthUnits: previousMetrics.totalTransactions > 0 ? previousMetrics.totalUnits : undefined,
-          previousMonthCustomers: previousMetrics.totalTransactions > 0 ? previousMetrics.activeCustomers : undefined,
-          previousMonthGdvSales: previousMetrics.totalTransactions > 0 ? previousMetrics.gdvSales : undefined,
-        };
-      } else {
-        // No date filters - return metrics without comparison (global/historical data)
-        console.log(`[DEBUG] Sin filtros de fecha - retornando métricas globales sin comparación`);
-        metricsWithComparison = metrics;
-      }
+      // Get previous year metrics for comparison (same period in previous year - year-over-year)
+      const previousMetrics = await storage.getSalesMetrics({
+        startDate: previousStartFormatted,
+        endDate: previousEndFormatted,
+        salesperson: salesperson as string,
+        segment: segment as string,
+        client: client as string,
+        supplier: supplier as string,
+      });
+      
+      console.log(`[DEBUG] Métricas actuales: Ventas=${metrics.totalSales}, Transacciones=${metrics.totalTransactions}`);
+      console.log(`[DEBUG] Métricas año anterior: Ventas=${previousMetrics.totalSales}, Transacciones=${previousMetrics.totalTransactions}`);
+      
+      // Add previous year data for comparison (year-over-year) - only include if there's actual transaction data
+      // This ensures we show "Sin datos previos" when there were no transactions in the previous year period
+      const metricsWithComparison = {
+        ...metrics,
+        previousMonthSales: previousMetrics.totalTransactions > 0 ? previousMetrics.totalSales : undefined,
+        previousMonthTransactions: previousMetrics.totalTransactions > 0 ? previousMetrics.totalTransactions : undefined,
+        previousMonthOrders: previousMetrics.totalOrders > 0 ? previousMetrics.totalOrders : undefined,
+        previousMonthUnits: previousMetrics.totalTransactions > 0 ? previousMetrics.totalUnits : undefined,
+        previousMonthCustomers: previousMetrics.totalTransactions > 0 ? previousMetrics.activeCustomers : undefined,
+        previousMonthGdvSales: previousMetrics.totalTransactions > 0 ? previousMetrics.gdvSales : undefined,
+      };
       
       console.log(`[DEBUG] Datos enviados al frontend:`, JSON.stringify(metricsWithComparison, null, 2));
       

@@ -370,8 +370,8 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     await db.execute(sql`TRUNCATE TABLE ventas.stg_tabpp CASCADE`);
     console.log('✅ Tablas staging limpias\n');
 
-    // 1. EXTRAER MAEEDO (registros emitidos O modificados desde el último watermark)
-    console.log('1️⃣  Extrayendo MAEEDO (Encabezados por fecha de modificación)...');
+    // 1. EXTRAER MAEEDO (solo registros con fecha de emisión desde el último watermark)
+    console.log('1️⃣  Extrayendo MAEEDO (Encabezados por fecha de emisión)...');
     const startDateSQL = lastWatermark.toISOString().split('T')[0];
     const endDateSQL = currentWatermark.toISOString().split('T')[0];
     const startYear = lastWatermark.getFullYear();
@@ -381,9 +381,9 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO IN: ${tiposDoc.join(', ')}`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
-    console.log(`🔍 FEER >= '${startDateSQL}' (Fecha de última modificación - captura cambios de estado)`);
-    console.log(`🔍 FEER <= '${endDateSQL}' (Fecha de última modificación)`);
-    console.log(`🔍 YEAR(FEEMDO) >= ${startYear} (límite inferior basado en emisión)`);
+    console.log(`🔍 FEEMDO >= '${startDateSQL}' (Fecha de emisión del documento)`);
+    console.log(`🔍 FEEMDO <= '${endDateSQL}' (Fecha de emisión del documento)`);
+    console.log(`🔍 YEAR(FEEMDO) >= ${startYear} (dinámico según watermark)`);
     console.log('');
     
     const maeedo = await executeWithResilience(
@@ -393,9 +393,9 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         WHERE TIDO IN (${tiposDoc.map(t => `'${t}'`).join(',')})
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
           AND YEAR(FEEMDO) >= ${startYear}
-          AND FEER >= '${startDateSQL}'
-          AND FEER <= '${endDateSQL}'
-        ORDER BY FEER
+          AND FEEMDO >= '${startDateSQL}'
+          AND FEEMDO <= '${endDateSQL}'
+        ORDER BY FEEMDO
       `),
       sqlServerBreaker,
       { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
@@ -664,16 +664,14 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     const rowsBeforeUpsert = Number(countBeforeResult.rows[0].count);
     
     // UPSERT atómico: DELETE + INSERT en una sola transacción (garantiza integridad)
-    // FIX: Eliminar por IDMAEEDO (documento completo) en vez de IDMAEDDO (línea individual)
-    // para asegurar que todas las líneas del documento se actualicen con el nuevo estado
-    const idmaeedosToDelete = [...new Set(maeedo.recordset.map(r => cleanNumeric(r.IDMAEEDO)))];
+    const idmaeddosToDelete = maeddo.recordset.map(r => cleanNumeric(r.IDMAEDDO));
     
     await db.transaction(async (tx) => {
-      // Primero eliminar TODAS las líneas de los documentos modificados
-      if (idmaeedosToDelete.length > 0) {
+      // Primero eliminar registros existentes de los documentos modificados
+      if (idmaeddosToDelete.length > 0) {
         await tx.execute(sql`
           DELETE FROM ventas.fact_ventas 
-          WHERE idmaeedo IN (${sql.raw(idmaeedosToDelete.join(','))})
+          WHERE idmaeddo IN (${sql.raw(idmaeddosToDelete.join(','))})
         `);
       }
 
@@ -811,7 +809,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         SUM(CASE WHEN nokofu IS NULL THEN 1 ELSE 0 END) as null_nokofu,
         SUM(CASE WHEN noruen IS NULL THEN 1 ELSE 0 END) as null_noruen
       FROM ventas.fact_ventas
-      WHERE idmaeedo IN (${sql.raw(idmaeedosToDelete.join(','))})
+      WHERE idmaeddo IN (${sql.raw(idmaeddosToDelete.join(','))})
     `);
 
     const validation = validationResult.rows[0];
