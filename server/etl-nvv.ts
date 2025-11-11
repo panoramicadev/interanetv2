@@ -49,7 +49,7 @@ interface NVVETLResult {
   records_updated: number;
   status_changes: number;
   execution_time_ms: number;
-  watermark_date?: Date;
+  watermarkDate?: Date;
   error?: string;
 }
 
@@ -140,11 +140,11 @@ async function getLastWatermark(): Promise<Date> {
     .select()
     .from(nvvSyncLog)
     .where(sql`status = 'success'`)
-    .orderBy(desc(nvvSyncLog.watermark_date))
+    .orderBy(desc(nvvSyncLog.watermarkDate))
     .limit(1);
 
-  if (lastExecution.length > 0 && lastExecution[0].watermark_date) {
-    return new Date(lastExecution[0].watermark_date);
+  if (lastExecution.length > 0 && lastExecution[0].watermarkDate) {
+    return new Date(lastExecution[0].watermarkDate);
   }
 
   // Si no hay ejecuciones previas, comenzar desde 2025-01-01
@@ -222,7 +222,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       status: 'running',
       period: periodLabel,
       branches: sucursales.join(','),
-      watermark_date: currentWatermark,
+      watermarkDate: currentWatermark,
     }).returning();
 
     // Limpiar tablas staging de NVV (propias, no compartidas con ventas)
@@ -292,7 +292,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         records_updated: 0,
         status_changes: 0,
         execution_time_ms: Date.now() - startTime,
-        watermark_date: currentWatermark,
+        watermarkDate: currentWatermark,
       };
     }
 
@@ -358,12 +358,16 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       koprct: row.KOPRCT?.trim() || null,
       nokopr: row.NOKOPR?.trim() || null,
       lilg: row.LILG?.trim() || null,
-      prct: row.PRCT?.trim() || null,
+      prct: cleanNumeric(row.PRCT),
       nulido: row.NULIDO?.trim() || null,
       feerli: row.FEERLI || null,
       sulido: row.SULIDO?.trim() || null,
       bosulido: row.BOSULIDO?.trim() || null,
-      luvtlido: row.LUVTLIDO ? parseInt(String(row.LUVTLIDO).trim()) : null,
+      luvtlido: (() => {
+        if (!row.LUVTLIDO) return null;
+        const val = parseInt(String(row.LUVTLIDO).trim());
+        return isNaN(val) ? null : val;
+      })(),
       ud01pr: row.UD01PR?.trim() || null,
       nokozo: row.NOKOZO?.trim() || null,
       nusepr: row.NUSEPR?.trim() || null,
@@ -461,8 +465,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log(`   ✅ ${tabfu.recordset.length} vendedores encontrados`);
 
     const tabfu_records = tabfu.recordset.map((row: any) => ({
-      kofu: row.KOFU?.trim() || '',
-      nokofu: row.NOKOFU?.trim() || null,
+      kofuven: row.KOFU?.trim() || '',
+      nokofuven: row.NOKOFU?.trim() || null,
     }));
     await batchInsert(stgMaevenNvv, tabfu_records, 'stg_maeven_nvv', logger);
 
@@ -485,8 +489,8 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     console.log(`   ✅ ${tabru.recordset.length} segmentos encontrados`);
 
     const tabru_records = tabru.recordset.map((row: any) => ({
-      koru: row.KORU?.trim() || '',
-      nokoru: row.NOKORU?.trim() || null,
+      kofurn: row.KORU?.trim() || '',
+      nokofurn: row.NOKORU?.trim() || null,
     }));
     await batchInsert(stgTabruNvv, tabru_records, 'stg_tabru_nvv', logger);
 
@@ -630,7 +634,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
           dd.vaneli as monto,
           en.nokoen,
           COALESCE(dd.kofulido, ed.kofudo) as kofulido, -- Fallback: detalle → cabecera
-          fu.nokofu as nombre_vendedor,
+          fu.nokofuven as nombre_vendedor,
           COALESCE(dd.bosulido, ed.bosulido) as bosulido, -- Fallback: detalle → cabecera
           bo.nobosuli as nombre_bodega,
           dd.eslido,
@@ -654,7 +658,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         FROM nvv.stg_maeddo_nvv dd
         INNER JOIN nvv.stg_maeedo_nvv ed ON dd.idmaeedo = ed.idmaeedo
         LEFT JOIN nvv.stg_maeen_nvv en ON ed.endo = en.koen
-        LEFT JOIN nvv.stg_maeven_nvv fu ON COALESCE(dd.kofulido, ed.kofudo) = fu.kofu
+        LEFT JOIN nvv.stg_maeven_nvv fu ON COALESCE(dd.kofulido, ed.kofudo) = fu.kofuven
         LEFT JOIN nvv.stg_tabbo_nvv bo ON COALESCE(dd.sulido, ed.suli) = bo.suli 
                                         AND COALESCE(dd.bosulido, ed.bosulido) = bo.bosuli
       `);
@@ -715,7 +719,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       records_updated,
       status_changes,
       execution_time_ms: executionTime,
-      watermark_date: currentWatermark,
+      watermarkDate: currentWatermark,
     };
 
   } catch (error: any) {
@@ -734,7 +738,7 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         .select()
         .from(nvvSyncLog)
         .where(sql`status = 'running'`)
-        .orderBy(desc(nvvSyncLog.start_time))
+        .orderBy(desc(nvvSyncLog.executionDate))
         .limit(1);
 
       if (runningLog.length > 0) {
