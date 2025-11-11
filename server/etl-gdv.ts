@@ -357,7 +357,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     const maeddo = { recordset: allMaeddo };
     console.log(`   ✅ ${maeddo.recordset.length} líneas de detalle encontradas`);
 
-    // Cargar MAEDDO a staging - INCLUYE KOFULIDO DEL DETALLE
+    // Cargar MAEDDO a staging - INCLUYE KOFULIDO DEL DETALLE Y CAMPOS DE CANTIDAD
     const maeddo_records = maeddo.recordset.map(row => ({
       idmaeddo: cleanNumeric(row.IDMAEDDO),
       idmaeedo: cleanNumeric(row.IDMAEEDO),
@@ -366,6 +366,10 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
       caprco1: cleanNumeric(row.CAPRCO1),
       caprco2: cleanNumeric(row.CAPRCO2),
+      caprad1: cleanNumeric(row.CAPRAD1),
+      caprad2: cleanNumeric(row.CAPRAD2),
+      caprnc1: cleanNumeric(row.CAPRNC1),
+      caprnc2: cleanNumeric(row.CAPRNC2),
       preuni: cleanNumeric(row.PREUNI),
       vaneli: cleanNumeric(row.VANELI),
       feemli: row.FEEMLI || null,
@@ -585,10 +589,12 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
           idmaeddo, idmaeedo, tido, nudo, endo, suendo, sudo, feemdo, feulvedo,
           esdo, espgdo, kofudo, modo, timodo, tamodo,
           vanedo, vaivdo, vabrdo, lilg, bosulido, kofulido,
-          koprct, ud01pr, ud02pr, caprco2, vaneli, feemli, feerli,
+          koprct, ud01pr, ud02pr, 
+          caprco1, caprco2, caprad1, caprad2, caprnc1, caprnc2,
+          vaneli, feemli, feerli,
           devol1, devol2, stockfis, ocdo,
           nokoprct, nosudo, nokofu, nobosuli, nokoen, noruen,
-          monto, last_etl_sync, data_source
+          monto, cantidad_pendiente, last_etl_sync, data_source
         )
         SELECT 
           dd.idmaeddo,
@@ -615,7 +621,12 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
           dd.koprct,
           pr.ud01pr,
           pr.ud02pr,
+          dd.caprco1,
           dd.caprco2,
+          dd.caprad1,
+          dd.caprad2,
+          dd.caprnc1,
+          dd.caprnc2,
           dd.vaneli,
           dd.feemli,
           dd.feerli,
@@ -630,6 +641,13 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
           en.nokoen,
           ru.nokoru as noruen,
           dd.vaneli as monto,
+          -- Calcular si tiene cantidad pendiente de despacho
+          CASE 
+            WHEN ((COALESCE(dd.caprco1, 0) - COALESCE(dd.caprad1, 0) - COALESCE(dd.caprnc1, 0)) > 0) OR
+                 ((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprad2, 0) - COALESCE(dd.caprnc2, 0)) > 0)
+            THEN TRUE
+            ELSE FALSE
+          END as cantidad_pendiente,
           NOW() as last_etl_sync,
           'etl_gdv' as data_source
         FROM gdv.stg_maeddo_gdv dd
