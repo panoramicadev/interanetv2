@@ -93,6 +93,38 @@ interface ETLStatus {
   config: ETLConfig;
 }
 
+// GDV Interfaces
+interface GdvSyncLog {
+  id: string;
+  executionDate: string;
+  status: string;
+  recordsProcessed: number | null;
+  recordsInserted: number | null;
+  recordsUpdated: number | null;
+  statusChanges: number | null;
+  executionTimeMs: number | null;
+  errorMessage: string | null;
+}
+
+interface GdvSummary {
+  totalGdv: number;
+  totalAbiertas: number;
+  totalCerradas: number;
+  montoTotal: number;
+  montoAbiertas: number;
+  montoCerradas: number;
+}
+
+interface GdvBySucursal {
+  sucursal: string;
+  totalGdv: number;
+  abiertas: number;
+  cerradas: number;
+  montoTotal: number;
+  montoAbiertas: number;
+  montoCerradas: number;
+}
+
 // Configuración de ETLs disponibles
 const ETL_CONFIGS = [
   {
@@ -189,11 +221,15 @@ export default function ETLMonitor() {
 
         {ETL_CONFIGS.map((etl) => (
           <TabsContent key={etl.id} value={etl.id} className="space-y-6 mt-6">
-            {/* Status Section */}
-            <ETLStatusSection etlName={etl.id} autoRefresh={autoRefresh} />
-
-            {/* History Section */}
-            <ETLHistorySection etlName={etl.id} autoRefresh={autoRefresh} />
+            {etl.id === 'gdv' ? (
+              <GDVTabContent autoRefresh={autoRefresh} />
+            ) : (
+              <>
+                {/* Standard ETL Sections */}
+                <ETLStatusSection etlName={etl.id} autoRefresh={autoRefresh} />
+                <ETLHistorySection etlName={etl.id} autoRefresh={autoRefresh} />
+              </>
+            )}
           </TabsContent>
         ))}
       </Tabs>
@@ -1337,6 +1373,482 @@ function SyncHistoryRow({ sync, index }: { sync: any; index: number }) {
         </TableRow>
       )}
     </Collapsible>
+  );
+}
+
+// ==================================================================================
+// GDV SECTIONS
+// ==================================================================================
+
+// GDV Tab Content - manages shared filter state
+function GDVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
+  const [startDate, setStartDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedSucursales, setSelectedSucursales] = useState<string[]>(['004', '006', '007']);
+
+  const buildFilters = () => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (selectedSucursales.length > 0) {
+      params.append('sucursales', selectedSucursales.join(','));
+    }
+    return params.toString();
+  };
+
+  const toggleSucursal = (sucursal: string) => {
+    setSelectedSucursales(prev => 
+      prev.includes(sucursal) 
+        ? prev.filter(s => s !== sucursal)
+        : [...prev, sucursal]
+    );
+  };
+
+  const filterState = {
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    selectedSucursales,
+    toggleSucursal,
+    buildFilters,
+  };
+
+  return (
+    <>
+      <GDVStatusSection autoRefresh={autoRefresh} filterState={filterState} />
+      <GDVMetricsSection autoRefresh={autoRefresh} filterState={filterState} />
+      <GDVHistorySection autoRefresh={autoRefresh} />
+    </>
+  );
+}
+
+function GDVStatusSection({ 
+  autoRefresh, 
+  filterState 
+}: { 
+  autoRefresh: boolean; 
+  filterState: {
+    startDate: string;
+    setStartDate: (date: string) => void;
+    endDate: string;
+    setEndDate: (date: string) => void;
+    selectedSucursales: string[];
+    toggleSucursal: (sucursal: string) => void;
+    buildFilters: () => string;
+  };
+}) {
+  const { toast } = useToast();
+  const { startDate, setStartDate, endDate, setEndDate, selectedSucursales, toggleSucursal, buildFilters } = filterState;
+
+  const { data: summary, isLoading: summaryLoading } = useQuery<GdvSummary>({
+    queryKey: ['/api/etl/gdv/summary', startDate, endDate, selectedSucursales.join(',')],
+    queryFn: async () => {
+      const filters = buildFilters();
+      const response = await fetch(`/api/etl/gdv/summary${filters ? `?${filters}` : ''}`);
+      if (!response.ok) throw new Error('Error al cargar resumen de GDV');
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  const executeMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/etl/sync-gdv', {
+        method: 'POST',
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "✅ ETL de GDV Ejecutado",
+        description: `Se procesaron ${data.recordsProcessed || 0} registros (${data.recordsInserted || 0} nuevos, ${data.recordsUpdated || 0} actualizados)`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/gdv/summary'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/gdv/by-sucursal'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-gdv/history'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Error al ejecutar ETL de GDV",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  return (
+    <>
+      {/* Execute Button */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Control de Sincronización GDV
+            </CardTitle>
+            <Button
+              onClick={() => executeMutation.mutate()}
+              disabled={executeMutation.isPending}
+              size="lg"
+              data-testid="button-execute-gdv-etl"
+            >
+              {executeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Ejecutando...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="h-5 w-5 mr-2" />
+                  Ejecutar ETL de GDV
+                </>
+              )}
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="gdv-startDate">Fecha Inicio</Label>
+              <Input
+                id="gdv-startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                data-testid="input-gdv-start-date"
+              />
+            </div>
+            <div>
+              <Label htmlFor="gdv-endDate">Fecha Fin</Label>
+              <Input
+                id="gdv-endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                data-testid="input-gdv-end-date"
+              />
+            </div>
+            <div>
+              <Label>Sucursales</Label>
+              <div className="flex gap-2 mt-2">
+                {['004', '006', '007'].map(sucursal => (
+                  <Button
+                    key={sucursal}
+                    variant={selectedSucursales.includes(sucursal) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleSucursal(sucursal)}
+                    data-testid={`button-gdv-sucursal-${sucursal}`}
+                  >
+                    {sucursal}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card data-testid="card-gdv-total">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total GDV</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {summaryLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <div className="space-y-1">
+                <div className="text-2xl font-bold" data-testid="text-gdv-total">
+                  {summary?.totalGdv || 0}
+                </div>
+                <div className="flex gap-2 text-xs">
+                  <Badge variant="default" data-testid="badge-gdv-abiertas">
+                    {summary?.totalAbiertas || 0} Abiertas
+                  </Badge>
+                  <Badge variant="secondary" data-testid="badge-gdv-cerradas">
+                    {summary?.totalCerradas || 0} Cerradas
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-gdv-monto-total">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monto Total</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {summaryLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <div className="space-y-1">
+                <div className="text-2xl font-bold" data-testid="text-gdv-monto-total">
+                  {formatCurrency(summary?.montoTotal || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Todas las GDV (abiertas + cerradas)
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-gdv-montos-estado">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Montos por Estado</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {summaryLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Abiertas:</span>
+                  <span className="font-semibold" data-testid="text-gdv-monto-abiertas">
+                    {formatCurrency(summary?.montoAbiertas || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cerradas:</span>
+                  <span className="font-semibold" data-testid="text-gdv-monto-cerradas">
+                    {formatCurrency(summary?.montoCerradas || 0)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function GDVMetricsSection({ 
+  autoRefresh,
+  filterState
+}: { 
+  autoRefresh: boolean;
+  filterState: {
+    startDate: string;
+    setStartDate: (date: string) => void;
+    endDate: string;
+    setEndDate: (date: string) => void;
+    selectedSucursales: string[];
+    toggleSucursal: (sucursal: string) => void;
+    buildFilters: () => string;
+  };
+}) {
+  const { startDate, endDate, selectedSucursales, buildFilters } = filterState;
+
+  const { data: bySucursal, isLoading } = useQuery<GdvBySucursal[]>({
+    queryKey: ['/api/etl/gdv/by-sucursal', startDate, endDate, selectedSucursales.join(',')],
+    queryFn: async () => {
+      const filters = buildFilters();
+      const response = await fetch(`/api/etl/gdv/by-sucursal${filters ? `?${filters}` : ''}`);
+      if (!response.ok) throw new Error('Error al cargar métricas por sucursal');
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5" />
+          Métricas por Sucursal
+        </CardTitle>
+        <CardDescription>
+          Detalle de GDV agrupadas por sucursal
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : bySucursal && bySucursal.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sucursal</TableHead>
+                <TableHead className="text-right">Total GDV</TableHead>
+                <TableHead className="text-right">Abiertas</TableHead>
+                <TableHead className="text-right">Cerradas</TableHead>
+                <TableHead className="text-right">Monto Total</TableHead>
+                <TableHead className="text-right">Monto Abiertas</TableHead>
+                <TableHead className="text-right">Monto Cerradas</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bySucursal.map((row) => (
+                <TableRow key={row.sucursal} data-testid={`row-gdv-sucursal-${row.sucursal}`}>
+                  <TableCell className="font-medium">{row.sucursal}</TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-total-${row.sucursal}`}>
+                    {row.totalGdv}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-abiertas-${row.sucursal}`}>
+                    <Badge variant="default">{row.abiertas}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-cerradas-${row.sucursal}`}>
+                    <Badge variant="secondary">{row.cerradas}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-monto-total-${row.sucursal}`}>
+                    {formatCurrency(row.montoTotal)}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-monto-abiertas-${row.sucursal}`}>
+                    {formatCurrency(row.montoAbiertas)}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-monto-cerradas-${row.sucursal}`}>
+                    {formatCurrency(row.montoCerradas)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="text-center py-8 text-muted-foreground">
+            No hay datos de GDV para el periodo seleccionado
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function GDVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
+  const { data: history, isLoading } = useQuery<GdvSyncLog[]>({
+    queryKey: ['/api/etl/sync-gdv/history'],
+    queryFn: async () => {
+      const response = await fetch('/api/etl/sync-gdv/history?limit=10');
+      if (!response.ok) throw new Error('Error al cargar historial de sincronización');
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Calendar className="h-5 w-5" />
+          Historial de Sincronización
+        </CardTitle>
+        <CardDescription>
+          Últimas 10 ejecuciones del ETL de GDV
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : history && history.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Procesados</TableHead>
+                <TableHead className="text-right">Insertados</TableHead>
+                <TableHead className="text-right">Actualizados</TableHead>
+                <TableHead className="text-right">Cambios Estado</TableHead>
+                <TableHead className="text-right">Duración</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {history.map((execution) => (
+                <TableRow key={execution.id} data-testid={`row-gdv-history-${execution.id}`}>
+                  <TableCell data-testid={`text-gdv-date-${execution.id}`}>
+                    <div className="space-y-1">
+                      <div className="font-medium">
+                        {format(new Date(execution.executionDate), "dd MMM yyyy HH:mm", { locale: es })}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(execution.executionDate), { 
+                          addSuffix: true,
+                          locale: es 
+                        })}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell data-testid={`badge-gdv-status-${execution.id}`}>
+                    {execution.status === 'success' ? (
+                      <Badge variant="default" className="bg-green-600">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Exitoso
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Error
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-processed-${execution.id}`}>
+                    {execution.recordsProcessed || 0}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-inserted-${execution.id}`}>
+                    {execution.recordsInserted || 0}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-updated-${execution.id}`}>
+                    {execution.recordsUpdated || 0}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-status-changes-${execution.id}`}>
+                    {execution.statusChanges || 0}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-gdv-duration-${execution.id}`}>
+                    {execution.executionTimeMs 
+                      ? `${(execution.executionTimeMs / 1000).toFixed(2)}s`
+                      : '-'
+                    }
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="text-center py-8 text-muted-foreground">
+            No hay registros de sincronización
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
