@@ -11602,9 +11602,19 @@ export function registerRoutes(app: Express): Server {
   // Get GDV by sucursal
   app.get('/api/etl/gdv/by-sucursal', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
     try {
+      // Normalize sucursales: handle both comma-delimited strings and repeated query params
+      let sucursales: string[] | undefined = undefined;
+      if (req.query.sucursales) {
+        const raw = req.query.sucursales;
+        const values = Array.isArray(raw) ? raw : raw.split(',');
+        const filtered = values.map((v: string) => v.trim()).filter((v: string) => v !== '');
+        sucursales = filtered.length > 0 ? filtered : undefined;
+      }
+
       const filters = {
         startDate: req.query.startDate as string | undefined,
         endDate: req.query.endDate as string | undefined,
+        sucursales,
       };
       const metrics = await storage.getGdvBySucursal(filters);
       res.json(metrics);
