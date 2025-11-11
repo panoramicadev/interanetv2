@@ -4508,6 +4508,9 @@ export const factGdv = gdvSchema.table("fact_gdv", {
   listacost: numeric("listacost", { precision: 18, scale: 6 }),
   liscosmod: numeric("liscosmod", { precision: 20, scale: 0 }),
   
+  // Columna calculada para determinar si hay cantidad pendiente de despacho
+  cantidadPendiente: boolean("cantidad_pendiente").notNull().default(false),
+  
   // ETL control fields
   id: varchar("id").notNull().default(sql`gen_random_uuid()`).unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -4517,6 +4520,7 @@ export const factGdv = gdvSchema.table("fact_gdv", {
 }, (table) => ({
   ixIdmaeedo: index("ix_fact_gdv_idmaeedo").on(table.idmaeedo), // Para agrupar líneas por documento
   ixFeemdo: index("ix_fact_gdv_feemdo").on(table.feemdo),
+  ixCantidadPendiente: index("ix_fact_gdv_cantidad_pendiente").on(table.cantidadPendiente), // Índice para filtrar GDV abiertas
   ixEstado: index("ix_fact_gdv_esdo").on(table.esdo), // Para filtrar por estado
   ixSucursal: index("ix_fact_gdv_sudo").on(table.sudo), // Para filtrar por sucursal
   ixNokoen: index("ix_fact_gdv_nokoen").on(table.nokoen),
@@ -4569,6 +4573,10 @@ export const stgMaeddoGdv = gdvSchema.table("stg_maeddo_gdv", {
   udtrpr: text("udtrpr"),
   caprco1: numeric("caprco1", { precision: 18, scale: 4 }),
   caprco2: numeric("caprco2", { precision: 18, scale: 4 }),
+  caprad1: numeric("caprad1", { precision: 18, scale: 4 }),
+  caprad2: numeric("caprad2", { precision: 18, scale: 4 }),
+  caprnc1: numeric("caprnc1", { precision: 18, scale: 4 }),
+  caprnc2: numeric("caprnc2", { precision: 18, scale: 4 }),
   preuni: numeric("preuni", { precision: 18, scale: 6 }),
   vaneli: numeric("vaneli", { precision: 18, scale: 4 }),
   feemli: timestamp("feemli"),
