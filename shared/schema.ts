@@ -4786,7 +4786,7 @@ export const stgMaeddoNvv = nvvSchema.table("stg_maeddo_nvv", {
   koprct: text("koprct"),
   nokopr: text("nokopr"),
   lilg: text("lilg"),
-  prct: text("prct"),
+  prct: numeric("prct", { precision: 15, scale: 2 }),
   nulido: text("nulido"),
   feerli: date("feerli"),
   sulido: text("sulido"),
