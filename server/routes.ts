@@ -10348,11 +10348,20 @@ export function registerRoutes(app: Express): Server {
 
   // ===== PRESUPUESTO MANTENCIÓN ROUTES =====
 
-  // GET presupuestos por año
-  app.get('/api/cmms/presupuesto/:anio', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+  // GET presupuestos con filtros opcionales
+  app.get('/api/cmms/presupuesto', requireAuth, requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
     try {
-      const anio = parseInt(req.params.anio);
-      const presupuestos = await storage.getPresupuestosMantencion(anio);
+      const { anio, area } = req.query;
+      const filters: { anio?: number; area?: string } = {};
+      
+      if (anio) {
+        filters.anio = parseInt(anio);
+      }
+      if (area && area !== 'global') {
+        filters.area = area;
+      }
+      
+      const presupuestos = await storage.getPresupuestosMantencion(filters);
       res.json(presupuestos);
     } catch (error: any) {
       console.error('Error al obtener presupuestos:', error);

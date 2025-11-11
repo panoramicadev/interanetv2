@@ -4177,6 +4177,9 @@ export const insertHitoMarketingSchema = createInsertSchema(hitosMarketing).omit
 // ===== ESQUEMA VENTAS PARA TABLAS ETL =====
 export const ventasSchema = pgSchema("ventas");
 
+// ===== ESQUEMA GDV PARA GUÍAS DE DESPACHO =====
+export const gdvSchema = pgSchema("gdv");
+
 // ===== TABLAS DE STAGING PARA IMPORTACIÓN DESDE SQL SERVER =====
 
 // Staging: MAEEDO (Encabezado de documentos)
@@ -4422,7 +4425,7 @@ export type InsertFactVentas = typeof factVentas.$inferInsert;
 export const insertFactVentasSchema = createInsertSchema(factVentas);
 
 // ===== TABLA ESPECÍFICA DE GDV (Guías de Despacho) =====
-export const factGdv = ventasSchema.table("fact_gdv", {
+export const factGdv = gdvSchema.table("fact_gdv", {
   idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(), // ID único de la línea (detalle)
   idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }), // ID del documento GDV (cabecera)
   tido: text("tido"), // Siempre 'GDV'
@@ -4526,7 +4529,7 @@ export type FactGdv = typeof factGdv.$inferSelect;
 export type InsertFactGdv = typeof factGdv.$inferInsert;
 
 // ===== TABLA DE LOG DE SINCRONIZACIÓN GDV =====
-export const gdvSyncLog = ventasSchema.table("gdv_sync_log", {
+export const gdvSyncLog = gdvSchema.table("gdv_sync_log", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   executionDate: timestamp("execution_date").notNull().defaultNow(),
   status: varchar("status", { length: 20 }).notNull(), // success, failed, running
