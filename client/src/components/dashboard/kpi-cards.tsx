@@ -546,10 +546,10 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
                 </span>
               )}
             </div>
-            {/* Información adicional: NVV + GDV y Total Combinado */}
+            {/* Información adicional: NVV + GDV Pendiente y Total Combinado */}
             <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`NVV: ${formatCurrency(nvvTotal)} + GDV: ${formatCurrency(gdvSales)}`}>
-                NVV: {formatCurrency(nvvTotal)} + GDV: {formatCurrency(gdvSales)}
+              <p className="text-xs text-gray-500 mb-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`NVV: ${formatCurrency(nvvTotal)} + GDV Pendiente: ${formatCurrency(gdvSales)}`}>
+                NVV: {formatCurrency(nvvTotal)} + GDV Pendiente: {formatCurrency(gdvSales)}
               </p>
               <p className="text-xs font-semibold text-gray-700 overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={`Total Combinado: ${formatCurrency(combinedTotal)}`}>
                 Total Combinado: {formatCurrency(combinedTotal)}
