@@ -243,16 +243,15 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     
     const startDateSQL = lastWatermark.toISOString().split('T')[0];
     const endDateSQL = currentWatermark.toISOString().split('T')[0];
-    const startYear = lastWatermark.getFullYear();
     
     console.log('╔═══════════════════════════════════════════════════════════════╗');
     console.log('║  📝 QUERY SQL MAEEDO - FILTROS APLICADOS                      ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO = 'GDV'`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
+    console.log(`🔍 YEAR(FEEMDO) >= 2025 (Solo GDV de 2025 en adelante)`);
     console.log(`🔍 FEER >= '${startDateSQL}' (Fecha última actualización - CLAVE para detectar cambios)`);
     console.log(`🔍 FEER <= '${endDateSQL}'`);
-    console.log(`🔍 YEAR(FEER) >= ${startYear}`);
     console.log('');
     
     const maeedo = await executeWithResilience(
@@ -261,7 +260,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         FROM dbo.MAEEDO
         WHERE TIDO = 'GDV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-          AND YEAR(FEER) >= ${startYear}
+          AND YEAR(FEEMDO) >= 2025
           AND FEER >= '${startDateSQL}'
           AND FEER <= '${endDateSQL}'
         ORDER BY FEER
