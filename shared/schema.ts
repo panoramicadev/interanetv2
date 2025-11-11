@@ -4180,6 +4180,9 @@ export const ventasSchema = pgSchema("ventas");
 // ===== ESQUEMA GDV PARA GUÍAS DE DESPACHO =====
 export const gdvSchema = pgSchema("gdv");
 
+// ===== ESQUEMA NVV PARA NOTAS DE VENTA =====
+export const nvvSchema = pgSchema("nvv");
+
 // ===== TABLAS DE STAGING PARA IMPORTACIÓN DESDE SQL SERVER =====
 
 // Staging: MAEEDO (Encabezado de documentos)
@@ -4647,6 +4650,217 @@ export const gdvSyncLog = gdvSchema.table("gdv_sync_log", {
 // Types para gdvSyncLog
 export type GdvSyncLog = typeof gdvSyncLog.$inferSelect;
 export type InsertGdvSyncLog = typeof gdvSyncLog.$inferInsert;
+
+// ===== TABLAS DE NVV (Notas de Venta) =====
+
+// Tabla fact_nvv (Denormalizada para análisis)
+export const factNvv = nvvSchema.table("fact_nvv", {
+  idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(), // ID único de la línea (detalle)
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }), // ID del documento NVV (cabecera)
+  nudo: text("nudo"), // Número de documento
+  tido: text("tido"), // Siempre 'NVV'
+  endo: text("endo"), // Entidad (RUT)
+  sudo: text("sudo"), // Sucursal (004, 006, 007)
+  nosudo: text("nosudo"), // Nombre sucursal
+  feemdo: date("feemdo"), // Fecha de emisión
+  feer: date("feer"), // Fecha de entrega esperada
+  
+  // Información del producto
+  koprct: text("koprct"), // Código producto
+  nokopr: text("nokopr"), // Nombre producto
+  tipr: text("tipr"), // Tipo producto
+  pfpr: text("pfpr"),
+  fmpr: text("fmpr"),
+  mrpr: text("mrpr"),
+  
+  // Cantidades (unidad 1)
+  caprco1: numeric("caprco1", { precision: 10, scale: 2 }),
+  caprad1: numeric("caprad1", { precision: 10, scale: 2 }),
+  caprex1: numeric("caprex1", { precision: 10, scale: 2 }),
+  ud01pr: text("ud01pr"),
+  
+  // Cantidades (unidad 2)
+  caprco2: numeric("caprco2", { precision: 10, scale: 2 }),
+  caprad2: numeric("caprad2", { precision: 10, scale: 2 }),
+  caprex2: numeric("caprex2", { precision: 10, scale: 2 }),
+  ud02pr: text("ud02pr"),
+  
+  // Precio y montos
+  ppprne: numeric("ppprne", { precision: 15, scale: 2 }),
+  vaneli: numeric("vaneli", { precision: 15, scale: 2 }),
+  monto: numeric("monto", { precision: 15, scale: 2 }), // Monto total
+  
+  // Información del cliente
+  nokoen: text("nokoen"), // Nombre cliente
+  endo_nombre: text("endo_nombre"),
+  dien: text("dien"), // Dirección
+  comuna: text("comuna"),
+  
+  // Información del vendedor
+  kofulido: text("kofulido"), // Código vendedor
+  nombre_vendedor: text("nombre_vendedor"),
+  
+  // Bodega
+  bosulido: text("bosulido"),
+  nombre_bodega: text("nombre_bodega"),
+  
+  // Estado de la línea (CRÍTICO)
+  eslido: text("eslido"), // NULL/'' = abierto, 'C' = cerrado
+  
+  // Fechas importantes
+  feerli: date("feerli"), // Fecha compromiso línea
+  feemli: date("feemli"),
+  
+  // Información adicional
+  ocdo: text("ocdo"), // Orden de compra
+  obdo: text("obdo"), // Observaciones
+  lilg: text("lilg"),
+  luvtlido: integer("luvtlido"),
+  
+  // CAMPO CALCULADO: Indica si tiene cantidad pendiente
+  // TRUE = Línea abierta con productos pendientes de despacho
+  // FALSE = Línea cerrada o sin productos pendientes
+  cantidad_pendiente: boolean("cantidad_pendiente").notNull().default(false),
+  
+  // ETL control fields
+  id: varchar("id").notNull().default(sql`gen_random_uuid()`).unique(),
+  created_at: timestamp("created_at").notNull().defaultNow(),
+  updated_at: timestamp("updated_at").notNull().defaultNow(),
+  data_source: varchar("data_source", { length: 20 }).notNull().default('etl_nvv'),
+  last_etl_sync: timestamp("last_etl_sync"),
+});
+
+// Types para fact_nvv
+export type FactNvv = typeof factNvv.$inferSelect;
+export type InsertFactNvv = typeof factNvv.$inferInsert;
+
+// ===== TABLAS DE STAGING PARA ETL NVV =====
+
+// Staging: MAEEDO (Encabezado de documentos NVV)
+export const stgMaeedoNvv = nvvSchema.table("stg_maeedo_nvv", {
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }).primaryKey(),
+  tido: text("tido"),
+  nudo: text("nudo"),
+  endo: text("endo"),
+  suendo: text("suendo"),
+  sudo: text("sudo"),
+  feemdo: date("feemdo"),
+  feer: date("feer"),
+  modo: text("modo"),
+  timodo: text("timodo"),
+  tideve: text("tideve"),
+  tidevefe: date("tidevefe"),
+  tideveho: text("tideveho"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+// Staging: MAEDDO (Detalle de documentos NVV)
+export const stgMaeddoNvv = nvvSchema.table("stg_maeddo_nvv", {
+  idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(),
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }).notNull(),
+  koprct: text("koprct"),
+  nokopr: text("nokopr"),
+  lilg: text("lilg"),
+  prct: text("prct"),
+  nulido: text("nulido"),
+  feerli: date("feerli"),
+  sulido: text("sulido"),
+  bosulido: text("bosulido"),
+  luvtlido: integer("luvtlido"),
+  ud01pr: text("ud01pr"),
+  nokozo: text("nokozo"),
+  nusepr: text("nusepr"),
+  
+  // Cantidades en unidad 1
+  caprco1: numeric("caprco1", { precision: 10, scale: 2 }),
+  caprad1: numeric("caprad1", { precision: 10, scale: 2 }),
+  caprex1: numeric("caprex1", { precision: 10, scale: 2 }),
+  
+  // Unidad 2
+  ud02pr: text("ud02pr"),
+  
+  // Cantidades en unidad 2
+  caprco2: numeric("caprco2", { precision: 10, scale: 2 }),
+  caprad2: numeric("caprad2", { precision: 10, scale: 2 }),
+  caprex2: numeric("caprex2", { precision: 10, scale: 2 }),
+  
+  // Precio y monto
+  ppprne: numeric("ppprne", { precision: 15, scale: 2 }),
+  tamopppr: numeric("tamopppr", { precision: 15, scale: 2 }),
+  vaneli: numeric("vaneli", { precision: 15, scale: 2 }),
+  feemli: date("feemli"),
+  kofulido: text("kofulido"),
+  
+  // CAMPO CRÍTICO: Estado de la línea
+  eslido: text("eslido"), // NULL/'' = abierto, 'C' = cerrado
+  
+  // Información adicional
+  ocdo: text("ocdo"),
+  obdo: text("obdo"),
+  
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+// Staging: Tablas maestras propias para NVV (evita concurrencia con ETL ventas/gdv)
+export const stgMaeenNvv = nvvSchema.table("stg_maeen_nvv", {
+  koen: text("koen").primaryKey(),
+  nokoen: text("nokoen"),
+  dien: text("dien"),
+  zoen: text("zoen"),
+  foen: text("foen"),
+  cpen: text("cpen"),
+  cmen: text("cmen"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+export const stgMaeprNvv = nvvSchema.table("stg_maepr_nvv", {
+  kopr: text("kopr").primaryKey(),
+  nokopr: text("nokopr"),
+  tipr: text("tipr"),
+  pfpr: text("pfpr"),
+  fmpr: text("fmpr"),
+  rupr: text("rupr"),
+  mrpr: text("mrpr"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+export const stgMaevenNvv = nvvSchema.table("stg_maeven_nvv", {
+  kofuven: text("kofuven").primaryKey(),
+  nokofuven: text("nokofuven"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+export const stgTabruNvv = nvvSchema.table("stg_tabru_nvv", {
+  kofurn: text("kofurn").primaryKey(),
+  nokofurn: text("nokofurn"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+export const stgTabboNvv = nvvSchema.table("stg_tabbo_nvv", {
+  kobo: text("kobo").primaryKey(),
+  nokobo: text("nokobo"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+// ===== TABLA DE LOG DE SINCRONIZACIÓN NVV =====
+export const nvvSyncLog = nvvSchema.table("nvv_sync_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  start_time: timestamp("start_time").notNull(),
+  end_time: timestamp("end_time"),
+  status: varchar("status", { length: 20 }), // 'running', 'completed', 'failed'
+  records_processed: integer("records_processed"),
+  records_inserted: integer("records_inserted"),
+  records_updated: integer("records_updated"),
+  status_changes: integer("status_changes"),
+  execution_time_ms: integer("execution_time_ms"),
+  watermark_date: date("watermark_date"),
+  error_message: text("error_message"),
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+// Types para nvvSyncLog
+export type NvvSyncLog = typeof nvvSyncLog.$inferSelect;
+export type InsertNvvSyncLog = typeof nvvSyncLog.$inferInsert;
 
 // ===== CRM PIPELINE SYSTEM =====
 

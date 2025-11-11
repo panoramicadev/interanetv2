@@ -198,11 +198,14 @@ CREATE TABLE IF NOT EXISTS nvv.fact_nvv (
   -- CAMPO CALCULADO: Indica si tiene cantidad pendiente
   -- TRUE = Línea abierta con productos pendientes de despacho
   -- FALSE = Línea cerrada o sin productos pendientes
-  cantidad_pendiente BOOLEAN,
+  cantidad_pendiente BOOLEAN NOT NULL DEFAULT FALSE,
   
-  -- Metadata ETL
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  -- ETL control fields
+  id VARCHAR(50) NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  data_source VARCHAR(20) NOT NULL DEFAULT 'etl_nvv',
+  last_etl_sync TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- =====================================================
@@ -210,10 +213,12 @@ CREATE TABLE IF NOT EXISTS nvv.fact_nvv (
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS nvv.nvv_sync_log (
-  id VARCHAR(50) PRIMARY KEY,
+  id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid(),
   start_time TIMESTAMP NOT NULL,
   end_time TIMESTAMP,
   status VARCHAR(20), -- 'running', 'completed', 'failed'
+  period VARCHAR(100) NOT NULL, -- Descripción del período
+  branches TEXT NOT NULL DEFAULT '004,006,007', -- Sucursales NVV
   records_processed INTEGER,
   records_inserted INTEGER,
   records_updated INTEGER,
