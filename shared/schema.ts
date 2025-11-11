@@ -4577,6 +4577,7 @@ export const stgMaeddoGdv = gdvSchema.table("stg_maeddo_gdv", {
   caprad2: numeric("caprad2", { precision: 18, scale: 4 }),
   caprnc1: numeric("caprnc1", { precision: 18, scale: 4 }),
   caprnc2: numeric("caprnc2", { precision: 18, scale: 4 }),
+  eslido: text("eslido"), // Estado de línea: '' = abierto, 'C' = cerrado
   preuni: numeric("preuni", { precision: 18, scale: 6 }),
   vaneli: numeric("vaneli", { precision: 18, scale: 4 }),
   feemli: timestamp("feemli"),
