@@ -224,6 +224,12 @@ import {
   gdvSyncLog,
   type FactGdv,
   type GdvSyncLog,
+  // NVV ETL system
+  factNvv,
+  nvvSyncLog,
+  type FactNvv,
+  type NvvSyncLog,
+  type InsertNvvSyncLog,
   // Notifications system
   notifications,
   notificationReads,
@@ -288,6 +294,20 @@ function extractPackagingType(productName: string | null): string {
   if (nameUpper.match(/1\/2\s*GL/)) return 'GL';
   
   return 'OT'; // Other - unclassified packaging
+}
+
+// Shared filter interface for NVV ETL queries
+// Estado mapping: 'open' → eslido IS NULL OR eslido = '', 'closed' → eslido = 'C'
+export interface NvvFilters {
+  startDate?: string;
+  endDate?: string;
+  sucursales?: string[];
+  vendedores?: string[];
+  bodegas?: string[];
+  estado?: 'open' | 'closed';
+  pendingOnly?: boolean; // Solo registros con cantidad_pendiente=true
+  minAmount?: number;
+  maxAmount?: number;
 }
 
 export interface IStorage {
@@ -1703,6 +1723,75 @@ export interface IStorage {
     montoAbiertas: number;
     montoCerradas: number;
   }>>;
+
+  // NVV ETL operations
+  getNvvSyncHistory(limit?: number, offset?: number): Promise<NvvSyncLog[]>;
+  getNvvSummary(filters?: NvvFilters): Promise<{
+    totalNvv: number;
+    totalAbiertas: number;
+    totalCerradas: number;
+    totalPendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }>;
+  getNvvBySucursal(filters?: NvvFilters): Promise<Array<{
+    sudo: string;
+    nosudo: string;
+    totalNvv: number;
+    abiertas: number;
+    cerradas: number;
+    pendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }>>;
+  getNvvByVendedor(filters?: NvvFilters): Promise<Array<{
+    kofulido: string;
+    nombre_vendedor: string;
+    totalNvv: number;
+    abiertas: number;
+    cerradas: number;
+    pendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }>>;
+  getNvvByBodega(filters?: NvvFilters): Promise<Array<{
+    bosulido: string;
+    nombre_bodega: string;
+    totalNvv: number;
+    abiertas: number;
+    cerradas: number;
+    pendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }>>;
+  getNvvDocuments(filters?: NvvFilters & {
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    documents: Array<{
+      nudo: string;
+      feemdo: Date | null;
+      sudo: string;
+      nosudo: string;
+      nokoen: string | null;
+      kofulido: string | null;
+      nombre_vendedor: string | null;
+      bosulido: string | null;
+      nombre_bodega: string | null;
+      eslido: string | null;
+      monto: number;
+      cantidad_pendiente: boolean;
+    }>;
+    total: number;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -18855,6 +18944,430 @@ export class DatabaseStorage implements IStorage {
       montoAbiertas: Number(row.montoAbiertas || 0),
       montoCerradas: Number(row.montoCerradas || 0),
     }));
+  }
+
+  // NVV ETL operations
+  async getNvvSyncHistory(limit: number = 20, offset: number = 0): Promise<NvvSyncLog[]> {
+    const history = await db
+      .select()
+      .from(nvvSyncLog)
+      .orderBy(desc(nvvSyncLog.executionDate))
+      .limit(limit)
+      .offset(offset);
+    
+    return history;
+  }
+
+  async getNvvSummary(filters?: NvvFilters): Promise<{
+    totalNvv: number;
+    totalAbiertas: number;
+    totalCerradas: number;
+    totalPendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }> {
+    let query = db.select({
+      total: countDistinct(factNvv.idmaeedo),
+      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
+      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      montoTotal: sum(factNvv.monto),
+      montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
+      montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+    }).from(factNvv);
+
+    const conditions = [];
+    
+    if (filters?.startDate) {
+      conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factNvv.feemdo} <= ${filters.endDate}`);
+    }
+    if (filters?.sucursales && filters.sucursales.length > 0) {
+      conditions.push(inArray(factNvv.sudo, filters.sucursales));
+    }
+    if (filters?.vendedores && filters.vendedores.length > 0) {
+      conditions.push(inArray(factNvv.kofulido, filters.vendedores));
+    }
+    if (filters?.bodegas && filters.bodegas.length > 0) {
+      conditions.push(inArray(factNvv.bosulido, filters.bodegas));
+    }
+    if (filters?.estado === 'open') {
+      conditions.push(sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`);
+    } else if (filters?.estado === 'closed') {
+      conditions.push(sql`${factNvv.eslido} = 'C'`);
+    }
+    if (filters?.pendingOnly) {
+      conditions.push(eq(factNvv.cantidad_pendiente, true));
+    }
+    if (filters?.minAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
+    }
+    if (filters?.maxAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} <= ${filters.maxAmount}`);
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const result = await query;
+    
+    return {
+      totalNvv: Number(result[0]?.total || 0),
+      totalAbiertas: Number(result[0]?.abiertas || 0),
+      totalCerradas: Number(result[0]?.cerradas || 0),
+      totalPendientes: Number(result[0]?.pendientes || 0),
+      montoTotal: Number(result[0]?.montoTotal || 0),
+      montoAbiertas: Number(result[0]?.montoAbiertas || 0),
+      montoCerradas: Number(result[0]?.montoCerradas || 0),
+      montoPendientes: Number(result[0]?.montoPendientes || 0),
+    };
+  }
+
+  async getNvvBySucursal(filters?: NvvFilters): Promise<Array<{
+    sudo: string;
+    nosudo: string;
+    totalNvv: number;
+    abiertas: number;
+    cerradas: number;
+    pendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }>> {
+    let query = db.select({
+      sudo: factNvv.sudo,
+      nosudo: factNvv.nosudo,
+      total: countDistinct(factNvv.idmaeedo),
+      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
+      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      montoTotal: sum(factNvv.monto),
+      montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
+      montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+    }).from(factNvv);
+
+    const conditions = [];
+    
+    if (filters?.startDate) {
+      conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factNvv.feemdo} <= ${filters.endDate}`);
+    }
+    if (filters?.sucursales && filters.sucursales.length > 0) {
+      conditions.push(inArray(factNvv.sudo, filters.sucursales));
+    }
+    if (filters?.vendedores && filters.vendedores.length > 0) {
+      conditions.push(inArray(factNvv.kofulido, filters.vendedores));
+    }
+    if (filters?.bodegas && filters.bodegas.length > 0) {
+      conditions.push(inArray(factNvv.bosulido, filters.bodegas));
+    }
+    if (filters?.estado === 'open') {
+      conditions.push(sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`);
+    } else if (filters?.estado === 'closed') {
+      conditions.push(sql`${factNvv.eslido} = 'C'`);
+    }
+    if (filters?.pendingOnly) {
+      conditions.push(eq(factNvv.cantidad_pendiente, true));
+    }
+    if (filters?.minAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
+    }
+    if (filters?.maxAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} <= ${filters.maxAmount}`);
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const result = await query.groupBy(factNvv.sudo, factNvv.nosudo);
+
+    return result.map(row => ({
+      sudo: String(row.sudo || ''),
+      nosudo: String(row.nosudo || ''),
+      totalNvv: Number(row.total || 0),
+      abiertas: Number(row.abiertas || 0),
+      cerradas: Number(row.cerradas || 0),
+      pendientes: Number(row.pendientes || 0),
+      montoTotal: Number(row.montoTotal || 0),
+      montoAbiertas: Number(row.montoAbiertas || 0),
+      montoCerradas: Number(row.montoCerradas || 0),
+      montoPendientes: Number(row.montoPendientes || 0),
+    }));
+  }
+
+  async getNvvByVendedor(filters?: NvvFilters): Promise<Array<{
+    kofulido: string;
+    nombre_vendedor: string;
+    totalNvv: number;
+    abiertas: number;
+    cerradas: number;
+    pendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }>> {
+    let query = db.select({
+      kofulido: factNvv.kofulido,
+      nombre_vendedor: factNvv.nombre_vendedor,
+      total: countDistinct(factNvv.idmaeedo),
+      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
+      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      montoTotal: sum(factNvv.monto),
+      montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
+      montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+    }).from(factNvv);
+
+    const conditions = [];
+    
+    if (filters?.startDate) {
+      conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factNvv.feemdo} <= ${filters.endDate}`);
+    }
+    if (filters?.sucursales && filters.sucursales.length > 0) {
+      conditions.push(inArray(factNvv.sudo, filters.sucursales));
+    }
+    if (filters?.vendedores && filters.vendedores.length > 0) {
+      conditions.push(inArray(factNvv.kofulido, filters.vendedores));
+    }
+    if (filters?.bodegas && filters.bodegas.length > 0) {
+      conditions.push(inArray(factNvv.bosulido, filters.bodegas));
+    }
+    if (filters?.estado === 'open') {
+      conditions.push(sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`);
+    } else if (filters?.estado === 'closed') {
+      conditions.push(sql`${factNvv.eslido} = 'C'`);
+    }
+    if (filters?.pendingOnly) {
+      conditions.push(eq(factNvv.cantidad_pendiente, true));
+    }
+    if (filters?.minAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
+    }
+    if (filters?.maxAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} <= ${filters.maxAmount}`);
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const result = await query.groupBy(factNvv.kofulido, factNvv.nombre_vendedor);
+
+    return result.map(row => ({
+      kofulido: String(row.kofulido || ''),
+      nombre_vendedor: String(row.nombre_vendedor || ''),
+      totalNvv: Number(row.total || 0),
+      abiertas: Number(row.abiertas || 0),
+      cerradas: Number(row.cerradas || 0),
+      pendientes: Number(row.pendientes || 0),
+      montoTotal: Number(row.montoTotal || 0),
+      montoAbiertas: Number(row.montoAbiertas || 0),
+      montoCerradas: Number(row.montoCerradas || 0),
+      montoPendientes: Number(row.montoPendientes || 0),
+    }));
+  }
+
+  async getNvvByBodega(filters?: NvvFilters): Promise<Array<{
+    bosulido: string;
+    nombre_bodega: string;
+    totalNvv: number;
+    abiertas: number;
+    cerradas: number;
+    pendientes: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+    montoPendientes: number;
+  }>> {
+    let query = db.select({
+      bosulido: factNvv.bosulido,
+      nombre_bodega: factNvv.nombre_bodega,
+      total: countDistinct(factNvv.idmaeedo),
+      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.idmaeedo} END)`,
+      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.idmaeedo} END)`,
+      pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.idmaeedo} END)`,
+      montoTotal: sum(factNvv.monto),
+      montoAbiertas: sql<number>`SUM(CASE WHEN (${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '') THEN ${factNvv.monto} ELSE 0 END)`,
+      montoCerradas: sql<number>`SUM(CASE WHEN ${factNvv.eslido} = 'C' THEN ${factNvv.monto} ELSE 0 END)`,
+      montoPendientes: sql<number>`SUM(CASE WHEN ${factNvv.cantidad_pendiente} = true THEN ${factNvv.monto} ELSE 0 END)`,
+    }).from(factNvv);
+
+    const conditions = [];
+    
+    if (filters?.startDate) {
+      conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factNvv.feemdo} <= ${filters.endDate}`);
+    }
+    if (filters?.sucursales && filters.sucursales.length > 0) {
+      conditions.push(inArray(factNvv.sudo, filters.sucursales));
+    }
+    if (filters?.vendedores && filters.vendedores.length > 0) {
+      conditions.push(inArray(factNvv.kofulido, filters.vendedores));
+    }
+    if (filters?.bodegas && filters.bodegas.length > 0) {
+      conditions.push(inArray(factNvv.bosulido, filters.bodegas));
+    }
+    if (filters?.estado === 'open') {
+      conditions.push(sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`);
+    } else if (filters?.estado === 'closed') {
+      conditions.push(sql`${factNvv.eslido} = 'C'`);
+    }
+    if (filters?.pendingOnly) {
+      conditions.push(eq(factNvv.cantidad_pendiente, true));
+    }
+    if (filters?.minAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
+    }
+    if (filters?.maxAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} <= ${filters.maxAmount}`);
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const result = await query.groupBy(factNvv.bosulido, factNvv.nombre_bodega);
+
+    return result.map(row => ({
+      bosulido: String(row.bosulido || ''),
+      nombre_bodega: String(row.nombre_bodega || ''),
+      totalNvv: Number(row.total || 0),
+      abiertas: Number(row.abiertas || 0),
+      cerradas: Number(row.cerradas || 0),
+      pendientes: Number(row.pendientes || 0),
+      montoTotal: Number(row.montoTotal || 0),
+      montoAbiertas: Number(row.montoAbiertas || 0),
+      montoCerradas: Number(row.montoCerradas || 0),
+      montoPendientes: Number(row.montoPendientes || 0),
+    }));
+  }
+
+  async getNvvDocuments(filters?: NvvFilters & {
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    documents: Array<{
+      nudo: string;
+      feemdo: Date | null;
+      sudo: string;
+      nosudo: string;
+      nokoen: string | null;
+      kofulido: string | null;
+      nombre_vendedor: string | null;
+      bosulido: string | null;
+      nombre_bodega: string | null;
+      eslido: string | null;
+      monto: number;
+      cantidad_pendiente: boolean;
+    }>;
+    total: number;
+  }> {
+    const conditions = [];
+    
+    if (filters?.startDate) {
+      conditions.push(sql`${factNvv.feemdo} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factNvv.feemdo} <= ${filters.endDate}`);
+    }
+    if (filters?.sucursales && filters.sucursales.length > 0) {
+      conditions.push(inArray(factNvv.sudo, filters.sucursales));
+    }
+    if (filters?.vendedores && filters.vendedores.length > 0) {
+      conditions.push(inArray(factNvv.kofulido, filters.vendedores));
+    }
+    if (filters?.bodegas && filters.bodegas.length > 0) {
+      conditions.push(inArray(factNvv.bosulido, filters.bodegas));
+    }
+    if (filters?.estado === 'open') {
+      conditions.push(sql`(${factNvv.eslido} IS NULL OR ${factNvv.eslido} = '')`);
+    } else if (filters?.estado === 'closed') {
+      conditions.push(sql`${factNvv.eslido} = 'C'`);
+    }
+    if (filters?.pendingOnly) {
+      conditions.push(eq(factNvv.cantidad_pendiente, true));
+    }
+    if (filters?.minAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} >= ${filters.minAmount}`);
+    }
+    if (filters?.maxAmount !== undefined) {
+      conditions.push(sql`${factNvv.monto} <= ${filters.maxAmount}`);
+    }
+
+    // Count total
+    let countQuery = db.select({ count: sql<number>`COUNT(DISTINCT ${factNvv.idmaeedo})` }).from(factNvv);
+    if (conditions.length > 0) {
+      countQuery = countQuery.where(and(...conditions));
+    }
+    const countResult = await countQuery;
+    const total = Number(countResult[0]?.count || 0);
+
+    // Get documents
+    let docsQuery = db.select({
+      nudo: factNvv.nudo,
+      feemdo: factNvv.feemdo,
+      sudo: factNvv.sudo,
+      nosudo: factNvv.nosudo,
+      nokoen: factNvv.nokoen,
+      kofulido: factNvv.kofulido,
+      nombre_vendedor: factNvv.nombre_vendedor,
+      bosulido: factNvv.bosulido,
+      nombre_bodega: factNvv.nombre_bodega,
+      eslido: factNvv.eslido,
+      monto: factNvv.monto,
+      cantidad_pendiente: factNvv.cantidad_pendiente,
+    }).from(factNvv);
+
+    if (conditions.length > 0) {
+      docsQuery = docsQuery.where(and(...conditions));
+    }
+
+    docsQuery = docsQuery.orderBy(desc(factNvv.feemdo), desc(factNvv.nudo));
+
+    if (filters?.limit) {
+      docsQuery = docsQuery.limit(filters.limit);
+    }
+    if (filters?.offset) {
+      docsQuery = docsQuery.offset(filters.offset);
+    }
+
+    const documents = await docsQuery;
+
+    return {
+      documents: documents.map(doc => ({
+        nudo: String(doc.nudo || ''),
+        feemdo: doc.feemdo,
+        sudo: String(doc.sudo || ''),
+        nosudo: String(doc.nosudo || ''),
+        nokoen: doc.nokoen,
+        kofulido: doc.kofulido,
+        nombre_vendedor: doc.nombre_vendedor,
+        bosulido: doc.bosulido,
+        nombre_bodega: doc.nombre_bodega,
+        eslido: doc.eslido,
+        monto: Number(doc.monto || 0),
+        cantidad_pendiente: doc.cantidad_pendiente || false,
+      })),
+      total,
+    };
   }
 
 }
