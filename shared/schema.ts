@@ -3850,9 +3850,9 @@ export const insertGastoMaterialMantencionSchema = createInsertSchema(gastosMate
   costoTotal: z.union([z.string(), z.number()]).transform((val) => 
     typeof val === 'string' ? val : val.toString()
   ),
-  otId: z.string().nullable().optional(),
-  proveedorId: z.string().nullable().optional(),
-  area: z.string().nullable().optional(),
+  otId: z.union([z.string(), z.null()]).optional(),
+  proveedorId: z.union([z.string(), z.null()]).optional(),
+  area: z.union([z.string(), z.null()]).optional(),
 });
 
 // Planes Preventivos
