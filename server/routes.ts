@@ -36,6 +36,7 @@ import {
 import { eq, and, isNotNull, ne, sql, desc, or, sum, countDistinct } from "drizzle-orm";
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
+import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
 import * as NotifyHelper from "./notifications-helper";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
@@ -11507,6 +11508,108 @@ export function registerRoutes(app: Express): Server {
       res.json({ watermark });
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener watermark de sincronización', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // GDV ETL SYNCHRONIZATION routes
+  // ==================================================================================
+
+  // Sync GDV from ERP to PostgreSQL
+  app.post('/api/etl/sync-gdv', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!user || !user.id || !user.email) {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+
+      console.log(`📦 Starting GDV ETL sync requested by ${user.email}`);
+      
+      const result = await executeGDVETL();
+      
+      if (!result.success) {
+        return res.status(500).json({
+          message: 'Error al sincronizar GDV desde ERP',
+          error: result.error,
+          ...result,
+        });
+      }
+
+      res.json({
+        message: 'Sincronización de GDV completada exitosamente',
+        ...result,
+      });
+    } catch (error: any) {
+      console.error('Error in GDV sync endpoint:', error);
+      res.status(500).json({ message: 'Error al sincronizar GDV', error: error.message });
+    }
+  }));
+
+  // Get GDV sync history
+  app.get('/api/etl/sync-gdv/history', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate and clamp limit/offset
+      let limit = 20;
+      let offset = 0;
+
+      if (req.query.limit) {
+        const parsedLimit = parseInt(req.query.limit as string);
+        if (isNaN(parsedLimit) || parsedLimit < 1) {
+          return res.status(400).json({ message: 'El parámetro limit debe ser un número positivo' });
+        }
+        limit = Math.min(parsedLimit, 100); // Cap at 100
+      }
+
+      if (req.query.offset) {
+        const parsedOffset = parseInt(req.query.offset as string);
+        if (isNaN(parsedOffset) || parsedOffset < 0) {
+          return res.status(400).json({ message: 'El parámetro offset debe ser un número no negativo' });
+        }
+        offset = parsedOffset;
+      }
+
+      const history = await storage.getGdvSyncHistory(limit, offset);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener historial de sincronización de GDV', error: error.message });
+    }
+  }));
+
+  // Get GDV summary (totales por estado)
+  app.get('/api/etl/gdv/summary', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Normalize sucursales: handle both comma-delimited strings and repeated query params
+      let sucursales: string[] | undefined = undefined;
+      if (req.query.sucursales) {
+        const raw = req.query.sucursales;
+        const values = Array.isArray(raw) ? raw : raw.split(',');
+        const filtered = values.map((v: string) => v.trim()).filter((v: string) => v !== '');
+        sucursales = filtered.length > 0 ? filtered : undefined;
+      }
+
+      const filters = {
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        sucursales,
+      };
+      const summary = await storage.getGdvSummary(filters);
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener resumen de GDV', error: error.message });
+    }
+  }));
+
+  // Get GDV by sucursal
+  app.get('/api/etl/gdv/by-sucursal', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const filters = {
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+      };
+      const metrics = await storage.getGdvBySucursal(filters);
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener métricas de GDV por sucursal', error: error.message });
     }
   }));
 
