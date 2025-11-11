@@ -357,7 +357,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     const maeddo = { recordset: allMaeddo };
     console.log(`   ✅ ${maeddo.recordset.length} líneas de detalle encontradas`);
 
-    // Cargar MAEDDO a staging - INCLUYE KOFULIDO DEL DETALLE Y CAMPOS DE CANTIDAD
+    // Cargar MAEDDO a staging - INCLUYE KOFULIDO DEL DETALLE, CAMPOS DE CANTIDAD Y ESLIDO
     const maeddo_records = maeddo.recordset.map(row => ({
       idmaeddo: cleanNumeric(row.IDMAEDDO),
       idmaeedo: cleanNumeric(row.IDMAEEDO),
@@ -370,6 +370,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
       caprad2: cleanNumeric(row.CAPRAD2),
       caprnc1: cleanNumeric(row.CAPRNC1),
       caprnc2: cleanNumeric(row.CAPRNC2),
+      eslido: row.ESLIDO?.trim() || null, // CAMPO CRÍTICO: Estado de línea ('C' = cerrado, '' = abierto)
       preuni: cleanNumeric(row.PREUNI),
       vaneli: cleanNumeric(row.VANELI),
       feemli: row.FEEMLI || null,
@@ -594,7 +595,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
           vaneli, feemli, feerli,
           devol1, devol2, stockfis, ocdo,
           nokoprct, nosudo, nokofu, nobosuli, nokoen, noruen,
-          monto, cantidad_pendiente, last_etl_sync, data_source
+          monto, eslido, cantidad_pendiente, last_etl_sync, data_source
         )
         SELECT 
           dd.idmaeddo,
@@ -641,10 +642,14 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
           en.nokoen,
           ru.nokoru as noruen,
           dd.vaneli as monto,
-          -- Calcular si tiene cantidad pendiente de despacho
+          dd.eslido,
+          -- Calcular si tiene cantidad pendiente de despacho (CRITERIO CORRECTO)
+          -- Solo si: (1) tiene cantidades pendientes Y (2) la línea NO está cerrada
           CASE 
-            WHEN ((COALESCE(dd.caprco1, 0) - COALESCE(dd.caprad1, 0) - COALESCE(dd.caprnc1, 0)) > 0) OR
-                 ((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprad2, 0) - COALESCE(dd.caprnc2, 0)) > 0)
+            WHEN (
+              ((COALESCE(dd.caprco1, 0) - COALESCE(dd.caprad1, 0) - COALESCE(dd.caprnc1, 0)) > 0) OR
+              ((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprad2, 0) - COALESCE(dd.caprnc2, 0)) > 0)
+            ) AND (dd.eslido IS NULL OR dd.eslido = '')
             THEN TRUE
             ELSE FALSE
           END as cantidad_pendiente,
