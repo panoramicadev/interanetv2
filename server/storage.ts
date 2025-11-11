@@ -219,6 +219,11 @@ import {
   type InsertInventorySyncLog,
   // Sales ETL system
   salesEtlSyncLog,
+  // GDV ETL system
+  factGdv,
+  gdvSyncLog,
+  type FactGdv,
+  type GdvSyncLog,
   // Notifications system
   notifications,
   notificationReads,
