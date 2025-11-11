@@ -48,7 +48,10 @@ import {
   Download,
   ChevronDown,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Package,
+  DollarSign,
+  Building2
 } from "lucide-react";
 import { formatDistanceToNow, format, subDays } from "date-fns";
 import { es } from "date-fns/locale";
@@ -99,14 +102,13 @@ const ETL_CONFIGS = [
     icon: TrendingUp,
     color: 'blue',
   },
-  // Aquí se pueden agregar más ETLs en el futuro
-  // {
-  //   id: 'compras_incremental',
-  //   name: 'Compras Incremental',
-  //   description: 'ETL incremental de compras desde SQL Server',
-  //   icon: ShoppingCart,
-  //   color: 'green',
-  // },
+  {
+    id: 'gdv',
+    name: 'GDV',
+    description: 'Monitoreo de Guías de Despacho de Venta (sucursales 004, 006, 007)',
+    icon: Package,
+    color: 'purple',
+  },
 ];
 
 export default function ETLMonitor() {
