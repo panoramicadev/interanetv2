@@ -37,6 +37,7 @@ import { eq, and, isNotNull, ne, sql, desc, or, sum, countDistinct } from "drizz
 import { emailService } from "./services/email";
 import { executeIncrementalETL, getETLStatus, updateETLConfig, etlProgressEmitter, sqlServerBreaker } from "./etl-incremental";
 import { executeGDVETL, gdvEtlProgressEmitter, gdvSqlServerBreaker } from "./etl-gdv";
+import { executeNVVETL, nvvEtlProgressEmitter, nvvSqlServerBreaker } from "./etl-nvv";
 import * as NotifyHelper from "./notifications-helper";
 
 // Date parsing utility function - handles DD/MM/YYYY and DD-MM-YYYY formats
@@ -11563,6 +11564,240 @@ export function registerRoutes(app: Express): Server {
       res.json(metrics);
     } catch (error: any) {
       res.status(500).json({ message: 'Error al obtener métricas de GDV por sucursal', error: error.message });
+    }
+  }));
+
+  // ==================================================================================
+  // NVV ETL SYNCHRONIZATION routes
+  // ==================================================================================
+
+  // Sync NVV from ERP to PostgreSQL
+  app.post('/api/etl/sync-nvv', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      const user = req.user;
+      if (!user || !user.id || !user.email) {
+        return res.status(401).json({ message: 'Usuario no autenticado' });
+      }
+
+      console.log(`📦 Starting NVV ETL sync requested by ${user.email}`);
+      
+      const result = await executeNVVETL();
+      
+      if (!result.success) {
+        return res.status(500).json({
+          message: 'Error al sincronizar NVV desde ERP',
+          error: result.error,
+          ...result,
+        });
+      }
+
+      res.json({
+        message: 'Sincronización de NVV completada exitosamente',
+        ...result,
+      });
+    } catch (error: any) {
+      console.error('Error in NVV sync endpoint:', error);
+      res.status(500).json({ message: 'Error al sincronizar NVV', error: error.message });
+    }
+  }));
+
+  // Get NVV sync history
+  app.get('/api/etl/sync-nvv/history', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Validate and clamp limit/offset
+      let limit = 20;
+      let offset = 0;
+
+      if (req.query.limit) {
+        const parsedLimit = parseInt(req.query.limit as string);
+        if (isNaN(parsedLimit) || parsedLimit < 1) {
+          return res.status(400).json({ message: 'El parámetro limit debe ser un número positivo' });
+        }
+        limit = Math.min(parsedLimit, 100); // Cap at 100
+      }
+
+      if (req.query.offset) {
+        const parsedOffset = parseInt(req.query.offset as string);
+        if (isNaN(parsedOffset) || parsedOffset < 0) {
+          return res.status(400).json({ message: 'El parámetro offset debe ser un número no negativo' });
+        }
+        offset = parsedOffset;
+      }
+
+      const history = await storage.getNvvSyncHistory(limit, offset);
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener historial de sincronización de NVV', error: error.message });
+    }
+  }));
+
+  // Get NVV summary (totales por estado)
+  app.get('/api/etl/nvv/summary', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Normalize array query params
+      const normalizeArray = (raw: any): string[] | undefined => {
+        if (!raw) return undefined;
+        const values = Array.isArray(raw) ? raw : raw.split(',');
+        const filtered = values.map((v: string) => v.trim()).filter((v: string) => v !== '');
+        return filtered.length > 0 ? filtered : undefined;
+      };
+
+      const filters = {
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        sucursales: normalizeArray(req.query.sucursales),
+        vendedores: normalizeArray(req.query.vendedores),
+        bodegas: normalizeArray(req.query.bodegas),
+        estado: req.query.estado as 'open' | 'closed' | undefined,
+        pendingOnly: req.query.pendingOnly === 'true',
+        minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
+        maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
+      };
+      
+      const summary = await storage.getNvvSummary(filters);
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener resumen de NVV', error: error.message });
+    }
+  }));
+
+  // Get NVV by sucursal
+  app.get('/api/etl/nvv/by-sucursal', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Normalize array query params
+      const normalizeArray = (raw: any): string[] | undefined => {
+        if (!raw) return undefined;
+        const values = Array.isArray(raw) ? raw : raw.split(',');
+        const filtered = values.map((v: string) => v.trim()).filter((v: string) => v !== '');
+        return filtered.length > 0 ? filtered : undefined;
+      };
+
+      const filters = {
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        sucursales: normalizeArray(req.query.sucursales),
+        vendedores: normalizeArray(req.query.vendedores),
+        bodegas: normalizeArray(req.query.bodegas),
+        estado: req.query.estado as 'open' | 'closed' | undefined,
+        pendingOnly: req.query.pendingOnly === 'true',
+        minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
+        maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
+      };
+      
+      const metrics = await storage.getNvvBySucursal(filters);
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener métricas de NVV por sucursal', error: error.message });
+    }
+  }));
+
+  // Get NVV by vendedor
+  app.get('/api/etl/nvv/by-vendedor', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Normalize array query params
+      const normalizeArray = (raw: any): string[] | undefined => {
+        if (!raw) return undefined;
+        const values = Array.isArray(raw) ? raw : raw.split(',');
+        const filtered = values.map((v: string) => v.trim()).filter((v: string) => v !== '');
+        return filtered.length > 0 ? filtered : undefined;
+      };
+
+      const filters = {
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        sucursales: normalizeArray(req.query.sucursales),
+        vendedores: normalizeArray(req.query.vendedores),
+        bodegas: normalizeArray(req.query.bodegas),
+        estado: req.query.estado as 'open' | 'closed' | undefined,
+        pendingOnly: req.query.pendingOnly === 'true',
+        minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
+        maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
+      };
+      
+      const metrics = await storage.getNvvByVendedor(filters);
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener métricas de NVV por vendedor', error: error.message });
+    }
+  }));
+
+  // Get NVV by bodega
+  app.get('/api/etl/nvv/by-bodega', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Normalize array query params
+      const normalizeArray = (raw: any): string[] | undefined => {
+        if (!raw) return undefined;
+        const values = Array.isArray(raw) ? raw : raw.split(',');
+        const filtered = values.map((v: string) => v.trim()).filter((v: string) => v !== '');
+        return filtered.length > 0 ? filtered : undefined;
+      };
+
+      const filters = {
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        sucursales: normalizeArray(req.query.sucursales),
+        vendedores: normalizeArray(req.query.vendedores),
+        bodegas: normalizeArray(req.query.bodegas),
+        estado: req.query.estado as 'open' | 'closed' | undefined,
+        pendingOnly: req.query.pendingOnly === 'true',
+        minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
+        maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
+      };
+      
+      const metrics = await storage.getNvvByBodega(filters);
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener métricas de NVV por bodega', error: error.message });
+    }
+  }));
+
+  // Get NVV documents (paginated list)
+  app.get('/api/etl/nvv/documents', requireRoles(['admin', 'supervisor']), asyncHandler(async (req: any, res: any) => {
+    try {
+      // Normalize array query params
+      const normalizeArray = (raw: any): string[] | undefined => {
+        if (!raw) return undefined;
+        const values = Array.isArray(raw) ? raw : raw.split(',');
+        const filtered = values.map((v: string) => v.trim()).filter((v: string) => v !== '');
+        return filtered.length > 0 ? filtered : undefined;
+      };
+
+      // Pagination
+      let page = 1;
+      let pageSize = 20;
+
+      if (req.query.page) {
+        const parsedPage = parseInt(req.query.page as string);
+        if (isNaN(parsedPage) || parsedPage < 1) {
+          return res.status(400).json({ message: 'El parámetro page debe ser un número positivo' });
+        }
+        page = parsedPage;
+      }
+
+      if (req.query.pageSize) {
+        const parsedPageSize = parseInt(req.query.pageSize as string);
+        if (isNaN(parsedPageSize) || parsedPageSize < 1) {
+          return res.status(400).json({ message: 'El parámetro pageSize debe ser un número positivo' });
+        }
+        pageSize = Math.min(parsedPageSize, 100); // Cap at 100
+      }
+
+      const filters = {
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        sucursales: normalizeArray(req.query.sucursales),
+        vendedores: normalizeArray(req.query.vendedores),
+        bodegas: normalizeArray(req.query.bodegas),
+        estado: req.query.estado as 'open' | 'closed' | undefined,
+        pendingOnly: req.query.pendingOnly === 'true',
+        minAmount: req.query.minAmount ? parseFloat(req.query.minAmount as string) : undefined,
+        maxAmount: req.query.maxAmount ? parseFloat(req.query.maxAmount as string) : undefined,
+      };
+
+      const result = await storage.getNvvDocuments(filters, { page, pageSize });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Error al obtener documentos NVV', error: error.message });
     }
   }));
 

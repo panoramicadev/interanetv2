@@ -4734,6 +4734,26 @@ export const factNvv = nvvSchema.table("fact_nvv", {
 export type FactNvv = typeof factNvv.$inferSelect;
 export type InsertFactNvv = typeof factNvv.$inferInsert;
 
+// ===== NVV SYNC LOG =====
+
+export const nvvSyncLog = nvvSchema.table("nvv_sync_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  executionDate: timestamp("execution_date").notNull().defaultNow(),
+  status: varchar("status", { length: 20 }).notNull(), // success, failed, running
+  period: varchar("period", { length: 100 }).notNull(), // Descripción del período
+  branches: text("branches").notNull().default('Todas'), // Sucursales NVV (todas por defecto)
+  recordsProcessed: integer("records_processed"),
+  recordsInserted: integer("records_inserted"), // Nuevos documentos
+  recordsUpdated: integer("records_updated"), // Documentos actualizados
+  statusChanges: integer("status_changes"), // Cuántos documentos cambiaron de estado
+  executionTimeMs: integer("execution_time_ms"),
+  errorMessage: text("error_message"),
+  watermarkDate: timestamp("watermark_date"), // Última fecha procesada
+});
+
+export type NvvSyncLog = typeof nvvSyncLog.$inferSelect;
+export type InsertNvvSyncLog = typeof nvvSyncLog.$inferInsert;
+
 // ===== TABLAS DE STAGING PARA ETL NVV =====
 
 // Staging: MAEEDO (Encabezado de documentos NVV)
@@ -4842,30 +4862,13 @@ export const stgTabruNvv = nvvSchema.table("stg_tabru_nvv", {
 });
 
 export const stgTabboNvv = nvvSchema.table("stg_tabbo_nvv", {
-  kobo: text("kobo").primaryKey(),
-  nokobo: text("nokobo"),
+  suli: text("suli"),
+  bosuli: text("bosuli"),
+  nobosuli: text("nobosuli"),
   created_at: timestamp("created_at").defaultNow(),
-});
-
-// ===== TABLA DE LOG DE SINCRONIZACIÓN NVV =====
-export const nvvSyncLog = nvvSchema.table("nvv_sync_log", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  start_time: timestamp("start_time").notNull(),
-  end_time: timestamp("end_time"),
-  status: varchar("status", { length: 20 }), // 'running', 'completed', 'failed'
-  records_processed: integer("records_processed"),
-  records_inserted: integer("records_inserted"),
-  records_updated: integer("records_updated"),
-  status_changes: integer("status_changes"),
-  execution_time_ms: integer("execution_time_ms"),
-  watermark_date: date("watermark_date"),
-  error_message: text("error_message"),
-  created_at: timestamp("created_at").defaultNow(),
-});
-
-// Types para nvvSyncLog
-export type NvvSyncLog = typeof nvvSyncLog.$inferSelect;
-export type InsertNvvSyncLog = typeof nvvSyncLog.$inferInsert;
+}, (table) => ({
+  pk: primaryKey({ columns: [table.suli, table.bosuli] }),
+}));
 
 // ===== CRM PIPELINE SYSTEM =====
 
