@@ -519,7 +519,11 @@ export default function CMmsPresupuesto() {
                 <TableBody>
                   {MESES.map((mes, idx) => {
                     const mesNum = idx + 1;
-                    const presupuesto = presupuestos?.find(p => p.mes === mesNum);
+                    const presupuesto = presupuestos?.find(p => 
+                      p.mes === mesNum && 
+                      p.anio === Number(selectedYear) &&
+                      (selectedArea === 'global' ? !p.area : p.area === selectedArea)
+                    );
                     const asignado = getPresupuestoAsignado(mesNum);
                     const ejecutado = getPresupuestoEjecutado(mesNum);
                     const desvio = getDesvioPercentage(asignado.toString(), ejecutado.toString());
