@@ -125,6 +125,62 @@ interface GdvBySucursal {
   montoCerradas: number;
 }
 
+// NVV Interfaces
+interface NvvSyncLog {
+  id: string;
+  executionDate: string;
+  status: string;
+  recordsProcessed: number | null;
+  recordsInserted: number | null;
+  recordsUpdated: number | null;
+  statusChanges: number | null;
+  executionTimeMs: number | null;
+  errorMessage: string | null;
+}
+
+interface NvvSummary {
+  totalNvv: number;
+  totalAbiertas: number;
+  totalCerradas: number;
+  montoTotal: number;
+  montoAbiertas: number;
+  montoCerradas: number;
+}
+
+interface NvvBySucursal {
+  sucursal: string;
+  totalNvv: number;
+  abiertas: number;
+  cerradas: number;
+  montoTotal: number;
+  montoAbiertas: number;
+  montoCerradas: number;
+}
+
+interface NvvByVendedor {
+  sucursal: string;
+  kofulido: string;
+  nombreVendedor: string;
+  totalNvv: number;
+  abiertas: number;
+  cerradas: number;
+  montoTotal: number;
+  montoAbiertas: number;
+  montoCerradas: number;
+}
+
+interface NvvByBodega {
+  sucursal: string;
+  bosulido: string;
+  nombreBodega: string;
+  totalNvv: number;
+  abiertas: number;
+  cerradas: number;
+  montoTotal: number;
+  montoAbiertas: number;
+  montoCerradas: number;
+}
+
 // Configuración de ETLs disponibles
 const ETL_CONFIGS = [
   {
@@ -140,6 +196,13 @@ const ETL_CONFIGS = [
     description: 'Monitoreo de Guías de Despacho de Venta (sucursales 004, 006, 007)',
     icon: Package,
     color: 'purple',
+  },
+  {
+    id: 'nvv',
+    name: 'NVV',
+    description: 'Monitoreo de Notas de Venta pendientes',
+    icon: FileText,
+    color: 'orange',
   },
 ];
 
@@ -223,6 +286,8 @@ export default function ETLMonitor() {
           <TabsContent key={etl.id} value={etl.id} className="space-y-6 mt-6">
             {etl.id === 'gdv' ? (
               <GDVTabContent autoRefresh={autoRefresh} />
+            ) : etl.id === 'nvv' ? (
+              <NVVTabContent autoRefresh={autoRefresh} />
             ) : (
               <>
                 {/* Standard ETL Sections */}
@@ -1833,6 +1898,710 @@ function GDVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
                     {execution.statusChanges || 0}
                   </TableCell>
                   <TableCell className="text-right" data-testid={`text-gdv-duration-${execution.id}`}>
+                    {execution.executionTimeMs 
+                      ? `${(execution.executionTimeMs / 1000).toFixed(2)}s`
+                      : '-'
+                    }
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <p className="text-center py-8 text-muted-foreground">
+            No hay registros de sincronización
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ==================================================================================
+// NVV SECTIONS
+// ==================================================================================
+
+function NVVTabContent({ autoRefresh }: { autoRefresh: boolean }) {
+  const [startDate, setStartDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedSucursales, setSelectedSucursales] = useState<string[]>([]);
+  const [selectedVendedores, setSelectedVendedores] = useState<string[]>([]);
+  const [selectedBodegas, setSelectedBodegas] = useState<string[]>([]);
+  const [estado, setEstado] = useState<'abiertas' | 'cerradas' | 'todas'>('abiertas');
+  const [pendingOnly, setPendingOnly] = useState(true);
+
+  const buildFilters = () => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (selectedSucursales.length > 0) {
+      params.append('sucursales', selectedSucursales.join(','));
+    }
+    if (selectedVendedores.length > 0) {
+      params.append('vendedores', selectedVendedores.join(','));
+    }
+    if (selectedBodegas.length > 0) {
+      params.append('bodegas', selectedBodegas.join(','));
+    }
+    if (estado !== 'todas') {
+      params.append('estado', estado);
+    }
+    if (pendingOnly) params.append('pendingOnly', 'true');
+    return params.toString();
+  };
+
+  const toggleSucursal = (sucursal: string) => {
+    setSelectedSucursales(prev => 
+      prev.includes(sucursal) 
+        ? prev.filter(s => s !== sucursal)
+        : [...prev, sucursal]
+    );
+  };
+
+  const filterState = {
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    selectedSucursales,
+    toggleSucursal,
+    selectedVendedores,
+    setSelectedVendedores,
+    selectedBodegas,
+    setSelectedBodegas,
+    estado,
+    setEstado,
+    pendingOnly,
+    setPendingOnly,
+    buildFilters,
+  };
+
+  return (
+    <>
+      <NVVStatusSection autoRefresh={autoRefresh} filterState={filterState} />
+      <NVVMetricsSection autoRefresh={autoRefresh} filterState={filterState} />
+      <NVVHistorySection autoRefresh={autoRefresh} />
+    </>
+  );
+}
+
+function NVVStatusSection({ 
+  autoRefresh, 
+  filterState 
+}: { 
+  autoRefresh: boolean; 
+  filterState: {
+    startDate: string;
+    setStartDate: (date: string) => void;
+    endDate: string;
+    setEndDate: (date: string) => void;
+    selectedSucursales: string[];
+    toggleSucursal: (sucursal: string) => void;
+    selectedVendedores: string[];
+    setSelectedVendedores: (vendedores: string[]) => void;
+    selectedBodegas: string[];
+    setSelectedBodegas: (bodegas: string[]) => void;
+    estado: 'abiertas' | 'cerradas' | 'todas';
+    setEstado: (estado: 'abiertas' | 'cerradas' | 'todas') => void;
+    pendingOnly: boolean;
+    setPendingOnly: (value: boolean) => void;
+    buildFilters: () => string;
+  };
+}) {
+  const { toast } = useToast();
+  const { startDate, setStartDate, endDate, setEndDate, selectedSucursales, toggleSucursal, selectedVendedores, setSelectedVendedores, selectedBodegas, setSelectedBodegas, estado, setEstado, pendingOnly, setPendingOnly, buildFilters } = filterState;
+
+  const { data: summary, isLoading: summaryLoading } = useQuery<NvvSummary>({
+    queryKey: ['/api/etl/nvv/summary', startDate, endDate, selectedSucursales.join(','), selectedVendedores.join(','), selectedBodegas.join(','), estado, pendingOnly],
+    queryFn: async () => {
+      const filters = buildFilters();
+      const response = await fetch(`/api/etl/nvv/summary${filters ? `?${filters}` : ''}`);
+      if (!response.ok) throw new Error('Error al cargar resumen de NVV');
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  const executeMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/etl/sync-nvv', {
+        method: 'POST',
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "✅ ETL de NVV Ejecutado",
+        description: `Se procesaron ${data.recordsProcessed || 0} registros (${data.recordsInserted || 0} nuevos, ${data.recordsUpdated || 0} actualizados)`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/nvv/summary'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/nvv/by-sucursal'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/nvv/by-vendedor'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/nvv/by-bodega'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/etl/sync-nvv/history'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Error al ejecutar ETL de NVV",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Control de Sincronización NVV
+            </CardTitle>
+            <Button
+              onClick={() => executeMutation.mutate()}
+              disabled={executeMutation.isPending}
+              size="lg"
+              data-testid="button-execute-nvv-etl"
+            >
+              {executeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Ejecutando...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="h-5 w-5 mr-2" />
+                  Ejecutar ETL de NVV
+                </>
+              )}
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <Label htmlFor="nvv-startDate">Fecha Inicio</Label>
+              <Input
+                id="nvv-startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                data-testid="input-nvv-start-date"
+              />
+            </div>
+            <div>
+              <Label htmlFor="nvv-endDate">Fecha Fin</Label>
+              <Input
+                id="nvv-endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                data-testid="input-nvv-end-date"
+              />
+            </div>
+            <div>
+              <Label>Sucursales (opcional)</Label>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                {['004', '005', '006', '007'].map(sucursal => (
+                  <Button
+                    key={sucursal}
+                    variant={selectedSucursales.includes(sucursal) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleSucursal(sucursal)}
+                    data-testid={`button-nvv-sucursal-${sucursal}`}
+                  >
+                    {sucursal}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="nvv-estado">Estado</Label>
+              <div className="flex gap-2 mt-2">
+                {(['abiertas', 'cerradas', 'todas'] as const).map(est => (
+                  <Button
+                    key={est}
+                    variant={estado === est ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setEstado(est)}
+                    data-testid={`button-nvv-estado-${est}`}
+                  >
+                    {est.charAt(0).toUpperCase() + est.slice(1)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+              <Label htmlFor="nvv-vendedores">Vendedores (opcional, separados por coma)</Label>
+              <Input
+                id="nvv-vendedores"
+                type="text"
+                placeholder="Ej: V001,V002,V003"
+                value={selectedVendedores.join(',')}
+                onChange={(e) => {
+                  const value = e.target.value.trim();
+                  setSelectedVendedores(value ? value.split(',').map(v => v.trim()).filter(Boolean) : []);
+                }}
+                data-testid="input-nvv-vendedores"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Ingrese códigos de vendedores separados por coma
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="nvv-bodegas">Bodegas (opcional, separados por coma)</Label>
+              <Input
+                id="nvv-bodegas"
+                type="text"
+                placeholder="Ej: B01,B02,B03"
+                value={selectedBodegas.join(',')}
+                onChange={(e) => {
+                  const value = e.target.value.trim();
+                  setSelectedBodegas(value ? value.split(',').map(b => b.trim()).filter(Boolean) : []);
+                }}
+                data-testid="input-nvv-bodegas"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Ingrese códigos de bodegas separados por coma
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 mt-4">
+            <Checkbox
+              id="nvv-pendingOnly"
+              checked={pendingOnly}
+              onCheckedChange={(checked) => setPendingOnly(checked as boolean)}
+              data-testid="checkbox-nvv-pending-only"
+            />
+            <label
+              htmlFor="nvv-pendingOnly"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Solo documentos con cantidad pendiente (monto ≥ $1,000)
+            </label>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card data-testid="card-nvv-total">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total NVV</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {summaryLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <div className="space-y-1">
+                <div className="text-2xl font-bold" data-testid="text-nvv-total">
+                  {summary?.totalNvv || 0}
+                </div>
+                <div className="flex gap-2 text-xs">
+                  <Badge variant="default" data-testid="badge-nvv-abiertas">
+                    {summary?.totalAbiertas || 0} Abiertas
+                  </Badge>
+                  <Badge variant="secondary" data-testid="badge-nvv-cerradas">
+                    {summary?.totalCerradas || 0} Cerradas
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-nvv-monto-total">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monto Total</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {summaryLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <div className="space-y-1">
+                <div className="text-2xl font-bold" data-testid="text-nvv-monto-total">
+                  {formatCurrency(summary?.montoTotal || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Todas las NVV (abiertas + cerradas)
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card data-testid="card-nvv-montos-estado">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Montos por Estado</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {summaryLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Abiertas:</span>
+                  <span className="font-semibold" data-testid="text-nvv-monto-abiertas">
+                    {formatCurrency(summary?.montoAbiertas || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cerradas:</span>
+                  <span className="font-semibold" data-testid="text-nvv-monto-cerradas">
+                    {formatCurrency(summary?.montoCerradas || 0)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function NVVMetricsSection({ 
+  autoRefresh,
+  filterState
+}: { 
+  autoRefresh: boolean;
+  filterState: {
+    startDate: string;
+    setStartDate: (date: string) => void;
+    endDate: string;
+    setEndDate: (date: string) => void;
+    selectedSucursales: string[];
+    toggleSucursal: (sucursal: string) => void;
+    selectedVendedores: string[];
+    setSelectedVendedores: (vendedores: string[]) => void;
+    selectedBodegas: string[];
+    setSelectedBodegas: (bodegas: string[]) => void;
+    estado: 'abiertas' | 'cerradas' | 'todas';
+    setEstado: (estado: 'abiertas' | 'cerradas' | 'todas') => void;
+    pendingOnly: boolean;
+    setPendingOnly: (value: boolean) => void;
+    buildFilters: () => string;
+  };
+}) {
+  const { startDate, endDate, selectedSucursales, selectedVendedores, selectedBodegas, estado, pendingOnly, buildFilters } = filterState;
+  const [activeTab, setActiveTab] = useState('sucursal');
+
+  const { data: bySucursal, isLoading: loadingSucursal } = useQuery<NvvBySucursal[]>({
+    queryKey: ['/api/etl/nvv/by-sucursal', startDate, endDate, selectedSucursales.join(','), selectedVendedores.join(','), selectedBodegas.join(','), estado, pendingOnly],
+    queryFn: async () => {
+      const filters = buildFilters();
+      const response = await fetch(`/api/etl/nvv/by-sucursal${filters ? `?${filters}` : ''}`);
+      if (!response.ok) throw new Error('Error al cargar métricas por sucursal');
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+    enabled: activeTab === 'sucursal',
+  });
+
+  const { data: byVendedor, isLoading: loadingVendedor } = useQuery<NvvByVendedor[]>({
+    queryKey: ['/api/etl/nvv/by-vendedor', startDate, endDate, selectedSucursales.join(','), selectedVendedores.join(','), selectedBodegas.join(','), estado, pendingOnly],
+    queryFn: async () => {
+      const filters = buildFilters();
+      const response = await fetch(`/api/etl/nvv/by-vendedor${filters ? `?${filters}` : ''}`);
+      if (!response.ok) throw new Error('Error al cargar métricas por vendedor');
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+    enabled: activeTab === 'vendedor',
+  });
+
+  const { data: byBodega, isLoading: loadingBodega } = useQuery<NvvByBodega[]>({
+    queryKey: ['/api/etl/nvv/by-bodega', startDate, endDate, selectedSucursales.join(','), selectedVendedores.join(','), selectedBodegas.join(','), estado, pendingOnly],
+    queryFn: async () => {
+      const filters = buildFilters();
+      const response = await fetch(`/api/etl/nvv/by-bodega${filters ? `?${filters}` : ''}`);
+      if (!response.ok) throw new Error('Error al cargar métricas por bodega');
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+    enabled: activeTab === 'bodega',
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5" />
+          Métricas Detalladas
+        </CardTitle>
+        <CardDescription>
+          Análisis de NVV por sucursal, vendedor y bodega
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="sucursal" data-testid="tab-nvv-sucursal">
+              Por Sucursal
+            </TabsTrigger>
+            <TabsTrigger value="vendedor" data-testid="tab-nvv-vendedor">
+              Por Vendedor
+            </TabsTrigger>
+            <TabsTrigger value="bodega" data-testid="tab-nvv-bodega">
+              Por Bodega
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="sucursal" className="mt-4">
+            {loadingSucursal ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : bySucursal && bySucursal.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Sucursal</TableHead>
+                      <TableHead className="text-right">Total NVV</TableHead>
+                      <TableHead className="text-right">Abiertas</TableHead>
+                      <TableHead className="text-right">Cerradas</TableHead>
+                      <TableHead className="text-right">Monto Total</TableHead>
+                      <TableHead className="text-right">Monto Abiertas</TableHead>
+                      <TableHead className="text-right">Monto Cerradas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bySucursal.map((row) => (
+                      <TableRow key={row.sucursal} data-testid={`row-nvv-sucursal-${row.sucursal}`}>
+                        <TableCell className="font-medium">{row.sucursal}</TableCell>
+                        <TableCell className="text-right">{row.totalNvv}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="default">{row.abiertas}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary">{row.cerradas}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(row.montoTotal)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(row.montoAbiertas)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(row.montoCerradas)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">
+                No hay datos de NVV por sucursal para el periodo seleccionado
+              </p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="vendedor" className="mt-4">
+            {loadingVendedor ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : byVendedor && byVendedor.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Sucursal</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Vendedor</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Abiertas</TableHead>
+                      <TableHead className="text-right">Cerradas</TableHead>
+                      <TableHead className="text-right">Monto Abiertas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byVendedor.map((row, idx) => (
+                      <TableRow key={`${row.sucursal}-${row.kofulido}-${idx}`} data-testid={`row-nvv-vendedor-${row.kofulido}`}>
+                        <TableCell>{row.sucursal}</TableCell>
+                        <TableCell className="font-mono text-xs">{row.kofulido}</TableCell>
+                        <TableCell className="font-medium">{row.nombreVendedor}</TableCell>
+                        <TableCell className="text-right">{row.totalNvv}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="default">{row.abiertas}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary">{row.cerradas}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(row.montoAbiertas)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">
+                No hay datos de NVV por vendedor para el periodo seleccionado
+              </p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="bodega" className="mt-4">
+            {loadingBodega ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : byBodega && byBodega.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Sucursal</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Bodega</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Abiertas</TableHead>
+                      <TableHead className="text-right">Cerradas</TableHead>
+                      <TableHead className="text-right">Monto Abiertas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byBodega.map((row, idx) => (
+                      <TableRow key={`${row.sucursal}-${row.bosulido}-${idx}`} data-testid={`row-nvv-bodega-${row.bosulido}`}>
+                        <TableCell>{row.sucursal}</TableCell>
+                        <TableCell className="font-mono text-xs">{row.bosulido}</TableCell>
+                        <TableCell className="font-medium">{row.nombreBodega}</TableCell>
+                        <TableCell className="text-right">{row.totalNvv}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="default">{row.abiertas}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary">{row.cerradas}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(row.montoAbiertas)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">
+                No hay datos de NVV por bodega para el periodo seleccionado
+              </p>
+            )}
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NVVHistorySection({ autoRefresh }: { autoRefresh: boolean }) {
+  const { data: history, isLoading } = useQuery<NvvSyncLog[]>({
+    queryKey: ['/api/etl/sync-nvv/history'],
+    queryFn: async () => {
+      const response = await fetch('/api/etl/sync-nvv/history?limit=10');
+      if (!response.ok) throw new Error('Error al cargar historial de sincronización');
+      return response.json();
+    },
+    refetchInterval: autoRefresh ? 30000 : false,
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Calendar className="h-5 w-5" />
+          Historial de Sincronización
+        </CardTitle>
+        <CardDescription>
+          Últimas 10 ejecuciones del ETL de NVV
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : history && history.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Procesados</TableHead>
+                <TableHead className="text-right">Insertados</TableHead>
+                <TableHead className="text-right">Actualizados</TableHead>
+                <TableHead className="text-right">Cambios Estado</TableHead>
+                <TableHead className="text-right">Duración</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {history.map((execution) => (
+                <TableRow key={execution.id} data-testid={`row-nvv-history-${execution.id}`}>
+                  <TableCell data-testid={`text-nvv-date-${execution.id}`}>
+                    <div className="space-y-1">
+                      <div className="font-medium">
+                        {format(new Date(execution.executionDate), "dd MMM yyyy HH:mm", { locale: es })}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(execution.executionDate), { 
+                          addSuffix: true,
+                          locale: es 
+                        })}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell data-testid={`badge-nvv-status-${execution.id}`}>
+                    {execution.status === 'success' ? (
+                      <Badge variant="default" className="bg-green-600">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Exitoso
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Error
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-nvv-processed-${execution.id}`}>
+                    {execution.recordsProcessed || 0}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-nvv-inserted-${execution.id}`}>
+                    {execution.recordsInserted || 0}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-nvv-updated-${execution.id}`}>
+                    {execution.recordsUpdated || 0}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-nvv-status-changes-${execution.id}`}>
+                    {execution.statusChanges || 0}
+                  </TableCell>
+                  <TableCell className="text-right" data-testid={`text-nvv-duration-${execution.id}`}>
                     {execution.executionTimeMs 
                       ? `${(execution.executionTimeMs / 1000).toFixed(2)}s`
                       : '-'
