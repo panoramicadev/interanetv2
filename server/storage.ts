@@ -1670,6 +1670,33 @@ export interface IStorage {
   getProyeccionById(id: string): Promise<ProyeccionVenta | undefined>;
   
   deleteProyeccionVenta(id: string): Promise<void>;
+
+  // GDV ETL operations
+  getGdvSyncHistory(limit?: number, offset?: number): Promise<GdvSyncLog[]>;
+  getGdvSummary(filters?: {
+    startDate?: string;
+    endDate?: string;
+    sucursales?: string[];
+  }): Promise<{
+    totalGdv: number;
+    totalAbiertas: number;
+    totalCerradas: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+  }>;
+  getGdvBySucursal(filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Array<{
+    sucursal: string;
+    totalGdv: number;
+    abiertas: number;
+    cerradas: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -18699,6 +18726,115 @@ export class DatabaseStorage implements IStorage {
     }
     
     return kofulidoToNameMap;
+  }
+
+  // GDV ETL operations
+  async getGdvSyncHistory(limit: number = 20, offset: number = 0): Promise<GdvSyncLog[]> {
+    const history = await db
+      .select()
+      .from(gdvSyncLog)
+      .orderBy(desc(gdvSyncLog.executionDate))
+      .limit(limit)
+      .offset(offset);
+    
+    return history;
+  }
+
+  async getGdvSummary(filters?: {
+    startDate?: string;
+    endDate?: string;
+    sucursales?: string[];
+  }): Promise<{
+    totalGdv: number;
+    totalAbiertas: number;
+    totalCerradas: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+  }> {
+    let query = db.select({
+      total: countDistinct(factGdv.idmaeedo),
+      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.esdo} IS NULL OR ${factGdv.esdo} != 'C' THEN ${factGdv.idmaeedo} END)`,
+      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.esdo} = 'C' THEN ${factGdv.idmaeedo} END)`,
+      montoTotal: sum(factGdv.monto),
+      montoAbiertas: sql<number>`SUM(CASE WHEN ${factGdv.esdo} IS NULL OR ${factGdv.esdo} != 'C' THEN ${factGdv.monto} ELSE 0 END)`,
+      montoCerradas: sql<number>`SUM(CASE WHEN ${factGdv.esdo} = 'C' THEN ${factGdv.monto} ELSE 0 END)`,
+    }).from(factGdv);
+
+    const conditions = [];
+    
+    if (filters?.startDate) {
+      conditions.push(sql`${factGdv.feemdo} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factGdv.feemdo} <= ${filters.endDate}`);
+    }
+    if (filters?.sucursales && filters.sucursales.length > 0) {
+      conditions.push(inArray(factGdv.sudo, filters.sucursales.map(s => Number(s))));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const result = await query;
+    
+    return {
+      totalGdv: Number(result[0]?.total || 0),
+      totalAbiertas: Number(result[0]?.abiertas || 0),
+      totalCerradas: Number(result[0]?.cerradas || 0),
+      montoTotal: Number(result[0]?.montoTotal || 0),
+      montoAbiertas: Number(result[0]?.montoAbiertas || 0),
+      montoCerradas: Number(result[0]?.montoCerradas || 0),
+    };
+  }
+
+  async getGdvBySucursal(filters?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<Array<{
+    sucursal: string;
+    totalGdv: number;
+    abiertas: number;
+    cerradas: number;
+    montoTotal: number;
+    montoAbiertas: number;
+    montoCerradas: number;
+  }>> {
+    let query = db.select({
+      sucursal: factGdv.sudo,
+      total: countDistinct(factGdv.idmaeedo),
+      abiertas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.esdo} IS NULL OR ${factGdv.esdo} != 'C' THEN ${factGdv.idmaeedo} END)`,
+      cerradas: sql<number>`COUNT(DISTINCT CASE WHEN ${factGdv.esdo} = 'C' THEN ${factGdv.idmaeedo} END)`,
+      montoTotal: sum(factGdv.monto),
+      montoAbiertas: sql<number>`SUM(CASE WHEN ${factGdv.esdo} IS NULL OR ${factGdv.esdo} != 'C' THEN ${factGdv.monto} ELSE 0 END)`,
+      montoCerradas: sql<number>`SUM(CASE WHEN ${factGdv.esdo} = 'C' THEN ${factGdv.monto} ELSE 0 END)`,
+    }).from(factGdv);
+
+    const conditions = [];
+    
+    if (filters?.startDate) {
+      conditions.push(sql`${factGdv.feemdo} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${factGdv.feemdo} <= ${filters.endDate}`);
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    const result = await query.groupBy(factGdv.sudo);
+
+    return result.map(row => ({
+      sucursal: String(row.sucursal || ''),
+      totalGdv: Number(row.total || 0),
+      abiertas: Number(row.abiertas || 0),
+      cerradas: Number(row.cerradas || 0),
+      montoTotal: Number(row.montoTotal || 0),
+      montoAbiertas: Number(row.montoAbiertas || 0),
+      montoCerradas: Number(row.montoCerradas || 0),
+    }));
   }
 
 }

@@ -4421,6 +4421,130 @@ export type InsertFactVentas = typeof factVentas.$inferInsert;
 // Schema de validación para importación
 export const insertFactVentasSchema = createInsertSchema(factVentas);
 
+// ===== TABLA ESPECÍFICA DE GDV (Guías de Despacho) =====
+export const factGdv = ventasSchema.table("fact_gdv", {
+  idmaeddo: numeric("idmaeddo", { precision: 20, scale: 0 }).primaryKey(), // ID único de la línea (detalle)
+  idmaeedo: numeric("idmaeedo", { precision: 20, scale: 0 }), // ID del documento GDV (cabecera)
+  tido: text("tido"), // Siempre 'GDV'
+  nudo: numeric("nudo", { precision: 20, scale: 0 }), // Número de documento
+  endo: text("endo"), // Entidad
+  suendo: text("suendo"), // Sub-entidad
+  sudo: numeric("sudo", { precision: 20, scale: 0 }), // Sucursal (004, 006, 007)
+  feemdo: date("feemdo"), // Fecha de emisión
+  feulvedo: date("feulvedo"), // Fecha última venta
+  esdo: text("esdo"), // Estado: NULL (abierto) o 'C' (cerrado)
+  espgdo: text("espgdo"), // Estado de pago
+  kofudo: text("kofudo"), // Código vendedor
+  modo: text("modo"), // Moneda
+  timodo: text("timodo"), // Tipo de moneda
+  tamodo: numeric("tamodo", { precision: 18, scale: 6 }), // Tasa de cambio
+  caprad: numeric("caprad", { precision: 20, scale: 0 }),
+  caprex: numeric("caprex", { precision: 20, scale: 0 }),
+  vanedo: numeric("vanedo", { precision: 20, scale: 0 }),
+  vaivdo: numeric("vaivdo", { precision: 18, scale: 6 }),
+  vabrdo: numeric("vabrdo", { precision: 20, scale: 0 }),
+  lilg: text("lilg"), // Línea de negocio
+  nulido: numeric("nulido", { precision: 20, scale: 0 }),
+  sulido: numeric("sulido", { precision: 20, scale: 0 }),
+  luvtlido: numeric("luvtlido", { precision: 18, scale: 6 }),
+  bosulido: numeric("bosulido", { precision: 20, scale: 0 }),
+  kofulido: text("kofulido"), // Código vendedor línea
+  prct: boolean("prct"),
+  tict: numeric("tict", { precision: 18, scale: 6 }),
+  tipr: text("tipr"),
+  nusepr: numeric("nusepr", { precision: 18, scale: 6 }),
+  koprct: text("koprct"), // Código producto
+  udtrpr: numeric("udtrpr", { precision: 20, scale: 0 }),
+  rludpr: numeric("rludpr", { precision: 18, scale: 6 }),
+  caprco1: numeric("caprco1", { precision: 18, scale: 6 }),
+  caprad1: numeric("caprad1", { precision: 18, scale: 6 }),
+  caprex1: numeric("caprex1", { precision: 18, scale: 6 }),
+  caprnc1: numeric("caprnc1", { precision: 18, scale: 6 }),
+  ud01pr: text("ud01pr"),
+  caprco2: numeric("caprco2", { precision: 20, scale: 0 }), // Cantidad
+  caprad2: numeric("caprad2", { precision: 20, scale: 0 }),
+  caprex2: numeric("caprex2", { precision: 20, scale: 0 }),
+  caprnc2: numeric("caprnc2", { precision: 20, scale: 0 }),
+  ud02pr: text("ud02pr"),
+  ppprne: numeric("ppprne", { precision: 18, scale: 6 }),
+  ppprbr: numeric("ppprbr", { precision: 18, scale: 6 }),
+  vaneli: numeric("vaneli", { precision: 20, scale: 0 }),
+  vabrli: numeric("vabrli", { precision: 20, scale: 0 }),
+  feemli: date("feemli"), // Fecha línea
+  feerli: timestamp("feerli"),
+  ppprpm: numeric("ppprpm", { precision: 18, scale: 6 }),
+  ppprpmifrs: numeric("ppprpmifrs", { precision: 18, scale: 6 }),
+  logistica: numeric("logistica", { precision: 20, scale: 0 }),
+  eslido: text("eslido"),
+  ppprnere1: numeric("ppprnere1", { precision: 18, scale: 6 }),
+  ppprnere2: numeric("ppprnere2", { precision: 18, scale: 6 }),
+  fmpr: numeric("fmpr", { precision: 20, scale: 0 }),
+  mrpr: numeric("mrpr", { precision: 18, scale: 6 }),
+  zona: numeric("zona", { precision: 18, scale: 6 }),
+  ruen: numeric("ruen", { precision: 18, scale: 6 }),
+  recaprre: boolean("recaprre"),
+  pfpr: numeric("pfpr", { precision: 18, scale: 6 }),
+  hfpr: numeric("hfpr", { precision: 18, scale: 6 }),
+  monto: numeric("monto", { precision: 20, scale: 2 }), // Monto total
+  ocdo: text("ocdo"),
+  nokoprct: text("nokoprct"), // Nombre producto
+  nokozo: numeric("nokozo", { precision: 18, scale: 6 }),
+  nosudo: text("nosudo"), // Nombre sucursal
+  nokofu: text("nokofu"), // Nombre vendedor
+  nokofudo: text("nokofudo"),
+  nobosuli: text("nobosuli"), // Nombre bodega
+  nokoen: text("nokoen"), // Nombre cliente
+  noruen: text("noruen"), // Nombre segmento
+  nomrpr: numeric("nomrpr", { precision: 18, scale: 6 }),
+  nofmpr: text("nofmpr"),
+  nopfpr: text("nopfpr"),
+  nohfpr: text("nohfpr"),
+  devol1: numeric("devol1", { precision: 20, scale: 0 }),
+  devol2: numeric("devol2", { precision: 20, scale: 0 }),
+  stockfis: numeric("stockfis", { precision: 20, scale: 0 }),
+  listacost: numeric("listacost", { precision: 18, scale: 6 }),
+  liscosmod: numeric("liscosmod", { precision: 20, scale: 0 }),
+  
+  // ETL control fields
+  id: varchar("id").notNull().default(sql`gen_random_uuid()`).unique(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  dataSource: varchar("data_source", { length: 20 }).notNull().default('etl_gdv'),
+  lastEtlSync: timestamp("last_etl_sync"),
+}, (table) => ({
+  ixIdmaeedo: index("ix_fact_gdv_idmaeedo").on(table.idmaeedo), // Para agrupar líneas por documento
+  ixFeemdo: index("ix_fact_gdv_feemdo").on(table.feemdo),
+  ixEstado: index("ix_fact_gdv_esdo").on(table.esdo), // Para filtrar por estado
+  ixSucursal: index("ix_fact_gdv_sudo").on(table.sudo), // Para filtrar por sucursal
+  ixNokoen: index("ix_fact_gdv_nokoen").on(table.nokoen),
+  ixNokofu: index("ix_fact_gdv_nokofu").on(table.nokofu),
+  ixFeemli: index("ix_fact_gdv_feemli").on(table.feemli),
+}));
+
+// Types para fact_gdv
+export type FactGdv = typeof factGdv.$inferSelect;
+export type InsertFactGdv = typeof factGdv.$inferInsert;
+
+// ===== TABLA DE LOG DE SINCRONIZACIÓN GDV =====
+export const gdvSyncLog = ventasSchema.table("gdv_sync_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  executionDate: timestamp("execution_date").notNull().defaultNow(),
+  status: varchar("status", { length: 20 }).notNull(), // success, failed, running
+  period: varchar("period", { length: 100 }).notNull(), // Descripción del período
+  branches: text("branches").notNull().default('004,006,007'), // Sucursales GDV
+  recordsProcessed: integer("records_processed"),
+  recordsInserted: integer("records_inserted"), // Nuevos documentos
+  recordsUpdated: integer("records_updated"), // Documentos actualizados
+  statusChanges: integer("status_changes"), // Cuántos documentos cambiaron de estado
+  executionTimeMs: integer("execution_time_ms"),
+  errorMessage: text("error_message"),
+  watermarkDate: timestamp("watermark_date"), // Última fecha procesada
+});
+
+// Types para gdvSyncLog
+export type GdvSyncLog = typeof gdvSyncLog.$inferSelect;
+export type InsertGdvSyncLog = typeof gdvSyncLog.$inferInsert;
+
 // ===== CRM PIPELINE SYSTEM =====
 
 // CRM Leads - Pipeline de ventas
