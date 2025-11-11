@@ -38,8 +38,9 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     value?.years || [currentYear]
   );
   // Convert months from 1-12 to 0-11 for internal state
+  // Si es modo año completo (period === 'full-year'), inicializar con array vacío
   const [selectedMonths, setSelectedMonths] = useState<number[]>(
-    value?.months ? value.months.map(m => m - 1) : [currentMonth]
+    value?.period === 'full-year' ? [] : (value?.months ? value.months.map(m => m - 1) : [currentMonth])
   );
   const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
   const [firstDayClick, setFirstDayClick] = useState<number | null>(null);
@@ -56,10 +57,14 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         value,
         years: value?.years,
         months: value?.months,
+        period: value?.period,
         display: value?.display
       });
       setSelectedYears(value?.years || [currentYear]);
-      setSelectedMonths(value?.months ? value.months.map(m => m - 1) : [currentMonth]);
+      // Si es modo año completo, mantener meses vacíos
+      setSelectedMonths(
+        value?.period === 'full-year' ? [] : (value?.months ? value.months.map(m => m - 1) : [currentMonth])
+      );
       setSelectedDays(value?.days || []);
       setFirstDayClick(null); // Reset first day click
       appliedRef.current = false; // Reset applied flag
@@ -67,7 +72,10 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       // Cerrando el popover SIN aplicar - revertir a los valores del prop (o por defecto)
       console.log("📂 [YearMonthSelector] Revirtiendo cambios al cerrar sin aplicar (applied flag:", appliedRef.current, ")");
       setSelectedYears(value?.years || [currentYear]);
-      setSelectedMonths(value?.months ? value.months.map(m => m - 1) : [currentMonth]);
+      // Si es modo año completo, mantener meses vacíos
+      setSelectedMonths(
+        value?.period === 'full-year' ? [] : (value?.months ? value.months.map(m => m - 1) : [currentMonth])
+      );
       setSelectedDays(value?.days || []);
       setFirstDayClick(null); // Reset first day click
     } else if (!open && prevOpenRef.current && appliedRef.current) {
@@ -85,8 +93,16 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   };
 
   const handleMonthToggle = (monthIndex: number) => {
-    // CAMBIO: Seleccionar SOLO un mes a la vez, no toggle múltiple
-    setSelectedMonths([monthIndex]);
+    // Toggle multi-selección: agregar o remover mes
+    setSelectedMonths(prev => {
+      if (prev.includes(monthIndex)) {
+        // Remover mes
+        return prev.filter(m => m !== monthIndex);
+      } else {
+        // Agregar mes (mantener ordenados)
+        return [...prev, monthIndex].sort((a, b) => a - b);
+      }
+    });
     // Reset days and first day click when months change
     setSelectedDays([]);
     setFirstDayClick(null);
@@ -116,8 +132,8 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
     if (selectedYears.length === 0) return;
     
     const display = selectedYears.length === 1 
-      ? `${selectedYears[0]}`
-      : `${selectedYears.join(", ")}`;
+      ? `${selectedYears[0]} (año completo)`
+      : `${selectedYears.join(", ")} (año completo)`;
 
     appliedRef.current = true; // Mark as applied
     onChange({
@@ -130,7 +146,13 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   };
 
   const handleApplyMonths = () => {
-    if (selectedYears.length === 0 || selectedMonths.length === 0) return;
+    if (selectedYears.length === 0) return;
+
+    // Si no hay meses seleccionados, cambiar a modo año completo
+    if (selectedMonths.length === 0) {
+      handleApplyFullYear();
+      return;
+    }
 
     const monthNames = selectedMonths.map(idx => MONTHS[idx]);
     const monthsValue = selectedMonths.map(idx => idx + 1); // Convert to 1-12
@@ -234,7 +256,13 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         <div className="px-2.5 py-1.5 bg-gray-50 border-b">
           <h4 className="font-semibold text-xs">Selecciona período</h4>
           <p className="text-[10px] text-gray-500">
-            Elige años y luego un mes específico o año completo
+            {selectedMonths.length === 0 
+              ? "📅 Modo: Año completo"
+              : selectedMonths.length === 1 && selectedDays.length > 0
+              ? "📆 Modo: Días específicos"
+              : selectedMonths.length === 1
+              ? "📅 Modo: Mes específico (click en días para detallar)"
+              : "📅 Modo: Múltiples meses"}
           </p>
         </div>
 
