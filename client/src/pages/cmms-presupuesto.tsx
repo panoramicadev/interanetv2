@@ -302,7 +302,11 @@ export default function CMmsPresupuesto() {
 
   // Calculate presupuesto asignado = base + mantenciones aprobadas
   const getPresupuestoAsignado = (mes: number) => {
-    const presupuesto = presupuestos?.find(p => p.mes === mes);
+    const presupuesto = presupuestos?.find(p => 
+      p.mes === mes && 
+      p.anio === Number(selectedYear) &&
+      (selectedArea === 'global' ? !p.area : p.area === selectedArea)
+    );
     const base = presupuesto ? parseFloat(presupuesto.presupuestoAsignado) : 0;
     
     // Sumar mantenciones planificadas aprobadas del mes
@@ -315,7 +319,11 @@ export default function CMmsPresupuesto() {
 
   // Calculate presupuesto ejecutado = base + gastos materiales + mantenciones completadas
   const getPresupuestoEjecutado = (mes: number) => {
-    const presupuesto = presupuestos?.find(p => p.mes === mes);
+    const presupuesto = presupuestos?.find(p => 
+      p.mes === mes && 
+      p.anio === Number(selectedYear) &&
+      (selectedArea === 'global' ? !p.area : p.area === selectedArea)
+    );
     const base = presupuesto ? parseFloat(presupuesto.presupuestoEjecutado) : 0;
     
     // Sumar gastos de materiales del mes (usar UTC para evitar problemas de zona horaria)
