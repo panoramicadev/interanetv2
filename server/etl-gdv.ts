@@ -249,8 +249,7 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
     console.log('╚═══════════════════════════════════════════════════════════════╝');
     console.log(`🔍 TIDO = 'GDV'`);
     console.log(`🔍 SUDO IN: ${sucursales.join(', ')}`);
-    console.log(`🔍 YEAR(FEEMDO) >= 2025 (Solo GDV de 2025 en adelante)`);
-    console.log(`🔍 FEER >= '${startDateSQL}' (Fecha última actualización - CLAVE para detectar cambios)`);
+    console.log(`🔍 FEER >= '${startDateSQL}' (Fecha última actualización - detecta todos los cambios)`);
     console.log(`🔍 FEER <= '${endDateSQL}'`);
     console.log('');
     
@@ -260,7 +259,6 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
         FROM dbo.MAEEDO
         WHERE TIDO = 'GDV'
           AND SUDO IN (${sucursales.map(s => `'${s}'`).join(',')})
-          AND YEAR(FEEMDO) >= 2025
           AND FEER >= '${startDateSQL}'
           AND FEER <= '${endDateSQL}'
         ORDER BY FEER
