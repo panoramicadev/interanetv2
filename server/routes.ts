@@ -532,9 +532,19 @@ export function registerRoutes(app: Express): Server {
       const currentStartDate = (startDate as string) || dateRange.startDate;
       const currentEndDate = (endDate as string) || dateRange.endDate;
       
+      // Validate that we have valid dates before proceeding
+      if (!currentStartDate || !currentEndDate) {
+        return res.status(400).json({ message: "Missing required date parameters" });
+      }
+      
       // Calculate previous year dates - exactly same period but one year before (year-over-year comparison)
-      const currentStart = new Date(currentStartDate!);
-      const currentEnd = new Date(currentEndDate!);
+      const currentStart = new Date(currentStartDate);
+      const currentEnd = new Date(currentEndDate);
+      
+      // Validate that dates are valid
+      if (isNaN(currentStart.getTime()) || isNaN(currentEnd.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
       
       // Clone the dates and move them back by exactly one year
       const previousStart = new Date(currentStart);
