@@ -4751,6 +4751,11 @@ export const stgMaeedoNvv = nvvSchema.table("stg_maeedo_nvv", {
   tideve: text("tideve"),
   tidevefe: date("tidevefe"),
   tideveho: text("tideveho"),
+  // Campos para fallback de vendor/warehouse (cuando detalle no tiene)
+  empresa: text("empresa"),
+  kofudo: text("kofudo"), // Vendedor cabecera
+  suli: text("suli"), // Código bodega
+  bosulido: text("bosulido"), // Código bodega sucursal
   created_at: timestamp("created_at").defaultNow(),
 });
 

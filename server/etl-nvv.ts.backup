@@ -297,27 +297,33 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     }
 
     // Cargar MAEEDO a staging
-    const normalizeStatus = (value: any): string => (value || '').trim();
-    
     const maeedo_records = maeedo.recordset.map(row => ({
       idmaeedo: cleanNumeric(row.IDMAEEDO),
+      empresa: row.EMPRESA?.trim() || null,
       tido: row.TIDO?.trim() || null,
       nudo: row.NUDO?.trim() || null,
       endo: row.ENDO?.trim() || null,
       suendo: row.SUENDO?.trim() || null,
+      endofi: row.ENDOFI?.trim() || null,
+      tigedo: row.TIGEDO?.trim() || null,
       sudo: row.SUDO?.trim() || null,
+      luvtdo: row.LUVTDO?.trim() || null,
       feemdo: row.FEEMDO || null,
-      feer: row.FEER || null,
-      modo: row.MODO?.trim() || null,
-      timodo: row.TIMODO?.trim() || null,
-      tideve: row.TIDEVE?.trim() || null,
-      tidevefe: row.TIDEVEFE || null,
-      tideveho: row.TIDEVEHO?.trim() || null,
-      // Campos para fallback vendor/warehouse
-      empresa: row.EMPRESA?.trim() || null,
       kofudo: row.KOFUDO?.trim() || null,
+      esdo: row.ESDO?.trim() || null,
+      espgdo: row.ESPGDO?.trim() || null,
       suli: row.SULI?.trim() || null,
       bosulido: row.BOSULIDO?.trim() || null,
+      feer: row.FEER || null,
+      vanedo: cleanNumeric(row.VANEDO),
+      vaivdo: cleanNumeric(row.VAIVDO),
+      vabrdo: cleanNumeric(row.VABRDO),
+      lilg: row.LILG?.trim() || null,
+      modo: row.MODO?.trim() || null,
+      timodo: row.TIMODO?.trim() || null,
+      tamodo: cleanNumeric(row.TAMODO),
+      ocdo: row.OCDO?.trim() || null,
+      feulvedo: row.FEER || null,
     }));
     await batchInsert(stgMaeedoNvv, maeedo_records, 'stg_maeedo_nvv', logger);
     emitProgress(3, TOTAL_STEPS, 'Cargando MAEEDO a staging', `${maeedo_records.length} registros`);
@@ -357,30 +363,26 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       idmaeedo: cleanNumeric(row.IDMAEEDO),
       koprct: row.KOPRCT?.trim() || null,
       nokopr: row.NOKOPR?.trim() || null,
-      lilg: row.LILG?.trim() || null,
-      prct: row.PRCT?.trim() || null,
-      nulido: row.NULIDO?.trim() || null,
-      feerli: row.FEERLI || null,
-      sulido: row.SULIDO?.trim() || null,
-      bosulido: row.BOSULIDO?.trim() || null,
-      luvtlido: row.LUVTLIDO ? parseInt(String(row.LUVTLIDO).trim()) : null,
-      ud01pr: row.UD01PR?.trim() || null,
-      nokozo: row.NOKOZO?.trim() || null,
-      nusepr: row.NUSEPR?.trim() || null,
+      udtrpr: row.UDTRPR ? String(row.UDTRPR).trim() : null,
       caprco1: cleanNumeric(row.CAPRCO1),
-      caprad1: cleanNumeric(row.CAPRAD1),
-      caprex1: cleanNumeric(row.CAPREX1),
-      ud02pr: row.UD02PR?.trim() || null,
       caprco2: cleanNumeric(row.CAPRCO2),
+      caprad1: cleanNumeric(row.CAPRAD1),
       caprad2: cleanNumeric(row.CAPRAD2),
-      caprex2: cleanNumeric(row.CAPREX2),
-      ppprne: cleanNumeric(row.PPPRNE),
-      tamopppr: cleanNumeric(row.TAMOPPPR),
+      caprnc1: cleanNumeric(row.CAPRNC1),
+      caprnc2: cleanNumeric(row.CAPRNC2),
+      eslido: row.ESLIDO?.trim() || null, // CAMPO CRÍTICO: Estado de línea ('C' = cerrado, '' = abierto)
+      preuni: cleanNumeric(row.PREUNI),
       vaneli: cleanNumeric(row.VANELI),
       feemli: row.FEEMLI || null,
-      kofulido: row.KOFULIDO?.trim() || null, // CAMPO CRÍTICO: Vendedor línea
-      eslido: normalizeStatus(row.ESLIDO), // CAMPO CRÍTICO: Estado de línea ('C' = cerrado, '' = abierto)
-      ocdo: row.OCDO?.trim() || null,
+      feerli: row.FEERLI || null,
+      devol1: cleanNumeric(row.DEVOL1),
+      devol2: cleanNumeric(row.DEVOL2),
+      stockfis: cleanNumeric(row.STOCKFIS),
+      kofulido: row.KOFULIDO?.trim() || null, // CORRECCIÓN: Usar KOFULIDO del detalle
+      nulido: row.NULIDO?.trim() || null,
+      sulido: row.SULIDO?.trim() || null,
+      luvtlido: row.LUVTLIDO?.trim() || null,
+      bosulido: row.BOSULIDO?.trim() || null,
     }));
     await batchInsert(stgMaeddoNvv, maeddo_records, 'stg_maeddo_nvv', logger);
     emitProgress(5, TOTAL_STEPS, 'Cargando MAEDDO a staging', `${maeddo_records.length} registros`);
@@ -490,19 +492,13 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     }));
     await batchInsert(stgTabruNvv, tabru_records, 'stg_tabru_nvv', logger);
 
-    // TABBO (Bodegas) - Extraer tanto del header (MAEEDO) como del detail (MAEDDO)
+    // TABBO (Bodegas)
     console.log('7️⃣  Extrayendo TABBO (Bodegas)...');
-    const bodegasHeader = maeedo.recordset.map(r => {
+    const bodegas = Array.from(new Set(maeedo.recordset.map(r => {
       const suli = r.SULI?.trim();
       const bosulido = r.BOSULIDO?.trim();
       return suli && bosulido ? `${suli}|${bosulido}` : null;
-    });
-    const bodegasDetail = maeddo.recordset.map(r => {
-      const sulido = r.SULIDO?.trim();
-      const bosulido = r.BOSULIDO?.trim();
-      return sulido && bosulido ? `${sulido}|${bosulido}` : null;
-    });
-    const bodegas = Array.from(new Set([...bodegasHeader, ...bodegasDetail].filter(b => b)));
+    }).filter(b => b)));
     
     let tabbo: any = { recordset: [] };
     
@@ -557,15 +553,14 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
       const existingRecord = existingMap.get(idmaeddo);
       
       if (existingRecord) {
-        // Normalizar: null/'' = abierto, 'C' = cerrado
-        const oldStatus = normalizeStatus(existingRecord.eslido);
-        const newStatus = normalizeStatus(row.ESLIDO);
+        const oldStatus = existingRecord.esdo;
+        const newStatus = cleanText(maeedo.recordset.find(m => m.IDMAEEDO === row.IDMAEEDO)?.ESDO);
         
-        // Detectar cambio de estado a cerrado ('' → 'C')
-        if (oldStatus === '' && newStatus === 'C') {
+        // Detectar cambio de estado a cerrado
+        if (!oldStatus && newStatus === 'C') {
           status_changes++;
-          logger.info(`Cambio de estado detectado: Línea NVV cerrada`, {
-            idmaeddo: idmaeddo,
+          logger.info(`Cambio de estado detectado: NVV cerrada`, {
+            idmaeedo: row.IDMAEEDO,
             oldStatus: 'ABIERTO',
             newStatus: 'CERRADO'
           });
@@ -589,61 +584,71 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         await tx.delete(factNvv).where(inArray(factNvv.idmaeddo, idmaeddosToProcess));
       }
 
-      // INSERT con JOINs a staging tables - SOLO CAMPOS QUE EXISTEN EN FACT_NVV
+      // INSERT con JOINs a staging tables para obtener nombres
       await tx.execute(sql`
         INSERT INTO nvv.fact_nvv (
-          idmaeddo, idmaeedo, nudo, tido, endo, sudo, nosudo, feemdo, feer,
-          koprct, nokopr,
-          caprco1, caprad1, caprex1, ud01pr,
-          caprco2, caprad2, caprex2, ud02pr,
-          ppprne, vaneli, monto,
-          nokoen,
-          kofulido, nombre_vendedor,
-          bosulido, nombre_bodega,
-          eslido,
-          feerli, feemli,
-          ocdo, lilg, luvtlido,
-          cantidad_pendiente, last_etl_sync, data_source
+          idmaeddo, idmaeedo, tido, nudo, endo, suendo, sudo, feemdo, feulvedo,
+          esdo, espgdo, kofudo, modo, timodo, tamodo,
+          vanedo, vaivdo, vabrdo, lilg, bosulido, kofulido,
+          koprct, ud01pr, ud02pr, 
+          caprco1, caprco2, caprad1, caprad2, caprnc1, caprnc2,
+          vaneli, feemli, feerli,
+          devol1, devol2, stockfis, ocdo,
+          nokoprct, nosudo, nokofu, nobosuli, nokoen, noruen,
+          monto, eslido, cantidad_pendiente, last_etl_sync, data_source
         )
         SELECT 
           dd.idmaeddo,
           dd.idmaeedo,
-          ed.nudo,
           'NVV' as tido,
+          CAST(ed.nudo AS NUMERIC),
           ed.endo,
-          ed.sudo,
-          'Sucursal ' || ed.sudo as nosudo,
+          ed.suendo,
+          CAST(ed.sudo AS NUMERIC),
           ed.feemdo,
-          ed.feer,
+          ed.feulvedo,
+          ed.esdo,
+          ed.espgdo,
+          ed.kofudo,
+          ed.modo,
+          ed.timodo,
+          ed.tamodo,
+          ed.vanedo,
+          ed.vaivdo,
+          ed.vabrdo,
+          ed.lilg,
+          CAST(ed.bosulido AS NUMERIC),
+          dd.kofulido, -- CORRECCIÓN: Usar kofulido del detalle
           dd.koprct,
-          dd.nokopr,
+          pr.ud01pr,
+          pr.ud02pr,
           dd.caprco1,
-          dd.caprad1,
-          dd.caprex1,
-          dd.ud01pr,
           dd.caprco2,
+          dd.caprad1,
           dd.caprad2,
-          dd.caprex2,
-          dd.ud02pr,
-          dd.ppprne,
+          dd.caprnc1,
+          dd.caprnc2,
           dd.vaneli,
-          dd.vaneli as monto,
-          en.nokoen,
-          COALESCE(dd.kofulido, ed.kofudo) as kofulido, -- Fallback: detalle → cabecera
-          fu.nokofu as nombre_vendedor,
-          COALESCE(dd.bosulido, ed.bosulido) as bosulido, -- Fallback: detalle → cabecera
-          bo.nobosuli as nombre_bodega,
-          dd.eslido,
-          dd.feerli,
           dd.feemli,
-          dd.ocdo,
-          dd.lilg,
-          dd.luvtlido,
-          -- Calcular cantidad_pendiente: (cantidades > 0) AND (eslido NULL/'') AND (monto >= 1000)
+          dd.feerli,
+          dd.devol1,
+          dd.devol2,
+          dd.stockfis,
+          ed.ocdo,
+          pr.nomrpr as nokoprct,
+          'Sucursal ' || ed.sudo as nosudo,
+          fu.nokofu,
+          bo.nobosuli,
+          en.nokoen,
+          ru.nokoru as noruen,
+          dd.vaneli as monto,
+          dd.eslido,
+          -- Calcular si tiene cantidad pendiente de despacho (CRITERIO CORRECTO + FILTRO DE MONTO)
+          -- Solo si: (1) tiene cantidades pendientes Y (2) la línea NO está cerrada Y (3) monto >= $1,000
           CASE 
             WHEN (
-              ((COALESCE(dd.caprco1, 0) - COALESCE(dd.caprad1, 0) - COALESCE(dd.caprex1, 0)) > 0) OR
-              ((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprad2, 0) - COALESCE(dd.caprex2, 0)) > 0)
+              ((COALESCE(dd.caprco1, 0) - COALESCE(dd.caprad1, 0) - COALESCE(dd.caprnc1, 0)) > 0) OR
+              ((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprad2, 0) - COALESCE(dd.caprnc2, 0)) > 0)
             ) AND (dd.eslido IS NULL OR dd.eslido = '')
               AND dd.vaneli >= 1000
             THEN TRUE
@@ -654,9 +659,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
         FROM nvv.stg_maeddo_nvv dd
         INNER JOIN nvv.stg_maeedo_nvv ed ON dd.idmaeedo = ed.idmaeedo
         LEFT JOIN nvv.stg_maeen_nvv en ON ed.endo = en.koen
-        LEFT JOIN nvv.stg_maeven_nvv fu ON COALESCE(dd.kofulido, ed.kofudo) = fu.kofu
-        LEFT JOIN nvv.stg_tabbo_nvv bo ON COALESCE(dd.sulido, ed.suli) = bo.suli 
-                                        AND COALESCE(dd.bosulido, ed.bosulido) = bo.bosuli
+        LEFT JOIN nvv.stg_maepr_nvv pr ON dd.koprct = pr.kopr
+        LEFT JOIN nvv.stg_maeven_nvv fu ON dd.kofulido = fu.kofu
+        LEFT JOIN nvv.stg_tabru_nvv ru ON en.ruen = ru.koru
+        LEFT JOIN nvv.stg_tabbo_nvv bo ON ed.suli = bo.suli AND ed.bosulido = bo.bosuli
       `);
     });
 
