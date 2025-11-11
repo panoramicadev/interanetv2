@@ -1995,6 +1995,7 @@ export class DatabaseStorage implements IStorage {
     // Calculate metrics using fact_ventas
     // totalSales EXCLUDES ALL GDV (Guías de Despacho are not sales, tracked separately)
     // gdvSales is calculated separately for TIDO = 'GDV' transactions only (excluding cancelled)
+    // Includes GDV where esdo is NULL or not 'C' (open/pending)
     const [metrics] = await db
       .select({
         totalSales: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} != 'GDV' THEN ${factVentas.monto} ELSE 0 END), 0)`,
@@ -2002,7 +2003,7 @@ export class DatabaseStorage implements IStorage {
         totalOrders: sql<number>`COUNT(DISTINCT ${factVentas.nudo})`,
         totalUnits: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' THEN 0 WHEN ${factVentas.tido} = 'NCV' THEN -${factVentas.caprco2} ELSE ${factVentas.caprco2} END), 0)`,
         activeCustomers: sql<number>`COUNT(DISTINCT ${factVentas.nokoen})`,
-        gdvSales: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' AND ${factVentas.esdo} != 'C' THEN ${factVentas.monto} ELSE 0 END), 0)`,
+        gdvSales: sql<number>`COALESCE(SUM(CASE WHEN ${factVentas.tido} = 'GDV' AND (${factVentas.esdo} IS NULL OR ${factVentas.esdo} != 'C') THEN ${factVentas.monto} ELSE 0 END), 0)`,
       })
       .from(factVentas)
       .where(whereClause);
