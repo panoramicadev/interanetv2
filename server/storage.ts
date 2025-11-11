@@ -1334,7 +1334,7 @@ export interface IStorage {
   
   // ===== PRESUPUESTO ANUAL =====
   createPresupuestoMantencion(presupuesto: InsertPresupuestoMantencion): Promise<PresupuestoMantencion>;
-  getPresupuestosMantencion(anio: number): Promise<PresupuestoMantencion[]>;
+  getPresupuestosMantencion(filters?: { anio?: number; area?: string }): Promise<PresupuestoMantencion[]>;
   getPresupuestoMantencionByPeriod(anio: number, mes: number, area?: string): Promise<PresupuestoMantencion | undefined>;
   updatePresupuestoMantencion(id: string, updates: Partial<InsertPresupuestoMantencion>): Promise<PresupuestoMantencion>;
   deletePresupuestoMantencion(id: string): Promise<void>;
@@ -14447,12 +14447,22 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getPresupuestosMantencion(anio: number): Promise<PresupuestoMantencion[]> {
-    return db
-      .select()
-      .from(presupuestoMantencion)
-      .where(eq(presupuestoMantencion.anio, anio))
-      .orderBy(presupuestoMantencion.mes, presupuestoMantencion.area);
+  async getPresupuestosMantencion(filters?: { anio?: number; area?: string }): Promise<PresupuestoMantencion[]> {
+    let query = db.select().from(presupuestoMantencion);
+    
+    const conditions = [];
+    if (filters?.anio) {
+      conditions.push(eq(presupuestoMantencion.anio, filters.anio));
+    }
+    if (filters?.area) {
+      conditions.push(eq(presupuestoMantencion.area, filters.area));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return query.orderBy(presupuestoMantencion.anio, presupuestoMantencion.mes, presupuestoMantencion.area);
   }
 
   async getPresupuestoMantencionByPeriod(anio: number, mes: number, area?: string): Promise<PresupuestoMantencion | undefined> {
