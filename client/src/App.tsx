@@ -64,6 +64,7 @@ import Facturas from "@/pages/facturas";
 import FacturasMainPage from "@/pages/facturas-main";
 import MetricasProductos from "@/pages/metricas-productos";
 import ETLMonitor from "@/pages/etl-monitor";
+import GdvMonitor from "@/pages/gdv-monitor";
 import DateSelectorDemo from "@/pages/date-selector-demo";
 import NotFound from "@/pages/not-found";
 
@@ -256,6 +257,7 @@ function Router() {
             <Route path="/gastos-empresariales/nuevo" component={GastosEmpresarialesForm} />
             <Route path="/gastos-empresariales/dashboard" component={GastosEmpresarialesDashboard} />
             <Route path="/etl-monitor" component={ETLMonitor} />
+            <Route path="/gdv-monitor" component={GdvMonitor} />
             <Route path="/date-selector-demo" component={DateSelectorDemo} />
             
             {/* Rutas de Tintometría */}

@@ -1688,6 +1688,7 @@ export interface IStorage {
   getGdvBySucursal(filters?: {
     startDate?: string;
     endDate?: string;
+    sucursales?: string[];
   }): Promise<Array<{
     sucursal: string;
     totalGdv: number;
@@ -18792,6 +18793,7 @@ export class DatabaseStorage implements IStorage {
   async getGdvBySucursal(filters?: {
     startDate?: string;
     endDate?: string;
+    sucursales?: string[];
   }): Promise<Array<{
     sucursal: string;
     totalGdv: number;
@@ -18818,6 +18820,9 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters?.endDate) {
       conditions.push(sql`${factGdv.feemdo} <= ${filters.endDate}`);
+    }
+    if (filters?.sucursales && filters.sucursales.length > 0) {
+      conditions.push(inArray(factGdv.sudo, filters.sucursales.map(s => Number(s))));
     }
 
     if (conditions.length > 0) {
