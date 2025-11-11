@@ -10435,6 +10435,8 @@ export function registerRoutes(app: Express): Server {
   // POST create gasto
   app.post('/api/cmms/gastos-materiales', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), asyncHandler(async (req: any, res: any) => {
     try {
+      console.log('[DEBUG] Datos recibidos en POST gastos-materiales:', JSON.stringify(req.body, null, 2));
+      
       // Validate input with Zod schema
       const validatedData = insertGastoMaterialMantencionSchema.parse(req.body);
       
@@ -10442,6 +10444,7 @@ export function registerRoutes(app: Express): Server {
       res.status(201).json(gasto);
     } catch (error: any) {
       if (error.name === 'ZodError') {
+        console.error('[DEBUG] Error de validación Zod:', JSON.stringify(error.errors, null, 2));
         return res.status(400).json({ message: 'Datos inválidos', errors: error.errors });
       }
       console.error('Error al crear gasto:', error);
