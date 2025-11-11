@@ -3829,6 +3829,10 @@ export const insertPresupuestoMantencionSchema = createInsertSchema(presupuestoM
 }).extend({
   anio: z.number().int().min(2020).max(2100),
   mes: z.number().int().min(0).max(12), // 0 = anual global
+  presupuestoAsignado: z.union([z.string(), z.number()]).transform((val) => 
+    typeof val === 'string' ? val : val.toString()
+  ),
+  area: z.string().nullable().optional(),
 });
 
 // Gastos de Materiales
@@ -3846,6 +3850,9 @@ export const insertGastoMaterialMantencionSchema = createInsertSchema(gastosMate
   costoTotal: z.union([z.string(), z.number()]).transform((val) => 
     typeof val === 'string' ? val : val.toString()
   ),
+  otId: z.string().nullable().optional(),
+  proveedorId: z.string().nullable().optional(),
+  area: z.string().nullable().optional(),
 });
 
 // Planes Preventivos
