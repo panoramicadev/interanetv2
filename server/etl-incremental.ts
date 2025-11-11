@@ -664,14 +664,16 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
     const rowsBeforeUpsert = Number(countBeforeResult.rows[0].count);
     
     // UPSERT atómico: DELETE + INSERT en una sola transacción (garantiza integridad)
-    const idmaeddosToDelete = maeddo.recordset.map(r => cleanNumeric(r.IDMAEDDO));
+    // FIX: Eliminar por IDMAEEDO (documento completo) en vez de IDMAEDDO (línea individual)
+    // para asegurar que todas las líneas del documento se actualicen con el nuevo estado
+    const idmaeedosToDelete = [...new Set(maeedo.recordset.map(r => cleanNumeric(r.IDMAEEDO)))];
     
     await db.transaction(async (tx) => {
-      // Primero eliminar registros existentes de los documentos modificados
-      if (idmaeddosToDelete.length > 0) {
+      // Primero eliminar TODAS las líneas de los documentos modificados
+      if (idmaeedosToDelete.length > 0) {
         await tx.execute(sql`
           DELETE FROM ventas.fact_ventas 
-          WHERE idmaeddo IN (${sql.raw(idmaeddosToDelete.join(','))})
+          WHERE idmaeedo IN (${sql.raw(idmaeedosToDelete.join(','))})
         `);
       }
 
