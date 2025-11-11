@@ -643,13 +643,14 @@ export async function executeGDVETL(): Promise<GDVETLResult> {
           ru.nokoru as noruen,
           dd.vaneli as monto,
           dd.eslido,
-          -- Calcular si tiene cantidad pendiente de despacho (CRITERIO CORRECTO)
-          -- Solo si: (1) tiene cantidades pendientes Y (2) la línea NO está cerrada
+          -- Calcular si tiene cantidad pendiente de despacho (CRITERIO CORRECTO + FILTRO DE MONTO)
+          -- Solo si: (1) tiene cantidades pendientes Y (2) la línea NO está cerrada Y (3) monto >= $1,000
           CASE 
             WHEN (
               ((COALESCE(dd.caprco1, 0) - COALESCE(dd.caprad1, 0) - COALESCE(dd.caprnc1, 0)) > 0) OR
               ((COALESCE(dd.caprco2, 0) - COALESCE(dd.caprad2, 0) - COALESCE(dd.caprnc2, 0)) > 0)
             ) AND (dd.eslido IS NULL OR dd.eslido = '')
+              AND dd.vaneli >= 1000
             THEN TRUE
             ELSE FALSE
           END as cantidad_pendiente,
