@@ -271,6 +271,43 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
     },
   });
 
+  // Query for NVV global total (no date filters) - always shows total pending
+  const { data: nvvGlobalMetrics } = useQuery<{
+    totalAmount: number;
+    totalQuantity: number;
+    pendingCount: number;
+    confirmedCount: number;
+    deliveredCount: number;
+    cancelledCount: number;
+  }>({
+    queryKey: ['/api/nvv/metrics', 'global', segment, salesperson],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      // No period/filterType params - returns all historical data
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      const res = await fetch(`/api/nvv/metrics?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+  });
+
+  // Query for GDV global total (no date filters) - always shows total pending
+  const { data: gdvGlobalMetrics } = useQuery<{
+    gdvSales: number;
+  }>({
+    queryKey: ['/api/sales/gdv-pending', 'global', segment, salesperson],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      // No period/filterType params - returns all historical data
+      if (segment) params.append('segment', segment);
+      if (salesperson) params.append('salesperson', salesperson);
+      const res = await fetch(`/api/sales/metrics?${params.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+  });
+
   // Query for yearly totals
   const { data: yearlyTotals } = useQuery<{
     currentYearTotal: number;
@@ -499,9 +536,9 @@ export default function KPICards({ selectedPeriod, filterType, segment, salesper
   const renderSalesCard = (kpi: any) => {
     const salesTotal = Number(metrics?.totalSales || 0);
     
-    // Siempre mostrar los valores reales de NVV y GDV
-    const nvvTotal = Number(nvvMetrics?.totalAmount || 0);
-    const gdvSales = Number(metrics?.gdvSales || 0);
+    // Usar valores globales de NVV y GDV (sin filtros de fecha)
+    const nvvTotal = Number(nvvGlobalMetrics?.totalAmount || 0);
+    const gdvSales = Number(gdvGlobalMetrics?.gdvSales || 0);
     const combinedTotal = salesTotal + nvvTotal + gdvSales;
 
     return (
