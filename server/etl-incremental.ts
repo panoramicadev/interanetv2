@@ -811,7 +811,7 @@ export async function executeIncrementalETL(etlName: string = 'ventas_incrementa
         SUM(CASE WHEN nokofu IS NULL THEN 1 ELSE 0 END) as null_nokofu,
         SUM(CASE WHEN noruen IS NULL THEN 1 ELSE 0 END) as null_noruen
       FROM ventas.fact_ventas
-      WHERE idmaeddo IN (${sql.raw(idmaeddosToDelete.join(','))})
+      WHERE idmaeedo IN (${sql.raw(idmaeedosToDelete.join(','))})
     `);
 
     const validation = validationResult.rows[0];
