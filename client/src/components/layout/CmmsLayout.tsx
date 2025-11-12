@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { CmmsNavigation } from "./CmmsNavigation";
 import { ArrowLeft } from "lucide-react";
 
 interface CmmsLayoutProps {
@@ -35,9 +34,6 @@ export function CmmsLayout({
           </div>
         </div>
       )}
-      
-      {/* CMMS Navigation */}
-      <CmmsNavigation />
       
       {/* Main Content */}
       <div className="flex-1">

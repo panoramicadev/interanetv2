@@ -314,7 +314,6 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import externalApiRouter from './routes-external';
 import { registerLogRoutes } from './routes-logs';
-import { nanoid } from 'nanoid';
 
 // Middleware to ensure salespeople can only access their own data
 // Must be used after requireAuth middleware

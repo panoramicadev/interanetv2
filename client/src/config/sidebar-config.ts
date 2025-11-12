@@ -107,14 +107,19 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Wrench,
       children: [
         {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
           href: "/cmms",
           label: "Dashboard CMMS",
           icon: LayoutDashboard,
+        },
+        {
+          href: "/cmms/mantenciones-planificadas",
+          label: "Mantenciones Planificadas",
+          icon: TrendingUp,
+        },
+        {
+          href: "/mantenciones",
+          label: "Órdenes de Trabajo",
+          icon: Wrench,
         },
         {
           href: "/cmms/equipos",
@@ -267,14 +272,19 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Wrench,
       children: [
         {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
           href: "/cmms",
           label: "Dashboard CMMS",
           icon: LayoutDashboard,
+        },
+        {
+          href: "/cmms/mantenciones-planificadas",
+          label: "Mantenciones Planificadas",
+          icon: TrendingUp,
+        },
+        {
+          href: "/mantenciones",
+          label: "Órdenes de Trabajo",
+          icon: Wrench,
         },
         {
           href: "/cmms/equipos",
@@ -545,14 +555,19 @@ export const SIDEBAR_CONFIG: Record<string, SidebarItem[]> = {
       icon: Wrench,
       children: [
         {
-          href: "/mantenciones",
-          label: "Órdenes de Trabajo",
-          icon: Wrench,
-        },
-        {
           href: "/cmms",
           label: "Dashboard CMMS",
           icon: LayoutDashboard,
+        },
+        {
+          href: "/cmms/mantenciones-planificadas",
+          label: "Mantenciones Planificadas",
+          icon: TrendingUp,
+        },
+        {
+          href: "/mantenciones",
+          label: "Órdenes de Trabajo",
+          icon: Wrench,
         },
         {
           href: "/cmms/equipos",
