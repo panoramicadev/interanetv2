@@ -10758,20 +10758,61 @@ export function registerRoutes(app: Express): Server {
       const rowNumber = i + 2; // +2 porque Excel empieza en 1 y hay header
       
       try {
-        // Mapear y normalizar columnas del Excel
-        const fechaRaw = row['Fecha (YYYY-MM-DD)'] || row['Fecha'];
-        const itemRaw = row['Item'];
-        const descripcionRaw = row['Descripción'] || row['Descripcion'];
-        const cantidadRaw = row['Cantidad'];
-        const costoUnitarioRaw = row['Costo Unitario'];
-        const areaRaw = row['Área'] || row['Area'];
+        // Mapear y normalizar columnas del Excel - soportar AMBOS formatos
+        // Formato plantilla: "Fecha (YYYY-MM-DD)", "Item", "Costo Unitario", "Área"
+        // Formato ERP: "EMISION", "DESCRIPCIO", "TOTAL", "TIPOTRANSA"
+        
+        let fechaRaw = row['Fecha (YYYY-MM-DD)'] || row['Fecha'] || row['EMISION'];
+        const itemRaw = row['Item'] || row['DESCRIPCIO'];
+        const descripcionRaw = row['Descripción'] || row['Descripcion'] || row['FAMDOCU'];
+        const cantidadRaw = row['Cantidad'] || row['CANTIDAD'];
+        
+        // Costo unitario puede venir directo o calculado desde TOTAL
+        let costoUnitarioRaw = row['Costo Unitario'];
+        const totalRaw = row['TOTAL'];
+        
+        // Si viene del formato ERP (tiene TOTAL pero no Costo Unitario), calcular
+        if (!costoUnitarioRaw && totalRaw && cantidadRaw) {
+          const cantidad = parseFloat(cantidadRaw);
+          const total = parseFloat(totalRaw);
+          costoUnitarioRaw = cantidad > 0 ? (total / cantidad) : total;
+        }
+        
+        // Áreas: mapear formato ERP a formato interno
+        const areaRaw = row['Área'] || row['Area'] || row['TIPOTRANSA'];
         const proveedorIdRaw = row['Proveedor ID'] || row['ProveedorId'];
+        
+        // Convertir fecha de número Excel a string YYYY-MM-DD si es necesario
+        if (typeof fechaRaw === 'number') {
+          const excelDate = new Date((fechaRaw - 25569) * 86400 * 1000);
+          const year = excelDate.getFullYear();
+          const month = String(excelDate.getMonth() + 1).padStart(2, '0');
+          const day = String(excelDate.getDate()).padStart(2, '0');
+          fechaRaw = `${year}-${month}-${day}`;
+        }
         
         // Normalizar strings (trim y verificar vacíos)
         const fecha = typeof fechaRaw === 'string' ? fechaRaw.trim() : fechaRaw;
         const item = typeof itemRaw === 'string' ? itemRaw.trim() : itemRaw;
         const descripcion = typeof descripcionRaw === 'string' && descripcionRaw.trim() !== '' ? descripcionRaw.trim() : null;
-        const area = typeof areaRaw === 'string' && areaRaw.trim() !== '' ? areaRaw.trim() : null;
+        
+        // Mapear áreas del formato ERP al formato interno
+        let area = null;
+        if (typeof areaRaw === 'string' && areaRaw.trim() !== '') {
+          const areaUpper = areaRaw.trim().toUpperCase();
+          const areaMap: { [key: string]: string } = {
+            'ADMINISTRACION': 'administracion',
+            'BODEGA MATERIAS PRIMAS': 'bodega_materias_primas',
+            'BODEGA PRODUCTOS TERMINADOS': 'bodega_productos_terminados',
+            'COMERCIAL': 'comercial',
+            'LABORATORIO': 'laboratorio',
+            'MANTENCION': 'mantencion',
+            'PRODUCCION': 'produccion',
+            'SERVICIOS GENERALES': 'servicios_generales'
+          };
+          area = areaMap[areaUpper] || areaRaw.trim().toLowerCase().replace(/\s+/g, '_');
+        }
+        
         const proveedorId = typeof proveedorIdRaw === 'string' && proveedorIdRaw.trim() !== '' ? proveedorIdRaw.trim() : null;
         
         // Validar campos requeridos ANTES de parsear
