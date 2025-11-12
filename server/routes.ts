@@ -10675,7 +10675,16 @@ export function registerRoutes(app: Express): Server {
           'Descripción': 'Aceite para mantenimiento preventivo',
           'Cantidad': 20,
           'Costo Unitario': 5000,
-          'Área': 'laboratorio',
+          'Área': 'mantencion',
+          'Proveedor ID': ''
+        },
+        {
+          'Fecha (YYYY-MM-DD)': '2025-01-17',
+          'Item': 'Candados de seguridad',
+          'Descripción': 'Candados para área de almacenamiento',
+          'Cantidad': 10,
+          'Costo Unitario': 5800,
+          'Área': 'servicios_generales',
           'Proveedor ID': ''
         }
       ];
@@ -10702,7 +10711,7 @@ export function registerRoutes(app: Express): Server {
         { Columna: 'Descripción', Descripción: 'Descripción detallada del gasto (opcional)', Requerido: 'NO' },
         { Columna: 'Cantidad', Descripción: 'Cantidad de unidades (número)', Requerido: 'SÍ' },
         { Columna: 'Costo Unitario', Descripción: 'Costo por unidad en pesos chilenos (número)', Requerido: 'SÍ' },
-        { Columna: 'Área', Descripción: 'Área del gasto: administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados', Requerido: 'NO' },
+        { Columna: 'Área', Descripción: 'Área del gasto: administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados, servicios_generales, mantencion, comercial', Requerido: 'NO' },
         { Columna: 'Proveedor ID', Descripción: 'ID del proveedor (opcional, dejar vacío si no aplica)', Requerido: 'NO' }
       ];
       
@@ -10734,9 +10743,6 @@ export function registerRoutes(app: Express): Server {
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
-    
-    console.log(`[EXCEL-PARSE] Total filas leídas: ${jsonData.length}`);
-    console.log(`[EXCEL-PARSE] Primera fila (ejemplo):`, jsonData[0]);
     
     if (!jsonData || jsonData.length === 0) {
       throw new Error('El archivo Excel está vacío o no tiene el formato correcto');
@@ -10771,12 +10777,6 @@ export function registerRoutes(app: Express): Server {
         // Validar campos requeridos ANTES de parsear
         if (!fecha || !item || cantidadRaw === undefined || cantidadRaw === null || cantidadRaw === '' || 
             costoUnitarioRaw === undefined || costoUnitarioRaw === null || costoUnitarioRaw === '') {
-          console.log(`[EXCEL-PARSE] Fila ${rowNumber} - Campos faltantes:`, {
-            fecha: fecha || 'FALTA',
-            item: item || 'FALTA',
-            cantidadRaw: cantidadRaw ?? 'FALTA',
-            costoUnitarioRaw: costoUnitarioRaw ?? 'FALTA'
-          });
           const error = 'Faltan campos requeridos (Fecha, Item, Cantidad, Costo Unitario)';
           errores.push({ fila: rowNumber, error });
           if (mode === 'preview') {
