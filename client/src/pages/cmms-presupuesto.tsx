@@ -193,6 +193,8 @@ export default function CMmsPresupuesto() {
       const params = new URLSearchParams({
         startDate,
         endDate,
+        page: "1",
+        pageSize: "10000", // Request all records for the year
         ...(selectedArea !== "global" && { area: selectedArea }),
       });
       const response = await fetch(`/api/cmms/gastos-materiales?${params.toString()}`, {
