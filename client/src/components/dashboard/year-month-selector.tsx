@@ -44,6 +44,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   );
   const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
   const [firstDayClick, setFirstDayClick] = useState<number | null>(null);
+  const [firstMonthClick, setFirstMonthClick] = useState<number | null>(null);
   
   // Load current selection ONLY when opening the popover
   // Store the previous open state to detect transitions
@@ -67,6 +68,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       );
       setSelectedDays(value?.days || []);
       setFirstDayClick(null); // Reset first day click
+      setFirstMonthClick(null); // Reset first month click
       appliedRef.current = false; // Reset applied flag
     } else if (!open && prevOpenRef.current && !appliedRef.current) {
       // Cerrando el popover SIN aplicar - revertir a los valores del prop (o por defecto)
@@ -78,6 +80,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       );
       setSelectedDays(value?.days || []);
       setFirstDayClick(null); // Reset first day click
+      setFirstMonthClick(null); // Reset first month click
     } else if (!open && prevOpenRef.current && appliedRef.current) {
       console.log("✅ [YearMonthSelector] Cerrando después de aplicar - NO revertir cambios");
     }
@@ -85,25 +88,36 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   }, [open, currentYear, currentMonth]); // Reaccionar a cambios de open y valores por defecto
 
   const handleYearToggle = (year: number) => {
-    setSelectedYears(prev => 
-      prev.includes(year) 
-        ? prev.filter(y => y !== year)
-        : [...prev, year].sort((a, b) => b - a)
-    );
+    // Simple single-select: seleccionar solo un año a la vez
+    setSelectedYears([year]);
+    // Reset months and days when year changes
+    setSelectedMonths([]);
+    setSelectedDays([]);
+    setFirstDayClick(null);
+    setFirstMonthClick(null);
   };
 
   const handleMonthToggle = (monthIndex: number) => {
-    // Toggle multi-selección: agregar o remover mes
-    setSelectedMonths(prev => {
-      if (prev.includes(monthIndex)) {
-        // Remover mes
-        return prev.filter(m => m !== monthIndex);
-      } else {
-        // Agregar mes (mantener ordenados)
-        return [...prev, monthIndex].sort((a, b) => a - b);
-      }
-    });
+    if (firstMonthClick === null) {
+      // First click - mark as start of range
+      setFirstMonthClick(monthIndex);
+      setSelectedMonths([monthIndex]);
+    } else {
+      // Second click - complete the range
+      const start = Math.min(firstMonthClick, monthIndex);
+      const end = Math.max(firstMonthClick, monthIndex);
+      const range = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+      setSelectedMonths(range);
+      setFirstMonthClick(null); // Reset for next selection
+    }
     // Reset days and first day click when months change
+    setSelectedDays([]);
+    setFirstDayClick(null);
+  };
+
+  const handleClearMonths = () => {
+    setSelectedMonths([]);
+    setFirstMonthClick(null);
     setSelectedDays([]);
     setFirstDayClick(null);
   };
@@ -252,10 +266,10 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         </Button>
       </PopoverTrigger>
       
-      <PopoverContent className="w-[440px] p-0" align="start">
-        <div className="px-2.5 py-1.5 bg-gray-50 border-b">
+      <PopoverContent className="w-[95vw] sm:w-[440px] max-w-[440px] p-0" align="start">
+        <div className="px-2 sm:px-2.5 py-1.5 bg-gray-50 border-b">
           <h4 className="font-semibold text-xs">Selecciona período</h4>
-          <p className="text-[10px] text-gray-500">
+          <p className="text-[10px] text-gray-500 leading-tight">
             {selectedMonths.length === 0 
               ? "📅 Modo: Año completo"
               : selectedMonths.length === 1 && selectedDays.length > 0
@@ -267,16 +281,16 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         </div>
 
         {/* Selección de años - línea horizontal con scroll */}
-        <div className="px-2.5 py-2 border-b">
+        <div className="px-2 sm:px-2.5 py-2 border-b">
           <label className="text-[10px] font-medium text-gray-700 mb-1.5 block">Años:</label>
-          <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
+          <div className="flex gap-1 sm:gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
             {YEARS.map((year) => {
               const isSelected = selectedYears.includes(year);
               return (
                 <Button
                   key={year}
                   variant={isSelected ? "default" : "outline"}
-                  className={`h-7 min-w-[60px] text-xs font-medium shrink-0 ${
+                  className={`h-7 min-w-[56px] sm:min-w-[60px] text-xs font-medium shrink-0 px-2 sm:px-3 ${
                     isSelected ? 'bg-primary text-white' : ''
                   }`}
                   onClick={() => handleYearToggle(year)}
@@ -292,16 +306,29 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
         {/* Selección de meses - grid */}
         {selectedYears.length > 0 && (
           <>
-            <div className="px-2.5 py-2 border-b">
-              <label className="text-[10px] font-medium text-gray-700 mb-1.5 block">Meses:</label>
-              <div className="grid grid-cols-6 gap-1">
+            <div className="px-2 sm:px-2.5 py-2 border-b">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[10px] font-medium text-gray-700">Meses:</label>
+                {selectedMonths.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 text-[10px] px-2 text-gray-600 hover:text-gray-900"
+                    onClick={handleClearMonths}
+                    data-testid="button-clear-months"
+                  >
+                    Limpiar seleccionados
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-5 sm:grid-cols-6 gap-1">
                 {MONTHS.map((month, index) => {
                   const isSelected = selectedMonths.includes(index);
                   return (
                     <Button
                       key={month}
                       variant={isSelected ? "default" : "outline"}
-                      className={`h-7 text-[10px] px-1 ${
+                      className={`h-7 text-[10px] px-0.5 sm:px-1 ${
                         isSelected ? 'bg-primary text-white' : 'hover:bg-primary hover:text-white'
                       }`}
                       onClick={() => handleMonthToggle(index)}
@@ -316,7 +343,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
 
             {/* Selección de días - solo cuando hay exactamente 1 mes seleccionado */}
             {selectedMonths.length === 1 && (
-              <div className="px-2.5 py-2 border-b">
+              <div className="px-2 sm:px-2.5 py-2 border-b">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[10px] font-medium text-gray-700">Días:</label>
                   {selectedDays.length > 0 && (
@@ -391,7 +418,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
             )}
 
             {/* Botón de acción único */}
-            <div className="p-2 bg-gray-50">
+            <div className="p-2 sm:p-2.5 bg-gray-50">
               <Button
                 className="w-full h-7 text-xs font-medium"
                 onClick={() => {
