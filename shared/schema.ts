@@ -4321,7 +4321,7 @@ export type InsertEtlExecutionLog = typeof etlExecutionLog.$inferInsert;
 export const weeklyVentasCliente = ventasSchema.table("weekly_ventas_cliente", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clienteId: text("cliente_id").notNull(), // nokoen del cliente
-  vendedorId: text("vendedor_id"), // nokofu del vendedor principal
+  vendedorId: text("vendedor_id").notNull(), // nokofu del vendedor principal (required for uniqueness)
   semana: varchar("semana", { length: 10 }).notNull(), // Formato: YYYY-WW
   anio: integer("anio").notNull(),
   numeroSemana: integer("numero_semana").notNull(),
@@ -4333,7 +4333,7 @@ export const weeklyVentasCliente = ventasSchema.table("weekly_ventas_cliente", {
 }, (table) => ({
   clienteSemanaIdx: index("IDX_weekly_ventas_cliente_semana").on(table.clienteId, table.fechaInicio),
   vendedorSemanaIdx: index("IDX_weekly_ventas_vendedor_semana").on(table.vendedorId, table.semana),
-  uniqueClienteSemana: index("UNQ_weekly_ventas_cliente_semana").on(table.clienteId, table.semana),
+  uniqueClienteVendedorSemana: uniqueIndex("UNQ_weekly_ventas_cliente_vendedor_semana").on(table.clienteId, table.vendedorId, table.semana),
 }));
 
 // Types para weeklyVentasCliente
