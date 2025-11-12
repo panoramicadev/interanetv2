@@ -45,6 +45,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   const [selectedDays, setSelectedDays] = useState<number[]>(value?.days || []);
   const [firstDayClick, setFirstDayClick] = useState<number | null>(null);
   const [firstMonthClick, setFirstMonthClick] = useState<number | null>(null);
+  const [firstYearClick, setFirstYearClick] = useState<number | null>(null);
   
   // Load current selection ONLY when opening the popover
   // Store the previous open state to detect transitions
@@ -69,6 +70,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       setSelectedDays(value?.days || []);
       setFirstDayClick(null); // Reset first day click
       setFirstMonthClick(null); // Reset first month click
+      setFirstYearClick(null); // Reset first year click
       appliedRef.current = false; // Reset applied flag
     } else if (!open && prevOpenRef.current && !appliedRef.current) {
       // Cerrando el popover SIN aplicar - revertir a los valores del prop (o por defecto)
@@ -81,6 +83,7 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
       setSelectedDays(value?.days || []);
       setFirstDayClick(null); // Reset first day click
       setFirstMonthClick(null); // Reset first month click
+      setFirstYearClick(null); // Reset first year click
     } else if (!open && prevOpenRef.current && appliedRef.current) {
       console.log("✅ [YearMonthSelector] Cerrando después de aplicar - NO revertir cambios");
     }
@@ -88,9 +91,28 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
   }, [open, currentYear, currentMonth]); // Reaccionar a cambios de open y valores por defecto
 
   const handleYearToggle = (year: number) => {
-    // Simple single-select: seleccionar solo un año a la vez
-    setSelectedYears([year]);
-    // Reset months and days when year changes
+    if (firstYearClick === null) {
+      // First click - mark as start of range
+      setFirstYearClick(year);
+      setSelectedYears([year]);
+    } else {
+      // Second click - complete the range
+      const start = Math.min(firstYearClick, year);
+      const end = Math.max(firstYearClick, year);
+      const range = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+      setSelectedYears(range.sort((a, b) => b - a)); // Sort descending
+      setFirstYearClick(null); // Reset for next selection
+    }
+    // Reset months and days when years change
+    setSelectedMonths([]);
+    setSelectedDays([]);
+    setFirstDayClick(null);
+    setFirstMonthClick(null);
+  };
+
+  const handleClearYears = () => {
+    setSelectedYears([]);
+    setFirstYearClick(null);
     setSelectedMonths([]);
     setSelectedDays([]);
     setFirstDayClick(null);
@@ -282,7 +304,20 @@ export function YearMonthSelector({ value, onChange }: YearMonthSelectorProps) {
 
         {/* Selección de años - línea horizontal con scroll */}
         <div className="px-2 sm:px-2.5 py-2 border-b">
-          <label className="text-[10px] font-medium text-gray-700 mb-1.5 block">Años:</label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[10px] font-medium text-gray-700">Años:</label>
+            {selectedYears.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 text-[10px] px-2 text-gray-600 hover:text-gray-900"
+                onClick={handleClearYears}
+                data-testid="button-clear-years"
+              >
+                Limpiar seleccionados
+              </Button>
+            )}
+          </div>
           <div className="flex gap-1 sm:gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
             {YEARS.map((year) => {
               const isSelected = selectedYears.includes(year);
