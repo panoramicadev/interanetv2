@@ -8,7 +8,6 @@ import {
   stgMaeenNvv,
   stgMaeprNvv,
   stgMaevenNvv,
-  stgTabruNvv,
   stgTabboNvv,
   factNvv,
   nvvSyncLog
@@ -232,7 +231,6 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     await db.execute(sql`TRUNCATE TABLE nvv.stg_maeen_nvv CASCADE`);
     await db.execute(sql`TRUNCATE TABLE nvv.stg_maepr_nvv CASCADE`);
     await db.execute(sql`TRUNCATE TABLE nvv.stg_maeven_nvv CASCADE`);
-    await db.execute(sql`TRUNCATE TABLE nvv.stg_tabru_nvv CASCADE`);
     await db.execute(sql`TRUNCATE TABLE nvv.stg_tabbo_nvv CASCADE`);
     console.log('✅ Tablas staging limpias (aisladas de ETL ventas)\n');
 
@@ -475,32 +473,10 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     }));
     await batchInsert(stgMaevenNvv, tabfu_records, 'stg_maeven_nvv', logger);
 
-    // TABRU (Segmentos) - Extraer usando RUPR de productos, no RUEN de clientes
-    console.log('6️⃣  Extrayendo TABRU (Segmentos)...');
-    const ruprs = Array.from(new Set(maepr.recordset.map((r: any) => r.RUPR?.trim()).filter((r: any) => r)));
-    let tabru: any = { recordset: [] };
-    
-    if (ruprs.length > 0) {
-      tabru = await executeWithResilience(
-        async () => pool!.request().query(`
-          SELECT KORU, NOKORU
-          FROM dbo.TABRU
-          WHERE KORU IN (${ruprs.map(r => `'${r}'`).join(',')})
-        `),
-        sqlServerBreaker,
-        { maxRetries: 3, initialDelay: 2000, onlyIdempotent: true }
-      );
-    }
-    console.log(`   ✅ ${tabru.recordset.length} segmentos encontrados`);
-
-    const tabru_records = tabru.recordset.map((row: any) => ({
-      kofurn: row.KORU?.trim() || '',
-      nokofurn: row.NOKORU?.trim() || null,
-    }));
-    await batchInsert(stgTabruNvv, tabru_records, 'stg_tabru_nvv', logger);
+    // NOTA: No extraemos TABRU - usamos ventas.stg_tabru directamente en el MERGE
 
     // TABBO (Bodegas) - Extraer tanto del header (MAEEDO) como del detail (MAEDDO)
-    console.log('7️⃣  Extrayendo TABBO (Bodegas)...');
+    console.log('6️⃣  Extrayendo TABBO (Bodegas)...');
     const bodegasHeader = maeedo.recordset.map(r => {
       const suli = r.SULI?.trim();
       const bosulido = r.BOSULIDO?.trim();
