@@ -3802,7 +3802,15 @@ export const insertEquipoCriticoSchema = createInsertSchema(equiposCriticos).omi
   codigo: z.string().optional(), // Optional - will be auto-generated if not provided
   nombre: z.string().min(1, "El nombre del equipo es requerido"),
   area: z.enum(["administracion", "produccion", "laboratorio", "bodega_materias_primas", "bodega_productos_terminados"]),
+  ubicacion: z.union([z.string(), z.null()]).optional(),
+  descripcion: z.union([z.string(), z.null()]).optional(),
   criticidad: z.enum(["baja", "media", "alta", "critica"]).default("media"),
+  estadoActual: z.enum(["operativo", "en_mantencion", "detenido", "fuera_de_servicio"]).optional(),
+  fabricante: z.union([z.string(), z.null()]).optional(),
+  modelo: z.union([z.string(), z.null()]).optional(),
+  numeroSerie: z.union([z.string(), z.null()]).optional(),
+  fechaInstalacion: z.union([z.string(), z.null()]).optional(),
+  equipoPadreId: z.union([z.string(), z.null()]).optional(),
   frecuenciaPreventivo: z.enum(["semanal", "mensual", "trimestral", "semestral", "anual"]).optional(),
 });
 
