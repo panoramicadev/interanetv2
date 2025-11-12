@@ -3881,20 +3881,20 @@ export const insertMantencionPlanificadaSchema = createInsertSchema(mantenciones
   updatedAt: true,
   otGeneradaId: true,
 }).extend({
-  equipoId: z.string().optional(),
+  equipoId: z.union([z.string(), z.null()]).optional(),
   equipoNombre: z.string().min(1, "El nombre del equipo es requerido"),
   titulo: z.string().min(1, "El título es requerido"),
-  descripcion: z.string().optional(),
+  descripcion: z.union([z.string(), z.null()]).optional(),
   categoria: z.enum(["gran_mantenimiento", "overhaul", "rectificacion", "reemplazo", "mejora"]),
   costoEstimado: z.union([z.string(), z.number()]).transform((val) => 
     typeof val === 'string' ? val : val.toString()
   ),
   mes: z.number().int().min(1).max(12),
   anio: z.number().int().min(2020).max(2100),
-  area: z.string().optional(),
+  area: z.union([z.string(), z.null()]).optional(),
   estado: z.enum(["planificado", "aprobado", "en_ejecucion", "completado", "cancelado"]).default("planificado"),
   prioridad: z.enum(["baja", "media", "alta"]).default("media").optional(),
-  notas: z.string().optional(),
+  notas: z.union([z.string(), z.null()]).optional(),
 });
 
 // Órdenes de Trabajo (Solicitudes de Mantención)
