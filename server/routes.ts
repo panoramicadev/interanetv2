@@ -10726,6 +10726,119 @@ export function registerRoutes(app: Express): Server {
     }
   }));
 
+  // Función compartida para parsear y validar Excel de gastos materiales
+  const parseAndValidateGastosExcel = async (fileBuffer: Buffer, mode: 'preview' | 'import' = 'import') => {
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+    
+    // Leer la primera hoja
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    
+    if (!jsonData || jsonData.length === 0) {
+      throw new Error('El archivo Excel está vacío o no tiene el formato correcto');
+    }
+    
+    const gastosValidos = [];
+    const errores = [];
+    const filasParseadas = mode === 'preview' ? [] : undefined; // Solo crear array en preview
+    
+    // Procesar cada fila
+    for (let i = 0; i < jsonData.length; i++) {
+      const row: any = jsonData[i];
+      const rowNumber = i + 2; // +2 porque Excel empieza en 1 y hay header
+      
+      try {
+        // Mapear y normalizar columnas del Excel
+        const fechaRaw = row['Fecha (YYYY-MM-DD)'] || row['Fecha'];
+        const itemRaw = row['Item'];
+        const descripcionRaw = row['Descripción'] || row['Descripcion'];
+        const cantidadRaw = row['Cantidad'];
+        const costoUnitarioRaw = row['Costo Unitario'];
+        const areaRaw = row['Área'] || row['Area'];
+        const proveedorIdRaw = row['Proveedor ID'] || row['ProveedorId'];
+        
+        // Normalizar strings (trim y verificar vacíos)
+        const fecha = typeof fechaRaw === 'string' ? fechaRaw.trim() : fechaRaw;
+        const item = typeof itemRaw === 'string' ? itemRaw.trim() : itemRaw;
+        const descripcion = typeof descripcionRaw === 'string' && descripcionRaw.trim() !== '' ? descripcionRaw.trim() : null;
+        const area = typeof areaRaw === 'string' && areaRaw.trim() !== '' ? areaRaw.trim() : null;
+        const proveedorId = typeof proveedorIdRaw === 'string' && proveedorIdRaw.trim() !== '' ? proveedorIdRaw.trim() : null;
+        
+        // Validar campos requeridos ANTES de parsear
+        if (!fecha || !item || cantidadRaw === undefined || cantidadRaw === null || cantidadRaw === '' || 
+            costoUnitarioRaw === undefined || costoUnitarioRaw === null || costoUnitarioRaw === '') {
+          const error = 'Faltan campos requeridos (Fecha, Item, Cantidad, Costo Unitario)';
+          errores.push({ fila: rowNumber, error });
+          if (mode === 'preview') {
+            filasParseadas!.push({ fila: rowNumber, estado: 'error', error, datos: row });
+          }
+          continue;
+        }
+        
+        // Parsear números después de validar que existen
+        const cantidad = parseFloat(cantidadRaw);
+        const costoUnitario = parseFloat(costoUnitarioRaw);
+        
+        // Validar que los números son válidos
+        if (isNaN(cantidad) || isNaN(costoUnitario)) {
+          const error = 'Cantidad y Costo Unitario deben ser números válidos';
+          errores.push({ fila: rowNumber, error });
+          if (mode === 'preview') {
+            filasParseadas!.push({ fila: rowNumber, estado: 'error', error, datos: row });
+          }
+          continue;
+        }
+        
+        // Calcular costo total
+        const costoTotal = cantidad * costoUnitario;
+        
+        // Crear el objeto de datos validado
+        const gastoData = {
+          fecha,
+          item,
+          descripcion,
+          cantidad,
+          costoUnitario,
+          costoTotal,
+          area,
+          otId: null,
+          proveedorId,
+          adjuntoUrl: null
+        };
+        
+        // Validar con schema de Zod
+        const validatedData = insertGastoMaterialMantencionSchema.parse(gastoData);
+        gastosValidos.push(validatedData);
+        
+        // Solo agregar detalles de fila en modo preview
+        if (mode === 'preview') {
+          filasParseadas!.push({ 
+            fila: rowNumber, 
+            estado: 'valido', 
+            datos: { ...row, 'Costo Total': costoTotal } 
+          });
+        }
+        
+      } catch (error: any) {
+        const errorMsg = error.message || 'Error al procesar la fila';
+        errores.push({ fila: rowNumber, error: errorMsg });
+        if (mode === 'preview') {
+          filasParseadas!.push({ fila: rowNumber, estado: 'error', error: errorMsg, datos: row });
+        }
+      }
+    }
+    
+    return {
+      totalFilas: jsonData.length,
+      filasValidas: gastosValidos.length,
+      filasConError: errores.length,
+      gastosValidos,
+      errores,
+      filasParseadas: filasParseadas || []
+    };
+  };
+
   // POST importar Excel de gastos materiales (DEBE IR ANTES DE /:id)
   app.post('/api/cmms/gastos-materiales/importar-excel', requireAuth, requireRoles(['admin', 'supervisor', 'produccion']), upload.single('file'), asyncHandler(async (req: any, res: any) => {
     try {
@@ -10733,101 +10846,35 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: 'No se envió ningún archivo' });
       }
       
-      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const isPreview = req.query.preview === 'true';
       
-      // Leer la primera hoja
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      // Usar función compartida de parsing y validación
+      const resultado = await parseAndValidateGastosExcel(req.file.buffer, isPreview ? 'preview' : 'import');
       
-      if (!jsonData || jsonData.length === 0) {
-        return res.status(400).json({ message: 'El archivo Excel está vacío o no tiene el formato correcto' });
+      // Si es preview, solo retornar datos parseados sin guardar
+      if (isPreview) {
+        return res.json({
+          mode: 'preview',
+          totalFilas: resultado.totalFilas,
+          filasValidas: resultado.filasValidas,
+          filasConError: resultado.filasConError,
+          filasParseadas: resultado.filasParseadas,
+          errores: resultado.errores
+        });
       }
       
+      // Si no es preview, proceder con la importación
       const gastosCreados = [];
-      const errores = [];
-      
-      // Procesar cada fila
-      for (let i = 0; i < jsonData.length; i++) {
-        const row: any = jsonData[i];
-        const rowNumber = i + 2; // +2 porque Excel empieza en 1 y hay header
-        
-        try {
-          // Mapear y normalizar columnas del Excel
-          const fechaRaw = row['Fecha (YYYY-MM-DD)'] || row['Fecha'];
-          const itemRaw = row['Item'];
-          const descripcionRaw = row['Descripción'] || row['Descripcion'];
-          const cantidadRaw = row['Cantidad'];
-          const costoUnitarioRaw = row['Costo Unitario'];
-          const areaRaw = row['Área'] || row['Area'];
-          const proveedorIdRaw = row['Proveedor ID'] || row['ProveedorId'];
-          
-          // Normalizar strings (trim y verificar vacíos)
-          const fecha = typeof fechaRaw === 'string' ? fechaRaw.trim() : fechaRaw;
-          const item = typeof itemRaw === 'string' ? itemRaw.trim() : itemRaw;
-          const descripcion = typeof descripcionRaw === 'string' && descripcionRaw.trim() !== '' ? descripcionRaw.trim() : null;
-          const area = typeof areaRaw === 'string' && areaRaw.trim() !== '' ? areaRaw.trim() : null;
-          const proveedorId = typeof proveedorIdRaw === 'string' && proveedorIdRaw.trim() !== '' ? proveedorIdRaw.trim() : null;
-          
-          // Validar campos requeridos ANTES de parsear
-          if (!fecha || !item || cantidadRaw === undefined || cantidadRaw === null || cantidadRaw === '' || 
-              costoUnitarioRaw === undefined || costoUnitarioRaw === null || costoUnitarioRaw === '') {
-            errores.push({
-              fila: rowNumber,
-              error: 'Faltan campos requeridos (Fecha, Item, Cantidad, Costo Unitario)'
-            });
-            continue;
-          }
-          
-          // Parsear números después de validar que existen
-          const cantidad = parseFloat(cantidadRaw);
-          const costoUnitario = parseFloat(costoUnitarioRaw);
-          
-          // Validar que los números son válidos
-          if (isNaN(cantidad) || isNaN(costoUnitario)) {
-            errores.push({
-              fila: rowNumber,
-              error: 'Cantidad y Costo Unitario deben ser números válidos'
-            });
-            continue;
-          }
-          
-          // Calcular costo total
-          const costoTotal = cantidad * costoUnitario;
-          
-          // Crear el objeto de datos validado
-          const gastoData = {
-            fecha,
-            item,
-            descripcion,
-            cantidad,
-            costoUnitario,
-            costoTotal,
-            area,
-            otId: null,
-            proveedorId,
-            adjuntoUrl: null
-          };
-          
-          // Validar con schema de Zod
-          const validatedData = insertGastoMaterialMantencionSchema.parse(gastoData);
-          
-          // Crear en la base de datos
-          const gastoCreado = await storage.createGastoMaterialMantencion(validatedData);
-          gastosCreados.push(gastoCreado);
-          
-        } catch (error: any) {
-          errores.push({
-            fila: rowNumber,
-            error: error.message || 'Error al procesar la fila'
-          });
-        }
+      for (const gastoData of resultado.gastosValidos) {
+        const gastoCreado = await storage.createGastoMaterialMantencion(gastoData);
+        gastosCreados.push(gastoCreado);
       }
       
       res.status(201).json({
-        message: `Importación completada: ${gastosCreados.length} gastos creados, ${errores.length} errores`,
+        mode: 'import',
+        message: `Importación completada: ${gastosCreados.length} gastos creados, ${resultado.filasConError} errores`,
         gastosCreados: gastosCreados.length,
-        errores: errores.length > 0 ? errores : null
+        errores: resultado.errores.length > 0 ? resultado.errores : null
       });
       
     } catch (error: any) {
