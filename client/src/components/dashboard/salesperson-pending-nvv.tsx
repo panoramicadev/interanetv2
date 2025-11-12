@@ -21,8 +21,9 @@ import {
 
 interface SalespersonPendingNVVProps {
   salesperson: string;
-  selectedPeriod: string;
-  filterType: "day" | "month" | "year";
+  selectedPeriod?: string;
+  filterType?: "day" | "month" | "year";
+  applyPeriodFilter?: boolean;
 }
 
 interface NVVRecord {
@@ -54,18 +55,24 @@ interface ClientGroup {
 export default function SalespersonPendingNVV({
   salesperson,
   selectedPeriod,
-  filterType
+  filterType,
+  applyPeriodFilter = true
 }: SalespersonPendingNVVProps) {
   const [showAll, setShowAll] = useState(false);
   
   const { data: nvvData, isLoading } = useQuery<NVVRecord[]>({
-    queryKey: [`/api/nvv/by-salesperson`, salesperson, selectedPeriod, filterType],
+    queryKey: [`/api/nvv/by-salesperson`, salesperson, applyPeriodFilter ? selectedPeriod : 'all', applyPeriodFilter ? filterType : 'all'],
     queryFn: async () => {
       const params = new URLSearchParams({
-        salesperson,
-        period: selectedPeriod,
-        filterType
+        salesperson
       });
+      
+      // Solo agregar filtros de período si applyPeriodFilter es true
+      if (applyPeriodFilter && selectedPeriod && filterType) {
+        params.append('period', selectedPeriod);
+        params.append('filterType', filterType);
+      }
+      
       const response = await fetch(`/api/nvv/by-salesperson?${params}`, {
         credentials: 'include'
       });
