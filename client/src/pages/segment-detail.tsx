@@ -851,24 +851,25 @@ export default function SegmentDetail({
                   </div>
                 </div>
               </div>
-
-              {/* Export CSV Button */}
-              {!isComparativeMode && (
-                <div className="pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={exportSegmentDataToCSV}
-                    disabled={isLoadingClients || isLoadingSalespeople}
-                    className="w-full bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-400 hover:border-amber-500 hover:from-amber-100 hover:to-yellow-100 text-amber-700 font-semibold shadow-sm hover:shadow-md transition-all duration-300"
-                    data-testid="button-export-segment-csv"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Exportar datos del segmento a CSV
-                  </Button>
-                </div>
-              )}
             </div>
+
+            {/* Export CSV Button - Small and subtle in top right */}
+            {!isComparativeMode && (
+              <div className="absolute top-3 right-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={exportSegmentDataToCSV}
+                  disabled={isLoadingClients || isLoadingSalespeople}
+                  className="h-8 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  data-testid="button-export-segment-csv"
+                  title="Exportar datos del segmento a CSV"
+                >
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  Exportar CSV
+                </Button>
+              </div>
+            )}
           </div>
         </header>
 

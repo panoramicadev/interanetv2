@@ -25,15 +25,15 @@ export default function FacturasMainPage() {
     <div className="p-6 max-w-full mx-auto space-y-6">
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Facturas</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Finanzas</h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Administra facturas, notas de venta y proyecciones de ventas
+          Administra facturas, notas de venta, proyecciones de ventas y solicitudes de crédito
         </p>
       </div>
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${canSeeProyeccion ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        <TabsList className={`grid w-full ${canSeeProyeccion ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="facturas" className="flex items-center space-x-2" data-testid="tab-facturas">
             <FileText className="h-4 w-4" />
             <span>Facturas</span>
@@ -48,6 +48,10 @@ export default function FacturasMainPage() {
               <span>Proyección</span>
             </TabsTrigger>
           )}
+          <TabsTrigger value="solicitud-credito" className="flex items-center space-x-2" data-testid="tab-solicitud-credito">
+            <FileText className="h-4 w-4" />
+            <span>Solicitud de Crédito</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* Facturas Tab */}
@@ -66,7 +70,329 @@ export default function FacturasMainPage() {
             <ProyeccionPage />
           </TabsContent>
         )}
+
+        {/* Solicitud de Crédito Tab */}
+        <TabsContent value="solicitud-credito" className="mt-6">
+          <SolicitudCreditoForm />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function SolicitudCreditoForm() {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // TODO: Implement credit request submission logic
+    console.log('Solicitud de crédito enviada');
+  };
+
+  const handleCancel = () => {
+    // TODO: Implement cancel/reset logic
+    console.log('Solicitud cancelada');
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="modern-card p-6">
+        <h2 className="text-2xl font-bold mb-6">Solicitud de Crédito</h2>
+        
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Datos del Solicitante */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Datos del Solicitante</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Razón Social <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Razón Social"
+                  data-testid="input-razon-social"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  RUT <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="12.345.678-9"
+                  data-testid="input-rut"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Dirección <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Dirección"
+                  data-testid="input-direccion"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ciudad <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ciudad"
+                  data-testid="input-ciudad"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Teléfono <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="+56 9 1234 5678"
+                  data-testid="input-telefono"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Giro
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Giro comercial"
+                  data-testid="input-giro"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Correo Electrónico Receptor (SII)
+              </label>
+              <input
+                type="email"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="correo@ejemplo.com"
+                data-testid="input-correo"
+              />
+            </div>
+          </div>
+
+          {/* Socios Principales */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Socios Principales</h3>
+            
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Socio 1</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Nombre completo"
+                    data-testid="input-socio-1-nombre"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Particular</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Dirección"
+                    data-testid="input-socio-1-direccion"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Socio 2</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Nombre completo"
+                    data-testid="input-socio-2-nombre"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Particular</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Dirección"
+                    data-testid="input-socio-2-direccion"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Representante Legal */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Representante Legal</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nombre completo"
+                  data-testid="input-representante-nombre"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cédula de Identidad</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="12.345.678-9"
+                  data-testid="input-representante-cedula"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Cuentas Corrientes */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Cuentas Corrientes</h3>
+            
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Nombre del banco"
+                    data-testid="input-banco-1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cta. Cte. Nº</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Número de cuenta"
+                    data-testid="input-cuenta-1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Sucursal"
+                    data-testid="input-sucursal-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Nombre del banco"
+                    data-testid="input-banco-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cta. Cte. Nº</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Número de cuenta"
+                    data-testid="input-cuenta-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Sucursal"
+                    data-testid="input-sucursal-2"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Montos de Crédito */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Crédito</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Crédito Solicitado <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0"
+                    data-testid="input-credito-solicitado"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Crédito Aprobado
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 bg-green-50"
+                    placeholder="0"
+                    data-testid="input-credito-aprobado"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              data-testid="button-cancel-credito"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+              data-testid="button-submit-credito"
+            >
+              Enviar Solicitud
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
