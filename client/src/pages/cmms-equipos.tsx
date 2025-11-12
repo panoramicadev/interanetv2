@@ -50,7 +50,9 @@ import {
   Search,
   ChevronRight,
   ChevronDown,
+  Download,
 } from "lucide-react";
+import * as XLSX from 'xlsx';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -367,6 +369,31 @@ export default function CMMSEquipos() {
     return labels[area] || area;
   };
 
+  const exportToExcel = () => {
+    const dataToExport = equipos.map((equipo) => ({
+      Código: equipo.codigo || '',
+      Nombre: equipo.nombre,
+      Área: getAreaLabel(equipo.area),
+      Ubicación: equipo.ubicacion || '',
+      Criticidad: equipo.criticidad,
+      Estado: equipo.estadoActual,
+      Fabricante: equipo.fabricante || '',
+      Modelo: equipo.modelo || '',
+      'Número Serie': equipo.numeroSerie || '',
+      'Fecha Instalación': equipo.fechaInstalacion ? new Date(equipo.fechaInstalacion).toLocaleDateString('es-CL') : '',
+      Descripción: equipo.descripcion || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Equipos Críticos');
+    
+    const today = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `equipos-criticos-${today}.xlsx`);
+    
+    toast({ title: "Excel exportado exitosamente" });
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8" data-testid="page-cmms-equipos">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -390,10 +417,20 @@ export default function CMMSEquipos() {
               </p>
             </div>
           </div>
-          <Button onClick={() => handleOpenDialog()} data-testid="button-create">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Equipo
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={exportToExcel} 
+              data-testid="button-export-excel"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Exportar Excel
+            </Button>
+            <Button onClick={() => handleOpenDialog()} data-testid="button-create">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Equipo
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}

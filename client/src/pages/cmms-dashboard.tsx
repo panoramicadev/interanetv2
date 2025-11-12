@@ -11,8 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CmmsLayout } from "@/components/layout/CmmsLayout";
 import {
-  ArrowLeft,
   Wrench,
   Clock,
   TrendingUp,
@@ -22,6 +22,8 @@ import {
   Calendar,
   Zap,
   Users,
+  Package,
+  CalendarDays,
 } from "lucide-react";
 import {
   Chart as ChartJS,
@@ -193,32 +195,21 @@ export default function CMMSDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8" data-testid="page-cmms-dashboard">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setLocation('/mantenciones')}
-                data-testid="button-back"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-3xl font-bold text-foreground flex items-center gap-2" data-testid="text-title">
-                  <Wrench className="h-8 w-8" />
-                  Dashboard CMMS
-                </h1>
-                <p className="text-muted-foreground" data-testid="text-subtitle">
-                  Sistema de Gestión de Mantenimiento
-                </p>
-              </div>
+    <CmmsLayout showBackButton={true}>
+      <div className="p-4 md:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground flex items-center gap-2" data-testid="text-title">
+                <Wrench className="h-8 w-8" />
+                Dashboard CMMS
+              </h1>
+              <p className="text-muted-foreground" data-testid="text-subtitle">
+                Sistema de Gestión de Mantenimiento
+              </p>
             </div>
           </div>
-        </div>
 
         {/* Acciones Rápidas */}
         <Card>
@@ -226,7 +217,20 @@ export default function CMMSDashboard() {
             <CardTitle className="text-base">Acciones Rápidas</CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+              <Button
+                variant="outline"
+                className="h-auto flex-col items-start p-3 space-y-1 bg-green-50 border-green-200 hover:bg-green-100"
+                onClick={() => setLocation('/cmms/mantenciones-planificadas')}
+                data-testid="button-mantenciones-planificadas"
+              >
+                <TrendingUp className="h-5 w-5 text-green-600" />
+                <div className="text-left">
+                  <div className="text-sm font-semibold">Mant. Planificadas</div>
+                  <div className="text-xs text-muted-foreground">Proyectos grandes</div>
+                </div>
+              </Button>
+
               <Button
                 variant="outline"
                 className="h-auto flex-col items-start p-3 space-y-1"
@@ -281,14 +285,27 @@ export default function CMMSDashboard() {
 
               <Button
                 variant="outline"
-                className="h-auto flex-col items-start p-3 space-y-1 bg-green-50 border-green-200 hover:bg-green-100"
-                onClick={() => setLocation('/cmms/mantenciones-planificadas')}
-                data-testid="button-mantenciones-planificadas"
+                className="h-auto flex-col items-start p-3 space-y-1"
+                onClick={() => setLocation('/cmms/gastos-materiales')}
+                data-testid="button-gastos-materiales"
               >
-                <TrendingUp className="h-5 w-5 text-green-600" />
+                <Package className="h-5 w-5" />
                 <div className="text-left">
-                  <div className="text-sm font-semibold">Mant. Planificadas</div>
-                  <div className="text-xs text-muted-foreground">Proyectos grandes</div>
+                  <div className="text-sm font-semibold">Gastos Materiales</div>
+                  <div className="text-xs text-muted-foreground">Registro de gastos</div>
+                </div>
+              </Button>
+
+              <Button
+                variant="outline"
+                className="h-auto flex-col items-start p-3 space-y-1"
+                onClick={() => setLocation('/cmms/calendario')}
+                data-testid="button-calendario"
+              >
+                <CalendarDays className="h-5 w-5" />
+                <div className="text-left">
+                  <div className="text-sm font-semibold">Calendario</div>
+                  <div className="text-xs text-muted-foreground">Planificación</div>
                 </div>
               </Button>
             </div>
@@ -587,6 +604,6 @@ export default function CMMSDashboard() {
           </>
         )}
       </div>
-    </div>
+    </CmmsLayout>
   );
 }

@@ -39,7 +39,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Receipt, DollarSign } from "lucide-react";
+import { ArrowLeft, Plus, Receipt, DollarSign, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -95,6 +95,8 @@ export default function CMmsGastosMateriales() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonth.toString());
   const [filterArea, setFilterArea] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [gastoToDelete, setGastoToDelete] = useState<GastoMaterial | null>(null);
 
   const form = useForm<GastoFormValues>({
     resolver: zodResolver(gastoSchema),
@@ -166,6 +168,33 @@ export default function CMmsGastosMateriales() {
     },
   });
 
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest(`/api/cmms/gastos-materiales/${id}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      // Invalidate both gastos and presupuesto queries since presupuesto ejecutado is calculated dynamically
+      queryClient.invalidateQueries({ queryKey: ["/api/cmms/gastos-materiales"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cmms/presupuesto"] });
+      toast({
+        title: "Gasto eliminado",
+        description: "El gasto ha sido eliminado exitosamente.",
+      });
+      setDeleteDialogOpen(false);
+      setGastoToDelete(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el gasto.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleOpenDialog = () => {
     form.reset({
       fecha: new Date().toISOString().split('T')[0],
@@ -187,6 +216,17 @@ export default function CMmsGastosMateriales() {
 
   const handleSubmit = (data: GastoFormValues) => {
     createMutation.mutate(data);
+  };
+
+  const handleOpenDeleteDialog = (gasto: GastoMaterial) => {
+    setGastoToDelete(gasto);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (gastoToDelete) {
+      deleteMutation.mutate(gastoToDelete.id);
+    }
   };
 
   const formatCurrency = (value: string | number) => {
@@ -340,12 +380,13 @@ export default function CMmsGastosMateriales() {
                     <TableHead>Costo Total</TableHead>
                     <TableHead>Área</TableHead>
                     <TableHead>Proveedor</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {gastos?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground">
                         No hay gastos registrados en este período
                       </TableCell>
                     </TableRow>
@@ -360,6 +401,16 @@ export default function CMmsGastosMateriales() {
                         <TableCell className="font-semibold">{formatCurrency(gasto.costoTotal)}</TableCell>
                         <TableCell>{gasto.area || "-"}</TableCell>
                         <TableCell>{gasto.proveedor?.nombre || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenDeleteDialog(gasto)}
+                            data-testid={`button-delete-${gasto.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -531,6 +582,47 @@ export default function CMmsGastosMateriales() {
                 </DialogFooter>
               </form>
             </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmar Eliminación</DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que deseas eliminar este gasto?
+              </DialogDescription>
+            </DialogHeader>
+            {gastoToDelete && (
+              <div className="space-y-2">
+                <p className="text-sm"><strong>Ítem:</strong> {gastoToDelete.item}</p>
+                <p className="text-sm"><strong>Fecha:</strong> {formatDate(gastoToDelete.fecha)}</p>
+                <p className="text-sm"><strong>Costo Total:</strong> {formatCurrency(gastoToDelete.costoTotal)}</p>
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDeleteDialogOpen(false);
+                  setGastoToDelete(null);
+                }}
+                data-testid="button-cancel-delete"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={deleteMutation.isPending}
+                data-testid="button-confirm-delete"
+              >
+                {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
