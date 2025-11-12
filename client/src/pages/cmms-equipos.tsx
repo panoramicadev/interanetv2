@@ -131,7 +131,7 @@ export default function CMMSEquipos() {
   });
 
   // Fetch mantenciones planificadas del equipo visualizado
-  const { data: mantencionesPlanificadas = [] } = useQuery({
+  const { data: mantencionesPlanificadas = [], isLoading: isLoadingMantenciones } = useQuery({
     queryKey: [`/api/cmms/equipos/${viewingEquipo?.id}/mantenciones-planificadas`],
     queryFn: async () => {
       if (!viewingEquipo?.id) return [];
@@ -145,7 +145,7 @@ export default function CMMSEquipos() {
   });
 
   // Fetch órdenes de trabajo del equipo visualizado
-  const { data: ordenesTrabajoEquipo = [] } = useQuery({
+  const { data: ordenesTrabajoEquipo = [], isLoading: isLoadingOrdenes } = useQuery({
     queryKey: [`/api/cmms/equipos/${viewingEquipo?.id}/ordenes-trabajo`],
     queryFn: async () => {
       if (!viewingEquipo?.id) return [];
@@ -399,27 +399,79 @@ export default function CMMSEquipos() {
     return labels[area] || area;
   };
 
-  const exportToExcel = () => {
-    const dataToExport = equipos.map((equipo) => ({
-      Código: equipo.codigo || '',
-      Nombre: equipo.nombre,
-      Área: getAreaLabel(equipo.area),
-      Ubicación: equipo.ubicacion || '',
-      Criticidad: equipo.criticidad,
-      Estado: equipo.estadoActual,
-      Fabricante: equipo.fabricante || '',
-      Modelo: equipo.modelo || '',
-      'Número Serie': equipo.numeroSerie || '',
-      'Fecha Instalación': equipo.fechaInstalacion ? new Date(equipo.fechaInstalacion).toLocaleDateString('es-CL') : '',
-      Descripción: equipo.descripcion || '',
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
+  const exportToExcel = (equipoDetalle?: any, mantenciones?: any[], ordenes?: any[]) => {
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Equipos Críticos');
-    
     const today = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(wb, `equipos-criticos-${today}.xlsx`);
+
+    if (equipoDetalle) {
+      // Exportar equipo específico con historial
+      const mantencionesData = mantenciones || [];
+      const ordenesData = ordenes || [];
+      
+      const equipoData = [{
+        Código: equipoDetalle.codigo || '',
+        Nombre: equipoDetalle.nombre,
+        Área: getAreaLabel(equipoDetalle.area),
+        Ubicación: equipoDetalle.ubicacion || '',
+        Criticidad: equipoDetalle.criticidad,
+        Estado: equipoDetalle.estadoActual,
+        Descripción: equipoDetalle.descripcion || '',
+        Fabricante: equipoDetalle.fabricante || '',
+        Modelo: equipoDetalle.modelo || '',
+        'Número Serie': equipoDetalle.numeroSerie || '',
+        'Fecha Instalación': equipoDetalle.fechaInstalacion ? new Date(equipoDetalle.fechaInstalacion).toLocaleDateString('es-CL') : '',
+      }];
+      
+      const wsEquipo = XLSX.utils.json_to_sheet(equipoData);
+      XLSX.utils.book_append_sheet(wb, wsEquipo, 'Datos del Equipo');
+
+      // Hoja de Mantenciones Planificadas
+      if (mantencionesData.length > 0) {
+        const mantencionesExport = mantencionesData.map((m: any) => ({
+          Título: m.titulo || '',
+          Categoría: m.categoria ? m.categoria.replace(/_/g, ' ') : '',
+          Periodo: m.mes && m.anio ? `${m.mes}/${m.anio}` : '',
+          'Costo Estimado': m.costoEstimado ? `$${Number(m.costoEstimado).toLocaleString('es-CL')}` : '$0',
+          Estado: m.estado || '',
+        }));
+        const wsMantenciones = XLSX.utils.json_to_sheet(mantencionesExport);
+        XLSX.utils.book_append_sheet(wb, wsMantenciones, 'Mantenciones Planificadas');
+      }
+
+      // Hoja de Órdenes de Trabajo
+      if (ordenesData.length > 0) {
+        const ordenesExport = ordenesData.map((o: any) => ({
+          Equipo: o.equipoNombre || '',
+          Problema: o.descripcionProblema || '',
+          Gravedad: o.gravedad || '',
+          Estado: o.estado || '',
+          'Fecha Creación': o.createdAt ? new Date(o.createdAt).toLocaleDateString('es-CL') : '',
+        }));
+        const wsOrdenes = XLSX.utils.json_to_sheet(ordenesExport);
+        XLSX.utils.book_append_sheet(wb, wsOrdenes, 'Órdenes de Trabajo');
+      }
+
+      XLSX.writeFile(wb, `equipo-${equipoDetalle.codigo || 'detalle'}-${today}.xlsx`);
+    } else {
+      // Exportar lista completa de equipos
+      const dataToExport = equipos.map((equipo) => ({
+        Código: equipo.codigo || '',
+        Nombre: equipo.nombre,
+        Área: getAreaLabel(equipo.area),
+        Ubicación: equipo.ubicacion || '',
+        Criticidad: equipo.criticidad,
+        Estado: equipo.estadoActual,
+        Fabricante: equipo.fabricante || '',
+        Modelo: equipo.modelo || '',
+        'Número Serie': equipo.numeroSerie || '',
+        'Fecha Instalación': equipo.fechaInstalacion ? new Date(equipo.fechaInstalacion).toLocaleDateString('es-CL') : '',
+        Descripción: equipo.descripcion || '',
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      XLSX.utils.book_append_sheet(wb, ws, 'Equipos Críticos');
+      XLSX.writeFile(wb, `equipos-criticos-${today}.xlsx`);
+    }
     
     toast({ title: "Excel exportado exitosamente" });
   };
@@ -997,12 +1049,10 @@ export default function CMMSEquipos() {
               </div>
 
               {/* Descripción */}
-              {viewingEquipo.descripcion && (
-                <div data-testid="section-descripcion">
-                  <h3 className="text-lg font-semibold mb-2">Descripción</h3>
-                  <p className="text-sm" data-testid="text-view-descripcion">{viewingEquipo.descripcion}</p>
-                </div>
-              )}
+              <div data-testid="section-descripcion">
+                <h3 className="text-lg font-semibold mb-2">Descripción</h3>
+                <p className="text-sm" data-testid="text-view-descripcion">{viewingEquipo.descripcion || "-"}</p>
+              </div>
 
               {/* Información Técnica */}
               <div data-testid="section-tecnica">
@@ -1025,31 +1075,6 @@ export default function CMMSEquipos() {
                     <p className="font-medium" data-testid="text-view-fecha-instalacion">
                       {viewingEquipo.fechaInstalacion 
                         ? new Date(viewingEquipo.fechaInstalacion).toLocaleDateString('es-CL')
-                        : "-"
-                      }
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Fechas de creación/actualización */}
-              <div data-testid="section-registro">
-                <h3 className="text-lg font-semibold mb-3">Registro</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Fecha de Creación</p>
-                    <p className="font-medium" data-testid="text-view-created-at">
-                      {viewingEquipo.createdAt 
-                        ? new Date(viewingEquipo.createdAt).toLocaleString('es-CL')
-                        : "-"
-                      }
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Última Actualización</p>
-                    <p className="font-medium" data-testid="text-view-updated-at">
-                      {viewingEquipo.updatedAt 
-                        ? new Date(viewingEquipo.updatedAt).toLocaleString('es-CL')
                         : "-"
                       }
                     </p>
@@ -1173,9 +1198,19 @@ export default function CMMSEquipos() {
               Cerrar
             </Button>
             <Button
+              variant="outline"
+              onClick={() => exportToExcel(viewingEquipo || undefined, mantencionesPlanificadas, ordenesTrabajoEquipo)}
+              disabled={!viewingEquipo || isLoadingMantenciones || isLoadingOrdenes}
+              data-testid="button-export-from-view"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {isLoadingMantenciones || isLoadingOrdenes ? "Cargando..." : "Exportar Excel"}
+            </Button>
+            <Button
               onClick={() => {
+                const equipo = viewingEquipo || undefined;
                 setViewingEquipo(null);
-                handleOpenDialog(viewingEquipo);
+                handleOpenDialog(equipo);
               }}
               data-testid="button-edit-from-view"
             >
