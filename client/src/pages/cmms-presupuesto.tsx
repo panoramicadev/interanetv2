@@ -107,7 +107,7 @@ const presupuestoSchema = z.object({
   anio: z.number().int().min(2020).max(2100),
   mes: z.number().int().min(1).max(12),
   area: z.string().optional().nullable(),
-  presupuestoAsignado: z.string().min(1, "El presupuesto asignado es requerido"),
+  presupuestoAsignado: z.coerce.number().min(0, "El presupuesto debe ser mayor o igual a 0"),
 });
 
 type PresupuestoFormValues = z.infer<typeof presupuestoSchema>;
@@ -143,7 +143,7 @@ export default function CMmsPresupuesto() {
       anio: currentYear,
       mes: 1,
       area: null,
-      presupuestoAsignado: "",
+      presupuestoAsignado: 0,
     },
   });
 
@@ -246,7 +246,7 @@ export default function CMmsPresupuesto() {
         anio: presupuesto.anio,
         mes: presupuesto.mes,
         area: presupuesto.area,
-        presupuestoAsignado: presupuesto.presupuestoAsignado,
+        presupuestoAsignado: parseFloat(presupuesto.presupuestoAsignado),
       });
     } else {
       setEditingPresupuesto(null);
@@ -254,7 +254,7 @@ export default function CMmsPresupuesto() {
         anio: parseInt(selectedYear),
         mes: mesActual,
         area: selectedArea === "global" ? null : selectedArea,
-        presupuestoAsignado: "",
+        presupuestoAsignado: 0,
       });
     }
     setDialogOpen(true);

@@ -72,7 +72,7 @@ const mantencionSchema = z.object({
   titulo: z.string().min(1, "El título es requerido"),
   descripcion: z.string().optional(),
   categoria: z.enum(["gran_mantenimiento", "overhaul", "rectificacion", "reemplazo", "mejora"]),
-  costoEstimado: z.string().min(1, "El costo estimado es requerido"),
+  costoEstimado: z.coerce.number().min(0, "El costo debe ser mayor o igual a 0"),
   mes: z.coerce.number().min(1).max(12),
   anio: z.coerce.number().min(2020).max(2100),
   area: z.string().optional(),
@@ -148,7 +148,7 @@ export default function CmmsMantencionesPlanificadas() {
       titulo: "",
       descripcion: "",
       categoria: "gran_mantenimiento",
-      costoEstimado: "",
+      costoEstimado: 0,
       mes: new Date().getMonth() + 1,
       anio: currentYear,
       area: "",
@@ -290,7 +290,7 @@ export default function CmmsMantencionesPlanificadas() {
       titulo: mantencion.titulo,
       descripcion: mantencion.descripcion || "",
       categoria: mantencion.categoria as any,
-      costoEstimado: mantencion.costoEstimado,
+      costoEstimado: parseFloat(mantencion.costoEstimado),
       mes: mantencion.mes,
       anio: mantencion.anio,
       area: mantencion.area || "",
@@ -626,7 +626,7 @@ export default function CmmsMantencionesPlanificadas() {
                               <SelectContent>
                                 {equipos?.map((equipo: any) => (
                                   <SelectItem key={equipo.id} value={equipo.id}>
-                                    {equipo.nombre} - {equipo.area}
+                                    {equipo.codigo ? `${equipo.codigo} - ${equipo.nombre}` : equipo.nombre}
                                   </SelectItem>
                                 ))}
                               </SelectContent>

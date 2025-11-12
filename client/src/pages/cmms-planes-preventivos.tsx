@@ -41,7 +41,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Plus, Calendar, Clock, AlertCircle, CheckCircle2, Edit } from "lucide-react";
+import { ArrowLeft, Plus, Calendar, Clock, AlertCircle, CheckCircle2, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format, differenceInDays } from "date-fns";
@@ -94,6 +94,8 @@ export default function CMmsPlanesPreventivos() {
   const [filterActivo, setFilterActivo] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PlanPreventivo | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [planToDelete, setPlanToDelete] = useState<PlanPreventivo | null>(null);
 
   const form = useForm<PlanFormValues>({
     resolver: zodResolver(planSchema),
@@ -180,6 +182,31 @@ export default function CMmsPlanesPreventivos() {
     },
   });
 
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest(`/api/cmms/planes-preventivos/${id}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/cmms/planes-preventivos"] });
+      toast({
+        title: "Plan eliminado",
+        description: "El plan preventivo ha sido eliminado exitosamente.",
+      });
+      setDeleteDialogOpen(false);
+      setPlanToDelete(null);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el plan preventivo.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleOpenCreateDialog = () => {
     setEditingPlan(null);
     form.reset({
@@ -219,6 +246,17 @@ export default function CMmsPlanesPreventivos() {
       updateMutation.mutate({ id: editingPlan.id, data });
     } else {
       createMutation.mutate(data);
+    }
+  };
+
+  const handleOpenDeleteDialog = (plan: PlanPreventivo) => {
+    setPlanToDelete(plan);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (planToDelete) {
+      deleteMutation.mutate(planToDelete.id);
     }
   };
 
@@ -446,14 +484,24 @@ export default function CMmsPlanesPreventivos() {
                           <TableCell>{format(new Date(plan.proximaEjecucion), "dd/MM/yyyy")}</TableCell>
                           <TableCell>{getStatusBadge(diasRestantes, plan.activo)}</TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenEditDialog(plan)}
-                              data-testid={`button-edit-${plan.id}`}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenEditDialog(plan)}
+                                data-testid={`button-edit-${plan.id}`}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenDeleteDialog(plan)}
+                                data-testid={`button-delete-${plan.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -632,6 +680,47 @@ export default function CMmsPlanesPreventivos() {
                 </DialogFooter>
               </form>
             </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmar Eliminación</DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que deseas eliminar este plan preventivo?
+              </DialogDescription>
+            </DialogHeader>
+            {planToDelete && (
+              <div className="space-y-2">
+                <p className="text-sm"><strong>Plan:</strong> {planToDelete.nombrePlan}</p>
+                <p className="text-sm"><strong>Equipo:</strong> {planToDelete.equipo?.nombre || "N/A"}</p>
+                <p className="text-sm"><strong>Frecuencia:</strong> {FRECUENCIAS.find(f => f.value === planToDelete.frecuencia)?.label || planToDelete.frecuencia}</p>
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setDeleteDialogOpen(false);
+                  setPlanToDelete(null);
+                }}
+                data-testid="button-cancel-delete"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={deleteMutation.isPending}
+                data-testid="button-confirm-delete"
+              >
+                {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

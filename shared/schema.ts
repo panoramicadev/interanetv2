@@ -3395,15 +3395,17 @@ export const equiposCriticos = pgTable("equipos_criticos", {
   nombre: varchar("nombre", { length: 255 }).notNull(),
   area: varchar("area").notNull(), // administracion, produccion, laboratorio, bodega_materias_primas, bodega_productos_terminados
   criticidad: varchar("criticidad").notNull().default("media"), // baja, media, alta, critica
-  ubicacionEspecifica: text("ubicacion_especifica"),
+  ubicacion: text("ubicacion"), // Ubicación específica del equipo
+  descripcion: text("descripcion"), // Descripción del equipo
   
   // Jerarquía de equipos (equipo padre para componentes)
   equipoPadreId: varchar("equipo_padre_id"), // Referencia al equipo padre si es un componente
   
   // Información técnica
-  marca: varchar("marca", { length: 100 }),
+  fabricante: varchar("fabricante", { length: 100 }),
   modelo: varchar("modelo", { length: 100 }),
   numeroSerie: varchar("numero_serie", { length: 100 }),
+  fechaInstalacion: date("fecha_instalacion"),
   potencia: varchar("potencia", { length: 50 }), // ej: "5.5 HP", "220V 3-phase"
   
   // Plan preventivo
@@ -3418,7 +3420,7 @@ export const equiposCriticos = pgTable("equipos_criticos", {
   notas: text("notas"),
   
   // Estado
-  estadoActual: varchar("estado_actual").default("operativo"), // operativo, detenido, en_mantenimiento, dado_de_baja
+  estadoActual: varchar("estado_actual").default("operativo"), // operativo, en_mantencion, detenido, fuera_de_servicio
   
   // Metadata
   createdAt: timestamp("created_at").defaultNow(),
