@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download } from "lucide-react";
+import { ArrowLeft, TrendingUp, Users, ShoppingCart, DollarSign, UserCheck, CalendarIcon, Target, Eye, Building, Home, Download, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -954,7 +955,228 @@ export default function SegmentDetail({
                 </div>
               )}
 
-              {/* KPI Cards */}
+          {/* NVV Pendientes - Notas de Venta Pendientes by Segment (sin filtros de fecha para coincidir con módulo NVV) */}
+          {segmentName && (
+            <SegmentPendingNVV
+              segment={segmentName}
+            />
+          )}
+
+          {/* Packaging Sales Metrics - Total Facturado x Unidades for this segment */}
+          {segmentName && (
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              <PackagingSalesMetrics
+                selectedPeriod={selectedPeriod}
+                filterType={filterType}
+                segment={segmentName}
+              />
+            </div>
+          )}
+
+            {/* Data Tables - Only show in normal mode */}
+            {!isComparativeMode && (
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6">
+                {/* Top Clients Table */}
+                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              {!isClientSearchExpanded ? (
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                    </div>
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Clientes del Segmento</h2>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsClientSearchExpanded(true)}
+                    className="h-8 w-8 p-0"
+                    data-testid="button-expand-client-search"
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="mb-3 sm:mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="text"
+                        placeholder="Buscar cliente..."
+                        value={clientSearchTerm}
+                        onChange={(e) => setClientSearchTerm(e.target.value)}
+                        className="pl-9"
+                        autoFocus
+                        data-testid="input-search-client"
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearClientSearch}
+                      className="h-9 w-9 p-0"
+                      data-testid="button-clear-client-search"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="space-y-3">
+                {currentClientLoading ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
+                    ))}
+                  </div>
+                ) : debouncedClientSearch.length > 0 && debouncedClientSearch.length < 2 ? (
+                  <p className="text-gray-500 text-center py-8 text-sm">Escribe al menos 2 caracteres para buscar</p>
+                ) : displayClients.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">
+                    {debouncedClientSearch ? 'No se encontraron clientes' : 'No hay clientes en este segmento'}
+                  </p>
+                ) : (
+                  <>
+                    {displayClients.map((client) => (
+                      <div key={client.clientName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {client.clientName}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatNumber(client.transactionCount)} transacciones
+                          </p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {formatCurrency(client.totalSales)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {client.percentage.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {!debouncedClientSearch && displayClients.length >= clientLimit && (
+                      <div className="text-center pt-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleLoadMoreClients}
+                          data-testid="button-load-more-clients"
+                        >
+                          Ver más
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Top Salespeople Table */}
+            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
+              {!isSalespersonSearchExpanded ? (
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                    </div>
+                    <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Vendedores del Segmento</h2>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsSalespersonSearchExpanded(true)}
+                    className="h-8 w-8 p-0"
+                    data-testid="button-expand-salesperson-search"
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="mb-3 sm:mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="text"
+                        placeholder="Buscar vendedor..."
+                        value={salespersonSearchTerm}
+                        onChange={(e) => setSalespersonSearchTerm(e.target.value)}
+                        className="pl-9"
+                        autoFocus
+                        data-testid="input-search-salesperson"
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearSalespersonSearch}
+                      className="h-9 w-9 p-0"
+                      data-testid="button-clear-salesperson-search"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="space-y-3">
+                {currentSalespersonLoading ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
+                    ))}
+                  </div>
+                ) : debouncedSalespersonSearch.length > 0 && debouncedSalespersonSearch.length < 2 ? (
+                  <p className="text-gray-500 text-center py-8 text-sm">Escribe al menos 2 caracteres para buscar</p>
+                ) : displaySalespeople.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">
+                    {debouncedSalespersonSearch ? 'No se encontraron vendedores' : 'No hay vendedores en este segmento'}
+                  </p>
+                ) : (
+                  <>
+                    {displaySalespeople.map((salesperson) => (
+                      <div key={salesperson.salespersonName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {salesperson.salespersonName}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatNumber(salesperson.transactionCount)} transacciones
+                          </p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {formatCurrency(salesperson.totalSales)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {salesperson.percentage.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {!debouncedSalespersonSearch && displaySalespeople.length >= salespersonLimit && (
+                      <div className="text-center pt-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleLoadMoreSalespeople}
+                          data-testid="button-load-more-salespeople"
+                        >
+                          Ver más
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+                </div>
+              </div>
+
+              {/* KPI Cards - Moved to bottom */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
               <div className="flex items-center justify-between">
@@ -1012,128 +1234,7 @@ export default function SegmentDetail({
               </div>
             </div>
           </div>
-
-          {/* NVV Pendientes - Notas de Venta Pendientes by Segment (sin filtros de fecha para coincidir con módulo NVV) */}
-          {segmentName && (
-            <SegmentPendingNVV
-              segment={segmentName}
-            />
-          )}
-
-          {/* Packaging Sales Metrics - Total Facturado x Unidades for this segment */}
-          {segmentName && (
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <PackagingSalesMetrics
-                selectedPeriod={selectedPeriod}
-                filterType={filterType}
-                segment={segmentName}
-              />
             </div>
-          )}
-
-            {/* Data Tables - Only show in normal mode */}
-            {!isComparativeMode && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
-                {/* Top Clients Table */}
-                <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
-                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                </div>
-                <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Clientes del Segmento</h2>
-              </div>
-              
-              <div className="space-y-3">
-                {isLoadingClients ? (
-                  <div className="space-y-3">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
-                    ))}
-                  </div>
-                ) : clients.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No hay clientes en este segmento</p>
-                ) : (
-                  <>
-                    {clients.slice(0, showAllClients ? clients.length : 10).map((client) => (
-                      <div key={client.clientName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {client.clientName}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatNumber(client.transactionCount)} transacciones
-                          </p>
-                        </div>
-                        <div className="text-right ml-4">
-                          <p className="text-sm font-semibold text-gray-900">
-                            {formatCurrency(client.totalSales)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {client.percentage.toFixed(1)}%
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                    {clients.length > 10 && (
-                      <div className="text-center pt-3">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowAllClients(!showAllClients)}
-                          data-testid="button-toggle-all-clients"
-                        >
-                          {showAllClients ? 'Ver menos' : `Ver más (${clients.length - 10} más)`}
-                        </Button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Top Salespeople Table */}
-            <div className="modern-card p-3 sm:p-4 lg:p-6 hover-lift">
-              <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
-                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <UserCheck className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                </div>
-                <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">Top Vendedores del Segmento</h2>
-              </div>
-              
-              <div className="space-y-3">
-                {isLoadingSalespeople ? (
-                  <div className="space-y-3">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="animate-pulse h-12 bg-gray-200 rounded"></div>
-                    ))}
-                  </div>
-                ) : salespeople.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No hay vendedores en este segmento</p>
-                ) : (
-                  salespeople.slice(0, 10).map((salesperson) => (
-                    <div key={salesperson.salespersonName} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {salesperson.salespersonName}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatNumber(salesperson.transactionCount)} transacciones
-                        </p>
-                      </div>
-                      <div className="text-right ml-4">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {formatCurrency(salesperson.totalSales)}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {salesperson.percentage.toFixed(1)}%
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-                </div>
-              </div>
-              </div>
             )}
             </>
           )}
