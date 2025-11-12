@@ -4695,6 +4695,8 @@ export const factNvv = nvvSchema.table("fact_nvv", {
   // Información del cliente
   nokoen: text("nokoen"), // Nombre cliente
   endo_nombre: text("endo_nombre"),
+  ruen: text("ruen"), // Código de segmento del cliente
+  nombre_segmento_cliente: text("nombre_segmento_cliente"), // Nombre del segmento del cliente (desde ventas.stg_tabru)
   dien: text("dien"), // Dirección
   comuna: text("comuna"),
   
