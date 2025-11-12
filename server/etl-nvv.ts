@@ -411,9 +411,12 @@ export async function executeNVVETL(): Promise<NVVETLResult> {
     const maeen_records = maeen.recordset.map((row: any) => ({
       koen: row.KOEN?.trim() || '',
       nokoen: row.NOKOEN?.trim() || null,
-      rut: row.RUEN?.trim() || null,
-      ruen: row.RUEN?.trim() || null,
-      zona: row.ZOEN?.trim() || null,
+      ruen: row.RUEN?.trim() || null, // Segmento del cliente
+      dien: row.DIEN?.trim() || null,
+      zoen: row.ZOEN?.trim() || null,
+      foen: row.FOEN?.trim() || null,
+      cpen: row.CPEN?.trim() || null,
+      cmen: row.CMEN?.trim() || null,
       kofuen: row.KOFUEN?.trim() || null,
     }));
     await batchInsert(stgMaeenNvv, maeen_records, 'stg_maeen_nvv', logger);
